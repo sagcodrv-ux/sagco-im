@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Executive Dashboard</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="data.js"></script><script src="nav.js"></script>
+</head>
+<body>
+<div class="loader" id="loader"><div class="loader-spin"></div><div class="loader-text">Loading IMS data…</div></div>
+
+<div class="main">
+<div id="tb"></div>
+<div class="content">
+
+<!-- Urgent alert -->
+<div class="alert alert-red">
+  <div class="alert-icon">⚠</div>
+  <div>
+    <div class="alert-title">3 URGENT Actions Blocking ISO 45001/14001 Stage 2 Certification</div>
+    <div class="alert-body">
+      1.&nbsp;<a href="risk-register.html#R-S-02" style="color:rgba(255,255,255,.85)">R-S-02</a> Emergency drill 2026 OVERDUE → <a href="moc.html#MOC-07" style="color:rgba(255,255,255,.85)">MOC-07</a>&ensp;|&ensp;
+      2.&nbsp;<a href="compliance.html#HS-04" style="color:rgba(255,255,255,.85)">HS-04</a> Fire extinguisher 2026 inspection MISSING → <a href="risk-register.html#R-S-04" style="color:rgba(255,255,255,.85)">R-S-04</a>&ensp;|&ensp;
+      3.&nbsp;Group A programme sign-off pending GM → I-17, <a href="compliance.html#RM-04" style="color:rgba(255,255,255,.85)">RM-04</a>
+    </div>
+  </div>
+</div>
+
+<!-- KPI Grid -->
+<div class="kpi-grid" id="kpis">
+  <div class="kpi-card kc-red">  <div class="kpi-lbl">Critical Risks</div>  <div class="kpi-val"><strong id="kn-crit">2</strong></div>  <div class="kpi-sub">Score ≥20 — immediate action</div></div>
+  <div class="kpi-card kc-org">  <div class="kpi-lbl">High Risks</div>     <div class="kpi-val"><strong id="kn-high">27</strong></div> <div class="kpi-sub">Score 12–19 — priority treatment</div></div>
+  <div class="kpi-card kc-amb">  <div class="kpi-lbl">Medium Risks</div>   <div class="kpi-val"><strong id="kn-med">17</strong></div>  <div class="kpi-sub">Score 6–11 — planned treatment</div></div>
+  <div class="kpi-card kc-grn">  <div class="kpi-lbl">Low Risks</div>      <div class="kpi-val"><strong id="kn-low">4</strong></div>   <div class="kpi-sub">Score 1–5 — standard controls</div></div>
+  <div class="kpi-card kc-grn">
+    <div class="kpi-lbl">Compliance Rate</div>
+    <div class="kpi-val"><strong id="kn-comp">44</strong><span style="font-size:13px;color:var(--text-lt)">/65</span></div>
+    <div class="kpi-sub">68% — 3 URGENT gaps</div>
+    <div class="prog-bar"><div class="prog-fill prog-amb" id="prog-comp" style="width:68%"></div></div>
+  </div>
+  <div class="kpi-card kc-gold">
+    <div class="kpi-lbl">Objectives On Track</div>
+    <div class="kpi-val"><strong id="kn-ontrack">3</strong><span style="font-size:13px;color:var(--text-lt)">/22</span></div>
+    <div class="kpi-sub">ON TRACK or COMPLETE</div>
+  </div>
+  <div class="kpi-card kc-red">  <div class="kpi-lbl">Urgent Objectives</div><div class="kpi-val"><strong id="kn-urgent">2</strong></div><div class="kpi-sub">OBJ-12 F2 · OBJ-14 F4</div></div>
+  <div class="kpi-card kc-blue">
+    <div class="kpi-lbl">Facility SPC Q1 2026</div>
+    <div class="kpi-val"><strong>562.9</strong></div>
+    <div class="kpi-sub">kWh/tonne — target ≤565</div>
+    <div class="kpi-trend up">✓ Within target (+1.66 vs EnB)</div>
+  </div>
+  <div class="kpi-card kc-org">
+    <div class="kpi-lbl">GHG Intensity 2024</div>
+    <div class="kpi-val"><strong>615</strong></div>
+    <div class="kpi-sub">kgCO₂e/tonne — target ≤590</div>
+    <div class="kpi-trend dn">↑ 25 above 2026 target</div>
+  </div>
+  <div class="kpi-card kc-blue">
+    <div class="kpi-lbl">F1 SHC Q1 2026</div>
+    <div class="kpi-val"><strong>1,208</strong></div>
+    <div class="kpi-sub">kcal/kg — target ≤1,242</div>
+    <div class="kpi-trend up">✓ −34 vs age target</div>
+  </div>
+  <div class="kpi-card kc-red">
+    <div class="kpi-lbl">F4 SHC Deviation</div>
+    <div class="kpi-val"><strong>+119</strong></div>
+    <div class="kpi-sub">kcal/kg above target — URGENT RCA</div>
+    <div class="kpi-trend dn">Root cause Jun 2026</div>
+  </div>
+  <div class="kpi-card kc-navy">
+    <div class="kpi-lbl">IMS Checklist</div>
+    <div class="kpi-val"><strong>66%</strong></div>
+    <div class="kpi-sub">Weighted completion (61 items)</div>
+    <div class="prog-bar"><div class="prog-fill prog-amb" style="width:66%"></div></div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="chart-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+  <div class="chart-card"><div class="chart-title">Risk Profile<span class="chart-sub">54 entries</span></div><div class="chart-wrap"><canvas id="cRisk"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Objectives Status<span class="chart-sub">22 objectives</span></div><div class="chart-wrap"><canvas id="cObj"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Compliance<span class="chart-sub">65 obligations</span></div><div class="chart-wrap"><canvas id="cComp"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Furnace SHC vs Target<span class="chart-sub">Q1 2026</span></div><div class="chart-wrap"><canvas id="cSHC"></canvas></div></div>
+</div>
+
+<!-- Two-col: Objectives + Risks -->
+<div class="two-col" style="margin-bottom:20px">
+  <div>
+    <div class="sec-hdr"><div class="sec-title">Objectives Needing Attention</div><a href="objectives.html" class="btn btn-ghost">View all →</a></div>
+    <div class="tbl-wrap"><table class="tbl-stripe"><thead><tr>
+      <th style="width:75px">ID</th><th>Objective</th><th style="width:95px">Category</th><th style="width:90px">Status</th><th style="width:95px">Due</th>
+    </tr></thead><tbody id="obj-rows"></tbody></table></div>
+  </div>
+  <div>
+    <div class="sec-hdr"><div class="sec-title">Critical & High Risks</div><a href="risk-register.html" class="btn btn-ghost">Full register →</a></div>
+    <div class="tbl-wrap"><table class="tbl-stripe"><thead><tr>
+      <th style="width:75px">Ref</th><th>Risk Description</th><th style="width:54px">Score</th><th style="width:90px">Rating</th><th style="width:95px">Due</th>
+    </tr></thead><tbody id="risk-rows"></tbody></table></div>
+  </div>
+</div>
+
+<!-- Traceability flow -->
+<div class="sec-hdr"><div class="sec-title">IMS Traceability Architecture</div></div>
+<div class="trace-flow">
+  <a href="context.html"      class="trace-node" style="background:#1B2A4A">📋 Context<small>§4.1 / §4.2</small></a>
+  <span class="trace-sep">→</span>
+  <a href="pestle-swot.html"  class="trace-node" style="background:#243660">📊 PESTLE/SWOT<small>§4.1</small></a>
+  <span class="trace-sep">→</span>
+  <a href="risk-register.html"class="trace-node" style="background:#4A0E0E">⚠ Risks & Aspects<small>§6.1 / §6.1.2</small></a>
+  <span class="trace-sep">→</span>
+  <a href="compliance.html"   class="trace-node" style="background:#1A3A5C">⚖ Compliance<small>§6.1.3</small></a>
+  <span class="trace-sep">→</span>
+  <a href="methodology.html"  class="trace-node" style="background:#37474F">📐 Risk WI<small>WI-RA-01</small></a>
+  <span class="trace-sep">→</span>
+  <a href="objectives.html"   class="trace-node" style="background:#145A32">🎯 Objectives<small>§6.2</small></a>
+  <span class="trace-sep">→</span>
+  <a href="moc.html"          class="trace-node" style="background:#4A0E0E">🔄 MOC<small>§6.3</small></a>
+  <span class="trace-sep">→</span>
+  <a href="energy.html"       class="trace-node" style="background:#003366">⚡ Energy<small>ISO 50001</small></a>
+  <span class="trace-sep">→</span>
+  <a href="scope.html"        class="trace-node" style="background:#1B2A4A">🏭 Scope<small>§4.3 / §4.4</small></a>
+  <span class="trace-sep">→</span>
+  <a href="checklist.html"    class="trace-node" style="background:#1A2A3A">✅ Mgmt Review<small>§9.3</small></a>
+</div>
+
+</div><!-- content -->
+</div><!-- main -->
+
+<script>
+initPage('index.html');
+document.getElementById('tb').innerHTML = renderTopbar('Executive Dashboard', 'SAGCO IMS Rev.12 — May 2026');
+
+const cd = chartDefaults();
+
+// Furnace SHC chart (static data — source L4-630-A-21)
+new Chart(document.getElementById('cSHC'), {
+  type:'bar', data:{
+    labels:['F1','F2','F3','F4','F5'],
+    datasets:[
+      { label:'Q1 2026 SHC', data:[1208,1608,2021,2185,2171],
+        backgroundColor:['#2E7D32','#E65100','#E65100','#B71C1C','#F9A825'], borderRadius:4, order:2 },
+      { label:'Age-adj. Target', data:[1242,1580,1996,2066,2138], type:'line',
+        borderColor:'#C9A84C', backgroundColor:'transparent', borderWidth:2, borderDash:[5,3],
+        pointRadius:4, pointBackgroundColor:'#C9A84C', order:1 }
+    ]},
+  options:{...cd, scales:{
+    y:{min:1000,title:{display:true,text:'kcal/kg',font:{size:9}},ticks:{font:{size:9}}},
+    x:{grid:{display:false},ticks:{font:{size:11,weight:'600'}}}
+  }}
+});
+
+async function loadDash() {
+  showLoader(true);
+  try {
+    const [risks, objs] = await Promise.all([getData.risks(), getData.objectives()]);
+    // Risk counts
+    const rc={CRITICAL:0,HIGH:0,MEDIUM:0,LOW:0,OPPORTUNITY:0};
+    risks.forEach(r=>{ const k=String(r.rating_inh||'').toUpperCase(); if(rc.hasOwnProperty(k))rc[k]++; });
+    document.getElementById('kn-crit').textContent=rc.CRITICAL;
+    document.getElementById('kn-high').textContent=rc.HIGH;
+    document.getElementById('kn-med').textContent=rc.MEDIUM;
+    document.getElementById('kn-low').textContent=rc.LOW;
+    // Obj counts
+    const oc={};
+    objs.forEach(o=>{ const s=String(o.status||'').trim(); oc[s]=(oc[s]||0)+1; });
+    const ontrack=(oc['ON TRACK']||0)+(oc['COMPLETE']||0)+(oc['COMPLIANT']||0);
+    const urgentN=oc['URGENT']||0;
+    document.getElementById('kn-ontrack').textContent=ontrack;
+    document.getElementById('kn-urgent').textContent=urgentN;
+
+    // Risk doughnut
+    new Chart(document.getElementById('cRisk'),{type:'doughnut',data:{
+      labels:['Critical','High','Medium','Low','Opportunity'],
+      datasets:[{data:[rc.CRITICAL,rc.HIGH,rc.MEDIUM,rc.LOW,rc.OPPORTUNITY],
+        backgroundColor:['#B71C1C','#E65100','#F9A825','#2E7D32','#0D47A1'],borderWidth:0}]
+    },options:{...cd,cutout:'62%'}});
+
+    // Obj status bar
+    const statColors=s=>{
+      const v=s.toUpperCase();
+      if(v.includes('ON TRACK')||v.includes('COMPLETE'))return '#2E7D32';
+      if(v.includes('IN PROGRESS'))return '#1565C0';
+      if(v.includes('PLANNED'))return '#4A5568';
+      if(v.includes('MONITOR'))return '#78909C';
+      if(v.includes('AT RISK'))return '#F57F17';
+      if(v.includes('URGENT'))return '#B71C1C';
+      return '#9E9E9E';
+    };
+    new Chart(document.getElementById('cObj'),{type:'bar',data:{
+      labels:Object.keys(oc),
+      datasets:[{data:Object.values(oc),backgroundColor:Object.keys(oc).map(statColors),borderRadius:4}]
+    },options:{...cd,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:9},maxRotation:25}},y:{beginAtZero:true,ticks:{stepSize:1}}}}});
+
+    // Compliance doughnut
+    new Chart(document.getElementById('cComp'),{type:'doughnut',data:{
+      labels:['Compliant (44)','Partial (7)','In Progress (7)','Monitoring (7)'],
+      datasets:[{data:[44,7,7,7],backgroundColor:['#1B5E20','#F57F17','#1565C0','#78909C'],borderWidth:0}]
+    },options:{...cd,cutout:'60%'}});
+
+    // Objectives table (urgent/at-risk/in-progress first)
+    const priority=['URGENT','AT RISK','IN PROGRESS','PLANNED','MONITORING'];
+    const sortedObjs=[...objs].sort((a,b)=>{
+      const ai=priority.indexOf(a.status.toUpperCase());
+      const bi=priority.indexOf(b.status.toUpperCase());
+      return (ai<0?99:ai)-(bi<0?99:bi);
+    });
+    document.getElementById('obj-rows').innerHTML=sortedObjs.slice(0,8).map(o=>`<tr>
+      <td><a href="objectives.html#${o.id}" class="trace-link">${o.id}</a></td>
+      <td style="font-size:11.5px">${String(o.desc||'').substring(0,60)}…</td>
+      <td><span class="badge" style="background:${(CC.catMap[o.cat]||'#37474F')}22;color:${CC.catMap[o.cat]||'#37474F'};font-size:9px">${String(o.cat||'').substring(0,14)}</span></td>
+      <td><span class="badge ${statusBadge(o.status)}">${o.status||'—'}</span></td>
+      <td style="font-size:11px;white-space:nowrap">${o.due||'—'}</td>
+    </tr>`).join('');
+
+    // Risk table (critical+high)
+    const topRisks=risks.filter(r=>['CRITICAL','HIGH'].includes(String(r.rating_inh||'').toUpperCase())).slice(0,8);
+    document.getElementById('risk-rows').innerHTML=topRisks.map(r=>{
+      const rt=riskRating(r.score_inh);
+      return `<tr>
+        <td><a href="risk-register.html#${r.ref}" class="trace-link">${r.ref}</a></td>
+        <td style="font-size:11.5px">${String(r.desc||'').substring(0,58)}…</td>
+        <td>${scorePill(r.score_inh,r.rating_inh)}</td>
+        <td><span class="badge ${rt.badge}">${rt.label}</span></td>
+        <td style="font-size:11px;white-space:nowrap">${r.due||'—'}</td>
+      </tr>`;
+    }).join('');
+
+  } catch(e){console.error(e);}
+  finally{showLoader(false);}
+}
+function showLoader(s){const l=document.getElementById('loader');if(l)l.classList.toggle('hidden',!s);}
+loadDash();
+startRefresh(loadDash);
+</script>
+</body></html>

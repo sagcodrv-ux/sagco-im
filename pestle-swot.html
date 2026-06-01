@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — PESTLE & SWOT Summary</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="data.js"></script><script src="nav.js"></script>
+<style>
+.swot-grid { display:grid; grid-template-columns:1fr 1fr; gap:3px; border-radius:var(--radius-lg); overflow:hidden; margin-bottom:20px; }
+.swot-q { padding:16px 18px; }
+.swot-q-S { background:#1B5E20; color:white; }
+.swot-q-W { background:#4A0E0E; color:white; }
+.swot-q-O { background:#0D47A1; color:white; }
+.swot-q-T { background:#37474F; color:white; }
+.swot-qtitle { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.12em; opacity:.8; margin-bottom:10px; }
+.swot-item { font-size:11px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,.1); line-height:1.4; display:flex; gap:8px; }
+.swot-item:last-child { border-bottom:none; }
+.swot-ref { font-family:var(--mono); font-size:9px; opacity:.65; flex-shrink:0; padding-top:2px; }
+.swot-prio { font-size:9px; font-family:var(--mono); padding:1px 5px; border-radius:3px; background:rgba(255,255,255,.15); flex-shrink:0; margin-top:1px; white-space:nowrap; }
+.swot-prio.Critical { background:rgba(255,255,255,.3); font-weight:700; }
+.tab-btns { display:flex; gap:8px; margin-bottom:14px; }
+</style>
+</head>
+<body>
+<div class="loader hidden" id="loader"><div class="loader-spin"></div></div>
+<div class="main"><div id="tb"></div><div class="content">
+
+<div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px">
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">PESTLE Factors</div><div class="kpi-val">38</div><div class="kpi-sub">PS-01 to PS-38</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Strengths</div><div class="kpi-val">11</div><div class="kpi-sub">S quadrant</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">Weaknesses</div><div class="kpi-val">14</div><div class="kpi-sub">W quadrant — 2 Critical</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">Opportunities</div><div class="kpi-val">12</div><div class="kpi-sub">O quadrant</div></div>
+  <div class="kpi-card kc-org"><div class="kpi-lbl">Threats</div><div class="kpi-val">14</div><div class="kpi-sub">T quadrant</div></div>
+  <div class="kpi-card kc-gold"><div class="kpi-lbl">Total SWOT Items</div><div class="kpi-val">51</div><div class="kpi-sub">SW-02 to SW-51</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:18px">
+  <div class="chart-card">
+    <div class="chart-title">PESTLE by Category<span class="chart-sub">38 factors</span></div>
+    <div class="chart-wrap"><canvas id="cPest"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">PESTLE by SWOT Output<span class="chart-sub">Opportunity / Threat distribution</span></div>
+    <div class="chart-wrap"><canvas id="cSwotOut"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">SWOT by Quadrant & Priority<span class="chart-sub">51 items</span></div>
+    <div class="chart-wrap"><canvas id="cSwotQ"></canvas></div>
+  </div>
+</div>
+
+<div class="tab-btns">
+  <button class="btn btn-navy" id="btn-pestle" onclick="showTab('pestle')">PESTLE Factors (38)</button>
+  <button class="btn btn-ghost" id="btn-swot"   onclick="showTab('swot')">SWOT Summary (51)</button>
+  <input class="filter-input" type="text" id="ps-s" style="max-width:280px;margin-left:auto" placeholder="Search…" oninput="psSearch(this.value)">
+</div>
+
+<!-- PESTLE Table -->
+<div id="tab-pestle">
+<div class="tbl-wrap">
+<table class="tbl-stripe"><thead><tr>
+  <th style="width:68px">Ref</th><th style="width:120px">Category</th>
+  <th style="min-width:220px">PESTLE Factor / Description</th>
+  <th style="min-width:160px">IMS Implication</th>
+  <th style="width:70px">SWOT Out</th><th style="width:55px">Trend</th>
+  <th style="width:110px">Risk / Opp Ref</th><th style="width:90px">Ctx Ref</th>
+</tr></thead>
+<tbody id="pest-tbody"></tbody>
+</table>
+</div>
+</div>
+
+<!-- SWOT Panel -->
+<div id="tab-swot" style="display:none">
+  <div class="swot-grid">
+    <div class="swot-q swot-q-S"><div class="swot-qtitle">💪 Strengths (11)</div><div id="sw-S"></div></div>
+    <div class="swot-q swot-q-W"><div class="swot-qtitle">⚠ Weaknesses (14) — 2 CRITICAL</div><div id="sw-W"></div></div>
+    <div class="swot-q swot-q-O"><div class="swot-qtitle">🚀 Opportunities (12)</div><div id="sw-O"></div></div>
+    <div class="swot-q swot-q-T"><div class="swot-qtitle">🔴 Threats (14)</div><div id="sw-T"></div></div>
+  </div>
+</div>
+
+</div></div>
+<script>
+initPage('pestle-swot.html');
+document.getElementById('tb').innerHTML = renderTopbar('PESTLE & SWOT Summary','ISO §4.1 Context of the Organisation · 38 PESTLE factors + 51 SWOT items');
+
+const catCol = {
+  'Political':'#1565C0','Economic':'#6A1F0E','Social':'#1B5E20',
+  'Technological':'#4A148C','Environmental':'#004D40','Legal':'#37474F','None':'#78909C'
+};
+const swotCols = { O:'#0D47A1', T:'#37474F', 'O/T':'#4A148C', None:'#78909C' };
+
+// Charts (static — data from workbook)
+const cd = chartDefaults();
+new Chart(document.getElementById('cPest'), {
+  type:'doughnut',
+  data:{ labels:['Political (9)','Economic (7)','Social (4)','Technological (5)','Environmental (5)','Legal (5)','Other (3)'],
+    datasets:[{ data:[9,7,4,5,5,5,3], backgroundColor:Object.values(catCol), borderWidth:0 }] },
+  options:{ ...cd, cutout:'58%' }
+});
+new Chart(document.getElementById('cSwotOut'), {
+  type:'doughnut',
+  data:{ labels:['Opportunity','Threat','O & T','None'],
+    datasets:[{ data:[11,18,8,1], backgroundColor:['#0D47A1','#B71C1C','#4A148C','#78909C'], borderWidth:0 }] },
+  options:{ ...cd, cutout:'55%' }
+});
+new Chart(document.getElementById('cSwotQ'), {
+  type:'bar',
+  data:{ labels:['Strengths','Weaknesses','Opportunities','Threats'],
+    datasets:[
+      { label:'Critical', data:[0,2,0,0], backgroundColor:'#B71C1C', borderRadius:[4,4,0,0] },
+      { label:'High',     data:[7,9,7,7], backgroundColor:'#E65100', borderRadius:4 },
+      { label:'Medium',   data:[4,3,5,7], backgroundColor:'#F9A825', borderRadius:4 }
+    ]},
+  options:{ ...cd, scales:{ x:{stacked:true,grid:{display:false}}, y:{stacked:true,beginAtZero:true} } }
+});
+
+// PESTLE data (PS-01 – PS-38 from workbook)
+const PESTLE = [
+  {ref:'PS-01',cat:'Political',desc:'Saudi Vision 2030 — industrial transformation, mandatory sustainability reporting',impl:'MODON mandatory EMS by 2027; SAGCO ahead with IMS certification',swot:'O/T',trend:'↑',rr:'R-SUS-04;O-S-01;O-E-02',ctx:'E-01'},
+  {ref:'PS-02',cat:'Political',desc:'Government regulations and customer-driven compliance obligations affecting market access',impl:'ISO 14001/45001 certification as market access requirement; NCEC/MEWA obligations',swot:'O/T',trend:'↑',rr:'R-E-07;R-SUS-04',ctx:'E-03;E-04'},
+  {ref:'PS-03',cat:'Economic',desc:'Rising energy, raw material, freight and marine insurance costs — dominant COGS',impl:'HFO +45.9% Jan 2026; cost management and ECM 1 regenerative conversion critical',swot:'T',trend:'↑',rr:'R-EN-02;R-E-09',ctx:'E-07;E-08'},
+  {ref:'PS-04',cat:'Economic',desc:'Circular economy pressures — low cullet ratio (20%) vs industry 50–70% best practice',impl:'Cullet increase saves energy AND reduces GHG simultaneously; OBJ-07 AT RISK',swot:'O/T',trend:'↑',rr:'O-E-01;R-E-08;R-EN-01',ctx:'E-18'},
+  {ref:'PS-05',cat:'Social',desc:'Customer and workforce expectations for safe, high-quality sustainable glass packaging',impl:'ISO 9001/45001 certification; ESG reporting; zero critical defects OBJ-17',swot:'O/T',trend:'→',rr:'R-SUS-03;R-SR-01',ctx:'E-11;E-13'},
+  {ref:'PS-06',cat:'Technological',desc:'Industry 4.0 — automation, AI, predictive maintenance, digital QMS technology',impl:'AIM 100% inspection already deployed; SCADA expansion; digital PTW opportunity',swot:'O',trend:'↑',rr:'O-EN-01;O-EN-02',ctx:'E-16'},
+  {ref:'PS-07',cat:'Legal',desc:'Food-contact regulations, ESG obligations, ISO 9001:2015 Amd.1:2024 climate requirements',impl:'Climate change must be addressed in QMS context §4.1/§4.2 from 2026; MOC-09',swot:'O/T',trend:'↑',rr:'R-E-07;R-SR-04;R-SUS-04',ctx:'E-03;E-04'},
+  {ref:'PS-08',cat:'Environmental',desc:'Climate change — carbon reduction, water conservation, recycling and sustainability',impl:'Physical risk to operations (heat); GHG targets; SDG alignment; TCFD reporting',swot:'O/T',trend:'↑',rr:'R-SUS-01;R-SUS-02;R-E-08',ctx:'E-17;E-18'},
+  {ref:'PS-09',cat:'Political',desc:'Saudi Vision 2030 renewable energy targets and national decarbonisation programme',impl:'Solar PV ECM opportunity; SEC net-metering tariff; 15% renewable target by 2035',swot:'O',trend:'↑',rr:'O-EN-02;R-EN-01',ctx:'E-16'},
+  {ref:'PS-10',cat:'Political',desc:'USA–Iran geopolitical tensions affecting HFO/LPG supply logistics and pricing',impl:'Strait of Hormuz disruption; 90-day buffer stock policy needed; MOC-11',swot:'T',trend:'?',rr:'R-EN-02',ctx:'E-05'},
+  {ref:'PS-11',cat:'Economic',desc:'Rising electricity and fuel oil costs — dominant glass manufacturing cost centres',impl:'HFO 0.42 SAR/L (+45.9%); SEC 0.20 SAR/kWh; energy cost 17.01M SAR/quarter',swot:'T',trend:'↑',rr:'R-EN-02;R-EN-01',ctx:'E-07;E-08'},
+  {ref:'PS-12',cat:'Economic',desc:'SIDF and PIF green financing for energy efficiency capital projects',impl:'ECM 1 (457M SAR NPV) may qualify for SIDF green loan at favourable rates',swot:'O',trend:'↑',rr:'O-EN-01;O-EN-02',ctx:'E-12'},
+  {ref:'PS-13',cat:'Economic',desc:'EU Carbon Border Adjustment Mechanism (CBAM) — embedded carbon cost on imports',impl:'CBAM affects soda ash and silica sand imports; Scope 3 Cat.1 data required',swot:'T',trend:'↑',rr:'R-E-09;R-EN-02',ctx:'E-09'},
+  {ref:'PS-14',cat:'Technological',desc:'Regenerative furnace technology — 20–30% fuel reduction vs recuperative; proven',impl:'ECM 1: F1 regenerative experience base; F2 rebuild decision Aug 2026 — URGENT',swot:'O',trend:'↑',rr:'O-EN-01;R-EN-01',ctx:'E-14'},
+  {ref:'PS-15',cat:'Legal',desc:'NCEC stack emission limits — tightening particulate standards and monitoring frequency',impl:'CEMS on all 5 stacks Q4 2026; EMCO quarterly validation required',swot:'T',trend:'↑',rr:'R-E-01;R-E-07',ctx:'E-03'},
+  {ref:'PS-16',cat:'Environmental',desc:'GHG Scope 1 intensity (615 kgCO₂e/t) and climate change obligations for industry',impl:'SBTi near-term target by 2028; cullet increase and regenerative conversion main levers',swot:'T',trend:'↑',rr:'R-E-08;R-SUS-04',ctx:'E-02;E-17'},
+  {ref:'PS-17',cat:'Environmental',desc:'Circular economy — cullet use reduces energy AND GHG simultaneously',impl:'20% cullet now; target 25% by 2027; deposit-return pilot Q4 2026',swot:'O',trend:'↑',rr:'O-E-01;R-E-08',ctx:'E-18'},
+  {ref:'PS-18',cat:'Political',desc:'MODON industrial safety regulations — increasing MHRSD inspection frequency',impl:'PTW compliance; confined space; LOTO; annual drill — all required by MODON',swot:'T',trend:'↑',rr:'R-SR-02;R-E-07',ctx:'E-03;E-04'},
+  {ref:'PS-19',cat:'Political',desc:'Ministerial Order 3337 — heat stress mandatory controls for furnace and outdoor workers',impl:'WBGT monitoring; work-rest rotation; supervisor training; HVAC review mandatory',swot:'T',trend:'↑',rr:'R-S-09;R-SUS-01',ctx:'E-17'},
+  {ref:'PS-20',cat:'Economic',desc:'Worker compensation claims — high-heat, high-dust environment; occupational disease risk',impl:'Silicosis and NIHL occupational health programmes required; health surveillance',swot:'T',trend:'↑',rr:'R-S-09;R-S-10;R-SUS-01',ctx:'E-13'},
+  {ref:'PS-21',cat:'Social',desc:'National and international zero-harm workplace expectations',impl:'TRIR KPI; LTI=0 target; ISO 45001 certification baseline for market access',swot:'O',trend:'↑',rr:'O-S-01;R-SR-02',ctx:'E-13'},
+  {ref:'PS-22',cat:'Social',desc:'Migrant worker rights / Kafala reform — OHS parity for 152 contractors',impl:'Worker welfare audit; contractor HSE parity; ESG reporting on migrant labour',swot:'T',trend:'↑',rr:'R-SR-01;R-SR-02',ctx:'E-20'},
+  {ref:'PS-23',cat:'Technological',desc:'Digitalisation of OHS inspection checklists and real-time data systems',impl:'Digital PTW; CEMS real-time monitoring; digital audit trails for Stage 2',swot:'O',trend:'↑',rr:'O-S-01',ctx:'E-16'},
+  {ref:'PS-24',cat:'Legal',desc:'ISO 45001 certification deadline June 2026 — major customer and government tender requirement',impl:'Stage 1 Q1 / Stage 2 Q2 2026; 3 URGENT blockers must be resolved immediately',swot:'O/T',trend:'↑',rr:'O-S-01;R-SR-02;R-E-07',ctx:'E-11;E-25'},
+  {ref:'PS-25',cat:'Environmental',desc:'Extreme heat and dust storms — physical climate risk to workers and equipment',impl:'IPCC SSP2-4.5 +1.5–2.0°C by 2050; TCFD physical risk assessment Q4 2026',swot:'T',trend:'↑',rr:'R-S-09;R-SUS-01',ctx:'E-17'},
+  {ref:'PS-26',cat:'Political',desc:'Saudi Green Initiative — decarbonisation and circular economy commitments',impl:'GHG inventory; SBTi; solar PV; cullet increase all aligned with SGI',swot:'O',trend:'↑',rr:'R-E-08;R-SUS-04;O-E-01',ctx:'E-02'},
+  {ref:'PS-27',cat:'Economic',desc:'CBAM — Scope 3 carbon cost on imported soda ash and silica sand raw materials',impl:'Scope 3 Cat.1 data collection from top-5 suppliers by Q4 2026',swot:'T',trend:'↑',rr:'R-E-09;R-EN-02',ctx:'E-09'},
+  {ref:'PS-28',cat:'Economic',desc:'Raw material price inflation amplifying cullet substitution economics',impl:'Higher soda ash / silica cost strengthens cullet ROI; accelerate cullet programme',swot:'O',trend:'↑',rr:'O-E-01;R-E-09',ctx:'E-07'},
+  {ref:'PS-29',cat:'Social',desc:'Community expectations on air quality and water near Jeddah Industrial City',impl:'NCEC compliance; noise monitoring; community complaint register',swot:'O/T',trend:'→',rr:'R-SR-03;R-E-06;R-SUS-02',ctx:'E-19'},
+  {ref:'PS-30',cat:'Technological',desc:'Advanced cullet optical sorting technology for higher batch purity and ratios',impl:'Enables >50% cullet target; reduces colour contamination; reduces furnace wear',swot:'O',trend:'↑',rr:'O-E-01;R-E-08',ctx:'E-14'},
+  {ref:'PS-31',cat:'Legal',desc:'ISO 14001 certification June 2026 and NCEC tightening stack emission limits',impl:'Stage 1 Q1 / Stage 2 Q2 2026 with TÜV Austria; 3 URGENT blockers',swot:'O/T',trend:'↑',rr:'O-E-02;R-E-01;R-E-07',ctx:'E-03;E-25'},
+  {ref:'PS-32',cat:'Legal',desc:'Saudi CMA ESG Disclosure Guidelines — mandatory environmental reporting expanding',impl:'GRI Core ESG Report; EMCO validation; annual sustainability disclosure',swot:'T',trend:'↑',rr:'R-SUS-03;R-SUS-04',ctx:'E-23'},
+  {ref:'PS-33',cat:'Environmental',desc:'GHG Scope 1 intensity, climate change, and Jeddah water scarcity — combined risk',impl:'615 kgCO₂e/t baseline; 194,020 m³/yr water; integrated climate response needed',swot:'T',trend:'↑',rr:'R-E-08;R-E-06;R-SUS-01',ctx:'E-17;E-18'},
+  {ref:'PS-35',cat:'Economic',desc:'Increasing customer quality specification costs and product liability exposure',impl:'AIM 100% inspection; calibration register; customer defect KPI OBJ-17',swot:'T',trend:'↑',rr:'R-SUS-03',ctx:'E-11'},
+  {ref:'PS-36',cat:'Social',desc:'Food safety culture expectations and consumer glass contamination concerns',impl:'Glass-in-product critical nonconformity; zero tolerance customer defect policy',swot:'T',trend:'↑',rr:'R-SUS-03',ctx:'E-11'},
+  {ref:'PS-37',cat:'Technological',desc:'Advanced AIM and digital QMS technology — traceability and digital audit trails',impl:'AIM already deployed; formalise calibration register; digital IMS evidence pack',swot:'O',trend:'↑',rr:'',ctx:'E-14'},
+  {ref:'PS-38',cat:'Legal',desc:'ISO 9001:2015 Amendment 1:2024 — climate change integration requirement in QMS',impl:'QMS context §4.1/§4.2 must include climate change determination from 2026; MOC-09',swot:'O/T',trend:'↑',rr:'R-SUS-04',ctx:'E-26'},
+];
+
+// SWOT data (SW-02 – SW-51 from workbook)
+const SWOT = [
+  {ref:'SW-02',q:'S',prio:'High',desc:'Integrated Management System structure supporting ISO 9001/14001/45001/50001/37001',rr:'O-S-01;O-E-02'},
+  {ref:'SW-04',q:'S',prio:'High',desc:'Comprehensive HSE programme library — 30+ HSEE programmes covering all major hazard types',rr:'O-S-01'},
+  {ref:'SW-06',q:'S',prio:'High',desc:'Certified ISO 50001 EnMS (TÜV Austria 2024) — active surveillance with 5-furnace SEET programme',rr:'O-EN-01;O-EN-02'},
+  {ref:'SW-07',q:'S',prio:'High',desc:'Structured furnace efficiency roadmap — F1(2025), F2(2026), F5(2029), F4(2030), F3(2031)',rr:'R-EN-01;O-EN-01'},
+  {ref:'SW-08',q:'S',prio:'High',desc:'100% NCEC compliance — NOₓ/SOₓ/CO/PM on all five furnaces (EMCO Dec-2024 validated)',rr:'R-E-01;R-E-07'},
+  {ref:'SW-09',q:'S',prio:'High',desc:'70% water reuse via closed-loop steam recovery — above average for KSA glass manufacturing',rr:'R-E-06;R-SUS-02'},
+  {ref:'SW-10',q:'S',prio:'Medium',desc:'GRI Standards 2021 reporting with external EMCO validation — 2024 ESG Report published',rr:'O-SUS-01'},
+  {ref:'SW-11',q:'S',prio:'Medium',desc:'2024 CEM Insight Award — exemplary energy and sustainability performance recognition',rr:'O-SUS-01'},
+  {ref:'SW-03',q:'S',prio:'Medium',desc:'Advanced manufacturing and automated inspection capability with 100% AIM coverage',rr:'O-EN-01'},
+  {ref:'SW-44',q:'S',prio:'Medium',desc:'Intertek 2022 audit passed — demonstrated quality system competence to major customers',rr:''},
+  {ref:'SW-05',q:'S',prio:'High',desc:'Full permit-to-work suite — LOTO, Hot Work, Confined Space, WAH, Electrical all drafted',rr:'R-S-03;R-S-04;R-S-05'},
+  // Weaknesses
+  {ref:'SW-18',q:'W',prio:'Critical',desc:'2026 emergency drill overdue — confirmed Stage 2 nonconformity risk if not conducted immediately',rr:'R-S-02;R-S-03;R-S-04'},
+  {ref:'SW-19',q:'W',prio:'Critical',desc:'No 2026 fire extinguisher inspection records — confirmed nonconformity (HS-04)',rr:'R-S-04'},
+  {ref:'SW-12',q:'W',prio:'High',desc:'High operational cost structure (HFO +45.9%) limiting export market competitiveness',rr:'R-EN-02'},
+  {ref:'SW-13',q:'W',prio:'High',desc:'Aging furnaces F2–F4 increasing maintenance cost, energy degradation and safety risk',rr:'R-S-02;R-EN-01;R-E-05'},
+  {ref:'SW-14',q:'W',prio:'High',desc:'Low cullet utilisation (20%) versus international best-practice 50–70%; F3 dropped to 36%',rr:'O-E-01;R-E-08;R-EN-01'},
+  {ref:'SW-15',q:'W',prio:'High',desc:'ISO 45001 not yet certified — gap period creating audit nonconformity risk (3 URGENT)',rr:'R-E-07;R-SR-02'},
+  {ref:'SW-16',q:'W',prio:'High',desc:'Heat stress — ongoing high-severity hazard (4×4=16) in furnace melting operations',rr:'R-S-09;R-SUS-01'},
+  {ref:'SW-20',q:'W',prio:'High',desc:'ISO 14001 not yet certified — EMS gap blocking major customer ESG qualification',rr:'R-E-07;R-SUS-03'},
+  {ref:'SW-21',q:'W',prio:'High',desc:'Cullet at 20% of batch — far below 50–70% industry best practice; F3 at 36%',rr:'R-E-08;O-E-01'},
+  {ref:'SW-22',q:'W',prio:'High',desc:'Water use 194,020 m³/year in arid Jeddah — community and regulatory risk',rr:'R-E-06;R-SUS-02'},
+  {ref:'SW-23',q:'W',prio:'High',desc:'Female workforce ~3% (23/884) — far below Vision 2030, SDG 5 target 8% by 2030',rr:'R-SR-01'},
+  {ref:'SW-24',q:'W',prio:'High',desc:'Scope 3 emissions data <10% primary supplier coverage — CBAM and ESG gap',rr:'R-E-09;R-EN-02'},
+  {ref:'SW-45',q:'W',prio:'High',desc:'No formal ISO 9001 certification — reliance on customer-specific quality audits',rr:''},
+  {ref:'SW-47',q:'W',prio:'High',desc:'Calibration register incomplete — critical instruments not formally managed',rr:''},
+  // Opportunities
+  {ref:'SW-25',q:'O',prio:'High',desc:'Increasing customer demand for sustainable recyclable glass — market differentiation',rr:'O-E-01;O-SUS-01'},
+  {ref:'SW-28',q:'O',prio:'High',desc:'Furnace rebuilds F1(2025)/F2(2026) — step-change energy efficiency via regenerative',rr:'R-EN-01;O-EN-01'},
+  {ref:'SW-29',q:'O',prio:'High',desc:'Vision 2030 renewable energy and SIDF green financing for ECM projects',rr:'O-EN-01;O-EN-02'},
+  {ref:'SW-30',q:'O',prio:'High',desc:'ISO 14001 certification enabling EcoVadis improvement and customer qualification',rr:'O-E-02;R-SUS-03'},
+  {ref:'SW-32',q:'O',prio:'High',desc:'EcoVadis score improvement — preferred supplier status with key customers and MNCs',rr:'O-SUS-01;R-SUS-03'},
+  {ref:'SW-27',q:'O',prio:'High',desc:'Saudi Vision 2030 — industrial transformation investment and local content priority',rr:'R-SUS-04;O-SR-01'},
+  {ref:'SW-48',q:'O',prio:'High',desc:'ISO 9001 certification roadmap — opportunity to integrate QMS with IMS formally',rr:''},
+  {ref:'SW-26',q:'O',prio:'Medium',desc:'Industry 4.0 — automation, AI, predictive maintenance, smart energy management',rr:'O-EN-01;O-EN-02'},
+  {ref:'SW-31',q:'O',prio:'Medium',desc:'Saudi Green Initiative circular economy investment — deposit-return pilot Q4 2026',rr:'O-E-01;R-E-08'},
+  {ref:'SW-49',q:'O',prio:'Medium',desc:'ISO 9001 Amd.1:2024 climate integration — align QMS and EMS climate approach',rr:''},
+  {ref:'SW-46',q:'O',prio:'Medium',desc:'Formalise customer satisfaction monitoring — structured feedback programme',rr:''},
+  {ref:'SW-17',q:'W',prio:'High',desc:'152 contractors require OHS integration equivalent to direct employees',rr:'R-SR-01;R-SR-02'},
+  // Threats
+  {ref:'SW-35',q:'T',prio:'High',desc:'Rising electricity tariffs and HFO price volatility — dominant COGS exposure',rr:'R-EN-02'},
+  {ref:'SW-37',q:'T',prio:'High',desc:'MODON and MHRSD increasing inspection frequency for high-hazard industries',rr:'R-SR-02;R-E-07'},
+  {ref:'SW-38',q:'T',prio:'High',desc:'Extreme heat events and dust storms — intensifying climate risk to workers',rr:'R-S-09;R-SUS-01'},
+  {ref:'SW-39',q:'T',prio:'High',desc:'Increasing NCEC stack emission limits — capital abatement investment required',rr:'R-E-01;R-E-07'},
+  {ref:'SW-40',q:'T',prio:'High',desc:'Climate change physical risks — extreme heat and water scarcity combined impact',rr:'R-SUS-01;R-SUS-02;R-E-08'},
+  {ref:'SW-41',q:'T',prio:'High',desc:'EU CSRD, CBAM, supply chain due diligence — extraterritorial ESG compliance burden',rr:'R-E-09;R-SR-04'},
+  {ref:'SW-42',q:'T',prio:'High',desc:'Migrant worker NGO/media scrutiny — supply chain labour conditions transparency',rr:'R-SR-01;R-SR-02'},
+  {ref:'SW-50',q:'T',prio:'High',desc:'Product contamination or glass defect causing customer recall — zero tolerance',rr:''},
+  {ref:'SW-33',q:'T',prio:'Medium',desc:'Geopolitical instability, Strait of Hormuz — HFO supply disruption and cost spike',rr:'R-EN-02'},
+  {ref:'SW-34',q:'T',prio:'Medium',desc:'International requirements for high recycled content glass — circularity pressure',rr:'O-E-01;R-E-08'},
+  {ref:'SW-36',q:'T',prio:'Medium',desc:'EU CBAM — embedded carbon cost on soda ash and silica sand imports from 2026',rr:'R-E-09;R-EN-02'},
+  {ref:'SW-51',q:'T',prio:'Medium',desc:'ISO 9001:2015 Amendment 1:2024 — new climate change requirements for QMS certification',rr:''},
+];
+
+const trendB={'↑':'var(--low-l)','→':'var(--med-l)','?':'var(--g100)'};
+const trendC={'↑':'var(--low)','→':'#E65100','?':'var(--g700)'};
+const swotB={'O':'#E3F2FD','T':'var(--g100)','O/T':'#EDE7F6','None':'var(--g100)'};
+const swotFg={'O':'#0D47A1','T':'#37474F','O/T':'#4A148C','None':'#78909C'};
+
+document.getElementById('pest-tbody').innerHTML = PESTLE.map(d => `<tr id="${d.ref}">
+  <td><a href="#${d.ref}" class="trace-link" style="font-size:10.5px">${d.ref}</a></td>
+  <td><span class="badge" style="background:${catCol[d.cat]||'#37474F'}22;color:${catCol[d.cat]||'#37474F'};font-size:9px">${d.cat}</span></td>
+  <td style="font-size:12px;line-height:1.35">${d.desc}</td>
+  <td style="font-size:11px;color:var(--text-lt);line-height:1.35">${d.impl}</td>
+  <td><span class="badge" style="background:${swotB[d.swot]};color:${swotFg[d.swot]};font-size:9px">${d.swot}</span></td>
+  <td style="text-align:center"><span style="background:${trendB[d.trend]||'var(--g100)'};color:${trendC[d.trend]||'var(--g700)'};padding:2px 7px;border-radius:4px;font-size:13px;font-weight:700">${d.trend}</span></td>
+  <td style="font-size:10px">${traceLinks(d.rr)}</td>
+  <td style="font-size:10px">${traceLinks(d.ctx)}</td>
+</tr>`).join('');
+
+// SWOT quadrant cards
+['S','W','O','T'].forEach(q => {
+  const items = SWOT.filter(s => s.q === q);
+  document.getElementById(`sw-${q}`).innerHTML = items.map(s => `
+    <div class="swot-item" id="${s.ref}">
+      <span class="swot-ref">${s.ref}</span>
+      <span style="flex:1">${s.desc}</span>
+      <span class="swot-prio ${s.prio}">${s.prio}</span>
+    </div>`).join('');
+});
+
+function showTab(tab) {
+  document.getElementById('tab-pestle').style.display = tab==='pestle'?'':'none';
+  document.getElementById('tab-swot').style.display   = tab==='swot'?'':'none';
+  document.getElementById('btn-pestle').className = tab==='pestle'?'btn btn-navy':'btn btn-ghost';
+  document.getElementById('btn-swot').className   = tab==='swot'?'btn btn-navy':'btn btn-ghost';
+}
+function psSearch(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('#pest-tbody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+  document.querySelectorAll('.swot-item').forEach(el => {
+    el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+scrollToHash();
+</script>
+</body></html>

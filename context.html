@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — IMS Context Register</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="data.js"></script><script src="nav.js"></script>
+</head>
+<body>
+<div class="loader hidden" id="loader"><div class="loader-spin"></div><div class="loader-text">Loading…</div></div>
+<div class="main"><div id="tb"></div><div class="content">
+
+<div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">External Issues</div><div class="kpi-val">29</div><div class="kpi-sub">E-01 to E-29</div></div>
+  <div class="kpi-card kc-org"><div class="kpi-lbl">Internal Issues</div><div class="kpi-val">28</div><div class="kpi-sub">I-02 to I-30</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Interested Parties</div><div class="kpi-val">16</div><div class="kpi-sub">S-01 to S-16</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">URGENT Internal</div><div class="kpi-val">3</div><div class="kpi-sub">I-13, I-14, I-17</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Trend ↑ (pressure)</div><div class="kpi-val">18</div><div class="kpi-sub">Rising external factors</div></div>
+  <div class="kpi-card kc-gold"><div class="kpi-lbl">Total Records</div><div class="kpi-val">73</div><div class="kpi-sub">§4.1 / §4.2</div></div>
+</div>
+
+<div class="chart-grid" style="margin-bottom:16px">
+  <div class="chart-card"><div class="chart-title">External Issues by PESTLE Category</div><div class="chart-wrap"><canvas id="cPest"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Internal Issues by Category</div><div class="chart-wrap"><canvas id="cInt"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Interested Parties — Influence</div><div class="chart-wrap"><canvas id="cParty"></canvas></div></div>
+</div>
+
+<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+  <button class="btn btn-navy" id="btn-ext" onclick="showSec('external')">External Issues (29)</button>
+  <button class="btn btn-ghost" id="btn-int" onclick="showSec('internal')">Internal Issues (28)</button>
+  <button class="btn btn-ghost" id="btn-par" onclick="showSec('parties')">Interested Parties (16)</button>
+  <input class="filter-input" type="text" id="ctx-s" style="max-width:280px" placeholder="Search…" oninput="ctxSearch(this.value)">
+</div>
+
+<div id="sec-external">
+<div class="tbl-wrap"><table class="tbl-stripe"><thead><tr>
+  <th style="width:70px">Ref</th><th style="width:130px">PESTLE Category</th>
+  <th style="min-width:200px">External Issue / Factor</th><th style="min-width:170px">Effect on IMS</th>
+  <th style="width:78px">Standard</th><th style="width:55px">Trend</th>
+  <th style="width:110px">Risk Ref</th><th style="width:100px">Obj Ref</th>
+</tr></thead><tbody id="ext-tbody"></tbody></table></div>
+</div>
+
+<div id="sec-internal" style="display:none">
+<div class="tbl-wrap"><table class="tbl-stripe"><thead><tr>
+  <th style="width:70px">Ref</th><th style="width:130px">Category</th>
+  <th style="min-width:200px">Internal Issue</th><th style="min-width:170px">Effect on IMS</th>
+  <th style="width:78px">Standard</th><th style="width:90px">Status</th>
+  <th style="width:110px">Risk Ref</th><th style="width:100px">Target</th>
+</tr></thead><tbody id="int-tbody"></tbody></table></div>
+</div>
+
+<div id="sec-parties" style="display:none">
+<div class="tbl-wrap"><table class="tbl-stripe"><thead><tr>
+  <th style="width:65px">Ref</th><th style="min-width:150px">Party / Name</th><th style="width:120px">Category</th>
+  <th style="min-width:170px">Key Need / Expectation</th><th style="min-width:150px">IMS Obligation</th>
+  <th style="width:60px">Influence</th><th style="width:60px">Interest</th>
+  <th style="width:100px">Risk Ref</th>
+</tr></thead><tbody id="par-tbody"></tbody></table></div>
+</div>
+
+</div></div>
+<script>
+initPage("context.html");
+document.getElementById("tb").innerHTML=renderTopbar("IMS Context Register","ISO §4.1 External & Internal Issues · ISO §4.2 Interested Parties");
+
+// Static charts
+const cd=chartDefaults();
+new Chart(document.getElementById("cPest"),{type:"doughnut",data:{
+  labels:["Political/Regulatory","Economic","Social","Technological","Environmental","Legal","Market"],
+  datasets:[{data:[9,6,4,4,5,4,3],backgroundColor:["#1565C0","#6A1F0E","#1B5E20","#4A148C","#004D40","#37474F","#4E342E"],borderWidth:0}]
+},options:{...cd,cutout:"55%"}});
+new Chart(document.getElementById("cInt"),{type:"bar",data:{
+  labels:["Process/Ops","Infrastructure","Management System","Culture/Leadership","People","Financial"],
+  datasets:[{data:[11,6,5,3,2,1],backgroundColor:["#6A1F0E","#1565C0","#004D40","#37474F","#4A148C","#1B5E20"],borderRadius:4}]
+},options:{...cd,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:8},maxRotation:28}},y:{beginAtZero:true}}}});
+new Chart(document.getElementById("cParty"),{type:"doughnut",data:{
+  labels:["High (H)","Medium (M)","Low (L)"],
+  datasets:[{data:[7,6,3],backgroundColor:["#B71C1C","#F57F17","#2E7D32"],borderWidth:0}]
+},options:{...cd,cutout:"50%"}});
+
+// External Issues data
+const extData=[
+  {ref:"E-01",cat:"Political/Regulatory",issue:"Saudi Vision 2030 — mandatory EMS/sustainability reporting for industrial companies",effect:"MODON mandatory EMS by 2027; SAGCO positioning ahead with ISO 14001/45001 certification",std:"ISO 14001/45001",trend:"↑",rr:"R-SUS-04;O-S-01",obj:"OBJ-01;OBJ-05"},
+  {ref:"E-02",cat:"Political/Regulatory",issue:"Saudi Green Initiative — GHG reduction targets and carbon pricing development",effect:"Carbon pricing risk; sector GHG targets; net-zero 2060 alignment required for ESG reporting",std:"ISO 14001/50001",trend:"↑",rr:"R-E-08;R-SUS-04",obj:"OBJ-06"},
+  {ref:"E-03",cat:"Political/Regulatory",issue:"NCEC/MEWA tightening ambient air quality and stack emission limits",effect:"Stricter NOₓ/PM limits ahead; CEMS investment required ahead of schedule; annual EMCO validation",std:"ISO 14001",trend:"↑",rr:"R-E-01;R-E-07",obj:"OBJ-09"},
+  {ref:"E-04",cat:"Legal/Compliance",issue:"MODON/MEWA compliance inspections and environmental licensing requirements",effect:"Annual licence renewal; CAPA from inspections; audit trail required",std:"ISO 14001/45001",trend:"→",rr:"R-E-07",obj:"OBJ-05"},
+  {ref:"E-05",cat:"Political/Regulatory",issue:"USA–Iran geopolitical tension affecting HFO/LPG supply logistics and pricing",effect:"Strait of Hormuz disruption could restrict HFO supply; 90-day buffer stock policy needed",std:"ISO 50001",trend:"?",rr:"R-EN-02",obj:"OBJ-10"},
+  {ref:"E-07",cat:"Economic",issue:"HFO price volatility — 0.42 SAR/L (Jan 2026, +45.9%); dominant glass manufacturing cost",effect:"COGS increase; margin erosion; strengthens ECM 1 regenerative conversion business case",std:"ISO 50001",trend:"↑",rr:"R-EN-02;R-EN-01",obj:"OBJ-10"},
+  {ref:"E-08",cat:"Economic",issue:"Saudi electricity tariff increases (SEC) — 0.20 SAR/kWh; 39.29 GWh/quarter exposure",effect:"Electricity is 15.7% of total energy; strengthens solar PV IRR (ECM target 15% renewable)",std:"ISO 50001",trend:"?",rr:"R-EN-02",obj:"OBJ-10;OBJ-16"},
+  {ref:"E-11",cat:"Market/Competitive",issue:"Key customer ESG requirements — customer Supplier Guiding Principles (SGP)",effect:"ISO 14001/45001 cert required; annual GHG data; worker welfare audit; ESG questionnaire",std:"ISO 14001/45001",trend:"↑",rr:"R-SUS-03;O-E-02",obj:"OBJ-20"},
+  {ref:"E-13",cat:"Social/Demographic",issue:"Occupational health risk awareness — silicosis, NIHL; increasing enforcement in KSA",effect:"Stricter OHS requirements; audiometric and silica health surveillance expected by regulators",std:"ISO 45001",trend:"↑",rr:"R-E-02;R-S-10",obj:"OBJ-02"},
+  {ref:"E-14",cat:"Technological",issue:"Regenerative furnace technology — 20–30% fuel reduction vs recuperative; proven in glass sector",effect:"ECM 1 technology selection validated; competitive pressure from peers adopting regenerative",std:"ISO 50001",trend:"↑",rr:"R-EN-01;O-EN-01",obj:"OBJ-12"},
+  {ref:"E-16",cat:"Technological",issue:"Solar PV and renewable energy technology — rapidly improving economics in Saudi Arabia",effect:"Jeddah irradiance >2,000 kWh/m²/yr; SEC net-metering; target 15% renewable share by 2035",std:"ISO 50001",trend:"↑",rr:"O-EN-02",obj:"OBJ-16"},
+  {ref:"E-17",cat:"Environmental/Climate",issue:"Climate change — rising Jeddah temperatures (IPCC SSP2-4.5 +1.5–2.0°C by 2050)",effect:"Heat stress deterioration; cooling energy demand increase; production scheduling risk",std:"ISO 45001/14001",trend:"↑",rr:"R-SUS-01;R-S-09",obj:"OBJ-02"},
+  {ref:"E-18",cat:"Environmental/Climate",issue:"Water scarcity — Jeddah SWCC desalinated supply dependency in arid region",effect:"194,020 m³/year in globally water-stressed region; SDG 6 and cost risk exposure",std:"ISO 14001",trend:"↑",rr:"R-E-06;R-SUS-02",obj:"OBJ-08"},
+  {ref:"E-20",cat:"Social/Demographic",issue:"Migrant worker rights/Kafala reform — 152 contractors and 627 migrant employees at SAGCO",effect:"Welfare audit requirements; NGO/media scrutiny; contractor HSE parity expected",std:"ISO 45001",trend:"↑",rr:"R-SR-01;R-SR-02",obj:"OBJ-21"},
+  {ref:"E-25",cat:"Market/Competitive",issue:"ISO certification required for government procurement in Saudi Arabia",effect:"SAGCO not yet certified ISO 45001/14001; limits government tender access (O-S-01)",std:"All",trend:"↑",rr:"O-S-01;O-E-02",obj:"OBJ-01;OBJ-05"},
+];
+const intData=[
+  {ref:"I-13",cat:"Process & Operations",issue:"2026 emergency drill overdue — scope expansion to furnace blowback and gas leak",effect:"Stage 2 nonconformity; emergency response unverified; Civil Defense concern",std:"ISO 45001 §8.2",status:"URGENT",rr:"R-S-02;R-S-03;R-S-04",target:"IMMEDIATE"},
+  {ref:"I-14",cat:"Process & Operations",issue:"Fire extinguisher inspection 2026 records missing — HS-04 confirmed nonconformity",effect:"Civil Defense compliance gap; Stage 2 nonconformity risk; HSE Manager accountable",std:"ISO 45001 §8.1",status:"URGENT",rr:"R-S-04",target:"IMMEDIATE"},
+  {ref:"I-17",cat:"Management System",issue:"8 Group A programmes pending GM sign-off — IMS documentation incomplete",effect:"Stage 2 audit blocked; IMS documented information requirement not met",std:"ISO 45001/14001 §7.5",status:"URGENT",rr:"R-E-07",target:"THIS WEEK"},
+  {ref:"I-11",cat:"Process & Operations",issue:"PTW discrepancy — 130 register entries vs 84 physical permits (CAPA-001)",effect:"Audit nonconformity (CAPA-001 open); safety control credibility issue before Stage 2",std:"ISO 45001 §8.1",status:"In Progress",rr:"R-S-03;R-S-04;R-S-05",target:"Stage 2"},
+  {ref:"I-06",cat:"Infrastructure & Assets",issue:"Aging furnaces F2–F4 approaching end of campaign lifecycle",effect:"Increased risk of refractory failure; safety; energy performance degradation; rebuild required",std:"ISO 45001/14001/50001",status:"In Progress",rr:"R-S-02;R-E-05;R-EN-01",target:"F2: 2026"},
+  {ref:"I-07",cat:"Infrastructure & Assets",issue:"Compressed air system — 20–30% estimated leakage; no sub-metering or systematic survey",effect:"~900 MWh/yr energy waste; ISO 50001 SEU not adequately controlled; ECM 2 needed",std:"ISO 50001 §6.3",status:"In Progress",rr:"R-EN-03",target:"Q2 2026 survey"},
+  {ref:"I-09",cat:"Infrastructure & Assets",issue:"No CEMS installed on all 5 furnace stacks — real-time exceedance detection absent",effect:"Real-time exceedances not detected; reliance on quarterly manual EMCO tests only",std:"ISO 14001 §9.1",status:"In Progress",rr:"R-E-01;R-E-07",target:"Q4 2026"},
+  {ref:"I-16",cat:"Process & Operations",issue:"Cullet at 20% of batch — below 30–40% industry best practice; F3 reduced to 36%",effect:"Higher energy/GHG intensity; raw material cost; Scope 3 upstream impact; OBJ-07 AT RISK",std:"ISO 14001/50001",status:"In Progress",rr:"R-E-08;O-E-01",target:"F3 ≥45% Jul 2026"},
+  {ref:"I-22",cat:"Culture & Leadership",issue:"Risk of passive management sponsorship of IMS — cultural buy-in risk",effect:"ISO certification may be delayed; IMS not embedded in daily operations management",std:"ISO 45001/14001",status:"Monitoring",rr:"R-SUS-03;R-SUS-04",target:"Annual MR"},
+];
+const parData=[
+  {ref:"S-01",name:"Major Customer A",cat:"Customer (Major)",need:"ISO 14001 cert; GHG data; worker welfare compliance; ESG disclosure",oblig:"ISO 14001 cert; annual GHG data; ESG questionnaire; welfare audit access",infl:"H",intr:"H",rr:"R-SUS-03;O-E-02"},
+  {ref:"S-02",name:"Major Customer B",cat:"Customer (Major)",need:"Product quality; environmental management; sustainability supplier questionnaire",oblig:"ISO 14001 cert; quality conformance; annual sustainability questionnaire",infl:"H",intr:"H",rr:"R-SUS-03;O-E-02"},
+  {ref:"S-03",name:"MODON Jeddah Industrial City",cat:"Regulator/Landlord",need:"OHS compliance; site licence; environmental controls; noise/dust limits",oblig:"MODON OHS compliance; incident notification; annual environmental report",infl:"H",intr:"M",rr:"R-E-07;R-SR-03"},
+  {ref:"S-04",name:"NCEC / MEWA",cat:"Environmental Regulator",need:"Air quality; waste management; water management; chemicals",oblig:"Stack monitoring; EMCO validation; hazardous waste manifests; NCEC reporting",infl:"H",intr:"M",rr:"R-E-01;R-E-06;R-E-07"},
+  {ref:"S-05",name:"Civil Defense",cat:"Safety Regulator",need:"Fire safety; emergency response plan; chemical storage; annual drill",oblig:"Fire extinguisher inspection; EPR registered; annual emergency drill",infl:"H",intr:"M",rr:"R-S-04;R-S-02"},
+  {ref:"S-07",name:"SAGCO General Manager & Board",cat:"Internal — Leadership",need:"Business performance; ISO certification; cost management; Vision 2030",oblig:"IMS certification roadmap; management review; KPI reporting",infl:"H",intr:"H",rr:"R-SUS-03;R-SUS-04"},
+  {ref:"S-08",name:"Direct Workers (SAGCO)",cat:"Internal — Workforce",need:"Safe/healthy environment; participation; fair treatment; career development",oblig:"Worker participation (§5.4); PTW; HSE committees; grievance mechanism",infl:"M",intr:"H",rr:"R-S-01 to R-S-15"},
+  {ref:"S-13",name:"TÜV Austria (Certification Body)",cat:"Certification Body",need:"IMS documentation; operational evidence; Stage 1/2 audit facilitation",oblig:"IMS implemented to standard; Stage 1/2 facilitated; findings addressed",infl:"H",intr:"M",rr:"R-E-07"},
+];
+
+const trendBg={"↑":"var(--low-l)","↓":"var(--opp-l)","→":"var(--med-l)","?":"var(--g100)"};
+const trendCol={"↑":"var(--low)","↓":"var(--opp)","→":"#E65100","?":"var(--g700)"};
+const statBgMap={"URGENT":"#B71C1C","In Progress":"#1565C0","Monitoring":"#78909C","Stable":"#4A5568"};
+const inflBgMap={"H":"#B71C1C","M":"#F57F17","L":"#2E7D32"};
+
+document.getElementById("ext-tbody").innerHTML=extData.map(d=>`<tr id="${d.ref}">
+  <td><a href="#${d.ref}" class="trace-link" style="font-size:10.5px">${d.ref}</a></td>
+  <td><span class="badge" style="background:var(--g100);color:var(--navy);font-size:9px">${d.cat}</span></td>
+  <td style="font-size:12px">${d.issue}</td>
+  <td style="font-size:11px;color:var(--text-lt)">${d.effect}</td>
+  <td style="font-size:10px;color:var(--text-lt)">${d.std}</td>
+  <td style="text-align:center"><span style="background:${trendBg[d.trend]||"var(--g100)"};color:${trendCol[d.trend]||"var(--g700)"};padding:2px 7px;border-radius:4px;font-size:13px;font-weight:700">${d.trend}</span></td>
+  <td>${traceLinks(d.rr)}</td><td>${traceLinks(d.obj)}</td>
+</tr>`).join("");
+
+document.getElementById("int-tbody").innerHTML=intData.map(d=>`<tr id="${d.ref}">
+  <td><a href="#${d.ref}" class="trace-link" style="font-size:10.5px">${d.ref}</a></td>
+  <td><span class="badge" style="background:var(--g100);color:var(--navy);font-size:9px">${d.cat}</span></td>
+  <td style="font-size:12px;${d.status==="URGENT"?"font-weight:700;color:var(--crit)":""}">${d.issue}</td>
+  <td style="font-size:11px;color:var(--text-lt)">${d.effect}</td>
+  <td style="font-size:10px;color:var(--text-lt)">${d.std}</td>
+  <td><span style="background:${statBgMap[d.status]||"#78909C"};color:white;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">${d.status}</span></td>
+  <td>${traceLinks(d.rr)}</td>
+  <td style="font-size:11px;${d.status==="URGENT"?"color:var(--crit);font-weight:700":""}">${d.target}</td>
+</tr>`).join("");
+
+document.getElementById("par-tbody").innerHTML=parData.map(d=>`<tr id="${d.ref}">
+  <td style="font-family:var(--mono);font-size:10.5px">${d.ref}</td>
+  <td style="font-size:12px;font-weight:600">${d.name}</td>
+  <td style="font-size:10px;color:var(--text-lt)">${d.cat}</td>
+  <td style="font-size:11px">${d.need}</td>
+  <td style="font-size:11px;color:var(--text-lt)">${d.oblig}</td>
+  <td style="text-align:center"><span style="background:${inflBgMap[d.infl]||"#78909C"};color:white;padding:2px 10px;border-radius:10px;font-weight:700;font-size:11px">${d.infl}</span></td>
+  <td style="text-align:center"><span style="background:${inflBgMap[d.intr]||"#78909C"};color:white;padding:2px 10px;border-radius:10px;font-weight:700;font-size:11px">${d.intr}</span></td>
+  <td style="font-size:10px">${traceLinks(d.rr)}</td>
+</tr>`).join("");
+
+function showSec(sec){
+  ["external","internal","parties"].forEach(s=>document.getElementById(`sec-${s}`).style.display=s===sec?"":"none");
+  ["ext","int","par"].forEach((k,i)=>{
+    const btn=document.getElementById(`btn-${k}`);if(btn)btn.className=["external","internal","parties"][i]===sec?"btn btn-navy":"btn btn-ghost";
+  });
+}
+function ctxSearch(q){
+  q=q.toLowerCase();
+  ["ext-tbody","int-tbody","par-tbody"].forEach(id=>{
+    document.getElementById(id)?.querySelectorAll("tr").forEach(tr=>{tr.style.display=tr.textContent.toLowerCase().includes(q)?"":"none";});
+  });
+}
+scrollToHash();
+</script>
+</body></html>

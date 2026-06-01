@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Annual Context Review Checklist</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="data.js"></script><script src="nav.js"></script>
+<style>
+.ck-section { margin-bottom:18px; border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--shadow); }
+.ck-sec-hdr { padding:10px 16px; font-size:11.5px; font-weight:700; color:white; background:var(--navy-md); letter-spacing:.02em; display:flex; align-items:center; justify-content:space-between; }
+.ck-sec-count { font-size:9.5px; font-family:var(--mono); opacity:.75; }
+.ck-item { display:grid; grid-template-columns:55px 1fr 90px 100px 110px 90px; gap:10px; align-items:start; padding:9px 14px; border-bottom:1px solid var(--g100); background:var(--white); transition:background var(--tr); }
+.ck-item:hover { background:var(--g100); }
+.ck-item:last-child { border-bottom:none; }
+.ck-item.urgent { background:rgba(183,28,28,.04); }
+.ck-no   { font-family:var(--mono); font-size:10.5px; color:var(--g400); padding-top:1px; }
+.ck-text { font-size:12px; line-height:1.4; }
+.ck-text.urgent-text { font-weight:700; color:var(--crit); }
+.ck-std  { font-size:10px; color:var(--text-lt); line-height:1.3; }
+.ck-own  { font-size:10.5px; color:var(--text-lt); }
+.ck-tgt  { font-size:10.5px; white-space:nowrap; }
+.ck-tgt.urgent-tgt { color:var(--crit); font-weight:700; }
+.ck-ev   { font-size:10.5px; color:var(--text-lt); line-height:1.35; }
+</style>
+</head>
+<body>
+<div class="loader hidden" id="loader"><div class="loader-spin"></div></div>
+<div class="main"><div id="tb"></div><div class="content">
+
+<!-- Header doc info -->
+<div style="background:var(--navy);border-radius:var(--radius-lg);padding:14px 20px;color:white;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div>
+    <div style="font-size:10px;opacity:.6;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px">Annual Context Review Completion Checklist</div>
+    <div style="font-size:16px;font-weight:300">SAGCO-IMS-CKL-001 · Rev.01 · May 2026 · Owner: IMS Champion</div>
+    <div style="font-size:11px;opacity:.7;margin-top:3px">ISO 45001:2018 · ISO 14001:2015 · ISO 50001:2018 · ISO 9001:2015 · ISO 37001:2016</div>
+  </div>
+  <div style="text-align:right;font-size:10px;opacity:.7;line-height:1.9">
+    <div>Review Period: Q2 2026</div>
+    <div>Reviewed By: IMS Champion</div>
+    <div>Approved: Pending GM</div>
+  </div>
+</div>
+
+<!-- KPI row -->
+<div class="kpi-grid" style="grid-template-columns:repeat(7,1fr);margin-bottom:16px">
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Complete</div><div class="kpi-val" id="ck-comp">27</div><div class="kpi-sub">evidence available</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">In Progress</div><div class="kpi-val" id="ck-prog">19</div><div class="kpi-sub">active improvement</div></div>
+  <div class="kpi-card kc-org"><div class="kpi-lbl">Partial</div><div class="kpi-val" id="ck-part">5</div><div class="kpi-sub">gap identified</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">URGENT</div><div class="kpi-val" id="ck-urg">3</div><div class="kpi-sub">blocking Stage 2</div></div>
+  <div class="kpi-card kc-gold"><div class="kpi-lbl">Planned</div><div class="kpi-val" id="ck-plan">5</div><div class="kpi-sub">scheduled</div></div>
+  <div class="kpi-card kc-navy"><div class="kpi-lbl">Monitoring</div><div class="kpi-val" id="ck-mon">2</div><div class="kpi-sub">voluntary / emerging</div></div>
+  <div class="kpi-card kc-gold"><div class="kpi-lbl">Total Items</div><div class="kpi-val">61</div><div class="kpi-sub">13 sections</div></div>
+</div>
+
+<!-- Charts -->
+<div class="chart-grid" style="grid-template-columns:1fr 2fr;margin-bottom:18px">
+  <div class="chart-card">
+    <div class="chart-title">Checklist Status<span class="chart-sub">61 items</span></div>
+    <div class="chart-wrap"><canvas id="cStatus"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Completion by Section<span class="chart-sub">% of items complete or in progress</span></div>
+    <div class="chart-wrap"><canvas id="cSection"></canvas></div>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<div class="filter-bar">
+  <input class="filter-input" type="text" id="ck-s" placeholder="Search checklist items, owners, evidence…">
+  <select class="filter-sel" id="ck-stat">
+    <option value="">All Statuses</option>
+    <option value="URGENT">🔴 Urgent</option>
+    <option value="PARTIAL">⚠️ Partial</option>
+    <option value="IN PROGRESS">🔵 In Progress</option>
+    <option value="COMPLETE">✅ Complete</option>
+    <option value="PLANNED">📋 Planned</option>
+    <option value="MONITORING">👁 Monitoring</option>
+  </select>
+  <span class="filter-count" data-count="all-items">61 items</span>
+</div>
+
+<!-- Checklist sections -->
+<div id="checklist-body"></div>
+
+</div></div>
+<script>
+initPage('checklist.html');
+document.getElementById('tb').innerHTML = renderTopbar('Annual Context Review Checklist','SAGCO-IMS-CKL-001 Rev.01 · 61 items · 13 sections · ISO §4.1/§4.2/§9.3');
+
+// Full checklist data from workbook Sheet 10
+const SECTIONS = [
+  { title:'1. External Issues (ISO §4.1)', bg:'#1B2A4A',
+    items:[
+      {no:'1.1',item:'External issues register reviewed and updated',criterion:'All 29 external factors E-01–E-29 reviewed; trend indicators current and signed off',std:'All',status:'✅ COMPLETE',evidence:'External issues register reviewed May 2026; all trends current',owner:'IMS Champion',target:'Annual'},
+      {no:'1.2',item:'Trend indicators reviewed and current for all external factors',criterion:'↑/→/↓/? indicators updated; drivers documented for each change',std:'All',status:'✅ COMPLETE',evidence:'Trends reviewed; 18 factors rising, 3 stable, 1 uncertain',owner:'IMS Champion',target:'Annual'},
+      {no:'1.3',item:'Political/Regulatory factors cover Saudi Vision 2030, NCEC, MEWA, MODON',criterion:'E-01 to E-04 current; MODON 2027 EMS mandate documented',std:'ISO 14001/45001',status:'✅ COMPLETE',evidence:'E-01–E-04 all current; Vision 2030 EMS deadline noted',owner:'HSE Manager',target:'Annual'},
+      {no:'1.4',item:'Economic factors cover energy prices, raw material costs, CBAM',criterion:'E-05–E-09 reflect Jan 2026 HFO tariff increase; CBAM risk documented',std:'ISO 50001/9001',status:'👁 MONITORING',evidence:'E-07 updated for HFO 0.42 SAR/L (+45.9%); CBAM Q4 2026 assessment planned',owner:'Energy Manager',target:'Q4 2026'},
+      {no:'1.5',item:'Climate/environmental factors reflect IPCC SSP2-4.5 projections',criterion:'E-17 climate risk; E-18 water scarcity; E-19 community air — all current',std:'ISO 14001/45001',status:'✅ COMPLETE',evidence:'TCFD physical risk analysis planned Q4 2026; IPCC data referenced',owner:'SHEE Manager',target:'Annual'},
+      {no:'1.6',item:'Market/competitive factors include ISO 9001 and QMS certification landscape',criterion:'E-25 certification requirement for government tenders confirmed',std:'ISO 9001',status:'✅ COMPLETE',evidence:'ISO 9001 gap assessment planned Q3 2026; certification decision Q4 2026',owner:'IMS Champion',target:'Annual'},
+      {no:'1.7',item:'Anti-bribery external factors captured in context register',criterion:'E-01 (regulatory environment), E-09 (customs), E-20 (migrant labour) cross-referenced',std:'ISO 37001',status:'✅ COMPLETE',evidence:'Anti-bribery risk landscape reviewed; external factors documented in BRA risks',owner:'Ethics Committee',target:'Annual'},
+    ]},
+  { title:'2. Internal Issues (ISO §4.1)', bg:'#4A0E0E',
+    items:[
+      {no:'2.1',item:'Internal issues register reviewed and updated — all I-02 to I-30',criterion:'28 internal factors reviewed; status current; no new issues missed',std:'All',status:'⚠️ PARTIAL',evidence:'I-02 to I-12 current; I-13, I-14, I-17 URGENT and open',owner:'IMS Champion',target:'Ongoing'},
+      {no:'2.2',item:'URGENT: Emergency drill (I-13) — 2026 drill overdue — IMMEDIATE',criterion:'2026 emergency drill conducted, documented and debriefed',std:'ISO 45001 §8.2',status:'🔴 URGENT',evidence:'2026 drill NOT conducted — MOC-07 PENDING IMMEDIATE · Stage 2 nonconformity risk',owner:'HSE Manager',target:'IMMEDIATE'},
+      {no:'2.3',item:'URGENT: Fire extinguisher inspection (I-14) — 2026 records absent — IMMEDIATE',criterion:'Annual fire extinguisher inspection completed and records filed (HS-04)',std:'ISO 45001 §8.1',status:'🔴 URGENT',evidence:'2026 inspection records ABSENT — nonconformity confirmed · HS-04 PARTIAL',owner:'HSE Manager',target:'IMMEDIATE'},
+      {no:'2.4',item:'URGENT: Group A programme approvals (I-17) — 8 pending GM sign-off',criterion:'All Group A HSEE programmes approved and in controlled documents',std:'ISO 45001/14001 §7.5',status:'🔴 URGENT',evidence:'8 programmes awaiting GM signature — blocks Stage 2 audit evidence pack',owner:'IMS Champion',target:'THIS WEEK'},
+      {no:'2.5',item:'PTW system discrepancy resolved (I-11) — CAPA-001 progressing',criterion:'PTW register reconciled; 130 register vs 84 physical resolved; CAPA-001 closed',std:'ISO 45001 §8.1',status:'🔵 IN PROGRESS',evidence:'CAPA-001 open; reconciliation in progress; monthly PTW audit initiated',owner:'HSE Manager',target:'Stage 2 audit'},
+      {no:'2.6',item:'CEMS installation progress (I-09) — on track Q4 2026',criterion:'CEMS operational on all 5 furnace stacks by Q4 2026',std:'ISO 14001 §9.1',status:'🔵 IN PROGRESS',evidence:'Procurement initiated; CEMS contract in review; monthly manual EMCO ongoing',owner:'Engineering Manager',target:'Q4 2026'},
+      {no:'2.7',item:'Cullet ratio improvement programme (I-16) — F3 AT RISK',criterion:'F3 cullet ≥45% by Jul 2026; site average ≥25% by Q4 2027',std:'ISO 14001/50001',status:'🔵 IN PROGRESS',evidence:'F3 at 36% (was 49%); recovery plan in place; MOC-05 IN PROGRESS',owner:'Operations Manager',target:'Jul 2026 (F3)'},
+      {no:'2.8',item:'Internal audit scheduled and planned (I-20)',criterion:'IMS internal audit programme documented; auditor independence confirmed',std:'All §9.2',status:'📋 PLANNED',evidence:'Internal audit programme drafted; target Q1 2026 audit before Stage 1',owner:'IMS Champion',target:'Pre-Stage 2'},
+      {no:'2.9',item:'Management Review conducted (I-21)',criterion:'§9.3 Management Review meeting held with all required inputs and decisions',std:'All §9.3',status:'📋 PLANNED',evidence:'Management Review planned post-Stage 2 audit; agenda preparation in progress',owner:'IMS Champion / GM',target:'Post Stage 2'},
+    ]},
+  { title:'3. Interested Parties (ISO §4.2)', bg:'#003366',
+    items:[
+      {no:'3.1',item:'Interested parties register reviewed — no new parties missed',criterion:'S-01 to S-16 all current; monitoring intervals appropriate',std:'All §4.2',status:'✅ COMPLETE',evidence:'16 parties reviewed; Major Customer A (S-01) follow-up noted below',owner:'IMS Champion',target:'Annual'},
+      {no:'3.2',item:'Major Customer A (S-01) requirements current — customer SGP, ISO 14001',criterion:'Customer SGP requirements verified; ISO 14001 Stage 2 on track; GHG 2025 data Q2 2026',std:'ISO 14001/Sustainability',status:'🔵 IN PROGRESS',evidence:'ISO 14001 Stage 2 in progress; GHG 2025 inventory EMCO Q2 2026; welfare audit access maintained',owner:'IMS Champion',target:'Post Stage 2'},
+      {no:'3.3',item:'MODON and regulatory compliance confirmed — licence current',criterion:'MODON site licence current; no suspension notices; NCEC validation recent',std:'ISO 45001/14001',status:'✅ COMPLETE',evidence:'MODON licence current; NCEC EMCO Dec-2024; no violations outstanding',owner:'HSE Manager',target:'Annual'},
+      {no:'3.4',item:'Worker participation (S-08) — formal HSE committee per ISO 45001 §5.4',criterion:'HSE Worker Participation Committee established; terms of reference issued',std:'ISO 45001 §5.4',status:'⚠️ PARTIAL',evidence:'MOC-10 PLANNED; committee constitution drafted; elections pending',owner:'HSE Manager',target:'Q3 2026'},
+      {no:'3.5',item:'Anti-bribery linkage to parties reviewed — BRA risks cross-referenced',criterion:'All high-risk parties (procurement, government, agents) have BRA risks linked',std:'ISO 37001',status:'✅ COMPLETE',evidence:'S-03 (MODON) → BRA-02; S-02/S-07 (procurement) → BRA-01; cross-references in Sheet 3',owner:'Ethics Committee',target:'Annual'},
+    ]},
+  { title:'4. PESTLE Register Review (ISO §4.1)', bg:'#4A148C',
+    items:[
+      {no:'4.1',item:'PESTLE register reviewed — all 38 factors current',criterion:'PS-01 to PS-38 reviewed; all trend indicators updated; IMS implications current',std:'All §4.1',status:'✅ COMPLETE',evidence:'PESTLE register reviewed May 2026; all 38 factors validated',owner:'IMS Champion',target:'Annual'},
+      {no:'4.2',item:'PESTLE trend analysis feeds current year risk plan',criterion:'Trend changes in PS factors reflected in Sheet 3 risk register updates',std:'All §4.1',status:'✅ COMPLETE',evidence:'HFO tariff increase (PS-11) triggered MOC-01 and R-EN-02 update',owner:'IMS Champion',target:'Annual'},
+      {no:'4.3',item:'Climate change factors per ISO 9001 Amd.1:2024 integrated',criterion:'PS-38 (ISO 9001 climate amendment) documented; E-26 internal factor updated',std:'ISO 9001',status:'✅ COMPLETE',evidence:'MOC-09 COMPLETE; QMS context worksheets updated; climate change determination documented',owner:'Operations Manager',target:'May 2026'},
+    ]},
+  { title:'5. SWOT Register Review (ISO §4.1)', bg:'#1B5E20',
+    items:[
+      {no:'5.1',item:'SWOT register reviewed and updated — all 51 items current',criterion:'SW-02 to SW-51 reviewed; critical weaknesses flagged; opportunities tracked',std:'All §4.1',status:'✅ COMPLETE',evidence:'51 SWOT items reviewed May 2026; 2 CRITICAL weaknesses (SW-18, SW-19) confirmed URGENT',owner:'IMS Champion',target:'Annual'},
+      {no:'5.2',item:'16 Weaknesses — all have treatment actions, owners and target dates',criterion:'Every weakness (W) has an action in Sheet 3 or Sheet 6',std:'All §4.1',status:'⚠️ PARTIAL',evidence:'14 weaknesses reviewed; SW-18 (emergency drill) and SW-19 (fire ext) remain URGENT open',owner:'IMS Champion',target:'Ongoing'},
+      {no:'5.3',item:'Opportunities tracked — enhancement actions progressing',criterion:'8 opportunities (O-S-01, O-E-01, O-EN-01, O-EN-02 etc.) have active owners and dates',std:'All §6.1',status:'🔵 IN PROGRESS',evidence:'O-EN-01 (ECM 1 Aug 2026 decision); O-EN-02 (solar Q2 2026 feasibility) both on track',owner:'IMS Champion',target:'Ongoing'},
+    ]},
+  { title:'6. Risk Register Review (ISO §6.1)', bg:'#7F0000',
+    items:[
+      {no:'6.1',item:'All OHS/HIRA risks reviewed — inherent and residual ratings current',criterion:'15 OHS risks R-S-01 to R-S-15 reviewed; treatment action owners confirmed',std:'ISO 45001',status:'✅ COMPLETE',evidence:'Sheet 3 OHS risks reviewed May 2026; R-S-01 (25 CRITICAL) and R-S-09 (12 HIGH residual) noted',owner:'HSE Manager',target:'Annual'},
+      {no:'6.2',item:'2 CRITICAL risks (R-S-01 score 25, R-E-02 score 20) — treatment plans on track',criterion:'Treatment actions progressing with owners and milestone dates',std:'ISO 45001/14001',status:'🔵 IN PROGRESS',evidence:'R-S-01 residual 4×5=20 (inherent to molten glass operations); R-E-02 real-time PM monitor Q3 2026',owner:'Production Manager / HSE',target:'Q3 2026'},
+      {no:'6.3',item:'HIGH risks — treatment actions all have owners and milestone dates',criterion:'All 27 HIGH risks have complete treatment actions in Sheet 3 col 14',std:'All',status:'🔵 IN PROGRESS',evidence:'Sheet 3 treatment actions reviewed; R-S-02 and R-S-04 IMMEDIATE dates assigned',owner:'IMS Champion',target:'Q3 2026'},
+      {no:'6.4',item:'Anti-bribery risks (BRA-01 to BRA-08) fully integrated in Sheet 3',criterion:'8 BRA risks reviewed; 4 HIGH risks have active CoI and interaction log controls',std:'ISO 37001',status:'✅ COMPLETE',evidence:'BRA-01 to BRA-08 all reviewed; CoI declarations Q3 2026; interaction log Q3 2026',owner:'Ethics Committee',target:'Annual'},
+      {no:'6.5',item:'BRA-01 HIGH: Procurement kickback — CoI declarations active',criterion:'CoI declaration before each tender; 3-member evaluation committee confirmed',std:'ISO 37001 §8.4',status:'🔵 IN PROGRESS',evidence:'CoI procedure drafted; Q3 2026 formal activation; post-award audit programme planned',owner:'Procurement Manager',target:'Q3 2026'},
+      {no:'6.6',item:'BRA-02 HIGH: Government facilitation payment — interaction log Q3 2026',criterion:'Government interaction log active; all interactions recorded and reviewed',std:'ISO 37001 §8.6',status:'🔵 IN PROGRESS',evidence:'Log template prepared; Legal Officer attending all inspections; Q3 2026 activation target',owner:'Legal/Compliance Officer',target:'Q3 2026'},
+      {no:'6.9',item:'8 Opportunities — enhancement actions progressing',criterion:'O-S-01, O-E-01, O-EN-01, O-EN-02, O-SUS-01, O-SR-01, O-P-01 all tracked',std:'All §6.1',status:'🔵 IN PROGRESS',evidence:'ECM 1 (O-EN-01) decision Aug 2026; solar feasibility (O-EN-02) Q2 2026; cert (O-S-01) June 2026',owner:'IMS Champion',target:'Ongoing'},
+    ]},
+  { title:'7. IMS Scope Review (ISO §4.3)', bg:'#004D40',
+    items:[
+      {no:'7.1',item:'IMS scope statement reviewed and remains accurate',criterion:'Site boundary, in-scope processes, exclusions and standards all current',std:'All §4.3',status:'✅ COMPLETE',evidence:'Scope statement confirmed May 2026; no site or process changes outside MOC',owner:'IMS Champion',target:'Annual'},
+      {no:'7.2',item:'No scope exclusions require justification update',criterion:'4 exclusions justified and documented; no new processes requiring inclusion',std:'ISO 14001 §4.3',status:'✅ COMPLETE',evidence:'Exclusions 1–4 confirmed current; no new head office or off-site activities',owner:'IMS Champion',target:'Annual'},
+      {no:'7.3',item:'ISO 9001 scope consideration — assess whether to begin certification',criterion:'ISO 9001 certification decision made; gap assessment completed',std:'ISO 9001',status:'📋 PLANNED',evidence:'OBJ-19 planned; gap assessment Q3 2026; MOC-09 complete; scope assessment to follow',owner:'Operations Manager',target:'Q4 2026'},
+    ]},
+  { title:'8. Legal Compliance Review (ISO §6.1.3)', bg:'#37474F',
+    items:[
+      {no:'8.1',item:'Legal compliance register reviewed — all 65 obligations assessed',criterion:'65 obligations reviewed; 44 Compliant, 7 Partial, 7 In Progress, 7 Monitoring',std:'All §6.1.3',status:'✅ COMPLETE',evidence:'Legal compliance register reviewed May 2026; 3 URGENT gaps identified and actioned',owner:'HSE Manager / IMS Champion',target:'Annual'},
+      {no:'8.2',item:'7 PARTIAL obligations — corrective actions progressing',criterion:'All PARTIAL items have treatment actions, owners and dates',std:'All',status:'⚠️ PARTIAL',evidence:'HS-04 (fire ext) and RM-04 (drill) IMMEDIATE; HS-08 PTW CAPA-001; QM-07 calibration Q3',owner:'HSE Manager',target:'Stage 2'},
+      {no:'8.3',item:'OHS health & safety obligations — all items reviewed',criterion:'10 OHS obligations reviewed; HS-04 and RM-04 URGENT gaps actioned',std:'ISO 45001 §6.1.3',status:'⚠️ PARTIAL',evidence:'HS-01 COMPLIANT; HS-04 PARTIAL/URGENT; HS-07 PARTIAL; HS-08 PARTIAL/URGENT; others COMPLIANT',owner:'HSE Manager',target:'Stage 2'},
+      {no:'8.4',item:'Environmental obligations — 10 items reviewed and updated',criterion:'EN-01 to EN-09 current; EMCO validation Dec-2024; CEMS Q4 2026 planned',std:'ISO 14001 §6.1.3',status:'🔵 IN PROGRESS',evidence:'EN-01 COMPLIANT (EMCO); EN-06 IN PROGRESS (water metering Q3); GG-01 IN PROGRESS (2025 inventory)',owner:'HSE Manager / IMS Champion',target:'Annual'},
+      {no:'8.5',item:'Anti-corruption obligations — 6 items reviewed',criterion:'AC-01 to AC-06 current; KSA Anti-Bribery Law compliance confirmed',std:'ISO 37001 §6.1.3',status:'✅ COMPLETE',evidence:'AC-01 COMPLIANT (policy issued Apr 2026); AC-06 MONITORING (UK/US nexus assessment Q3 2026)',owner:'Legal Counsel',target:'Annual'},
+    ]},
+  { title:'9. Process Map Review (ISO §4.4)', bg:'#1A237E',
+    items:[
+      {no:'9.1',item:'WI-04 Process Interaction map reviewed and current',criterion:'16-process map reflects actual operations; no new processes outside scope',std:'All §4.4',status:'✅ COMPLETE',evidence:'Process map reviewed May 2026; all 16 processes (P-02 to M-04) confirmed current',owner:'IMS Champion',target:'Annual'},
+      {no:'9.2',item:'Process KPIs defined and measurable for each core process',criterion:'All 7 core processes have measurable KPIs linked to objectives',std:'All §9.1',status:'🔵 IN PROGRESS',evidence:'Core process KPIs defined; calibration register (S-03) and training matrix (S-01) KPIs pending formalisation',owner:'IMS Champion / Dept Heads',target:'Q3 2026'},
+    ]},
+  { title:'10. Environmental Aspects (ISO 14001 §6.1.2)', bg:'#004D40',
+    items:[
+      {no:'10.1',item:'Environmental aspects register reviewed — significant aspects current',criterion:'14 ENV aspects ENV-01–ENV-38 reviewed; significance scoring confirmed',std:'ISO 14001 §6.1.2',status:'✅ COMPLETE',evidence:'Aspects register reviewed May 2026; ENV-01 (air) and ENV-04 (GHG) remain significant',owner:'SHEE Manager',target:'Annual'},
+      {no:'10.2',item:'Aspect significance scoring reviewed — scores still appropriate',criterion:'L×S scores consistent with WI-RA-01; no score override required',std:'ISO 14001 §6.1.2',status:'✅ COMPLETE',evidence:'Scoring reviewed; ENV-01 25/HIGH and ENV-04 25/HIGH both confirmed; no changes',owner:'SHEE Manager',target:'Annual'},
+      {no:'10.3',item:'GHG and Scope 3 aspects progressing — inventory and CBAM plan',criterion:'2025 GHG inventory in progress; Scope 3 Cat.1 baseline Q4 2026',std:'ISO 14001/50001',status:'🔵 IN PROGRESS',evidence:'EMCO engaged for 2025 inventory Q2 2026; Scope 3 Cat.1 supplier data collection Q4 2026',owner:'Energy Manager / Sustainability Manager',target:'Q4 2026'},
+    ]},
+  { title:'11. Organisational Context Summary (ISO §4.1)', bg:'#1B2A4A',
+    items:[
+      {no:'11.1',item:'Org Context Worksheet reviewed and summary metrics current',criterion:'73 context records (29 ext + 28 int + 16 parties) all reviewed',std:'All §4.1/§4.2',status:'✅ COMPLETE',evidence:'Context register Sheet 1 reviewed May 2026; all 73 records current',owner:'IMS Champion',target:'Annual'},
+      {no:'11.2',item:'Strategic considerations SC-01 to SC-08 reviewed — GM alignment confirmed',criterion:'8 strategic considerations reviewed; GM confirmed priorities for 2026',std:'All §9.3',status:'🔵 IN PROGRESS',evidence:'Stage 2 certification (SC-01) and F2 rebuild (SC-02) confirmed top priorities; SC-01 to SC-08 reviewed',owner:'IMS Champion / GM',target:'Ongoing'},
+    ]},
+  { title:'12. Risk Methodology Review (WI-RA-01)', bg:'#37474F',
+    items:[
+      {no:'12.1',item:'5×5 Risk Scoring Matrix reviewed and approved',criterion:'L×S matrix, acceptance thresholds, and escalation rules confirmed current',std:'All §6.1',status:'✅ COMPLETE',evidence:'WI-RA-01 reviewed; 5×5 matrix unchanged; override rules confirmed',owner:'IMS Champion',target:'Annual'},
+      {no:'12.2',item:'Scoring Guide reviewed — 10 risk categories covered',criterion:'OHS/Env/Energy/GHG/Sustainability/Social/Procurement/BRA/Opportunity/Compliance all defined',std:'All §6.1',status:'✅ COMPLETE',evidence:'All 10 categories reviewed; BRA 3×3→5×5 conversion confirmed consistent',owner:'IMS Champion',target:'Annual'},
+      {no:'12.3',item:'BRA 3×3 to 5×5 conversion documented and consistent with main register',criterion:'Anti-bribery scoring mapped correctly; 4 HIGH BRA risks validated',std:'ISO 37001 §6.1',status:'✅ COMPLETE',evidence:'BRA-01 to BRA-04 HIGH confirmed; BRA-05 to BRA-08 MEDIUM/LOW confirmed',owner:'Ethics Committee',target:'Annual'},
+    ]},
+  { title:'13. Management Review Preparation (ISO §9.3)', bg:'#1B2A4A',
+    items:[
+      {no:'13.1',item:'Management Review agenda prepared — all §9.3 inputs included',criterion:'Objectives, audit findings, compliance, risks, context changes all in MR pack',std:'All §9.3',status:'📋 PLANNED',evidence:'MR agenda template prepared; post-Stage 2 timing confirmed; IMS Champion preparing pack',owner:'IMS Champion',target:'Post Stage 2'},
+      {no:'13.2',item:'Compliance Dashboard current and accurate for MR presentation',criterion:'Legal compliance RAG dashboard reflects current Sheet 4 status',std:'All',status:'🔵 IN PROGRESS',evidence:'Dashboard current; 44 COMPLIANT, 3 URGENT, 7 PARTIAL noted for MR',owner:'IMS Champion',target:'Ongoing'},
+      {no:'13.3',item:'Risk treatment action completion rates prepared for MR',criterion:'% of HIGH+ risks with treatment actions on track; overdue actions flagged',std:'All',status:'🔵 IN PROGRESS',evidence:'Treatment action completion rate being compiled; IMMEDIATE items flagged in dashboard',owner:'IMS Champion / Dept Heads',target:'Ongoing'},
+      {no:'13.4',item:'Context changes since last review documented for MR input',criterion:'All MOC records (Sheet 7) and context changes tabled for MR discussion',std:'All §9.3',status:'✅ COMPLETE',evidence:'MOC-01 to MOC-12 documented; context changes (HFO tariff, F2 rebuild, F3 cullet) all in MR input',owner:'IMS Champion',target:'Annual'},
+      {no:'13.5',item:'Objectives progress report prepared — all 22 objectives status for MR',criterion:'OBJ-01 to OBJ-22 status current; URGENT items (OBJ-12, OBJ-14) highlighted',std:'All §6.2',status:'🔵 IN PROGRESS',evidence:'Objectives status current in Sheet 6; URGENT: OBJ-12 (F2 decision Aug), OBJ-14 (F4 RCA Jun)',owner:'IMS Champion / Dept Heads',target:'Ongoing'},
+    ]},
+];
+
+const statusStyle = {
+  '✅ COMPLETE':   { bg:'var(--low-l)',   fg:'var(--low)',   key:'COMPLETE'   },
+  '🔵 IN PROGRESS':{ bg:'var(--opp-l)',   fg:'var(--opp)',   key:'IN PROGRESS' },
+  '⚠️ PARTIAL':    { bg:'var(--high-l)',  fg:'#BF360C',      key:'PARTIAL'    },
+  '🔴 URGENT':     { bg:'var(--crit-l)',  fg:'var(--crit)',  key:'URGENT'     },
+  '📋 PLANNED':    { bg:'var(--g100)',    fg:'var(--g700)',  key:'PLANNED'    },
+  '👁 MONITORING': { bg:'var(--g200)',    fg:'var(--g700)',  key:'MONITORING' },
+};
+
+// Build checklist DOM
+const body = document.getElementById('checklist-body');
+let allItems = [];
+SECTIONS.forEach(sec => {
+  const div = document.createElement('div');
+  div.className = 'ck-section';
+  const done   = sec.items.filter(i=>i.status.includes('COMPLETE')).length;
+  const prog   = sec.items.filter(i=>i.status.includes('PROGRESS')).length;
+  const urgent = sec.items.filter(i=>i.status.includes('URGENT')).length;
+  let hdrExtra = '';
+  if (urgent) hdrExtra += `<span class="badge b-urgent" style="font-size:9px">${urgent} URGENT</span>&nbsp;`;
+  hdrExtra += `<span class="ck-sec-count">${done} complete · ${prog} in progress · ${sec.items.length} total</span>`;
+  div.innerHTML = `<div class="ck-sec-hdr" style="background:${sec.bg}">${sec.title}&nbsp;${hdrExtra}</div>`;
+  sec.items.forEach(item => {
+    const st = statusStyle[item.status] || statusStyle['👁 MONITORING'];
+    const isUrg = item.status.includes('URGENT');
+    const row = document.createElement('div');
+    row.className = 'ck-item' + (isUrg?' urgent':'');
+    row.dataset.status = st.key;
+    row.innerHTML = `
+      <div class="ck-no">${item.no}</div>
+      <div class="ck-text${isUrg?' urgent-text':''}">${item.item}</div>
+      <div class="ck-std">${item.std||'—'}</div>
+      <div class="ck-own">${item.owner||'—'}</div>
+      <div class="ck-tgt${isUrg?' urgent-tgt':''}">${item.target||'—'}</div>
+      <div><span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:${st.bg};color:${st.fg};white-space:nowrap">${item.status}</span></div>
+    `;
+    div.appendChild(row);
+    allItems.push(row);
+  });
+  body.appendChild(div);
+});
+
+// Charts
+const cd = chartDefaults();
+new Chart(document.getElementById('cStatus'), {
+  type:'doughnut',
+  data:{
+    labels:['Complete (27)','In Progress (19)','Partial (5)','Urgent (3)','Planned (5)','Monitoring (2)'],
+    datasets:[{data:[27,19,5,3,5,2],
+      backgroundColor:['#1B5E20','#1565C0','#F57F17','#B71C1C','#4A5568','#78909C'],borderWidth:0}]
+  },
+  options:{...cd,cutout:'60%'}
+});
+// Section completion
+const secLabels = SECTIONS.map(s=>s.title.split('.')[0]+'. '+s.title.split(' — ')[1]||s.title);
+const secProgress = SECTIONS.map(s=>{
+  const total=s.items.length;
+  const done=s.items.filter(i=>i.status.includes('COMPLETE')||i.status.includes('PROGRESS')).length;
+  return Math.round(done/total*100);
+});
+new Chart(document.getElementById('cSection'),{
+  type:'bar',
+  data:{labels:SECTIONS.map((_,i)=>String(i+1)),
+    datasets:[{data:secProgress,
+      backgroundColor:secProgress.map(p=>p>=80?'#1B5E20':p>=50?'#1565C0':p>=30?'#F57F17':'#B71C1C'),
+      borderRadius:4}]
+  },
+  options:{...cd,plugins:{legend:{display:false}},
+    scales:{x:{ticks:{font:{size:9}}},y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}}}
+});
+
+// Search + filter
+const inp = document.getElementById('ck-s');
+const sel = document.getElementById('ck-stat');
+function applyFilter() {
+  const q = (inp.value||'').toLowerCase();
+  const st = (sel.value||'').toUpperCase();
+  let vis=0;
+  allItems.forEach(row=>{
+    const ok = (!q||row.textContent.toLowerCase().includes(q)) && (!st||row.dataset.status.toUpperCase().includes(st));
+    row.style.display=ok?'':'none';
+    if(ok)vis++;
+  });
+  const cnt=document.querySelector('[data-count="all-items"]');if(cnt)cnt.textContent=`${vis} items`;
+}
+inp.addEventListener('input',applyFilter);
+sel.addEventListener('change',applyFilter);
+</script>
+</body></html>

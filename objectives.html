@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Objectives & KPI Register</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="data.js"></script><script src="nav.js"></script>
+</head>
+<body>
+<div class="loader" id="loader"><div class="loader-spin"></div><div class="loader-text">Loading objectives…</div></div>
+<div class="main"><div id="tb"></div><div class="content">
+
+<div class="kpi-grid" style="grid-template-columns:repeat(7,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-grn"> <div class="kpi-lbl">On Track</div>   <div class="kpi-val" id="s-ot">—</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">In Progress</div><div class="kpi-val" id="s-ip">—</div></div>
+  <div class="kpi-card kc-org"> <div class="kpi-lbl">At Risk</div>    <div class="kpi-val" id="s-ar">—</div></div>
+  <div class="kpi-card kc-red"> <div class="kpi-lbl">Urgent</div>     <div class="kpi-val" id="s-ug">—</div></div>
+  <div class="kpi-card kc-gold"><div class="kpi-lbl">Planned</div>    <div class="kpi-val" id="s-pl">—</div></div>
+  <div class="kpi-card kc-navy"><div class="kpi-lbl">Monitoring</div> <div class="kpi-val" id="s-mn">—</div></div>
+  <div class="kpi-card kc-gold"><div class="kpi-lbl">Total</div>      <div class="kpi-val" id="s-tt">—</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 2fr">
+  <div class="chart-card"><div class="chart-title">By IMS Category<span class="chart-sub">22 objectives</span></div><div class="chart-wrap"><canvas id="cCat"></canvas></div></div>
+  <div class="chart-card">
+    <div class="chart-title">Objectives Status Heatmap<span class="chart-sub">All 22 — click to filter</span></div>
+    <div id="heatmap" style="display:grid;grid-template-columns:repeat(11,1fr);gap:5px;padding:4px 0"></div>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <input class="filter-input" type="text" id="ob-s" placeholder="Search objectives, KPI, owner…">
+  <select class="filter-sel" id="ob-cat"><option value="">All Categories</option>
+    <option value="Safety">Safety / OH&S</option><option value="Environmental">Environmental</option>
+    <option value="Energy">Energy</option><option value="Quality">Quality</option>
+    <option value="Sustainability">Sustainability</option><option value="Social">Social</option><option value="Multi">Multi</option>
+  </select>
+  <select class="filter-sel" id="ob-stat"><option value="">All Statuses</option>
+    <option>ON TRACK</option><option>IN PROGRESS</option><option>AT RISK</option>
+    <option>URGENT</option><option>PLANNED</option><option>MONITORING</option>
+  </select>
+  <span class="filter-count" data-count="ob-tbl">— records</span>
+</div>
+
+<div class="tbl-wrap">
+<table id="ob-tbl" class="tbl-stripe"><thead><tr>
+  <th style="width:75px">ID</th><th style="width:105px">Category</th><th style="width:78px">Standard</th>
+  <th style="min-width:200px">Objective / Target</th><th style="min-width:110px">KPI</th>
+  <th style="min-width:120px">Target & Timeline</th><th style="min-width:150px">Key Actions</th>
+  <th style="width:128px">Owner</th><th style="width:92px">Due</th>
+  <th style="width:88px">Monitoring</th><th style="width:92px">Status</th>
+  <th style="width:110px">Risk / Obj Ref</th><th style="width:45px">MR</th>
+</tr></thead><tbody id="ob-tbody"></tbody></table>
+</div>
+
+</div></div>
+<script>
+initPage("objectives.html");
+document.getElementById("tb").innerHTML=renderTopbar("Objectives & KPI Register","ISO 45001/14001/50001/9001 §6.2 · 22 objectives");
+const statColor=s=>{
+  const v=s.toUpperCase();
+  if(v.includes("ON TRACK")||v.includes("COMPLETE"))return"#2E7D32";
+  if(v.includes("IN PROGRESS"))return"#1565C0";if(v.includes("PLANNED"))return"#4A5568";
+  if(v.includes("MONITOR"))return"#78909C";if(v.includes("AT RISK"))return"#F57F17";
+  if(v.includes("URGENT"))return"#B71C1C";return"#9E9E9E";
+};
+async function load(){
+  const l=document.getElementById("loader");if(l)l.classList.remove("hidden");
+  try{
+    const objs=await getData.objectives();
+    const sc={},cc={};
+    objs.forEach(o=>{const s=String(o.status||"").trim();sc[s]=(sc[s]||0)+1;cc[o.cat||"Other"]=(cc[o.cat||"Other"]||0)+1;});
+    document.getElementById("s-ot").textContent=(sc["ON TRACK"]||0)+(sc["COMPLETE"]||0);
+    document.getElementById("s-ip").textContent=sc["IN PROGRESS"]||0;
+    document.getElementById("s-ar").textContent=sc["AT RISK"]||0;
+    document.getElementById("s-ug").textContent=sc["URGENT"]||0;
+    document.getElementById("s-pl").textContent=sc["PLANNED"]||0;
+    document.getElementById("s-mn").textContent=sc["MONITORING"]||0;
+    document.getElementById("s-tt").textContent=objs.length;
+    const cd=chartDefaults();
+    new Chart(document.getElementById("cCat"),{type:"doughnut",data:{
+      labels:Object.keys(cc),
+      datasets:[{data:Object.values(cc),backgroundColor:Object.keys(cc).map(k=>(CC.catMap[k]||"#37474F")+"CC"),borderWidth:0}]
+    },options:{...cd,cutout:"60%"}});
+    const hm=document.getElementById("heatmap");
+    objs.forEach(o=>{
+      const d=document.createElement("div");
+      d.title=`${o.id}: ${o.status}`;d.style.cssText=`background:${statColor(o.status||"")};border-radius:4px;height:32px;display:flex;align-items:center;justify-content:center;color:white;font-size:8.5px;font-family:var(--mono);cursor:pointer;`;
+      d.textContent=(o.id||"").replace("OBJ-","");
+      d.onclick=()=>{document.getElementById("ob-s").value=o.id;document.getElementById("ob-s").dispatchEvent(new Event("input"));};
+      hm.appendChild(d);
+    });
+    const tbody=document.getElementById("ob-tbody");let vis=0;
+    tbody.innerHTML=objs.map(o=>{
+      vis++;const sb=statusBadge(o.status);const cb=CC.catMap[o.cat]||"#37474F";
+      return `<tr id="${o.id}" data-cat="${o.cat||""}" data-stat="${String(o.status||"").toUpperCase()}">
+        <td><a href="#${o.id}" class="trace-link" style="font-size:10.5px">${o.id||"—"}</a></td>
+        <td><span class="badge" style="background:${cb}22;color:${cb};font-size:9px;white-space:normal">${o.cat||"—"}</span></td>
+        <td style="font-size:10px;color:var(--text-lt)">${o.std||"—"}</td>
+        <td style="font-size:12px;line-height:1.4">${o.desc||"—"}</td>
+        <td style="font-size:10.5px;color:var(--text-lt)">${String(o.kpi||"—").substring(0,50)}</td>
+        <td style="font-size:11px;color:var(--low);font-weight:500;line-height:1.35">${String(o.target||"—").substring(0,70)}</td>
+        <td style="font-size:10.5px;color:var(--text-lt);line-height:1.35">${String(o.action||"—").substring(0,90)}…</td>
+        <td style="font-size:11px">${o.owner||"—"}</td>
+        <td style="font-size:11px;white-space:nowrap;${o.due==="IMMEDIATE"?"color:var(--crit);font-weight:700":""}">${o.due||"—"}</td>
+        <td style="font-size:10px;color:var(--text-lt)">${o.freq||"—"}</td>
+        <td><span class="badge ${sb}">${o.status||"—"}</span></td>
+        <td style="font-size:10px">${traceLinks(o.risk_ref)}</td>
+        <td style="text-align:center;font-size:11px">${o.mr||"—"}</td>
+      </tr>`;
+    }).join("");
+    const cnt=document.querySelector("[data-count=\"ob-tbl\"]");if(cnt)cnt.textContent=`${vis} records`;
+    filterTable("ob-s","ob-tbl");
+    document.getElementById("ob-cat")?.addEventListener("change",applyF);
+    document.getElementById("ob-stat")?.addEventListener("change",applyF);
+    document.getElementById("ob-s")?.addEventListener("input",applyF);
+    function applyF(){
+      const c=document.getElementById("ob-cat")?.value||"";
+      const s=document.getElementById("ob-stat")?.value.toUpperCase()||"";
+      const q=document.getElementById("ob-s")?.value.toLowerCase()||"";
+      let v=0;
+      document.querySelectorAll("#ob-tbody tr").forEach(tr=>{
+        const ok=(!c||tr.dataset.cat.includes(c))&&(!s||tr.dataset.stat===s)&&(!q||tr.textContent.toLowerCase().includes(q));
+        tr.style.display=ok?"":"none";if(ok)v++;
+      });
+      const ct=document.querySelector("[data-count=\"ob-tbl\"]");if(ct)ct.textContent=`${v} records`;
+    }
+    scrollToHash();
+  }catch(e){console.error(e);}
+  finally{const l=document.getElementById("loader");if(l)l.classList.add("hidden");}
+}
+load();startRefresh(load);
+</script>
+</body></html>

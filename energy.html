@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Energy Planning Register</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="data.js"></script><script src="nav.js"></script>
+</head>
+<body>
+<div class="loader" id="loader"><div class="loader-spin"></div><div class="loader-text">Loading energy data…</div></div>
+<div class="main"><div id="tb"></div><div class="content">
+
+<!-- Energy summary banner -->
+<div style="background:linear-gradient(135deg,#003366,#1565C0);border-radius:var(--radius-lg);padding:16px 22px;color:white;margin-bottom:16px;display:grid;grid-template-columns:repeat(5,1fr);gap:16px">
+  <div><div style="font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Total Q1 2026</div><div style="font-size:20px;font-weight:300">250.09 <span style="font-size:11px;opacity:.8">GWh</span></div></div>
+  <div><div style="font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Thermal Share</div><div style="font-size:20px;font-weight:300">84.3<span style="font-size:11px;opacity:.8">%</span></div><div style="font-size:9px;opacity:.6">HFO + LPG</div></div>
+  <div><div style="font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Q1 2026 Cost</div><div style="font-size:20px;font-weight:300">17.01M <span style="font-size:11px;opacity:.8">SAR</span></div><div style="font-size:9px;opacity:.6">+22.5% vs 2025</div></div>
+  <div><div style="font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">HFO Tariff Jan 2026</div><div style="font-size:20px;font-weight:300">0.42 <span style="font-size:11px;opacity:.8">SAR/L</span></div><div style="font-size:9px;opacity:.6">+45.9% from 2025</div></div>
+  <div><div style="font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Facility SPC Q1 2026</div><div style="font-size:20px;font-weight:300">562.9 <span style="font-size:11px;opacity:.8">kWh/t</span></div><div style="font-size:9px;color:#C8E6C9">✓ ≤565 target</div></div>
+</div>
+
+<!-- ECM 1 callout -->
+<div style="background:linear-gradient(135deg,#1B5E20,#2E7D32);border-radius:var(--radius-lg);padding:14px 20px;color:white;margin-bottom:16px;display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+  <div><div style="font-size:9.5px;opacity:.75;margin-bottom:2px">ECM 1 — Recuperative → Regenerative Conversion (F3, F4, F5)</div>
+  <div style="font-size:11px;opacity:.9">NPV <strong style="font-size:18px;font-weight:600">457M SAR</strong> &nbsp;·&nbsp; IRR 17.4% &nbsp;·&nbsp; Payback 7.3 yrs &nbsp;·&nbsp; CAPEX 220M SAR &nbsp;·&nbsp; 251.8 GWh/yr saving &nbsp;·&nbsp; 13.3M SAR/yr saving</div></div>
+  <div style="margin-left:auto;text-align:right"><div style="font-size:9px;opacity:.7">F2 Decision Required</div><div style="font-size:16px;font-weight:700;color:#FFF9C4">Aug 2026 — URGENT</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:3fr 2fr">
+  <div class="chart-card"><div class="chart-title">Furnace SHC vs Age-Adjusted Target Q1 2026<span class="chart-sub">kcal/kg draw</span></div><div class="chart-wrap tall"><canvas id="cSHC"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Q1 2026 Energy Split<span class="chart-sub">by fuel type ~GWh</span></div><div class="chart-wrap tall"><canvas id="cSplit"></canvas></div></div>
+</div>
+
+<div class="tbl-wrap">
+<table id="en-tbl" class="tbl-stripe"><thead><tr>
+  <th style="width:85px">Energy ID</th><th style="min-width:190px">SEU / Energy Source</th>
+  <th style="min-width:110px">EnPI Metric</th><th style="min-width:130px">EnB (Baseline)</th>
+  <th style="min-width:175px">Q1 2026 Actual & Performance</th><th style="width:110px">Trend</th>
+  <th style="min-width:190px">Action / Next Step</th>
+  <th style="width:138px">Owner & Date</th>
+  <th style="width:100px">Risk Ref</th><th style="width:100px">Obj Ref</th>
+</tr></thead><tbody id="en-tbody"></tbody></table>
+</div>
+
+</div></div>
+<script>
+initPage("energy.html");
+document.getElementById("tb").innerHTML=renderTopbar("Energy Planning Register","ISO 50001 §6.3/§9.1 · Source: L4-630-A-21 Q1 2026 Energy Review");
+
+// Static charts (source: L4-630-A-21 Q1 2026)
+const cd=chartDefaults();
+new Chart(document.getElementById("cSHC"),{type:"bar",data:{
+  labels:["F1","F2","F3","F4","F5"],
+  datasets:[
+    {label:"Q1 2026 SHC",data:[1208,1608,2021,2185,2171],backgroundColor:["#2E7D32","#E65100","#E65100","#B71C1C","#F9A825"],borderRadius:5,order:2},
+    {label:"Age-Adj. Target",data:[1242,1580,1996,2066,2138],type:"line",borderColor:"#C9A84C",backgroundColor:"transparent",borderWidth:2.5,borderDash:[6,3],pointRadius:5,pointBackgroundColor:"#C9A84C",order:1}
+  ]},options:{...cd,scales:{y:{min:1000,title:{display:true,text:"kcal/kg draw",font:{size:9}},ticks:{font:{size:9}}},x:{grid:{display:false},ticks:{font:{size:11,weight:"600"}}}}}
+});
+new Chart(document.getElementById("cSplit"),{type:"doughnut",data:{
+  labels:["HFO — Furnaces (~210 GWh)","LPG — Downstream (~16 GWh)","Electricity — SCECO (~39 GWh)","Diesel — Fleet (~1.1 GWh)"],
+  datasets:[{data:[210.84,16.05,39.29,1.12],backgroundColor:["#B71C1C","#E65100","#003366","#37474F"],borderWidth:0}]
+},options:{...cd,cutout:"55%",plugins:{legend:{position:"right",labels:{font:{size:9},boxWidth:10}}}}});
+
+const trendStyle={
+  "▼ IMPROVING":["var(--low-l)","var(--low)"],"→ STABLE":["var(--med-l)","#E65100"],
+  "▲ ADVERSE":["var(--crit-l)","var(--crit)"],"▲ SLIGHT ADVERSE":["var(--high-l)","var(--high)"],
+  "? UNKNOWN":["var(--g100)","var(--g700)"],"▲ OPPORTUNITY":["var(--opp-l)","var(--opp)"],
+  "▲ ADVERSE (cullet-driven)":["var(--crit-l)","var(--crit)"],"▲ ADVERSE (structural)":["var(--crit-l)","var(--crit)"],
+  "▲ ADVERSE +5.6%":["var(--high-l)","var(--high)"]
+};
+
+async function load(){
+  const l=document.getElementById("loader");if(l)l.classList.remove("hidden");
+  try{
+    let data=await getData.energy();
+    if(!data||!data.length)data=FALLBACK.energy;
+    document.getElementById("en-tbody").innerHTML=data.map(d=>{
+      const ts=trendStyle[d.trend||""]||["var(--g100)","var(--g700)"];
+      const isUrg=String(d.action||"").toUpperCase().includes("URGENT");
+      const eCol={"EN-T-":"#4A0E0E","EN-E-":"#003366","EN-D-":"#37474F","EN-EC":"#004D40"};
+      const eC=Object.entries(eCol).find(([k])=>String(d.id||"").startsWith(k));
+      const eBg=eC?eC[1]:"#003366";
+      return `<tr id="${d.id||""}">
+        <td style="font-family:var(--mono);font-size:10.5px;background:${eBg}18">${d.id||"—"}</td>
+        <td style="font-size:11.5px;line-height:1.35;font-weight:500">${d.source||"—"}</td>
+        <td style="font-size:11px;font-weight:600;color:var(--navy)">${d.enpi||"—"}</td>
+        <td style="font-size:10.5px;color:var(--text-lt)">${d.enb||"—"}</td>
+        <td style="font-size:11.5px;font-weight:500">${d.q1_actual||"—"}</td>
+        <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:${ts[0]};color:${ts[1]};font-size:10px;font-weight:700;line-height:1.3">${d.trend||"—"}</span></td>
+        <td style="font-size:11px;line-height:1.35;${isUrg?"color:var(--crit);font-weight:600":""}">${String(d.action||"—").substring(0,120)}${String(d.action||"").length>120?"…":""}</td>
+        <td style="font-size:10px;color:var(--text-lt)">${d.owner||"—"}</td>
+        <td style="font-size:10px">${traceLinks(d.risk_ref||"")}</td>
+        <td style="font-size:10px">${traceLinks(d.obj_ref||"")}</td>
+      </tr>`;
+    }).join("");
+    scrollToHash();
+  }catch(e){console.error(e);}
+  finally{const l=document.getElementById("loader");if(l)l.classList.add("hidden");}
+}
+load();startRefresh(load);
+</script>
+</body></html>

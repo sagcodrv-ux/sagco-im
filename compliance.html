@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Legal & Compliance Register</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="data.js"></script><script src="nav.js"></script>
+</head>
+<body>
+<div class="loader" id="loader"><div class="loader-spin"></div><div class="loader-text">Loading compliance data…</div></div>
+<div class="main"><div id="tb"></div><div class="content">
+
+<div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Compliant</div><div class="kpi-val" id="cc-comp">44</div><div class="kpi-sub">68% of obligations</div><div class="prog-bar"><div class="prog-fill prog-grn" style="width:68%"></div></div></div>
+  <div class="kpi-card kc-org"><div class="kpi-lbl">Partial</div><div class="kpi-val" id="cc-part">7</div><div class="kpi-sub">Action required</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">In Progress</div><div class="kpi-val" id="cc-prog">7</div><div class="kpi-sub">Active improvement</div></div>
+  <div class="kpi-card kc-navy"><div class="kpi-lbl">Monitoring</div><div class="kpi-val" id="cc-mon">7</div><div class="kpi-sub">Voluntary/emerging</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">URGENT</div><div class="kpi-val" id="cc-urg">3</div><div class="kpi-sub">HS-04 · HS-08 · RM-04</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr">
+  <div class="chart-card"><div class="chart-title">Compliance by Status<span class="chart-sub">65 total obligations</span></div><div class="chart-wrap"><canvas id="cStat"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Obligations by Category<span class="chart-sub">10 categories</span></div><div class="chart-wrap"><canvas id="cCat"></canvas></div></div>
+</div>
+
+<div class="filter-bar">
+  <input class="filter-input" type="text" id="cc-s" placeholder="Search obligation, authority, evidence…">
+  <select class="filter-sel" id="cc-stat"><option value="">All Statuses</option>
+    <option>COMPLIANT</option><option>PARTIAL</option><option>IN PROGRESS</option><option>MONITORING</option>
+  </select>
+  <select class="filter-sel" id="cc-cat"><option value="">All Categories</option>
+    <option value="Health">Health & Safety</option><option value="Environ">Environment</option>
+    <option value="Energy">Energy</option><option value="GHG">GHG & Emissions</option>
+    <option value="Quality">Quality (ISO 9001)</option><option value="Anti">Anti-Corruption</option>
+    <option value="Risk">Risk Management</option><option value="Social">Social</option>
+  </select>
+  <span class="filter-count" data-count="cc-tbl">— records</span>
+</div>
+
+<div class="tbl-wrap">
+<table id="cc-tbl" class="tbl-stripe"><thead><tr>
+  <th style="width:75px">Ref</th><th style="width:140px">Authority</th>
+  <th style="min-width:180px">Legal Instrument</th><th style="min-width:180px">Key Requirement</th>
+  <th style="width:105px">Category</th><th style="width:72px">Standard</th>
+  <th style="width:60px">Clause</th><th style="min-width:155px">Evidence / Status Notes</th>
+  <th style="width:122px">Owner</th><th style="width:95px">Next Review</th>
+  <th style="width:100px">Status</th><th style="width:110px">Risk Ref</th>
+</tr></thead><tbody id="cc-tbody"></tbody></table>
+</div>
+</div></div>
+
+<script>
+initPage("compliance.html");
+document.getElementById("tb").innerHTML=renderTopbar("Legal & Compliance Register","ISO §6.1.3 · 65 obligations · 10 categories");
+const catBg={"Health & Safety":"#7F0000","Environment":"#004D40","Energy":"#003366",
+  "GHG & Emissions":"#4A148C","Quality (ISO 9001)":"#1B5E20","Social Responsibility":"#1A237E",
+  "Sustainable Procurement":"#4E342E","Risk Management":"#37474F","Anti-Corruption":"#B71C1C","IMS Standards":"#1B2A4A"};
+async function load(){
+  const l=document.getElementById("loader");if(l)l.classList.remove("hidden");
+  try{
+    let data=await getData.compliance();
+    if(!data||!data.length)data=FALLBACK.compliance;
+    const sc={},cc={};let urg=0;
+    data.forEach(d=>{
+      const s=String(d.status||"").trim().toUpperCase();
+      sc[s]=(sc[s]||0)+1;cc[d.cat||"Other"]=(cc[d.cat||"Other"]||0)+1;
+      if(s==="PARTIAL"&&(String(d.review||"").toUpperCase().includes("IMMEDIATE")||String(d.evidence||"").toUpperCase().includes("URGENT")))urg++;
+    });
+    document.getElementById("cc-comp").textContent=sc["COMPLIANT"]||44;
+    document.getElementById("cc-part").textContent=sc["PARTIAL"]||7;
+    document.getElementById("cc-prog").textContent=sc["IN PROGRESS"]||7;
+    document.getElementById("cc-mon").textContent=sc["MONITORING"]||7;
+    document.getElementById("cc-urg").textContent=urg||3;
+
+    const cd=chartDefaults();
+    new Chart(document.getElementById("cStat"),{type:"doughnut",data:{
+      labels:["Compliant","Partial","In Progress","Monitoring"],
+      datasets:[{data:[sc["COMPLIANT"]||44,sc["PARTIAL"]||7,sc["IN PROGRESS"]||7,sc["MONITORING"]||7],
+        backgroundColor:["#1B5E20","#F57F17","#1565C0","#78909C"],borderWidth:0}]
+    },options:{...cd,cutout:"60%"}});
+    new Chart(document.getElementById("cCat"),{type:"bar",data:{
+      labels:Object.keys(cc),
+      datasets:[{data:Object.values(cc),backgroundColor:Object.keys(cc).map(k=>(catBg[k]||"#37474F")+"CC"),borderRadius:4}]
+    },options:{...cd,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:9},maxRotation:28}},y:{beginAtZero:true}}}});
+
+    const tbody=document.getElementById("cc-tbody");let vis=0;
+    tbody.innerHTML=data.map(d=>{
+      const sb=statusBadge(d.status);const isUrg=String(d.review||"").toUpperCase().includes("IMMEDIATE");
+      const cb=catBg[d.cat]||"#37474F";
+      vis++;
+      return `<tr id="${d.ref||""}" data-stat="${String(d.status||"").toUpperCase()}" data-cat="${d.cat||""}">
+        <td style="font-family:var(--mono);font-size:10.5px">${d.ref||"—"}</td>
+        <td style="font-size:11px">${d.auth||"—"}</td>
+        <td style="font-size:12px;font-weight:500">${d.instrument||"—"}</td>
+        <td style="font-size:11px;line-height:1.35">${d.req||"—"}</td>
+        <td><span class="badge" style="background:${cb}22;color:${cb};font-size:9px;white-space:normal">${d.cat||"—"}</span></td>
+        <td style="font-size:10px;color:var(--text-lt)">${d.std||"—"}</td>
+        <td style="font-size:10px;color:var(--text-lt)">${d.clause||"—"}</td>
+        <td style="font-size:11px;line-height:1.35;${isUrg?"color:var(--crit);font-weight:700":""}">${d.evidence||"—"}</td>
+        <td style="font-size:11px">${d.owner||"—"}</td>
+        <td style="font-size:11px;${isUrg?"color:var(--crit);font-weight:700":""}white-space:nowrap">${d.review||"—"}</td>
+        <td><span class="badge ${sb}">${d.status||"—"}</span></td>
+        <td style="font-size:10px">${traceLinks(d.risk_ref||"")}</td>
+      </tr>`;
+    }).join("");
+    const cnt=document.querySelector("[data-count=\\"cc-tbl\\"]");if(cnt)cnt.textContent=`${vis} records`;
+    filterTable("cc-s","cc-tbl");
+    function applyF(){
+      const s=document.getElementById("cc-stat")?.value.toUpperCase()||"";
+      const c=document.getElementById("cc-cat")?.value||"";
+      const q=document.getElementById("cc-s")?.value.toLowerCase()||"";
+      let v=0;
+      document.querySelectorAll("#cc-tbody tr").forEach(tr=>{
+        const ok=(!s||tr.dataset.stat===s)&&(!c||tr.dataset.cat.toLowerCase().includes(c.toLowerCase()))&&(!q||tr.textContent.toLowerCase().includes(q));
+        tr.style.display=ok?"":"none";if(ok)v++;
+      });
+      const ct=document.querySelector("[data-count=\\"cc-tbl\\"]");if(ct)ct.textContent=`${v} records`;
+    }
+    document.getElementById("cc-stat")?.addEventListener("change",applyF);
+    document.getElementById("cc-cat")?.addEventListener("change",applyF);
+    document.getElementById("cc-s")?.addEventListener("input",applyF);
+    scrollToHash();
+  }catch(e){console.error(e);}
+  finally{const l=document.getElementById("loader");if(l)l.classList.add("hidden");}
+}
+load();startRefresh(load);
+</script>
+</body></html>
