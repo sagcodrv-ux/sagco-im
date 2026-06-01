@@ -8,8 +8,8 @@
  */
 
 const IMS_CONFIG = {
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec',
-  SHEET_ID:        'YOUR_GOOGLE_SHEET_ID',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwsR0gtp5bKj8cibeUXiK3J4NKb0U90zSwTed-5hJJ9wWa7XwvOG9ckcwQzXJ-kLCOP2g/exec',
+  SHEET_ID:        '1tTBBC3R5cXkQo2gztWXL97Jmtbzkj8ncVZgBPKIE3bo',
   TABS: {
     context:    'Context Register',
     pestle:     'PESTLE SWOT',
