@@ -4,6 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SAGCO IMS — MOC Register</title>
 <link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="data.js"></script><script src="nav.js"></script>
 </head>
 <body>
@@ -12,8 +13,10 @@
 
 <div class="alert alert-red" style="margin-bottom:14px">
   <div class="alert-icon">⚠</div>
-  <div><div class="alert-title">MOC-07 PENDING IMMEDIATE APPROVAL — Emergency Drill Overdue</div>
-  <div class="alert-body">2026 emergency drill not conducted · Scope expanded to furnace blowback + gas leak · Requires immediate HSE Manager and GM approval to proceed · Blocks ISO 45001 Stage 2</div></div>
+  <div>
+    <div class="alert-title">MOC-07 PENDING IMMEDIATE — Emergency Drill Overdue 2026</div>
+    <div class="alert-body">2026 emergency drill not conducted · Furnace blowback + gas leak scenarios required · Blocks ISO 45001 Stage 2 · CEO approval required</div>
+  </div>
 </div>
 
 <div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:14px">
@@ -25,88 +28,183 @@
   <div class="kpi-card kc-gold"><div class="kpi-lbl">Total</div><div class="kpi-val" id="mc-tt">—</div></div>
 </div>
 
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+  <div class="chart-card">
+    <div class="chart-title">MOC by Approval Status<span class="chart-sub">click to filter</span></div>
+    <div class="chart-wrap"><canvas id="mStat"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">MOC by Change Type<span class="chart-sub">click to filter</span></div>
+    <div class="chart-wrap"><canvas id="mType"></canvas></div>
+  </div>
+</div>
+
 <div class="filter-bar">
   <input class="filter-input" type="text" id="mc-s" placeholder="Search MOC records, description, owner…">
+  <select class="filter-sel" id="mc-appr"><option value="">All Statuses</option>
+    <option>APPROVED</option><option>IN PROGRESS</option><option>PLANNED</option>
+    <option>PENDING IMMEDIATE</option><option>COMPLETE</option><option>TEMPLATE</option>
+  </select>
   <select class="filter-sel" id="mc-type"><option value="">All Change Types</option>
     <option>Regulatory Change</option><option>Equipment Change</option><option>Process Change</option>
     <option>Strategic Change</option><option>Technology Change</option><option>Organisational Change</option>
     <option>Geopolitical / Supply Chain</option><option>Significant Incident</option>
   </select>
-  <span class="filter-count" data-count="mc-tbl">— records</span>
+  <span class="filter-count" id="mc-count">— records</span>
 </div>
 
 <div class="tbl-wrap">
 <table id="mc-tbl" class="tbl-stripe"><thead><tr>
-  <th style="width:78px">MOC ID</th><th style="width:100px">Category</th><th style="width:118px">Change Type</th>
-  <th style="min-width:210px">Change Description & Reason</th><th style="min-width:120px">Trigger / Source</th>
-  <th style="width:72px">Standard</th>
-  <th style="min-width:100px">Safety Impact</th><th style="min-width:100px">Environmental</th>
-  <th style="min-width:100px">Energy Impact</th>
-  <th style="min-width:140px">Controls & Training</th>
-  <th style="width:128px">Owner</th>
-  <th style="width:95px">Approval</th><th style="width:95px">Target Date</th>
-  <th style="width:110px">Risk Ref</th>
+  <th style="width:80px">MOC ID</th>
+  <th style="width:110px">Category</th>
+  <th style="width:130px">Change Type</th>
+  <th style="min-width:220px">Change Description</th>
+  <th style="min-width:140px">Trigger / Source</th>
+  <th style="width:75px">Standard</th>
+  <th style="min-width:120px">Safety Impact</th>
+  <th style="min-width:120px">Environmental</th>
+  <th style="min-width:120px">Energy Impact</th>
+  <th style="min-width:160px">Controls & Training</th>
+  <th style="width:130px">Owner</th>
+  <th style="width:110px">Approval</th>
+  <th style="width:100px">Target Date</th>
+  <th style="width:120px">Risk Ref</th>
 </tr></thead><tbody id="mc-tbody"></tbody></table>
 </div>
 </div></div>
+
 <script>
 initPage("moc.html");
-document.getElementById("tb").innerHTML=renderTopbar("MOC Register","ISO 9001 §6.3 / ISO 45001 §8.1.1 / ISO 50001 §6.3 · 12 change records");
-const typeBg={"Regulatory Change":"#1565C0","Equipment Change":"#7F0000","Process Change":"#E65100",
+document.getElementById("tb").innerHTML = renderTopbar("MOC Register","ISO 9001 §6.3 / ISO 45001 §8.1.1 / ISO 50001 §6.3 · 12 change records");
+
+const typeBg = {
+  "Regulatory Change":"#1565C0","Equipment Change":"#7F0000","Process Change":"#E65100",
   "Strategic Change":"#4A148C","Technology Change":"#004D40","Organisational Change":"#37474F",
-  "Geopolitical / Supply Chain":"#4E342E","Significant Incident":"#B71C1C"};
-const apBg={"APPROVED":"#1B5E20","IN PROGRESS":"#1565C0","PLANNED":"#F57F17","PENDING":"#B71C1C","COMPLETE":"#1B5E20","TEMPLATE":"#78909C"};
-const impStyle=v=>{const u=String(v||"").toUpperCase();
-  if(u.includes("HIGH")||u.includes("NEGATIVE")||u.includes("UNSAFE"))return"background:var(--crit-l);color:var(--crit)";
-  if(u.includes("POSITIVE")||u.includes("NO DIRECT")||u.includes("NONE"))return"background:var(--low-l);color:var(--low)";
-  return"background:var(--med-l);color:#E65100";};
-async function load(){
-  const l=document.getElementById("loader");if(l)l.classList.remove("hidden");
-  try{
-    let data=await getData.moc();
-    if(!data||!data.length)data=FALLBACK.moc;
-    const sc={};data.forEach(d=>{const k=String(d.approval||"").split(" ")[0].toUpperCase();sc[k]=(sc[k]||0)+1;});
-    document.getElementById("mc-ap").textContent=sc["APPROVED"]||0;
-    document.getElementById("mc-ip").textContent=sc["IN"]||0;
-    document.getElementById("mc-pl").textContent=sc["PLANNED"]||0;
-    document.getElementById("mc-pe").textContent=sc["PENDING"]||0;
-    document.getElementById("mc-co").textContent=sc["COMPLETE"]||0;
-    document.getElementById("mc-tt").textContent=data.length;
-    const tbody=document.getElementById("mc-tbody");let vis=0;
-    tbody.innerHTML=data.map(d=>{
-      const apKey=String(d.approval||"").split(" ")[0].toUpperCase();
-      const aBg=apBg[apKey]||"#78909C";
-      const tBg=typeBg[d.type]||"#37474F";
-      const cBg=CC.catMap[d.cat]||"#37474F";
-      vis++;
-      return `<tr id="${d.id||""}" data-type="${d.type||""}">
+  "Geopolitical / Supply Chain":"#4E342E","Significant Incident":"#B71C1C"
+};
+const apBg = {
+  "APPROVED":"#1B5E20","IN PROGRESS":"#1565C0","PLANNED":"#F57F17",
+  "PENDING":"#B71C1C","PENDING IMMEDIATE":"#B71C1C","COMPLETE":"#1B5E20","TEMPLATE":"#78909C"
+};
+const impStyle = v => {
+  const u = String(v || "").toUpperCase();
+  if (u.includes("HIGH") || u.includes("NEGATIVE") || u.includes("UNSAFE") || u.includes("URGENT"))
+    return "background:var(--crit-l);color:var(--crit)";
+  if (u.includes("POSITIVE") || u.includes("NO DIRECT") || u.includes("NONE"))
+    return "background:var(--low-l);color:var(--low)";
+  return "background:var(--med-l);color:#E65100";
+};
+
+let _chartStat, _chartType;
+
+function applyFilters() {
+  const a = (document.getElementById("mc-appr")?.value || "").toUpperCase();
+  const t = (document.getElementById("mc-type")?.value || "").toLowerCase();
+  const q = (document.getElementById("mc-s")?.value || "").toLowerCase();
+  let v = 0;
+  document.querySelectorAll("#mc-tbody tr").forEach(tr => {
+    const ok = (!a || tr.dataset.appr.toUpperCase().includes(a)) &&
+               (!t || tr.dataset.type.toLowerCase().includes(t)) &&
+               (!q || tr.textContent.toLowerCase().includes(q));
+    tr.style.display = ok ? "" : "none"; if (ok) v++;
+  });
+  document.getElementById("mc-count").textContent = v + " records";
+}
+
+async function load() {
+  const l = document.getElementById("loader"); if (l) l.classList.remove("hidden");
+  try {
+    let data = await getData.moc();
+    if (!data || !data.length) data = FALLBACK.moc;
+
+    const sc = {}, tc = {};
+    data.forEach(d => {
+      const k = String(d.approval || "").toUpperCase();
+      const shortK = k.startsWith("PENDING") ? "PENDING" : k.split(" ")[0];
+      sc[shortK] = (sc[shortK] || 0) + 1;
+      tc[d.type || "Other"] = (tc[d.type || "Other"] || 0) + 1;
+    });
+
+    document.getElementById("mc-ap").textContent = sc["APPROVED"] || 0;
+    document.getElementById("mc-ip").textContent = sc["IN"] || 0;
+    document.getElementById("mc-pl").textContent = sc["PLANNED"] || 0;
+    document.getElementById("mc-pe").textContent = sc["PENDING"] || 0;
+    document.getElementById("mc-co").textContent = sc["COMPLETE"] || 0;
+    document.getElementById("mc-tt").textContent = data.length;
+
+    const cd = chartDefaults();
+    if (_chartStat) _chartStat.destroy();
+    if (_chartType) _chartType.destroy();
+
+    _chartStat = new Chart(document.getElementById("mStat"), {
+      type: "doughnut",
+      data: {
+        labels: Object.keys(sc),
+        datasets: [{ data: Object.values(sc),
+          backgroundColor: Object.keys(sc).map(k => apBg[k] || "#78909C"),
+          borderWidth: 0 }]
+      },
+      options: { ...cd, cutout: "60%",
+        onClick(e, el) {
+          if (!el.length) return;
+          document.getElementById("mc-appr").value = Object.keys(sc)[el[0].index] || "";
+          applyFilters();
+        }
+      }
+    });
+
+    _chartType = new Chart(document.getElementById("mType"), {
+      type: "bar",
+      data: {
+        labels: Object.keys(tc),
+        datasets: [{ data: Object.values(tc),
+          backgroundColor: Object.keys(tc).map(k => (typeBg[k] || "#37474F") + "CC"),
+          borderRadius: 4 }]
+      },
+      options: { ...cd,
+        plugins: { legend: { display: false } },
+        scales: { x: { ticks: { font: { size: 9 }, maxRotation: 35 } }, y: { beginAtZero: true } },
+        onClick(e, el) {
+          if (!el.length) return;
+          document.getElementById("mc-type").value = Object.keys(tc)[el[0].index] || "";
+          applyFilters();
+        }
+      }
+    });
+
+    const tbody = document.getElementById("mc-tbody");
+    tbody.innerHTML = data.map(d => {
+      const apKey = String(d.approval || "").toUpperCase();
+      const isPend = apKey.includes("PENDING");
+      const aBg = isPend ? "#B71C1C" : (apBg[apKey.split(" ")[0]] || "#78909C");
+      const tBg = typeBg[d.type] || "#37474F";
+      const cBg = CC.catMap[d.cat] || "#37474F";
+      return `<tr id="${d.id||""}" data-type="${d.type||""}" data-appr="${d.approval||""}">
         <td><a href="#${d.id}" class="trace-link" style="font-size:10.5px">${d.id||"—"}</a></td>
         <td><span class="badge" style="background:${cBg}22;color:${cBg};font-size:9px;white-space:normal">${d.cat||"—"}</span></td>
         <td><span class="badge" style="background:${tBg}22;color:${tBg};font-size:9px;white-space:normal">${d.type||"—"}</span></td>
-        <td style="font-size:12px;line-height:1.35;font-weight:500">${String(d.desc||"—").substring(0,100)}…</td>
-        <td style="font-size:10.5px;color:var(--text-lt)">${String(d.trigger||"—").substring(0,65)}…</td>
+        <td style="font-size:12px;line-height:1.4;font-weight:500">${d.desc||"—"}</td>
+        <td style="font-size:10.5px;color:var(--text-lt);line-height:1.35">${d.trigger||"—"}</td>
         <td style="font-size:10px;color:var(--text-lt)">${d.std||"—"}</td>
-        <td style="padding:6px 10px"><span style="${impStyle(d.safety)};padding:3px 7px;border-radius:4px;font-size:10px;display:block">${String(d.safety||"—").substring(0,55)}</span></td>
-        <td style="padding:6px 10px"><span style="${impStyle(d.env)};padding:3px 7px;border-radius:4px;font-size:10px;display:block">${String(d.env||"—").substring(0,55)}</span></td>
-        <td style="padding:6px 10px"><span style="${impStyle(d.energy)};padding:3px 7px;border-radius:4px;font-size:10px;display:block">${String(d.energy||"—").substring(0,55)}</span></td>
-        <td style="font-size:10.5px;color:var(--text-lt);line-height:1.3">${String(d.controls||"—").substring(0,80)}…</td>
+        <td style="padding:6px 10px"><span style="${impStyle(d.safety)};padding:3px 7px;border-radius:4px;font-size:10px;display:block;line-height:1.35">${d.safety||"—"}</span></td>
+        <td style="padding:6px 10px"><span style="${impStyle(d.env)};padding:3px 7px;border-radius:4px;font-size:10px;display:block;line-height:1.35">${d.env||"—"}</span></td>
+        <td style="padding:6px 10px"><span style="${impStyle(d.energy)};padding:3px 7px;border-radius:4px;font-size:10px;display:block;line-height:1.35">${d.energy||"—"}</span></td>
+        <td style="font-size:10.5px;color:var(--text-lt);line-height:1.35">${d.controls||"—"}</td>
         <td style="font-size:11px">${d.owner||"—"}</td>
-        <td><span style="background:${aBg};color:white;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:600;white-space:nowrap">${apKey}</span></td>
+        <td><span style="background:${aBg};color:white;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:600;white-space:nowrap">${d.approval||"—"}</span></td>
         <td style="font-size:11px;${String(d.impl||"").toUpperCase().includes("IMMEDIATE")?"color:var(--crit);font-weight:700":""}white-space:nowrap">${d.impl||"—"}</td>
         <td style="font-size:10px">${traceLinks(d.risk_ref||"")}</td>
       </tr>`;
     }).join("");
-    const cnt=document.querySelector("[data-count=\\"mc-tbl\\"]");if(cnt)cnt.textContent=`${vis} records`;
-    filterTable("mc-s","mc-tbl");
-    document.getElementById("mc-type")?.addEventListener("change",function(){
-      const v=this.value;let c=0;
-      document.querySelectorAll("#mc-tbody tr").forEach(tr=>{const ok=!v||tr.dataset.type===v;tr.style.display=ok?"":"none";if(ok)c++;});
-      const ct=document.querySelector("[data-count=\\"mc-tbl\\"]");if(ct)ct.textContent=`${c} records`;
-    });
+
+    document.getElementById("mc-count").textContent = data.length + " records";
+    document.getElementById("mc-appr")?.addEventListener("change", applyFilters);
+    document.getElementById("mc-type")?.addEventListener("change", applyFilters);
+    document.getElementById("mc-s")?.addEventListener("input", applyFilters);
     scrollToHash();
-  }catch(e){console.error(e);}
-  finally{const l=document.getElementById("loader");if(l)l.classList.add("hidden");}
+  } catch(e) { console.error(e); }
+  finally { const l = document.getElementById("loader"); if (l) l.classList.add("hidden"); }
 }
-load();startRefresh(load);
+load(); startRefresh(load);
 </script>
 </body></html>

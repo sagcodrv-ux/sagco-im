@@ -8,7 +8,7 @@
  */
 
 const IMS_CONFIG = {
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyIm3hxXlp_4gnX434YiSDCRcFljyBZbUwWlweeuE51JIHVPy0NSiHHZ0DukjouUpD5/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzQJr70EEyh4DYEVxtXHmjxc2I71U23Vt9i_W8IXhv1pCu2HoINxjfTV7N1wj7ifa_0kQ/exec',
   SHEET_ID:        '1tTBBC3R5cXkQo2gztWXL97Jmtbzkj8ncVZgBPKIE3bo',
   TABS: {
     context:    '📋 Context',
