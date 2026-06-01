@@ -32,7 +32,7 @@ async function fetchTab(tabKey) {
   const cached  = _cache[tabKey];
   if (cached && Date.now() - cached.ts < 60000) return cached.data;
   try {
-    const url = `${IMS_CONFIG.APPS_SCRIPT_URL}?tab=${encodeURIComponent(tabName)}`;
+    const url = `${IMS_CONFIG.APPS_SCRIPT_URL}?tab=${encodeURIComponent(tabKey)}`;
     const res  = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
