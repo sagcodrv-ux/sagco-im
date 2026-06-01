@@ -10,16 +10,18 @@
 const IMS_CONFIG = {
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzQJr70EEyh4DYEVxtXHmjxc2I7lU23Vt9i_W8IXhv1pCu2HoINxjfTV7Nlwj7ifa_0kQ/exec',
   SHEET_ID:        '1tTBBC3R5cXkQo2gztWXL97Jmtbzkj8ncVZgBPKIE3bo',
-TABS: {
-  context: '📋 Context',
-  pestle: '📊 PESTLE-SWOT',
-  risks: '⚠ Risk Register',
-  compliance: '⚖ Compliance',
-  objectives: '🎯 Objectives',
-  moc: '🔄 MOC',
-  energy: '⚡ Energy',
-  checklist: '✅ Checklist',
-},
+  TABS: {
+    context:    '📋 Context',
+    pestle:     '📊 PESTLE-SWOT',
+    risks:      '⚠ Risk Register',
+    compliance: '⚖ Compliance',
+    objectives: '🎯 Objectives',
+    moc:        '🔄 MOC',
+    energy:     '⚡ Energy',
+    checklist:  '✅ Checklist',
+  },
+  REFRESH_MS: 300000,   // 5 minutes
+};
 
 // ── Cache ──────────────────────────────────────────────────
 const _cache = {};
