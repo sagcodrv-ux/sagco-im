@@ -27,20 +27,101 @@ const IMS_CONFIG = {
 const _cache = {};
 let _lastSync = null;
 
+
+// Field name remapper — converts Google Sheet column headers to internal field names
+const REMAP = {
+  objectives: {
+    'Obj ID':'id','Category':'cat','Standard':'std',
+    'Objective / Target Statement':'desc','Clause':'clause',
+    'Baseline / Current':'baseline','KPI Metric':'kpi',
+    'Target & Timeline':'target','Key Actions':'action',
+    'Owner':'owner','Due Date':'due','Review Freq.':'freq',
+    'Status':'status','Risk Ref':'risk_ref','MR Input?':'mr'
+  },
+  risks: {
+    'Ref':'ref','Risk Type':'type','IMS Category':'cat','Standard':'std',
+    'Risk / Hazard Description':'desc','L\nInherent':'L_inh','S\nInherent':'S_inh',
+    'Score\nInherent':'score_inh','Rating\nInherent':'rating_inh',
+    'Existing Controls':'controls','Treatment Action':'action',
+    'Owner':'owner','Due Date':'due','L\nResidual':'L_res','S\nResidual':'S_res',
+    'Score\nResidual':'score_res','Rating\nResidual':'rating_res',
+    'Monitoring Method':'monitor','Context Ref':'ctx_ref','Legal Ref':'legal',
+    'Objective Ref':'obj_ref','MOC Ref':'moc_ref','Energy Ref':'energy_ref'
+  },
+  compliance: {
+    'Ref':'ref','Authority / Body':'auth',
+    'Legal Instrument / Requirement':'instrument','Key Obligation':'req',
+    'Category':'cat','Standard':'std','Clause':'clause','Status':'status',
+    'Evidence / Current Notes':'evidence','Owner':'owner',
+    'Next Review':'review','Risk Ref':'risk_ref'
+  },
+  moc: {
+    'MOC ID':'id','IMS Category':'cat','Change Type':'type',
+    'Change Description':'desc','Trigger / Source':'trigger','Standard(s)':'std',
+    'Safety Impact':'safety','Environmental Impact':'env','Energy Impact':'energy',
+    'Quality / IMS Impact':'quality','Controls & Training Required':'controls',
+    'Owner':'owner','Approval Status':'approval','Target / Impl. Date':'impl',
+    'Risk / Obj Ref':'risk_ref'
+  },
+  energy: {
+    'Energy ID':'id','SEU / Energy Source Description':'source',
+    'SEU Classification':'seu','EnPI Metric':'enpi','Energy Baseline (EnB)':'enb',
+    'Q1 2026 Actual & Performance':'q1_actual','Trend':'trend',
+    'Action / Next Step':'action','Owner & Date':'owner',
+    'Risk Ref':'risk_ref','Objective Ref':'obj_ref'
+  },
+  context: {
+    'Ref\n(E-/I-/S-)':'ref','Type':'ctx_type','IMS Category':'ims_cat',
+    'PESTLE/Context\nCategory':'pestle_cat','Issue / Factor':'issue',
+    'Effect on IMS':'effect','Standard':'std','Clause':'clause','Trend':'trend',
+    'Risk Ref':'risk_ref','Obj Ref':'obj_ref','Legal Ref':'legal_ref',
+    'Influence\n(H/M/L)':'influence','Interest\n(H/M/L)':'interest',
+    'Owner':'owner','Review':'review'
+  },
+  pestle: {
+    'Ref':'ref','Type\n(PESTLE/SWOT)':'type','Category':'category',
+    'Description / Factor':'description','IMS Implication':'implication',
+    'SWOT\nOutput':'swot_output','Clause':'clause','Risk / Opp Ref':'risk_ref',
+    'Context Ref':'ctx_ref','Trend':'trend','Priority':'priority'
+  },
+  checklist: {
+    'No.':'no','Checklist Item':'item','Acceptance Criterion':'criterion',
+    'Source / Doc Ref':'source','Clause':'clause','Standard(s)':'std',
+    'Evidence / Current Status':'evidence','Status':'status',
+    'Findings / Notes':'findings','Action Required':'action_req',
+    'Owner':'owner','Target Date':'target_date','Last Reviewed':'last_reviewed',
+    'Next Review':'next_review','MR Input?':'mr_input','Risk / Obj Ref':'rr_link'
+  },
+};
+
+function remapFields(rows, tabKey) {
+  const map = REMAP[tabKey];
+  if (!map || !Array.isArray(rows)) return rows;
+  return rows.map(function(row) {
+    const out = {};
+    Object.keys(row).forEach(function(k) {
+      const newKey = map[k] || map[k.replace(/\n/g,'\n')] || k;
+      out[newKey] = row[k];
+    });
+    return out;
+  });
+}
+
 async function fetchTab(tabKey) {
-  const tabName = IMS_CONFIG.TABS[tabKey];
-  const cached  = _cache[tabKey];
+  const cached = _cache[tabKey];
   if (cached && Date.now() - cached.ts < 60000) return cached.data;
   try {
-    const url = `${IMS_CONFIG.APPS_SCRIPT_URL}?tab=${encodeURIComponent(tabKey)}`;
-    const res  = await fetch(url, { cache: 'no-store' });
+    const url = IMS_CONFIG.APPS_SCRIPT_URL + '?tab=' + encodeURIComponent(tabKey);
+    const res  = await fetch(url, { redirect: 'follow' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
-    if (json.error) throw new Error(json.error);
-    _cache[tabKey] = { data: json, ts: Date.now() };
+    if (json && json.error) throw new Error(json.error);
+    const data = Array.isArray(json) ? json : (json.data || json);
+    const remapped = remapFields(data, tabKey);
+    _cache[tabKey] = { data: remapped, ts: Date.now() };
     _lastSync = new Date();
     _updateSyncEl();
-    return json;
+    return remapped;
   } catch (err) {
     console.warn('[IMS] Sheet fetch failed (' + tabKey + '):', err.message);
     return FALLBACK[tabKey] || [];
