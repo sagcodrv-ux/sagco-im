@@ -8,7 +8,7 @@
  */
 
 const IMS_CONFIG = {
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzQJr70EEyh4DYEVxtXHmjxc2I71U23Vt9i_W8IXhv1pCu2HoINxjfTV7N1wj7ifa_0kQ/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwT0c9siRohY8JXa5CzjsRfGJJeJB0wbjFr8Q9RSEsgeIXDtRrKb1E77M0X3h5XCwwmAQ/exec',
   SHEET_ID:        '1tTBBC3R5cXkQo2gztWXL97Jmtbzkj8ncVZgBPKIE3bo',
   TABS: {
     context:    '📋 Context',
@@ -112,9 +112,12 @@ async function fetchTab(tabKey) {
   if (cached && Date.now() - cached.ts < 60000) return cached.data;
   try {
     const url = IMS_CONFIG.APPS_SCRIPT_URL + '?tab=' + encodeURIComponent(tabKey);
-    const res  = await fetch(url, { redirect: 'follow' });
+    // Use no-cors mode won't work for reading; use a script tag approach via jsonp workaround
+    const res  = await fetch(url, { method:'GET', redirect:'follow', mode:'cors' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
+    const text = await res.text();
+    let json;
+    try { json = JSON.parse(text); } catch(pe) { throw new Error('Parse error: ' + text.substring(0,100)); }
     if (json && json.error) throw new Error(json.error);
     const data = Array.isArray(json) ? json : (json.data || json);
     const remapped = remapFields(data, tabKey);
