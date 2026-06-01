@@ -20,7 +20,7 @@ const GRP_ORDER  = ['overview','c4','c6','review'];
 function renderNav(activePage) {
   let html = `<div class="sidebar">
     <a class="sb-logo" href="index.html">
-      <div class="sb-logo-icon">S</div>
+      <img src="sagco_logo.png" style="width:54px;height:auto;object-fit:contain;display:block" alt="SAGCO Logo">
       <div class="sb-logo-text">
         <strong>SAGCO IMS</strong>
         <span>Rev.12 · May 2026</span>
