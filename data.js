@@ -8,7 +8,7 @@
  */
 
 const IMS_CONFIG = {
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwT0c9siRohY8JXa5CzjsRfGJJeJB0wbjFr8Q9RSEsgeIXDtRrKb1E77M0X3h5XCwwmAQ/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyIm3hxXlp_4gnX434YiSDCRcFljyBZbUwWlweeuE51JIHVPy0NSiHHZ0DukjouUpD5/exec',
   SHEET_ID:        '1tTBBC3R5cXkQo2gztWXL97Jmtbzkj8ncVZgBPKIE3bo',
   TABS: {
     context:    '📋 Context',
@@ -378,11 +378,11 @@ risks: [
   { ref:'R-SUS-03', type:'Sustainability Risk', cat:'Sustainability', std:'ISO 14001',
     desc:'ESG non-disclosure — reputational damage and key customer contract loss',
     L_inh:3, S_inh:4, score_inh:12, rating_inh:'HIGH',
-    controls:'Annual ESG Report (GRI Core); EMCO Dec-2024 validated; ISO 14001/45001 Stage 2 in progress; EcoVadis profile active',
-    action:'Achieve Stage 2 certification; GRI Comprehensive by 2027; EMCO limited assurance for 2025 ESG Report Q2 2026; EcoVadis profile improvement',
+    controls:'Annual ESG Report (GRI Core); EMCO Dec-2024 validated; ISO 14001/45001 Stage 2 in progress; ESG profile active',
+    action:'Achieve Stage 2 certification; GRI Comprehensive by 2027; EMCO limited assurance for 2025 ESG Report Q2 2026; ESG profile improvement',
     owner:'IMS Champion / Sustainability Manager', due:'Post Stage 2 / Q2 2026',
     L_res:2, S_res:3, score_res:6, rating_res:'MEDIUM',
-    monitor:'EcoVadis score; ESG Report publication date; certification milestone tracker',
+    monitor:'ESG score; ESG Report publication date; certification milestone tracker',
     ctx_ref:'E-11;E-23 / I-17;I-22', legal:'GG-06;QM-08', obj_ref:'OBJ-20' },
   { ref:'R-SR-02', type:'Social Risk', cat:'Social / Labour', std:'ISO 45001',
     desc:'Contractor HSE non-compliance — injury or fatality on SAGCO site',
@@ -457,7 +457,7 @@ objectives: [
   { id:'OBJ-15', cat:'Energy', std:'ISO 50001', desc:'Complete compressed air leak detection survey and achieve ≤5% leakage by Q3 2026', clause:'§6.2;§6.3', baseline:'20–30% estimated leakage; no sub-metering', kpi:'Leakage rate %; kWh/Nm³', target:'Leakage ≤5% by Q3 2026; reduce electricity use ~1.2 GWh/yr', action:'Ultrasonic survey Q2 2026; repair all leaks within 30 days; install sub-metering Q3 2026; quarterly detection routine', owner:'Engineering Manager', due:'Q3 2026', freq:'Quarterly', status:'PLANNED', risk_ref:'R-EN-03', mr:'Yes' },
   { id:'OBJ-16', cat:'Energy', std:'ISO 50001', desc:'Solar PV feasibility study completed and CAPEX proposal to management by Q4 2026', clause:'§6.2;§6.3', baseline:'No on-site renewable generation', kpi:'Feasibility study completion; CAPEX proposal submitted', target:'Feasibility Q2 2026; CAPEX proposal Q4 2026; 15% renewable by 2035', action:'Roof survey and solar PV feasibility Q2 2026; SEC net-metering tariff review; IRR/NPV analysis; present Q4 2026', owner:'Energy Manager', due:'Q4 2026', freq:'Milestone-based', status:'PLANNED', risk_ref:'O-EN-02', mr:'Yes' },
   { id:'OBJ-17', cat:'Quality', std:'ISO 9001', desc:'Maintain zero critical product defects (contamination/structural) reaching key customers in 2026', clause:'§6.2;§8.6', baseline:'AIM 100% inspection; no critical defects recorded 2024', kpi:'Critical defect rate (per million); customer complaint rate', target:'Zero critical defects; ≤1 complaint per 500K bottles', action:'Maintain AIM 100% uptime; formalise calibration register Q3 2026; formal customer satisfaction monitoring', owner:'Operations Manager', due:'Dec 2026', freq:'Monthly', status:'ON TRACK', risk_ref:'R-SUS-03', mr:'Yes' },
-  { id:'OBJ-20', cat:'Sustainability', std:'Multi-standard', desc:'Publish SAGCO 2025 ESG Report (GRI Core) by Q2 2026 and improve EcoVadis score', clause:'§6.2;§7.4', baseline:'2024 ESG Report published; EMCO validated', kpi:'ESG Report publication date; EcoVadis score; GRI level', target:'2025 ESG Report by Q2 2026; EcoVadis score improvement ≥5 points', action:'Compile 2025 sustainability data; EMCO limited assurance; GRI core preparation; publish on SAGCO website; update EcoVadis profile', owner:'IMS Champion / Sustainability Manager', due:'Q2 2026', freq:'Annual (Report); Quarterly (EcoVadis)', status:'IN PROGRESS', risk_ref:'O-SUS-01;R-SUS-03', mr:'Yes' },
+  { id:'OBJ-20', cat:'Sustainability', std:'Multi-standard', desc:'Publish SAGCO 2025 ESG Report (GRI Core) by Q2 2026 and improve ESG score', clause:'§6.2;§7.4', baseline:'2024 ESG Report published; EMCO validated', kpi:'ESG Report publication date; ESG score; GRI level', target:'2025 ESG Report by Q2 2026; ESG score improvement ≥5 points', action:'Compile 2025 sustainability data; EMCO limited assurance; GRI core preparation; publish on SAGCO website; update ESG profile', owner:'IMS Champion / Sustainability Manager', due:'Q2 2026', freq:'Annual (Report); Quarterly (ESG)', status:'IN PROGRESS', risk_ref:'O-SUS-01;R-SUS-03', mr:'Yes' },
   { id:'OBJ-21', cat:'Social', std:'Multi-standard', desc:'Achieve Saudization NITAQAT target and develop Female Workforce Action Plan (target 8% by 2030)', clause:'§6.2;§7.2', baseline:'Female workforce ~3% (23/884); NITAQAT met 2025', kpi:'Saudization % monthly (Qiwa); female workforce %', target:'NITAQAT maintained; female workforce 8% by 2030; trainee programme Q4 2026', action:'Develop Female Workforce Action Plan; partner with Jeddah TVTC; Saudization succession plan; quarterly Qiwa reporting', owner:'HR Manager', due:'Annual review', freq:'Monthly (Qiwa)', status:'MONITORING', risk_ref:'O-SR-01;R-SR-01', mr:'Yes' },
   { id:'OBJ-22', cat:'Multi', std:'ISO 37001', desc:'Activate anti-bribery controls for HIGH risks (BRA-01, BRA-02, BRA-03, BRA-07) by Q3 2026', clause:'§6.2;§8.2;§8.4', baseline:'Government interaction log not implemented; CoI declarations not formalised', kpi:'Government interaction log active; CoI declarations filed quarterly', target:'All 4 HIGH BRA controls fully active by Q3 2026', action:'Government interaction log Q3 2026; CoI declaration register Q3 2026; activate agent anti-bribery declarations Q2 2026; brief procurement staff', owner:'Ethics Committee / Legal Compliance Officer', due:'Q3 2026', freq:'Quarterly Ethics Committee', status:'IN PROGRESS', risk_ref:'BRA-01;BRA-02;BRA-03;BRA-07', mr:'Yes' },
 ],
