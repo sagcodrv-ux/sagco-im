@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — IMS Procedures Hub</title>
+<link rel="stylesheet" href="style.css">
+<script src="data.js"></script><script src="nav.js"></script>
+</head>
+<body>
+<div class="main"><div id="tb"></div><div class="content"><style>
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
+.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
+.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
+.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-gold{background:#FFF3CD;color:#7a5800}
+.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
+.req-text{font-size:11px;color:var(--text-lt);margin:10px 0;line-height:1.6;padding:10px 14px;
+  background:var(--g100);border-radius:var(--radius);border-left:3px solid var(--gold)}
+.alert-red{background:#FFEBEE;border:1px solid #EF9A9A;border-radius:var(--radius);
+  padding:10px 14px;font-size:11px;color:#B71C1C;margin-bottom:12px}
+.alert-amber{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);
+  padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:12px}
+.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
+  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
+.doc-card{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow);
+  overflow:hidden;margin-bottom:14px;border-top:3px solid var(--gold)}
+.doc-card-hdr{background:var(--navy);color:var(--gold-lt);padding:10px 18px;
+  display:flex;align-items:center;gap:12px}
+.doc-card-hdr .doc-num{font-family:var(--mono);font-size:11px;background:rgba(201,168,76,.2);
+  padding:2px 8px;border-radius:6px}
+.doc-card-hdr .doc-title{font-size:13px;font-weight:700}
+.doc-card-hdr .doc-meta{margin-left:auto;font-size:10px;opacity:.8}
+.doc-card-body{padding:14px 18px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.doc-card-body .info-item .lbl{font-size:9px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--g400);margin-bottom:2px}
+.doc-card-body .info-item .val{font-size:11px;color:var(--text)}
+.oc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:14px 0}
+.oc-card{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow);
+  overflow:hidden;cursor:pointer;transition:transform .15s;text-decoration:none;display:block}
+.oc-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.oc-card .oc-hdr{padding:14px 16px;color:var(--white)}
+.oc-card .oc-hdr .oc-code{font-family:var(--mono);font-size:11px;opacity:.8}
+.oc-card .oc-hdr .oc-title{font-size:13px;font-weight:700;margin-top:4px}
+.oc-card .oc-body{padding:12px 16px}
+.oc-card .oc-tag{display:inline-block;padding:2px 7px;border-radius:8px;font-size:10px;
+  font-weight:600;margin:2px;font-family:var(--mono)}
+.proc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:14px 0}
+.proc-card{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow);
+  overflow:hidden;text-decoration:none;display:block;border-left:4px solid var(--gold)}
+.proc-card:hover{box-shadow:0 4px 18px rgba(0,0,0,.13)}
+.proc-card .pc-hdr{padding:12px 16px;background:var(--navy);color:var(--white);
+  display:flex;align-items:center;gap:10px}
+.proc-card .pc-code{font-family:var(--mono);font-size:10px;background:rgba(255,255,255,.15);
+  padding:2px 7px;border-radius:5px;white-space:nowrap}
+.proc-card .pc-body{padding:10px 16px}
+.proc-card .pc-desc{font-size:11px;color:var(--text-lt);line-height:1.5}
+.proc-card .pc-meta{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap}
+.flowchart-box{background:var(--g100);border-radius:var(--radius-lg);border:1px solid #e0e0e0;
+  padding:20px;margin:14px 0;text-align:center}
+.flow-row{display:flex;align-items:center;justify-content:center;gap:6px;margin:4px 0;flex-wrap:wrap}
+.flow-node{padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;
+  min-width:120px;text-align:center;white-space:nowrap}
+.flow-diamond{padding:6px 14px;transform:skewX(-8deg);font-size:10px;font-weight:600;
+  border-radius:4px;text-align:center}
+.flow-arrow{color:var(--g400);font-size:16px;font-weight:300}
+.flow-yes{font-size:9px;color:#2E7D32;font-weight:700}
+.flow-no{font-size:9px;color:#B71C1C;font-weight:700}
+.hier-tree{margin:12px 0}
+.hier-tree .ht-l1{background:var(--navy);color:var(--gold-lt);padding:8px 14px;
+  border-radius:var(--radius);font-weight:700;font-size:12px;margin-bottom:4px}
+.hier-tree .ht-l2{background:#E3F0FA;padding:7px 14px 7px 28px;border-radius:var(--radius);
+  font-size:11px;margin:3px 0;border-left:3px solid var(--navy)}
+.hier-tree .ht-l3{background:var(--g100);padding:6px 14px 6px 44px;border-radius:var(--radius);
+  font-size:10px;margin:2px 0;color:var(--text-lt);border-left:2px solid var(--gold)}
+.hier-tree a{color:inherit;text-decoration:none}
+.hier-tree a:hover{text-decoration:underline}
+</style>
+<div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">Total Procedures</div><div class="kpi-val">7</div><div class="kpi-sub">L2 — Clauses 4 to 10</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Certified</div><div class="kpi-val">Rev.02</div><div class="kpi-sub">Clauses 4,5,6,7,9,10</div></div>
+  <div class="kpi-card kc-gold"><div class="kpi-lbl">New — Clause 8</div><div class="kpi-val">Rev.01</div><div class="kpi-sub">L2-IMS-800-P-05</div></div>
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">OC Specifications</div><div class="kpi-val">3</div><div class="kpi-sub">L3-IMS-800-OC-01/02/03</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">IMS Coverage</div><div class="kpi-val">100%</div><div class="kpi-sub">All clauses 4–10 addressed</div></div>
+</div>
+<div class="req-text">All IMS procedures are self-contained — no separate Work Instructions are required for any clause. Clause 8 is supported by three L3 Operational Control Specifications providing detailed execution instructions. Click any procedure card to navigate to its primary registers and documentation.</div>
+
+<div class="hier-tree">
+  <div class="ht-l1">L1 — IMS Framework Manual + 9 Policies (L1-IMS-PO-01 to PO-09)</div>
+  <div class="ht-l2">L2 — One Procedure per Clause (Clauses 4–10)</div>
+  <div class="ht-l3">L3 — Operational Control Specifications (Clause 8 only: OC-01, OC-02, OC-03) + IMS Workbook Registers</div>
+  <div class="ht-l3">L4 — Records and Registers (IMS Workbook Sheets 1–31)</div>
+</div>
+
+<div style="font-size:12px;font-weight:700;color:var(--navy);margin:16px 0 8px">L2 PROCEDURES — All Clauses</div>
+<div class="proc-grid">
+<a href="context.html" class="proc-card">
+  <div class="pc-hdr" style="background:#1565C0">
+    <span class="pc-code">L2-IMS-400-P-01</span>
+    <span style="flex:1;font-size:12px;font-weight:700">Organisational Context</span>
+    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.02 · 5pp</span>
+  </div>
+  <div class="pc-body">
+    <div class="pc-desc">PESTLE · SWOT · Interested Parties · Scope · Process Map · Human Rights Context</div>
+    <div class="pc-meta"><span class="badge kc-blue">§4.1</span><span class="badge kc-blue">§4.2</span><span class="badge kc-blue">§4.3</span><span class="badge kc-blue">§4.4</span></div>
+  </div>
+</a>
+<a href="policies.html" class="proc-card">
+  <div class="pc-hdr" style="background:#2E7D32">
+    <span class="pc-code">L2-IMS-500-P-02</span>
+    <span style="flex:1;font-size:12px;font-weight:700">Leadership and Commitment</span>
+    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.02 · 6pp</span>
+  </div>
+  <div class="pc-body">
+    <div class="pc-desc">9 Policies · Worker Participation · Human Rights Obligations · Speak-Up Channel</div>
+    <div class="pc-meta"><span class="badge kc-blue">§5.1</span><span class="badge kc-blue">§5.2</span><span class="badge kc-blue">§5.3</span><span class="badge kc-blue">§5.4</span></div>
+  </div>
+</a>
+<a href="risk-register.html" class="proc-card">
+  <div class="pc-hdr" style="background:#A05000">
+    <span class="pc-code">L2-IMS-600-P-03</span>
+    <span style="flex:1;font-size:12px;font-weight:700">Planning and Risk Management</span>
+    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.02 · 7pp</span>
+  </div>
+  <div class="pc-body">
+    <div class="pc-desc">HIRA · SEA · GHG Scope 1/2/3 · Legal Compliance · Objectives · Sustainable Procurement · Energy Planning</div>
+    <div class="pc-meta"><span class="badge kc-blue">§6.1</span><span class="badge kc-blue">§6.1.2</span><span class="badge kc-blue">§6.1.3</span><span class="badge kc-blue">§6.2</span><span class="badge kc-blue">§6.3</span></div>
+  </div>
+</a>
+<a href="competency.html" class="proc-card">
+  <div class="pc-hdr" style="background:#6A1B9A">
+    <span class="pc-code">L2-IMS-700-P-04</span>
+    <span style="flex:1;font-size:12px;font-weight:700">Support</span>
+    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.02 · 5pp</span>
+  </div>
+  <div class="pc-body">
+    <div class="pc-desc">Resources · Competence · Awareness · Communication · Document Control</div>
+    <div class="pc-meta"><span class="badge kc-blue">§7.1</span><span class="badge kc-blue">§7.2</span><span class="badge kc-blue">§7.3</span><span class="badge kc-blue">§7.4</span><span class="badge kc-blue">§7.5</span></div>
+  </div>
+</a>
+<a href="operational-control.html" class="proc-card">
+  <div class="pc-hdr" style="background:#B71C1C">
+    <span class="pc-code">L2-IMS-800-P-05</span>
+    <span style="flex:1;font-size:12px;font-weight:700">Operational Control</span>
+    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.01 · 9pp</span>
+  </div>
+  <div class="pc-body">
+    <div class="pc-desc">Operational Framework · Contractor Management · MoC · Procurement · Product Release · OC-01/02/03</div>
+    <div class="pc-meta"><span class="badge kc-blue">§8.1</span><span class="badge kc-blue">§8.1.1</span><span class="badge kc-blue">§8.1.2</span><span class="badge kc-blue">§8.2</span><span class="badge kc-blue">§8.4</span></div>
+  </div>
+</a>
+<a href="kpi-dashboard.html" class="proc-card">
+  <div class="pc-hdr" style="background:#37474F">
+    <span class="pc-code">L2-IMS-900-P-06</span>
+    <span style="flex:1;font-size:12px;font-weight:700">Performance Evaluation</span>
+    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.02 · 7pp</span>
+  </div>
+  <div class="pc-body">
+    <div class="pc-desc">KPI Dashboard · ESG 4-Layer Workflow · 6 Review Reports · Compliance Evaluation · Audit · MR</div>
+    <div class="pc-meta"><span class="badge kc-blue">§9.1</span><span class="badge kc-blue">§9.1.2</span><span class="badge kc-blue">§9.2</span><span class="badge kc-blue">§9.3</span></div>
+  </div>
+</a>
+<a href="capa-register.html" class="proc-card">
+  <div class="pc-hdr" style="background:#1A5C1A">
+    <span class="pc-code">L2-IMS-1000-P-07</span>
+    <span style="flex:1;font-size:12px;font-weight:700">Improvement and Corrective Action</span>
+    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.02 · 6pp</span>
+  </div>
+  <div class="pc-body">
+    <div class="pc-desc">CAPA · Incident Investigation · Near-Miss · Supplier SCAN (3-Tier) · Human Rights Grievance · Bribery Investigation</div>
+    <div class="pc-meta"><span class="badge kc-blue">§10.1</span><span class="badge kc-blue">§10.2</span></div>
+  </div>
+</a></div><div style="font-size:12px;font-weight:700;color:var(--navy);margin:20px 0 8px">L3 OPERATIONAL CONTROL SPECIFICATIONS — Clause 8</div><div class="oc-grid">
+<a href="oc01-safety.html" class="oc-card">
+  <div class="oc-hdr" style="background:#1565C0">
+    <div class="oc-code">L3-IMS-800-OC-01 · Rev.01 · 11pp</div>
+    <div class="oc-title">Safety and Emergency Controls</div>
+  </div>
+  <div class="oc-body">
+    <div style="font-size:11px;color:var(--text-lt);margin-bottom:8px">#DCE9F5</div>
+    <span class="oc-tag" style="background:#DCE9F5;color:#1565C0">PTW</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">LOTO</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">Confined Space</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">WAH</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">Hot Work</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">Chemical</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">Heat Stress</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">Emergency Response</span>
+  </div>
+</a>
+<a href="oc02-environment.html" class="oc-card">
+  <div class="oc-hdr" style="background:#1A5C1A">
+    <div class="oc-code">L3-IMS-800-OC-02 · Rev.01 · 9pp</div>
+    <div class="oc-title">Environmental and Energy Controls</div>
+  </div>
+  <div class="oc-body">
+    <div style="font-size:11px;color:var(--text-lt);margin-bottom:8px">#D5EDD5</div>
+    <span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">SEA Controls</span><span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">Waste Mgmt</span><span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">Water</span><span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">Air Emissions</span><span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">GHG</span><span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">SEU Furnaces F1–F5</span><span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">Shift Handover</span>
+  </div>
+</a>
+<a href="oc03-quality.html" class="oc-card">
+  <div class="oc-hdr" style="background:#A05000">
+    <div class="oc-code">L3-IMS-800-OC-03 · Rev.01 · 10pp</div>
+    <div class="oc-title">Quality and Customer Controls</div>
+  </div>
+  <div class="oc-body">
+    <div style="font-size:11px;color:var(--text-lt);margin-bottom:8px">#FDE9D0</div>
+    <span class="oc-tag" style="background:#FDE9D0;color:#A05000">Customer Review</span><span class="oc-tag" style="background:#FDE9D0;color:#A05000">Production</span><span class="oc-tag" style="background:#FDE9D0;color:#A05000">Identification</span><span class="oc-tag" style="background:#FDE9D0;color:#A05000">Product Release</span><span class="oc-tag" style="background:#FDE9D0;color:#A05000">Nonconforming</span><span class="oc-tag" style="background:#FDE9D0;color:#A05000">Procurement</span>
+  </div>
+</a></div></div></div>
+<script>initPage("procedures.html");document.getElementById("tb").innerHTML=renderTopbar("IMS Procedures Hub","All L2 Procedures · L3 Operational Control Specifications · Rev.16");</script>
+</body></html>
