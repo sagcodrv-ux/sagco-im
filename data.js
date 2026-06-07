@@ -8,7 +8,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyIm3hxXlp_4gnX434YiSDCRcFljyBZbUwWlweeuE51JIHVPy0NSiHHZ0DukjouUpD5/exec';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyv00Y7ILOOwjXCQqr-yly_eM--awVH6fDYnPnKHzrRskKgPuh2iKbMTTqX8GHd6fsd/exec';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB KEY → SHEET NAME MAP  (mirrors google-apps-script.js TABS constant)
