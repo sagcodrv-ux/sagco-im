@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css">
   <script src="auth.js"></script>
   <script src="data.js"></script>
+  <script src="dms-drive.js"></script>
   <script src="nav.js"></script>
   <style>
     /* ── DMS-specific additions not in style.css ── */
@@ -236,7 +237,8 @@ var ROLES    = ['viewer','contributor','editor','admin'];
 var STATUSES = ['Active','Under Review','Superseded','Obsolete','Archived'];
 var TYPES    = ['Procedure','Policy','Register','Record','Certificate','Report',
                 'Checklist','Form','Monitoring Log','Drawing','Specification','Image','Other'];
-var MAX_FILE_MB = 4; /* localStorage limit per file */
+/* File size limit shown in UI — actual enforcement is in dms-drive.js */
+var MAX_FILE_MB = DMS_DRIVE.isConfigured() ? 20 : 4;
 
 /* ── Store helpers ──────────────────────────────────────────── */
 function gAll()  { try { return JSON.parse(localStorage.getItem(SK)||'[]'); } catch(e){ return []; } }
@@ -269,12 +271,32 @@ function fileIcon(name) {
   return map[ext] || '📎';
 }
 
-/* ── Read file as base64 data URL ───────────────────────────── */
+/* ── Storage mode notice ────────────────────────────────────── */
+/* Shows a prominent banner if Drive is not connected */
+function storageNotice() {
+  if (DMS_DRIVE.isConfigured()) return '';
+  return '<div style="background:#fff3cd;border-left:3px solid #f9a825;border-radius:0 5px 5px 0;'
+    +'padding:8px 12px;margin-bottom:10px;font-size:10px;color:#7a5800">'
+    +'⚠ <strong>Local storage mode</strong> — Google Drive is not configured. '
+    +'Files are saved in <em>this browser only</em> and will not appear on other devices. '
+    +'To enable shared storage, paste your Apps Script Web App URL into '
+    +'<code>SHEETS_URL</code> in <strong>data.js</strong>.'
+    +'</div>';
+}
+
+/* ── Current username for audit trail ───────────────────────── */
+function currentUser() {
+  var s = (typeof IMS_AUTH !== 'undefined') ? IMS_AUTH.getUser() : null;
+  return s ? s.username : gRole();
+}
+
+/* ── readFileAsDataUrl: delegate to DMS_DRIVE ───────────────── */
+/* Kept for backward-compat with version upload in openEditModal */
 function readFileAsDataUrl(file) {
   return new Promise(function(resolve, reject) {
     var mb = file.size / 1048576;
     if (mb > MAX_FILE_MB) {
-      reject(new Error('"' + file.name + '" is ' + mb.toFixed(1) + ' MB — max allowed is ' + MAX_FILE_MB + ' MB per file on a static site.'));
+      reject(new Error('"' + file.name + '" is ' + mb.toFixed(1) + ' MB — max ' + MAX_FILE_MB + ' MB.'));
       return;
     }
     var reader = new FileReader();
@@ -580,41 +602,73 @@ function openEditModal(doc){
 
 /* ═══════════════════════════════════════════════════════════
    MODAL 3 — ATTACHMENTS (supporting evidence files)
-   Purpose: store objective evidence linked to a document entry
-   (inspection records, certificates, photos, signed forms etc.)
-   These are DIFFERENT from version files — they are supporting
-   evidence for the current revision, not old versions.
+   Files uploaded to Google Drive via Apps Script (shared across all
+   users and sessions). Falls back to localStorage when not configured.
 ═══════════════════════════════════════════════════════════ */
 function openAttachModal(doc){
-  var fileList=(doc.files||[]).map(function(f){return Object.assign({},f);}); /* working copy */
 
-  function buildList(){
+  /* Load current files from Drive / local cache */
+  function loadAndRender(){
+    var listEl=document.getElementById('att-list');
+    if(listEl) listEl.innerHTML='<div style="padding:10px;color:var(--text-lt);font-size:11px">⏳ Loading attachments…</div>';
+    DMS_DRIVE.listFiles(doc.id).then(function(result){
+      var fileList=result.files||[];
+      if(listEl) listEl.innerHTML=buildList(fileList);
+      wireDelBtns(fileList);
+    }).catch(function(){ if(listEl) listEl.innerHTML='<div style="padding:10px;color:var(--red);font-size:11px">Failed to load attachments.</div>'; });
+  }
+
+  function buildList(fileList){
     if(!fileList.length){
-      return '<div style="padding:14px 0;color:var(--text-lt);font-size:11px;text-align:center">'
-        +'No supporting files attached yet.</div>';
+      return '<div style="padding:14px 0;color:var(--text-lt);font-size:11px;text-align:center">No supporting files attached yet.</div>';
     }
     return '<div class="att-list">'
       +fileList.map(function(f,i){
-        var dlHtml=f.dataUrl
-          ?'<a class="att-open" href="'+f.dataUrl+'" download="'+esc(f.name)+'" title="Download '+esc(f.name)+'">⬇ Download</a>'
-          +'<a class="att-open" href="'+f.dataUrl+'" target="_blank" title="Open '+esc(f.name)+'">↗ Open</a>'
-          :'<span class="att-open" style="opacity:.5;cursor:default">no file data</span>';
+        /* Drive files: use webViewLink / downloadLink; local files: use downloadLink as data URL */
+        var viewHtml = f.webViewLink
+          ? '<a class="att-open" href="'+esc(f.webViewLink)+'" target="_blank">↗ Open</a>'
+            +'<a class="att-open" href="'+esc(f.downloadLink)+'" target="_blank">⬇ Download</a>'
+          : (f.downloadLink
+              ? '<a class="att-open" href="'+esc(f.downloadLink)+'" download="'+esc(f.fileName||f.name)+'">⬇ Download</a>'
+              : '<span class="att-open" style="opacity:.5;cursor:default">no link</span>');
+        var fname=f.fileName||f.name||'file';
+        var src=f.source==='drive'
+          ? '<span style="font-size:9px;color:var(--grn);margin-left:4px">☁ Drive</span>'
+          : '<span style="font-size:9px;color:var(--amb);margin-left:4px">💾 Local</span>';
         return '<div class="att-item">'
-          +'<span class="att-icon">'+fileIcon(f.name)+'</span>'
-          +'<span class="att-name" title="'+esc(f.name)+'">'+esc(f.name)+'</span>'
-          +'<span class="att-meta">'+esc(f.size||'')+'&nbsp;·&nbsp;'+esc(f.date||'')+'</span>'
-          +dlHtml
-          +(canEd()?'<span class="att-del" data-fi="'+i+'" title="Remove attachment">✕</span>':'')
+          +'<span class="att-icon">'+fileIcon(fname)+'</span>'
+          +'<span class="att-name" title="'+esc(fname)+'">'+esc(fname)+src+'</span>'
+          +'<span class="att-meta">'+esc(f.size||'')+'&nbsp;·&nbsp;'+esc(f.date||f.uploadedDate||'')+'</span>'
+          +viewHtml
+          +(canEd()?'<span class="att-del" data-fid="'+esc(f.fileId)+'" data-fi="'+i+'" title="Remove">✕</span>':'')
           +'</div>';
       }).join('')
       +'</div>';
   }
 
+  function wireDelBtns(fileList){
+    document.querySelectorAll('.att-del').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        var fname=(fileList[parseInt(btn.dataset.fi)]||{}).fileName||(fileList[parseInt(btn.dataset.fi)]||{}).name||'this file';
+        if(!confirm('Remove "'+fname+'"?\nThis will delete it from Google Drive and cannot be undone.'))return;
+        var fid=btn.dataset.fid;
+        DMS_DRIVE.deleteFile(fid,doc.id).then(function(){
+          logH(doc.id,'ATTACHMENT REMOVED',fname);
+          DMS_DRIVE.logAudit('FILE_DELETED',doc.id+' — '+fname,
+            (IMS_AUTH.getUser()||{}).userId,currentUser());
+          loadAndRender();
+          renderTable();
+          toast('Attachment removed.','ok');
+        }).catch(function(e){ toast(e.message,'err'); });
+      });
+    });
+  }
+
   var roleNotice = !canEd()
-    ? '<div class="alert-amb" style="margin-bottom:12px;font-size:11px">'
+    ? '<div class="alert-amb" style="margin-bottom:10px;font-size:11px">'
         +'🔒 <strong>Upload disabled — current role: '+gRole()+'</strong><br>'
-        +'To upload or remove files you need <strong>editor</strong> or <strong>admin</strong> role. '
-        +'Click the <strong>● '+gRole()+'</strong> role pill in the section banner, change your role, then re-open this modal.'
+        +'You need <strong>editor</strong> or <strong>admin</strong> role to upload files. '
+        +'Click the role indicator in the topbar to change your role.'
       +'</div>'
     : '';
 
@@ -622,35 +676,29 @@ function openAttachModal(doc){
     '<div class="dms-modal-hdr"><h4>📎 Attachments — '+esc(doc.number)+' · '+esc(doc.title)+'</h4><button class="dms-modal-close">×</button></div>'
     +'<div class="dms-modal-body">'
     +roleNotice
-    +'<div class="req-text" style="margin-bottom:12px">Attach supporting objective evidence: inspection records, certificates, signed forms, photographs, test reports, and any other evidence referenced by this document. Files are stored locally in your browser.</div>'
+    +storageNotice()
+    +'<div class="req-text" style="margin-bottom:12px">Attach supporting objective evidence: inspection records, certificates, signed forms, photographs, test reports. '
+    +(DMS_DRIVE.isConfigured()
+        ? 'Files are uploaded to <strong>Google Drive</strong> and accessible to all users on all devices.'
+        : 'Files will be saved locally until Google Drive is configured in data.js.')
+    +'  Max <strong>'+MAX_FILE_MB+' MB</strong> per file.</div>'
     +(canEd()
       ?'<div class="drop-zone" id="att-zone">'
-        +'<input type="file" id="att-inp" style="display:none" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.txt,.csv,.zip">'
+        +'<input type="file" id="att-inp" style="display:none" multiple>'
         +'<div>📂 <strong>Click to select files</strong> or drag and drop here</div>'
-        +'<div style="margin-top:5px;font-size:10px;color:var(--text-lt)">PDF · DOCX · XLSX · JPG · PNG · any format · max '+MAX_FILE_MB+' MB per file</div>'
+        +'<div style="margin-top:5px;font-size:10px;color:var(--text-lt)">PDF · DOCX · XLSX · JPG · PNG · any format</div>'
         +'<div class="upload-prog" id="att-prog"></div>'
         +'</div>'
       :'')
-    +'<div id="att-list" style="margin-top:10px">'+buildList()+'</div>'
+    +'<div id="att-list" style="margin-top:10px"></div>'
     +'</div>'
     +'<div class="dms-modal-ftr">'
-      +(canEd()?'<button class="btn btn-gold" id="att-save">Save Attachments</button>':'')
       +'<button class="btn btn-ghost-dk" id="att-cancel">Close</button>'
     +'</div>'
   );
 
   document.getElementById('att-cancel').addEventListener('click',closeOverlay);
-
-  function refresh(){ document.getElementById('att-list').innerHTML=buildList(); wireDelBtns(); }
-  function wireDelBtns(){
-    document.querySelectorAll('.att-del[data-fi]').forEach(function(btn){
-      btn.addEventListener('click',function(){
-        if(!confirm('Remove "'+fileList[parseInt(btn.dataset.fi)].name+'"?'))return;
-        fileList.splice(parseInt(btn.dataset.fi),1); refresh();
-      });
-    });
-  }
-  wireDelBtns();
+  loadAndRender();
 
   if(canEd()){
     var zone=document.getElementById('att-zone');
@@ -658,31 +706,33 @@ function openAttachModal(doc){
     zone.addEventListener('click',function(e){ if(e.target!==inp)inp.click(); });
     zone.addEventListener('dragover',function(e){ e.preventDefault(); zone.classList.add('drag-over'); });
     zone.addEventListener('dragleave',function(){ zone.classList.remove('drag-over'); });
-    zone.addEventListener('drop',function(e){ e.preventDefault(); zone.classList.remove('drag-over'); addFiles(Array.from(e.dataTransfer.files)); });
-    inp.addEventListener('change',function(){ addFiles(Array.from(inp.files)); inp.value=''; });
+    zone.addEventListener('drop',function(e){ e.preventDefault(); zone.classList.remove('drag-over'); handleUpload(Array.from(e.dataTransfer.files)); });
+    inp.addEventListener('change',function(){ handleUpload(Array.from(inp.files)); inp.value=''; });
 
-    function addFiles(files){
+    function handleUpload(files){
       if(!files.length)return;
       var prog=document.getElementById('att-prog');
-      prog.textContent='Reading '+files.length+' file(s)…';
+      prog.textContent='Uploading '+files.length+' file(s)…';
       var promises=files.map(function(f){
-        return readFileAsDataUrl(f).then(function(dataUrl){
-          return { name:f.name, size:f.size>1048576?(f.size/1048576).toFixed(1)+' MB':(f.size/1024).toFixed(0)+' KB',
-                   date:new Date().toISOString().split('T')[0], user:gRole(), dataUrl:dataUrl };
-        });
+        return DMS_DRIVE.uploadFile(f, doc.id, 'attachment', '', currentUser())
+          .then(function(result){
+            if(result.warning) toast(result.warning,'ok');
+            logH(doc.id,'ATTACHMENT UPLOADED', f.name);
+            DMS_DRIVE.logAudit('FILE_UPLOADED', doc.id+' — '+f.name,
+              (IMS_AUTH.getUser()||{}).userId, currentUser());
+            return result;
+          });
       });
-      Promise.all(promises).then(function(newFiles){
-        newFiles.forEach(function(nf){ fileList.push(nf); });
-        prog.textContent=newFiles.length+' file(s) ready — click Save Attachments to store.';
-        refresh();
-      }).catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
+      Promise.all(promises)
+        .then(function(results){
+          prog.textContent=results.length+' file(s) '+(DMS_DRIVE.isConfigured()?'uploaded to Google Drive.':'saved locally.');
+          var docs=gAll(), d2=docs.find(function(x){return x.id===doc.id;});
+          if(d2){ d2._attachCount=(d2._attachCount||0)+results.length; sAll(docs); }
+          loadAndRender();
+          renderTable();
+        })
+        .catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
     }
-
-    document.getElementById('att-save').addEventListener('click',function(){
-      var docs=gAll(), d2=docs.find(function(x){return x.id===doc.id;});
-      if(d2){ d2.files=fileList; sAll(docs); logH(doc.id,'ATTACHMENTS UPDATED',fileList.length+' file(s)'); }
-      closeOverlay(); renderTable(); toast('Attachments saved.','ok');
-    });
   }
 }
 

@@ -2,14 +2,14 @@
    SAGCO IMS — Document & Evidence Widget
    dms-widget.js  |  Rev.18  |  June 2026
 
-   Drop-in panel for any IMS page. Fully self-contained:
-   attach modals, version control, role gates — all inline.
-   Shares the same localStorage store as document-management.html.
+   Drop-in panel for any IMS page. Fully self-contained.
+   Files are uploaded to Google Drive via dms-drive.js so they
+   persist across ALL sessions, browsers, and users.
 
-   Usage: add  <script src="dms-widget.js"></script>  before </body>
-   The widget auto-detects the current page, shows only documents
-   linked to it, and creates a <div id="dms-widget-container">
-   inside .content (or body if .content is absent).
+   Add these lines before </body> on any IMS page:
+     <script src="data.js"></script>
+     <script src="dms-drive.js"></script>
+     <script src="dms-widget.js"></script>
 ═══════════════════════════════════════════════════════════════ */
 (function () {
 'use strict';
@@ -512,47 +512,74 @@ function openQuickAdd() {
 }
 
 /* ════════════════════════════════════════════════════════════
-   MODAL — ATTACHMENTS
-   Supporting evidence files — genuinely downloadable via
-   base64 data URLs stored in localStorage.
+   MODAL — ATTACHMENTS  (Drive-backed, shared across all sessions)
 ════════════════════════════════════════════════════════════ */
 function openAttachModal(doc) {
-  var fileList = (doc.files||[]).map(function(f){ return Object.assign({},f); });
+  var driveAvail = typeof DMS_DRIVE !== 'undefined';
 
-  function buildList() {
-    if (!fileList.length) return '<div class="dw-empty">No supporting files attached yet.</div>';
+  function loadAndRender() {
+    var el = document.getElementById('w-att-list');
+    if (el) el.innerHTML = '<div class="dw-empty">⏳ Loading…</div>';
+    var promise = driveAvail
+      ? DMS_DRIVE.listFiles(doc.id)
+      : Promise.resolve({ files: [] });
+    promise.then(function(result) {
+      var files = result.files || [];
+      if (el) { el.innerHTML = buildList(files); wireDelBtns(files); }
+    }).catch(function() { if (el) el.innerHTML = '<div class="dw-empty">Failed to load.</div>'; });
+  }
+
+  function buildList(files) {
+    if (!files.length) return '<div class="dw-empty">No supporting files attached yet.</div>';
     return '<div class="dw-att-list">'
-      + fileList.map(function(f,i){
-          var dlHtml = f.dataUrl
-            ? '<a class="dw-att-btn" href="'+f.dataUrl+'" download="'+esc(f.name)+'">⬇ Download</a>'
-              + '<a class="dw-att-btn" href="'+f.dataUrl+'" target="_blank">↗ Open</a>'
-            : '<span class="dw-att-btn" style="opacity:.5;cursor:default">no data</span>';
+      + files.map(function(f,i){
+          var fname = f.fileName || f.name || 'file';
+          var viewHtml = f.webViewLink
+            ? '<a class="dw-att-btn" href="'+esc(f.webViewLink)+'" target="_blank">↗ Open</a>'
+              +'<a class="dw-att-btn" href="'+esc(f.downloadLink)+'" target="_blank">⬇ Download</a>'
+            : (f.downloadLink
+                ? '<a class="dw-att-btn" href="'+esc(f.downloadLink)+'" download="'+esc(fname)+'">⬇ Download</a>'
+                : '<span class="dw-att-btn" style="opacity:.5;cursor:default">no link</span>');
+          var src = (f.source==='drive')
+            ? '<span style="font-size:8px;color:#2E7D32"> ☁</span>'
+            : '<span style="font-size:8px;color:#F9A825"> 💾</span>';
           return '<div class="dw-att-item">'
-            +'<span class="dw-att-icon">'+fileIcon(f.name)+'</span>'
-            +'<span class="dw-att-name" title="'+esc(f.name)+'">'+esc(f.name)+'</span>'
-            +'<span class="dw-att-meta">'+esc(f.size||'')+'&nbsp;·&nbsp;'+esc(f.date||'')+'</span>'
-            +dlHtml
-            +(canEd() ? '<span class="dw-att-del" data-wi="'+i+'" title="Remove">✕</span>' : '')
+            +'<span class="dw-att-icon">'+fileIcon(fname)+'</span>'
+            +'<span class="dw-att-name" title="'+esc(fname)+'">'+esc(fname)+src+'</span>'
+            +'<span class="dw-att-meta">'+esc(f.size||'')+'&nbsp;·&nbsp;'+esc(f.date||f.uploadedDate||'')+'</span>'
+            +viewHtml
+            +(canEd() ? '<span class="dw-att-del" data-fid="'+esc(f.fileId)+'" title="Remove">✕</span>' : '')
             +'</div>';
         }).join('')
       +'</div>';
   }
+
+  function wireDelBtns(files) {
+    document.querySelectorAll('.dw-att-del[data-fid]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (!confirm('Remove this file from Google Drive? This cannot be undone.')) return;
+        var fid = btn.dataset.fid;
+        var promise = driveAvail ? DMS_DRIVE.deleteFile(fid, doc.id) : Promise.resolve({ok:true});
+        promise.then(function() { loadAndRender(); renderWidget(); toast('Removed.','ok'); })
+               .catch(function(e){ toast(e.message,'err'); });
+      });
+    });
+  }
+
+  var maxMb = driveAvail ? (DMS_DRIVE.isConfigured() ? 20 : 4) : 4;
+  var storageDesc = (driveAvail && DMS_DRIVE.isConfigured())
+    ? '☁ Files upload to <strong>Google Drive</strong> — visible to all users on all devices.'
+    : '⚠ <strong>Local mode</strong> — Google Drive not configured. Files visible in this browser only.';
 
   openOv(
     '<div class="dw-mhdr"><h4>📎 Attachments — '+esc(doc.number)+'</h4><button class="dw-mclose">×</button></div>'
     +'<div class="dw-mbody">'
     +(!canEd()
       ? '<div style="background:#fff8e1;border-left:3px solid #F9A825;border-radius:0 5px 5px 0;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#7a5800">'
-          +'🔒 <strong>Upload disabled — current role: '+gRole()+'</strong><br>'
-          +'To upload or remove files you need <strong>editor</strong> or <strong>admin</strong> role. '
-          +'Click the <strong>● '+gRole()+'</strong> role pill in the widget header to change your role.'
+          +'🔒 <strong>Upload disabled — role: '+gRole()+'</strong> — need editor or admin. Click the role pill to change.'
         +'</div>'
       : '')
-    +'<div style="font-size:10px;background:var(--g100,#EAF0F8);border-left:3px solid var(--gold,#C9A84C);border-radius:0 5px 5px 0;padding:7px 12px;margin-bottom:12px;color:var(--text-lt,#5A6478)">'
-      +'Attach supporting objective evidence for <strong>'+esc(doc.title)+'</strong>: '
-      +'inspection records, certificates, signed forms, photographs, test reports. '
-      +'Files are stored locally (max '+MAX_FILE_MB+' MB each).'
-    +'</div>'
+    +'<div style="font-size:10px;background:#EAF0F8;border-left:3px solid #C9A84C;border-radius:0 5px 5px 0;padding:7px 12px;margin-bottom:12px;color:#5A6478">'+storageDesc+' Max '+maxMb+' MB/file.</div>'
     +(canEd()
       ? '<div class="dw-dropzone" id="w-dz">'
           +'<input type="file" id="w-fi" style="display:none" multiple>'
@@ -561,26 +588,13 @@ function openAttachModal(doc) {
           +'<div class="dw-uprog" id="w-prog"></div>'
         +'</div>'
       : '')
-    +'<div id="w-att-list" style="margin-top:10px">'+buildList()+'</div>'
+    +'<div id="w-att-list" style="margin-top:10px"></div>'
     +'</div>'
-    +'<div class="dw-mftr">'
-    +(canEd() ? '<button class="btn btn-gold" id="w-att-save">Save Attachments</button>' : '')
-    +'<button class="btn btn-ghost-dk" id="w-att-cancel">Close</button>'
-    +'</div>'
+    +'<div class="dw-mftr"><button class="btn btn-ghost-dk" id="w-att-cancel">Close</button></div>'
   );
 
   document.getElementById('w-att-cancel').addEventListener('click', closeOv);
-
-  function refresh() { document.getElementById('w-att-list').innerHTML = buildList(); wireDelBtns(); }
-  function wireDelBtns() {
-    document.querySelectorAll('.dw-att-del[data-wi]').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        if (!confirm('Remove "'+fileList[parseInt(btn.dataset.wi)].name+'"?')) return;
-        fileList.splice(parseInt(btn.dataset.wi),1); refresh();
-      });
-    });
-  }
-  wireDelBtns();
+  loadAndRender();
 
   if (canEd()) {
     var zone = document.getElementById('w-dz');
@@ -588,30 +602,24 @@ function openAttachModal(doc) {
     zone.addEventListener('click', function(e){ if(e.target!==inp) inp.click(); });
     zone.addEventListener('dragover',  function(e){ e.preventDefault(); zone.classList.add('drag-over'); });
     zone.addEventListener('dragleave', function()  { zone.classList.remove('drag-over'); });
-    zone.addEventListener('drop', function(e){ e.preventDefault(); zone.classList.remove('drag-over'); addFiles(Array.from(e.dataTransfer.files)); });
-    inp.addEventListener('change', function(){ addFiles(Array.from(inp.files)); inp.value=''; });
+    zone.addEventListener('drop', function(e){ e.preventDefault(); zone.classList.remove('drag-over'); handleUpload(Array.from(e.dataTransfer.files)); });
+    inp.addEventListener('change', function(){ handleUpload(Array.from(inp.files)); inp.value=''; });
 
-    function addFiles(files) {
+    function handleUpload(files) {
       if (!files.length) return;
       var prog = document.getElementById('w-prog');
-      prog.textContent = 'Reading '+files.length+' file(s)…';
-      Promise.all(files.map(function(f){
-        return readFileAsDataUrl(f).then(function(du){
-          return { name:f.name, size:f.size>1048576?(f.size/1048576).toFixed(1)+' MB':(f.size/1024).toFixed(0)+' KB',
-                   date:new Date().toISOString().split('T')[0], user:gRole(), dataUrl:du };
-        });
-      })).then(function(newFiles){
-        newFiles.forEach(function(nf){ fileList.push(nf); });
-        prog.textContent = newFiles.length+' file(s) ready — click Save.';
-        refresh();
-      }).catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
+      prog.textContent = 'Uploading '+files.length+' file(s)…';
+      var who = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser()) ? IMS_AUTH.getUser().username : gRole();
+      var uploadFn = driveAvail
+        ? function(f){ return DMS_DRIVE.uploadFile(f, doc.id, 'attachment', '', who); }
+        : function(f){ return Promise.reject(new Error('DMS_DRIVE not loaded')); };
+      Promise.all(files.map(uploadFn))
+        .then(function(results){
+          prog.textContent = results.length+' file(s) '+(driveAvail && DMS_DRIVE.isConfigured() ? 'uploaded to Drive.' : 'saved locally.');
+          loadAndRender(); renderWidget();
+        })
+        .catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
     }
-
-    document.getElementById('w-att-save').addEventListener('click', function() {
-      var docs = gAll(), d2 = docs.find(function(x){ return x.id===doc.id; });
-      if (d2) { d2.files=fileList; sAll(docs); logH(doc.id,'ATTACHMENTS UPDATED',fileList.length+' file(s)'); }
-      closeOv(); renderWidget(); toast('Attachments saved.','ok');
-    });
   }
 }
 
