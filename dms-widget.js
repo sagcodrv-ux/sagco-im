@@ -541,6 +541,13 @@ function openAttachModal(doc) {
   openOv(
     '<div class="dw-mhdr"><h4>📎 Attachments — '+esc(doc.number)+'</h4><button class="dw-mclose">×</button></div>'
     +'<div class="dw-mbody">'
+    +(!canEd()
+      ? '<div style="background:#fff8e1;border-left:3px solid #F9A825;border-radius:0 5px 5px 0;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#7a5800">'
+          +'🔒 <strong>Upload disabled — current role: '+gRole()+'</strong><br>'
+          +'To upload or remove files you need <strong>editor</strong> or <strong>admin</strong> role. '
+          +'Click the <strong>● '+gRole()+'</strong> role pill in the widget header to change your role.'
+        +'</div>'
+      : '')
     +'<div style="font-size:10px;background:var(--g100,#EAF0F8);border-left:3px solid var(--gold,#C9A84C);border-radius:0 5px 5px 0;padding:7px 12px;margin-bottom:12px;color:var(--text-lt,#5A6478)">'
       +'Attach supporting objective evidence for <strong>'+esc(doc.title)+'</strong>: '
       +'inspection records, certificates, signed forms, photographs, test reports. '
@@ -650,9 +657,16 @@ function openVersionModal(doc) {
   }
 
   function render() {
+    var roleNotice = !canEd()
+      ? '<div style="background:#fff8e1;border-left:3px solid #F9A825;border-radius:0 5px 5px 0;padding:7px 12px;margin-bottom:10px;font-size:11px;color:#7a5800">'
+          +'🔒 <strong>Role: '+gRole()+'</strong> — "Upload New Revision" requires <strong>editor</strong> or <strong>admin</strong>. '
+          +'Click the <strong>● '+gRole()+'</strong> role pill in the widget header to change your role.'
+        +'</div>'
+      : '';
     openOv(
       '<div class="dw-mhdr"><h4>📋 Version Control — '+esc(doc.number)+'</h4><button class="dw-mclose">×</button></div>'
       +'<div class="dw-mbody" style="padding-bottom:0">'
+      +roleNotice
       +'<div class="dw-mtabs">'
         +'<div class="dw-mtab'+(activeTab==='history'?' active':'')+'" id="wmt-hist">Version History</div>'
         +(canEd() ? '<div class="dw-mtab'+(activeTab==='newrev'?' active':'')+'" id="wmt-new">＋ Upload New Revision</div>' : '')

@@ -609,9 +609,18 @@ function openAttachModal(doc){
       +'</div>';
   }
 
+  var roleNotice = !canEd()
+    ? '<div class="alert-amb" style="margin-bottom:12px;font-size:11px">'
+        +'🔒 <strong>Upload disabled — current role: '+gRole()+'</strong><br>'
+        +'To upload or remove files you need <strong>editor</strong> or <strong>admin</strong> role. '
+        +'Click the <strong>● '+gRole()+'</strong> role pill in the section banner, change your role, then re-open this modal.'
+      +'</div>'
+    : '';
+
   openOverlay(
     '<div class="dms-modal-hdr"><h4>📎 Attachments — '+esc(doc.number)+' · '+esc(doc.title)+'</h4><button class="dms-modal-close">×</button></div>'
     +'<div class="dms-modal-body">'
+    +roleNotice
     +'<div class="req-text" style="margin-bottom:12px">Attach supporting objective evidence: inspection records, certificates, signed forms, photographs, test reports, and any other evidence referenced by this document. Files are stored locally in your browser.</div>'
     +(canEd()
       ?'<div class="drop-zone" id="att-zone">'
@@ -733,9 +742,16 @@ function openVersionModal(doc){
   }
 
   function render(){
+    var roleNoticeTab = !canEd()
+      ? '<div style="font-size:10px;background:#fff8e1;border-left:3px solid var(--amb);border-radius:0 4px 4px 0;padding:6px 12px;margin-bottom:10px;color:#7a5800">'
+          +'🔒 <strong>Role: '+gRole()+'</strong> — "Upload New Revision" requires <strong>editor</strong> or <strong>admin</strong>. '
+          +'Click the role pill (<em>● '+gRole()+'</em>) in the section banner to change your role.'
+        +'</div>'
+      : '';
     openOverlay(
       '<div class="dms-modal-hdr"><h4>📋 Version Control — '+esc(doc.number)+' · '+esc(doc.title)+'</h4><button class="dms-modal-close">×</button></div>'
       +'<div class="dms-modal-body" style="padding-bottom:0">'
+      +roleNoticeTab
       +'<div class="m-tabs">'
         +'<div class="m-tab'+(activeModalTab==='history'?' active':'')+'" id="mt-history">Version History</div>'
         +(canEd()?'<div class="m-tab'+(activeModalTab==='newrev'?' active':'')+'" id="mt-newrev">＋ Upload New Revision</div>':'')
@@ -875,6 +891,39 @@ document.getElementById('tb').innerHTML=renderTopbar(
   'Document & Evidence Management',
   'L3-IMS-750-R-02  ·  Rev.01  ·  ISO §7.5 all four standards  ·  IMS Coordinator'
 );
+
+/* ── Role pill in topbar — always visible, colour-coded ─────── */
+(function(){
+  var tbRight = document.querySelector('.topbar-right');
+  if (!tbRight) return;
+  var pill = document.createElement('span');
+  pill.id = 'tb-role-pill';
+  pill.title = 'Current access role — click to change';
+  pill.style.cssText = 'font-family:var(--mono);font-size:10px;font-weight:700;border-radius:8px;padding:3px 11px;border:1px solid rgba(255,255,255,.35);cursor:pointer;margin-right:6px;white-space:nowrap;transition:color .2s';
+  var RCOLS = { admin:'#C9A84C', editor:'#5dd49a', contributor:'#6aa3ff', viewer:'rgba(255,255,255,.55)' };
+  function syncPill(){
+    var r = gRole();
+    pill.textContent = '● ' + r.toUpperCase();
+    pill.style.color = RCOLS[r] || '#fff';
+    pill.style.borderColor = RCOLS[r] || 'rgba(255,255,255,.35)';
+  }
+  syncPill();
+  pill.addEventListener('click', function(){
+    var r = prompt('Change access role:\n\n  viewer       — read-only\n  contributor  — add documents\n  editor       — add + edit + upload files\n  admin        — full access\n\nCurrent: '+gRole(), gRole());
+    var valid = ['viewer','contributor','editor','admin'];
+    if (r && valid.includes(r.trim().toLowerCase())) {
+      sRole(r.trim().toLowerCase());
+      syncPill();
+      updateRoleUI();
+      var sp = document.getElementById('role-lbl'); if (sp) sp.textContent = gRole();
+      renderTable();
+      toast('Role: '+gRole(),'ok');
+    } else if (r !== null) {
+      toast('Use: viewer / contributor / editor / admin','err');
+    }
+  });
+  tbRight.insertBefore(pill, tbRight.firstChild);
+})();
 </script>
 </body>
 </html>
