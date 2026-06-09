@@ -7,6 +7,88 @@
   <link rel="stylesheet" href="style.css">
   <script src="data.js"></script>
   <script src="nav.js"></script>
+  <style>
+    /* ── DMS-specific additions not in style.css ── */
+
+    /* Tab strip inside modal */
+    .m-tabs { display:flex; border-bottom:2px solid var(--g100); margin:0 -20px 16px; padding:0 20px; }
+    .m-tab  {
+      padding:8px 16px; font-size:11px; font-weight:600; cursor:pointer;
+      color:var(--text-lt); border-bottom:2px solid transparent; margin-bottom:-2px;
+    }
+    .m-tab:hover  { color:var(--navy); }
+    .m-tab.active { color:var(--navy); border-bottom-color:var(--gold); }
+
+    /* Version timeline */
+    .ver-timeline { display:flex; flex-direction:column; gap:0; }
+    .ver-row {
+      display:grid; grid-template-columns:56px 80px 1fr auto;
+      align-items:center; gap:10px;
+      padding:10px 14px; border-bottom:1px solid #edf0f5; font-size:11px;
+      transition:background .1s;
+    }
+    .ver-row:hover { background:var(--g100); }
+    .ver-row.ver-active { background:#e8f5e9; }
+    .ver-row.ver-active .ver-num::after { content:' ✓ ACTIVE'; font-size:8px; color:var(--grn); }
+    .ver-num  { font-family:var(--mono); font-weight:700; color:var(--navy); font-size:11px; }
+    .ver-date { font-size:10px; color:var(--text-lt); font-family:var(--mono); }
+    .ver-note { color:var(--text); line-height:1.4; }
+    .ver-note small { display:block; font-size:9px; color:var(--text-lt); margin-top:1px; }
+    .ver-dl   {
+      display:inline-flex; align-items:center; gap:4px;
+      font-size:9px; font-weight:600; color:var(--blue);
+      background:#e3f2fd; border:1px solid #90caf9;
+      border-radius:4px; padding:3px 8px; cursor:pointer; white-space:nowrap;
+      text-decoration:none;
+    }
+    .ver-dl:hover { background:#bbdefb; }
+    .ver-dl-none { font-size:9px; color:var(--text-lt); font-style:italic; }
+
+    /* Audit log rows */
+    .aud-row { padding:8px 14px; border-bottom:1px solid #edf0f5; font-size:11px; }
+    .aud-action { font-weight:700; color:var(--navy); margin-bottom:2px; }
+    .aud-detail { color:var(--text-lt); font-size:10px; }
+    .aud-meta   { font-family:var(--mono); font-size:9px; color:#8899aa; margin-top:2px; }
+
+    /* Attachment list */
+    .att-list { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+    .att-item {
+      display:flex; align-items:center; gap:8px;
+      background:var(--g100); border:1px solid #d0d8e8;
+      border-radius:var(--radius); padding:7px 12px; font-size:11px;
+    }
+    .att-icon { font-size:16px; flex-shrink:0; }
+    .att-name { flex:1; font-weight:600; color:var(--navy); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .att-meta { font-size:9px; color:var(--text-lt); white-space:nowrap; margin-left:auto; }
+    .att-open {
+      display:inline-flex; align-items:center; gap:3px;
+      font-size:9px; font-weight:600; color:var(--blue);
+      background:#e3f2fd; border:1px solid #90caf9; border-radius:4px;
+      padding:3px 7px; cursor:pointer; white-space:nowrap; text-decoration:none;
+      flex-shrink:0;
+    }
+    .att-open:hover { background:#bbdefb; }
+    .att-del  {
+      flex-shrink:0; color:var(--red); cursor:pointer; font-weight:700;
+      padding:2px 6px; border-radius:3px; font-size:11px;
+    }
+    .att-del:hover { background:#fdecea; }
+
+    /* Drop zone */
+    .drop-zone {
+      border:2px dashed #c8d4e8; border-radius:var(--radius);
+      padding:18px; text-align:center; color:var(--text-lt);
+      font-size:11px; cursor:pointer;
+      transition:border-color .15s, background .15s;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color:var(--gold); background:#fef9ed; }
+    .drop-zone strong { color:var(--navy); }
+
+    /* Upload progress */
+    .upload-prog { font-size:10px; color:var(--text-lt); margin-top:6px; }
+
+    /* File type icon helper */
+  </style>
 </head>
 <body>
 
@@ -23,7 +105,7 @@
     </div>
 
     <!-- 2. KPI summary cards -->
-    <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px" id="kpi-grid">
+    <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
       <div class="kpi-card kc-nvy">
         <div class="kpi-lbl">Total Documents</div>
         <div class="kpi-val" id="k-total">—</div>
@@ -54,20 +136,19 @@
     <!-- 3. Requirement text box -->
     <div class="req-text">
       <strong>ISO 9001:2015 §7.5 · ISO 14001:2015 §7.5 · ISO 45001:2018 §7.5 · ISO 50001:2018 §7.5</strong> —
-      The organization shall control documented information to ensure it is available and suitable for use,
-      and adequately protected. Controlled documented information shall include creation, updating,
-      identification, description, format, revision status, and review and approval evidence.
+      Controlled documented information shall include creation, updating, identification, format, revision status,
+      and review and approval evidence. Previous versions must be retained for traceability.
       This register is the single authoritative index of all SAGCO IMS controlled documents and objective evidence.
       Document code: <strong>L3-IMS-750-R-02</strong> · Managed by: IMS Coordinator
     </div>
 
-    <!-- 4. Alert boxes -->
+    <!-- 4. Alert box (review overdue) -->
     <div class="alert-amb" id="alert-overdue" style="display:none">
       ⚠️ <strong>Review Overdue:</strong> One or more documents have passed their review due date.
       Initiate document review in accordance with L2-IMS-700-P-04 §4.5.
     </div>
 
-    <!-- 5a. Toolbar + Tabs -->
+    <!-- 5a. Section banner + toolbar -->
     <div class="sec-banner" style="justify-content:space-between;align-items:center;display:flex">
       <span>📄 DOCUMENT &amp; EVIDENCE REGISTER — L3-IMS-750-R-02</span>
       <div style="display:flex;gap:6px;align-items:center">
@@ -78,7 +159,7 @@
     </div>
 
     <div class="dms-toolbar" style="margin-top:0;border-radius:0">
-      <input  type="text" class="dms-search" id="dms-q"      placeholder="🔍  Search title, number, owner…" style="min-width:200px">
+      <input type="text" class="dms-search" id="dms-q" placeholder="🔍  Search title, number, owner…" style="min-width:200px">
       <select class="dms-sel" id="dms-ftype">
         <option value="">All Types</option>
         <option>Procedure</option><option>Policy</option><option>Register</option>
@@ -91,21 +172,20 @@
         <option>Active</option><option>Under Review</option><option>Superseded</option>
         <option>Obsolete</option><option>Archived</option>
       </select>
-      <select class="dms-sel" id="dms-fpage">
-        <option value="">All Pages</option>
-      </select>
+      <select class="dms-sel" id="dms-fpage"><option value="">All Pages</option></select>
       <button class="btn btn-ghost-dk btn-sm" id="btn-clear-f">✕ Clear</button>
       <span id="result-count" class="muted" style="font-size:10px;margin-left:4px;white-space:nowrap"></span>
     </div>
 
-    <div class="dms-tabs" id="dms-tabs">
+    <!-- 5b. Tabs -->
+    <div class="dms-tabs">
       <div class="dms-tab active" data-tab="active">Active <span class="dms-tab-count" id="tc-active">0</span></div>
       <div class="dms-tab" data-tab="all">All Documents <span class="dms-tab-count" id="tc-all">0</span></div>
       <div class="dms-tab" data-tab="overdue">⚠ Overdue <span class="dms-tab-count" id="tc-overdue">0</span></div>
       <div class="dms-tab" data-tab="bin" id="tab-bin" style="display:none">🗑 Recycle Bin <span class="dms-tab-count" id="tc-bin">0</span></div>
     </div>
 
-    <!-- 5b. Main table -->
+    <!-- 5c. Main register table -->
     <div class="dms-table-wrap">
       <table class="dms-tbl" id="dms-tbl">
         <thead>
@@ -119,8 +199,8 @@
             <th data-col="issued">Issued <span class="si">⇅</span></th>
             <th data-col="reviewDue">Review Due <span class="si">⇅</span></th>
             <th data-col="owner">Owner <span class="si">⇅</span></th>
-            <th>Pages</th>
-            <th>Files</th>
+            <th>Attachments</th>
+            <th>Versions</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -131,541 +211,667 @@
   </div><!-- .content -->
 </div><!-- .main -->
 
-<!-- ── Modal overlay ─────────────────────────────────────────── -->
+<!-- Modal overlay -->
 <div class="dms-overlay" id="dms-overlay">
-  <div class="dms-modal" id="dms-modal"><!-- filled by JS --></div>
+  <div class="dms-modal" id="dms-modal" style="width:720px"></div>
 </div>
 
-<!-- ── Toast ──────────────────────────────────────────────────── -->
+<!-- Toast -->
 <div id="dms-toast"></div>
 
-<!-- ════════════════════════════════════════════════════════════
-     DMS Script
-════════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════
+     DMS SCRIPT
+═══════════════════════════════════════════════════════════ -->
 <script>
+'use strict';
+
+/* ── Storage keys ───────────────────────────────────────────── */
+var SK = 'sagco_dms_store';
+var HK = 'sagco_dms_hist';
+var RK = 'sagco_dms_role';
+
 /* ── Constants ──────────────────────────────────────────────── */
-var SK   = 'sagco_dms_store';
-var HK   = 'sagco_dms_hist';
-var RK   = 'sagco_dms_role';
-var ROLES   = ['viewer','contributor','editor','admin'];
+var ROLES    = ['viewer','contributor','editor','admin'];
 var STATUSES = ['Active','Under Review','Superseded','Obsolete','Archived'];
 var TYPES    = ['Procedure','Policy','Register','Record','Certificate','Report',
                 'Checklist','Form','Monitoring Log','Drawing','Specification','Image','Other'];
+var MAX_FILE_MB = 4; /* localStorage limit per file */
 
-/* ── Store ──────────────────────────────────────────────────── */
-function gAll()    { try { return JSON.parse(localStorage.getItem(SK)||'[]'); } catch(e){ return []; } }
-function sAll(a)   { localStorage.setItem(SK, JSON.stringify(a)); }
-function gHist()   { try { return JSON.parse(localStorage.getItem(HK)||'[]'); } catch(e){ return []; } }
-function sHist(a)  { localStorage.setItem(HK, JSON.stringify(a)); }
-function gRole()   { return sessionStorage.getItem(RK) || 'viewer'; }
-function sRole(r)  { sessionStorage.setItem(RK, r); updateRoleUI(); }
-function canAdd()  { return ['contributor','editor','admin'].includes(gRole()); }
-function canEdit() { return ['editor','admin'].includes(gRole()); }
-function isAdmin() { return gRole() === 'admin'; }
+/* ── Store helpers ──────────────────────────────────────────── */
+function gAll()  { try { return JSON.parse(localStorage.getItem(SK)||'[]'); } catch(e){ return []; } }
+function sAll(a) { localStorage.setItem(SK, JSON.stringify(a)); }
+function gHist() { try { return JSON.parse(localStorage.getItem(HK)||'[]'); } catch(e){ return []; } }
+function sHist(a){ localStorage.setItem(HK, JSON.stringify(a)); }
+function gRole() { return sessionStorage.getItem(RK) || 'viewer'; }
+function sRole(r){ sessionStorage.setItem(RK, r); updateRoleUI(); }
+function canAdd(){ return ['contributor','editor','admin'].includes(gRole()); }
+function canEd() { return ['editor','admin'].includes(gRole()); }
+function isAdm() { return gRole() === 'admin'; }
 
-function logH(docId, action, detail) {
+function logH(id, action, detail) {
   var h = gHist();
-  h.push({ docId:docId, action:action, detail:detail, user:gRole(), ts: new Date().toISOString() });
+  h.push({ docId:id, action:action, detail:detail, user:gRole(), ts:new Date().toISOString() });
   sHist(h);
 }
-
 function nextId() {
-  var docs = gAll();
-  var nums = docs.map(function(d){ return parseInt((d.id||'DOC-000').split('-')[1])||0; });
-  return 'DOC-' + String(Math.max.apply(null, [0].concat(nums)) + 1).padStart(3,'0');
+  var nums = gAll().map(function(d){ return parseInt((d.id||'DOC-000').split('-')[1])||0; });
+  return 'DOC-' + String(Math.max.apply(null,[0].concat(nums))+1).padStart(3,'0');
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ── File icon by extension ─────────────────────────────────── */
+function fileIcon(name) {
+  var ext = (name||'').split('.').pop().toLowerCase();
+  var map = { pdf:'📄', docx:'📝', doc:'📝', xlsx:'📊', xls:'📊', pptx:'📋', ppt:'📋',
+              jpg:'🖼', jpeg:'🖼', png:'🖼', gif:'🖼', webp:'🖼',
+              zip:'🗜', rar:'🗜', txt:'📃', csv:'📊', mp4:'🎥', mp3:'🎵' };
+  return map[ext] || '📎';
 }
 
-/* ── Seed demo data ─────────────────────────────────────────── */
+/* ── Read file as base64 data URL ───────────────────────────── */
+function readFileAsDataUrl(file) {
+  return new Promise(function(resolve, reject) {
+    var mb = file.size / 1048576;
+    if (mb > MAX_FILE_MB) {
+      reject(new Error('"' + file.name + '" is ' + mb.toFixed(1) + ' MB — max allowed is ' + MAX_FILE_MB + ' MB per file on a static site.'));
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload  = function(e) { resolve(e.target.result); };
+    reader.onerror = function()  { reject(new Error('Failed to read ' + file.name)); };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ── Seed data ──────────────────────────────────────────────── */
 function seedIfEmpty() {
   if (gAll().length > 0) return;
-  var today = new Date().toISOString().split('T')[0];
+  var t = new Date().toISOString().split('T')[0];
   sAll([
-    { id:'DOC-001', title:'IMS Integrated Policy',          number:'L1-IMS-PO-01',          rev:'02', issued:'2026-05-01', reviewDue:'2028-05-01', owner:'CEO',                  type:'Policy',      status:'Active',       pages:['policies','index'],         deleted:false, history:[], files:[], created:today },
-    { id:'DOC-002', title:'Support Procedure',              number:'L2-IMS-700-P-04',        rev:'02', issued:'2026-05-01', reviewDue:'2028-05-01', owner:'IMS Manager',           type:'Procedure',   status:'Active',       pages:['training','competency','documentation'], deleted:false, history:[], files:[], created:today },
-    { id:'DOC-003', title:'CAPA Register',                  number:'L4-IMS-1000-R-01',       rev:'03', issued:'2026-01-15', reviewDue:'2027-01-15', owner:'IMS Coordinator',       type:'Register',    status:'Active',       pages:['capa-register'],            deleted:false, history:[], files:[], created:today },
-    { id:'DOC-004', title:'TÜV Austria ISO 50001 Certificate', number:'CERT-50001-2024',     rev:'01', issued:'2024-11-01', reviewDue:'2027-11-01', owner:'IMS Coordinator',       type:'Certificate', status:'Active',       pages:['index','energy'],           deleted:false, history:[], files:[], created:today },
-    { id:'DOC-005', title:'HIRA Register — Furnace Operations', number:'L4-SHEE-PR-01-R-01', rev:'02', issued:'2026-03-01', reviewDue:'2027-03-01', owner:'SHEE Head',             type:'Register',    status:'Active',       pages:['hira'],                     deleted:false, history:[], files:[], created:today },
-    { id:'DOC-006', title:'Emergency Response Plan',        number:'L3-IMS-800-OC-01',       rev:'01', issued:'2026-04-01', reviewDue:'2026-10-01', owner:'SHEE Head',             type:'Procedure',   status:'Under Review', pages:['emergency-response','hira'],deleted:false, history:[], files:[], created:today },
-    { id:'DOC-007', title:'Supplier Code of Conduct',       number:'L3-SCoC-001',            rev:'01', issued:'2026-02-01', reviewDue:'2026-07-15', owner:'Procurement Manager',   type:'Record',      status:'Active',       pages:['supplier-conduct'],         deleted:false, history:[], files:[], created:today },
-    { id:'DOC-008', title:'GHG Inventory Report 2025',      number:'L4-910-RC-01',           rev:'01', issued:'2026-01-10', reviewDue:'2027-01-10', owner:'Energy Manager',        type:'Report',      status:'Active',       pages:['ghg-inventory'],            deleted:false, history:[], files:[], created:today },
-    { id:'DOC-009', title:'Calibration Register',           number:'L4-IMS-715-R-01',        rev:'02', issued:'2026-03-15', reviewDue:'2027-03-15', owner:'Engineering Manager',   type:'Register',    status:'Active',       pages:['calibration-register'],     deleted:false, history:[], files:[], created:today },
-    { id:'DOC-010', title:'Old Quality Manual (pre-IMS)',   number:'QM-2022-001',            rev:'04', issued:'2022-01-01', reviewDue:'2024-01-01', owner:'QA Manager',            type:'Procedure',   status:'Obsolete',     pages:[],                           deleted:false, history:[], files:[], created:today },
+    { id:'DOC-001', title:'IMS Integrated Policy',             number:'L1-IMS-PO-01',           rev:'02', issued:'2026-05-01', reviewDue:'2028-05-01', owner:'CEO',                 type:'Policy',      status:'Active',       pages:['policies','index'],          deleted:false, files:[], versions:[{ rev:'02', ts:t, note:'Current approved version', user:'admin', fileName:null, dataUrl:null }, { rev:'01', ts:'2025-01-01', note:'Initial issue', user:'admin', fileName:null, dataUrl:null }], created:t },
+    { id:'DOC-002', title:'Support Procedure',                 number:'L2-IMS-700-P-04',         rev:'02', issued:'2026-05-01', reviewDue:'2028-05-01', owner:'IMS Manager',          type:'Procedure',   status:'Active',       pages:['training','competency'],     deleted:false, files:[], versions:[{ rev:'02', ts:t, note:'Clause 7 full rewrite', user:'admin', fileName:null, dataUrl:null }], created:t },
+    { id:'DOC-003', title:'CAPA Register',                     number:'L4-IMS-1000-R-01',        rev:'03', issued:'2026-01-15', reviewDue:'2027-01-15', owner:'IMS Coordinator',      type:'Register',    status:'Active',       pages:['capa-register'],             deleted:false, files:[], versions:[{ rev:'03', ts:t, note:'4 new Stage 2 blocker entries added', user:'admin', fileName:null, dataUrl:null }, { rev:'02', ts:'2025-06-01', note:'Annual update', user:'admin', fileName:null, dataUrl:null }, { rev:'01', ts:'2025-01-01', note:'Initial issue', user:'admin', fileName:null, dataUrl:null }], created:t },
+    { id:'DOC-004', title:'TÜV Austria ISO 50001 Certificate', number:'CERT-50001-2024',          rev:'01', issued:'2024-11-01', reviewDue:'2027-11-01', owner:'IMS Coordinator',      type:'Certificate', status:'Active',       pages:['index','energy'],            deleted:false, files:[], versions:[{ rev:'01', ts:'2024-11-01', note:'Certificate issued by TÜV Austria', user:'admin', fileName:null, dataUrl:null }], created:t },
+    { id:'DOC-005', title:'HIRA Register — Furnace Operations',number:'L4-SHEE-PR-01-R-01',      rev:'02', issued:'2026-03-01', reviewDue:'2027-03-01', owner:'SHEE Head',            type:'Register',    status:'Active',       pages:['hira'],                      deleted:false, files:[], versions:[{ rev:'02', ts:'2026-03-01', note:'F4 SHC deviation added', user:'admin', fileName:null, dataUrl:null }], created:t },
+    { id:'DOC-006', title:'Emergency Response Plan',           number:'L3-IMS-800-OC-01',        rev:'01', issued:'2026-04-01', reviewDue:'2026-10-01', owner:'SHEE Head',            type:'Procedure',   status:'Under Review', pages:['emergency-response'],        deleted:false, files:[], versions:[{ rev:'01', ts:'2026-04-01', note:'Initial issue — drill overdue CAPA-002', user:'admin', fileName:null, dataUrl:null }], created:t },
+    { id:'DOC-007', title:'Supplier Code of Conduct',          number:'L3-SCoC-001',             rev:'01', issued:'2026-02-01', reviewDue:'2026-07-15', owner:'Procurement Manager',  type:'Record',      status:'Active',       pages:['supplier-conduct'],          deleted:false, files:[], versions:[{ rev:'01', ts:'2026-02-01', note:'Initial issue', user:'admin', fileName:null, dataUrl:null }], created:t },
+    { id:'DOC-008', title:'GHG Inventory Report 2025',         number:'L4-910-RC-01',            rev:'01', issued:'2026-01-10', reviewDue:'2027-01-10', owner:'Energy Manager',       type:'Report',      status:'Active',       pages:['ghg-inventory'],             deleted:false, files:[], versions:[{ rev:'01', ts:'2026-01-10', note:'Annual Scope 1+2 inventory', user:'admin', fileName:null, dataUrl:null }], created:t },
+    { id:'DOC-009', title:'Calibration Register',              number:'L4-IMS-715-R-01',         rev:'02', issued:'2026-03-15', reviewDue:'2027-03-15', owner:'Engineering Manager',  type:'Register',    status:'Active',       pages:['calibration-register'],     deleted:false, files:[], versions:[{ rev:'02', ts:'2026-03-15', note:'18 instruments added', user:'admin', fileName:null, dataUrl:null }], created:t },
+    { id:'DOC-010', title:'Old Quality Manual (pre-IMS)',      number:'QM-2022-001',             rev:'04', issued:'2022-01-01', reviewDue:'2024-01-01', owner:'QA Manager',           type:'Procedure',   status:'Obsolete',     pages:[],                            deleted:false, files:[], versions:[{ rev:'04', ts:'2022-01-01', note:'Superseded by IMS procedures', user:'admin', fileName:null, dataUrl:null }], created:t },
   ]);
 }
 
 /* ── Date helpers ───────────────────────────────────────────── */
-function daysUntil(d) { return Math.ceil((new Date(d) - new Date()) / 86400000); }
-function revCls(d) {
-  if (!d) return '';
-  var n = daysUntil(d);
-  if (n < 0)  return 'dms-overdue';
-  if (n < 90) return 'dms-duesoon';
-  return '';
-}
-function revLbl(d) {
-  if (!d) return '—';
-  var n = daysUntil(d);
-  if (n < 0)  return d + ' ⚠';
-  if (n < 90) return d + ' (' + n + 'd)';
-  return d;
-}
+function daysUntil(d){ return Math.ceil((new Date(d)-new Date())/86400000); }
+function revCls(d){ if(!d)return''; var n=daysUntil(d); if(n<0)return'dms-overdue'; if(n<90)return'dms-duesoon'; return''; }
+function revLbl(d){ if(!d)return'—'; var n=daysUntil(d); if(n<0)return d+' ⚠'; if(n<90)return d+' ('+n+'d)'; return d; }
 
 /* ── Status badge ───────────────────────────────────────────── */
-function sBadge(s) {
-  var map = { 'Active':'nb-grn','Under Review':'nb-amb','Superseded':'nb-blue','Obsolete':'nb-red','Archived':'nb-grey' };
-  return '<span class="nb '+(map[s]||'nb-grey')+'">'+s+'</span>';
+function sBadge(s){
+  var m={'Active':'nb-grn','Under Review':'nb-amb','Superseded':'nb-blue','Obsolete':'nb-red','Archived':'nb-grey'};
+  return '<span class="nb '+(m[s]||'nb-grey')+'">'+s+'</span>';
 }
 
 /* ── State ──────────────────────────────────────────────────── */
-var sortCol = 'number', sortAsc = true, activeTab = 'active';
+var sortCol='number', sortAsc=true, activeTab='active';
 
-/* ── KPIs ───────────────────────────────────────────────────── */
-function updateKPIs() {
-  var docs = gAll();
-  var live = docs.filter(function(d){ return !d.deleted; });
-  var act  = live.filter(function(d){ return d.status === 'Active'; }).length;
-  var ovr  = live.filter(function(d){ return d.reviewDue && daysUntil(d.reviewDue) < 0; }).length;
-  var soon = live.filter(function(d){ return d.reviewDue && daysUntil(d.reviewDue) >= 0 && daysUntil(d.reviewDue) < 90; }).length;
-  var bin  = docs.filter(function(d){ return d.deleted; }).length;
-  document.getElementById('k-total').textContent   = live.length;
-  document.getElementById('k-active').textContent  = act;
-  document.getElementById('k-overdue').textContent = ovr;
-  document.getElementById('k-soon').textContent    = soon;
-  document.getElementById('k-bin').textContent     = bin;
-  document.getElementById('alert-overdue').style.display = ovr > 0 ? '' : 'none';
-  // Tab counts
-  var all = docs.filter(function(d){ return !d.deleted; });
-  document.getElementById('tc-active').textContent  = all.filter(function(d){ return d.status !== 'Obsolete' && d.status !== 'Archived'; }).length;
-  document.getElementById('tc-all').textContent     = all.length;
-  document.getElementById('tc-overdue').textContent = all.filter(function(d){ return d.reviewDue && daysUntil(d.reviewDue) < 0; }).length;
-  document.getElementById('tc-bin').textContent     = bin;
+/* ── KPI update ─────────────────────────────────────────────── */
+function updateKPIs(){
+  var docs=gAll(), live=docs.filter(function(d){return !d.deleted;});
+  var act=live.filter(function(d){return d.status==='Active';}).length;
+  var ovr=live.filter(function(d){return d.reviewDue&&daysUntil(d.reviewDue)<0;}).length;
+  var soon=live.filter(function(d){return d.reviewDue&&daysUntil(d.reviewDue)>=0&&daysUntil(d.reviewDue)<90;}).length;
+  var bin=docs.filter(function(d){return d.deleted;}).length;
+  document.getElementById('k-total').textContent=live.length;
+  document.getElementById('k-active').textContent=act;
+  document.getElementById('k-overdue').textContent=ovr;
+  document.getElementById('k-soon').textContent=soon;
+  document.getElementById('k-bin').textContent=bin;
+  document.getElementById('alert-overdue').style.display=ovr>0?'':'none';
+  var all=docs.filter(function(d){return !d.deleted;});
+  document.getElementById('tc-active').textContent=all.filter(function(d){return d.status!=='Obsolete'&&d.status!=='Archived';}).length;
+  document.getElementById('tc-all').textContent=all.length;
+  document.getElementById('tc-overdue').textContent=all.filter(function(d){return d.reviewDue&&daysUntil(d.reviewDue)<0;}).length;
+  document.getElementById('tc-bin').textContent=bin;
 }
 
 /* ── Populate page filter ───────────────────────────────────── */
-function populatePageFilter() {
-  var sel  = document.getElementById('dms-fpage');
-  var docs = gAll();
-  var pages = [];
-  docs.forEach(function(d){ (d.pages||[]).forEach(function(p){ if (pages.indexOf(p)<0) pages.push(p); }); });
+function populatePageFilter(){
+  var sel=document.getElementById('dms-fpage'), docs=gAll(), pages=[];
+  docs.forEach(function(d){ (d.pages||[]).forEach(function(p){ if(pages.indexOf(p)<0)pages.push(p); }); });
   pages.sort();
-  // Clear existing (except first "All Pages" option)
-  while (sel.options.length > 1) sel.remove(1);
-  pages.forEach(function(p) {
-    var o = document.createElement('option');
-    o.value = p; o.textContent = p;
-    sel.appendChild(o);
-  });
+  while(sel.options.length>1)sel.remove(1);
+  pages.forEach(function(p){ var o=document.createElement('option'); o.value=p; o.textContent=p; sel.appendChild(o); });
 }
 
-/* ── Render table ───────────────────────────────────────────── */
-function renderTable() {
-  var tbody   = document.getElementById('dms-body');
-  var q       = (document.getElementById('dms-q').value     || '').toLowerCase();
-  var fType   = document.getElementById('dms-ftype').value;
-  var fStatus = document.getElementById('dms-fstatus').value;
-  var fPage   = document.getElementById('dms-fpage').value;
-  var docs    = gAll();
+/* ── Render main table ──────────────────────────────────────── */
+function renderTable(){
+  var tbody=document.getElementById('dms-body');
+  var q=(document.getElementById('dms-q').value||'').toLowerCase();
+  var fType=document.getElementById('dms-ftype').value;
+  var fStatus=document.getElementById('dms-fstatus').value;
+  var fPage=document.getElementById('dms-fpage').value;
+  var docs=gAll();
 
-  // Tab filter
-  switch (activeTab) {
-    case 'active':  docs = docs.filter(function(d){ return !d.deleted && d.status !== 'Obsolete' && d.status !== 'Archived'; }); break;
-    case 'all':     docs = docs.filter(function(d){ return !d.deleted; }); break;
-    case 'overdue': docs = docs.filter(function(d){ return !d.deleted && d.reviewDue && daysUntil(d.reviewDue) < 0; }); break;
-    case 'bin':     docs = docs.filter(function(d){ return d.deleted; }); break;
+  switch(activeTab){
+    case 'active':  docs=docs.filter(function(d){return !d.deleted&&d.status!=='Obsolete'&&d.status!=='Archived';}); break;
+    case 'all':     docs=docs.filter(function(d){return !d.deleted;}); break;
+    case 'overdue': docs=docs.filter(function(d){return !d.deleted&&d.reviewDue&&daysUntil(d.reviewDue)<0;}); break;
+    case 'bin':     docs=docs.filter(function(d){return d.deleted;}); break;
   }
-
-  // Search + filters
-  docs = docs.filter(function(d) {
-    var hay = ((d.title||'')+' '+(d.number||'')+' '+(d.owner||'')+' '+(d.type||'')).toLowerCase();
-    return (!q       || hay.includes(q))
-        && (!fType   || d.type === fType)
-        && (!fStatus || d.status === fStatus)
-        && (!fPage   || (d.pages||[]).includes(fPage));
+  docs=docs.filter(function(d){
+    var hay=((d.title||'')+' '+(d.number||'')+' '+(d.owner||'')+' '+(d.type||'')).toLowerCase();
+    return(!q||hay.includes(q))&&(!fType||d.type===fType)&&(!fStatus||d.status===fStatus)&&(!fPage||(d.pages||[]).includes(fPage));
   });
+  docs.sort(function(a,b){ var av=String(a[sortCol]||'').toLowerCase(),bv=String(b[sortCol]||'').toLowerCase(); return sortAsc?av.localeCompare(bv):bv.localeCompare(av); });
 
-  // Sort
-  docs.sort(function(a,b) {
-    var av = String(a[sortCol]||'').toLowerCase();
-    var bv = String(b[sortCol]||'').toLowerCase();
-    return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
-  });
-
-  document.getElementById('result-count').textContent = docs.length + ' result' + (docs.length !== 1 ? 's' : '');
+  document.getElementById('result-count').textContent=docs.length+' result'+(docs.length!==1?'s':'');
   updateKPIs();
 
-  if (!docs.length) {
-    tbody.innerHTML = '<tr><td colspan="12"><div class="empty-state">'
-      + '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--navy)" stroke-width="1.4"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/></svg>'
-      + '<strong>' + (activeTab === 'bin' ? 'Recycle bin is empty' : 'No documents match') + '</strong>'
-      + (canAdd() && activeTab === 'active' ? 'Click <b>＋ Add Document</b> to register the first document.' : 'Adjust filters or switch tab.')
-      + '</div></td></tr>';
+  if(!docs.length){
+    tbody.innerHTML='<tr><td colspan="12"><div class="empty-state">'
+      +'<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--navy)" stroke-width="1.4"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+      +'<strong>'+(activeTab==='bin'?'Recycle bin is empty':'No documents match')+'</strong>'
+      +(canAdd()&&activeTab==='active'?'Click <b>＋ Add Document</b> to register the first document.':'Adjust filters or switch tab.')
+      +'</div></td></tr>';
     return;
   }
 
-  tbody.innerHTML = docs.map(function(d) {
-    var rc    = revCls(d.reviewDue);
-    var rl    = revLbl(d.reviewDue);
-    var chips = (d.pages||[]).map(function(p){ return '<span class="dms-page-chip">'+p+'</span>'; }).join('') || '<span class="muted">—</span>';
-    var files = (d.files||[]).length;
-    var fIcon = files > 0 ? '<span class="nb nb-blue">'+files+' file'+(files>1?'s':'')+'</span>' : '<span class="muted nb nb-grey">none</span>';
-    var acts  = '<button class="btn btn-teal btn-xs" data-a="view"    data-id="'+d.id+'" title="View">🔍</button>';
-    if (!d.deleted) {
-      if (canEdit()) acts += '<button class="btn btn-navy btn-xs" data-a="edit"    data-id="'+d.id+'" title="Edit">✏️</button>';
-      acts += '<button class="btn btn-ghost-dk btn-xs" data-a="hist"    data-id="'+d.id+'" title="History">📋</button>';
-      acts += '<button class="btn btn-ghost-dk btn-xs" data-a="files"   data-id="'+d.id+'" title="Attachments">📎</button>';
-      if (isAdmin()) acts += '<button class="btn btn-red btn-xs" data-a="del" data-id="'+d.id+'" title="Move to bin">🗑</button>';
+  tbody.innerHTML=docs.map(function(d){
+    var rc=revCls(d.reviewDue), rl=revLbl(d.reviewDue);
+    var fc=(d.files||[]).length;
+    var vc=(d.versions||[]).length;
+    var fBadge=fc?'<span class="nb nb-blue">'+fc+' file'+(fc>1?'s':'')+'</span>':'<span class="muted nb nb-grey">none</span>';
+    var vBadge=vc?'<span class="nb nb-gold">'+vc+' ver.</span>':'<span class="muted nb nb-grey">—</span>';
+    var acts='<button class="btn btn-teal btn-xs" data-a="view"  data-id="'+d.id+'" title="View details">🔍</button>';
+    if(!d.deleted){
+      if(canEd()) acts+='<button class="btn btn-navy btn-xs" data-a="edit"    data-id="'+d.id+'" title="Edit metadata">✏️</button>';
+      acts+='<button class="btn btn-ghost-dk btn-xs" data-a="attach"  data-id="'+d.id+'" title="Manage attachments">📎</button>';
+      acts+='<button class="btn btn-ghost-dk btn-xs" data-a="version" data-id="'+d.id+'" title="Version history &amp; revision upload">📋</button>';
+      if(isAdm()) acts+='<button class="btn btn-red btn-xs" data-a="del" data-id="'+d.id+'" title="Move to bin">🗑</button>';
     } else {
-      if (isAdmin()) acts += '<button class="btn btn-grn btn-xs" data-a="restore" data-id="'+d.id+'" title="Restore">↩</button>';
+      if(isAdm()) acts+='<button class="btn btn-grn btn-xs" data-a="restore" data-id="'+d.id+'" title="Restore">↩</button>';
     }
     return '<tr class="'+(d.deleted?'dms-deleted':'')+'" data-id="'+d.id+'">'
-      + '<td class="mono muted" style="font-size:9px">'+d.id+'</td>'
-      + '<td><span class="dms-num">'+d.number+'</span></td>'
-      + '<td style="font-weight:600;max-width:240px;white-space:normal">'+d.title+'</td>'
-      + '<td style="text-align:center;font-weight:700">'+d.rev+'</td>'
-      + '<td>'+d.type+'</td>'
-      + '<td>'+sBadge(d.status)+'</td>'
-      + '<td class="nowrap">'+d.issued+'</td>'
-      + '<td class="nowrap '+rc+'">'+rl+'</td>'
-      + '<td class="nowrap">'+d.owner+'</td>'
-      + '<td style="white-space:normal;max-width:160px">'+chips+'</td>'
-      + '<td>'+fIcon+'</td>'
-      + '<td><div class="dms-actions">'+acts+'</div></td>'
-      + '</tr>';
+      +'<td class="mono muted" style="font-size:9px">'+d.id+'</td>'
+      +'<td><span class="dms-num">'+esc(d.number)+'</span></td>'
+      +'<td style="font-weight:600;max-width:220px;white-space:normal">'+esc(d.title)+'</td>'
+      +'<td style="text-align:center;font-weight:700;font-family:var(--mono)">'+esc(d.rev)+'</td>'
+      +'<td>'+esc(d.type)+'</td>'
+      +'<td>'+sBadge(d.status)+'</td>'
+      +'<td class="nowrap">'+esc(d.issued||'—')+'</td>'
+      +'<td class="nowrap '+rc+'">'+rl+'</td>'
+      +'<td class="nowrap">'+esc(d.owner||'—')+'</td>'
+      +'<td>'+fBadge+'</td>'
+      +'<td>'+vBadge+'</td>'
+      +'<td><div class="dms-actions">'+acts+'</div></td>'
+      +'</tr>';
   }).join('');
 
-  tbody.querySelectorAll('[data-a]').forEach(function(btn) {
-    btn.addEventListener('click', function() { handleAction(btn.dataset.a, btn.dataset.id); });
+  tbody.querySelectorAll('[data-a]').forEach(function(btn){
+    btn.addEventListener('click',function(){ handleAction(btn.dataset.a, btn.dataset.id); });
   });
 }
 
-/* ── Actions ────────────────────────────────────────────────── */
-function handleAction(action, id) {
-  var doc = gAll().find(function(d){ return d.id === id; });
-  if (!doc) return;
-  if (action === 'view')    openModal(doc, true);
-  if (action === 'edit')    openModal(doc, false);
-  if (action === 'hist')    openHistory(doc);
-  if (action === 'files')   openFiles(doc);
-  if (action === 'del')     softDel(id);
-  if (action === 'restore') restoreDoc(id);
+/* ── Action dispatcher ──────────────────────────────────────── */
+function handleAction(action, id){
+  var doc=gAll().find(function(d){return d.id===id;});
+  if(!doc)return;
+  if(action==='view')    openViewModal(doc);
+  if(action==='edit')    openEditModal(doc);
+  if(action==='attach')  openAttachModal(doc);
+  if(action==='version') openVersionModal(doc);
+  if(action==='del')     softDel(id);
+  if(action==='restore') restoreDoc(id);
 }
 
-function softDel(id) {
-  if (!confirm('Move this document to the Recycle Bin?\nIt can be restored at any time.')) return;
-  var docs = gAll(); var d = docs.find(function(x){ return x.id===id; });
-  if (d) { d.deleted = true; d.deletedAt = new Date().toISOString().split('T')[0]; sAll(docs); logH(id,'ARCHIVED','Moved to Recycle Bin'); renderTable(); toast('Moved to Recycle Bin','ok'); }
+/* ── Soft delete / restore ──────────────────────────────────── */
+function softDel(id){
+  if(!confirm('Move this document to the Recycle Bin?\nIt can be restored at any time.'))return;
+  var docs=gAll(), d=docs.find(function(x){return x.id===id;});
+  if(d){d.deleted=true;d.deletedAt=new Date().toISOString().split('T')[0];sAll(docs);logH(id,'ARCHIVED','Moved to Recycle Bin');renderTable();toast('Moved to Recycle Bin','ok');}
 }
-function restoreDoc(id) {
-  var docs = gAll(); var d = docs.find(function(x){ return x.id===id; });
-  if (d) { d.deleted = false; delete d.deletedAt; sAll(docs); logH(id,'RESTORED','Restored from Recycle Bin'); renderTable(); toast('Document restored','ok'); }
+function restoreDoc(id){
+  var docs=gAll(), d=docs.find(function(x){return x.id===id;});
+  if(d){d.deleted=false;delete d.deletedAt;sAll(docs);logH(id,'RESTORED','Restored from Recycle Bin');renderTable();toast('Restored','ok');}
 }
 
-/* ── Open/close modal ───────────────────────────────────────── */
-function openOverlay(content) {
-  document.getElementById('dms-modal').innerHTML = content;
+/* ── Modal infrastructure ───────────────────────────────────── */
+function openOverlay(html){
+  document.getElementById('dms-modal').innerHTML=html;
   document.getElementById('dms-overlay').classList.add('open');
-  var cls = document.querySelector('.dms-modal-close');
-  if (cls) cls.addEventListener('click', closeOverlay);
-  document.getElementById('dms-overlay').addEventListener('click', function(e){ if(e.target.id==='dms-overlay') closeOverlay(); });
+  var cl=document.querySelector('#dms-modal .dms-modal-close');
+  if(cl)cl.addEventListener('click',closeOverlay);
+  document.getElementById('dms-overlay').addEventListener('click',function(e){if(e.target.id==='dms-overlay')closeOverlay();});
 }
-function closeOverlay() { document.getElementById('dms-overlay').classList.remove('open'); }
+function closeOverlay(){ document.getElementById('dms-overlay').classList.remove('open'); }
 
-/* ── Document modal (view / edit / add) ─────────────────────── */
-function openModal(doc, readOnly) {
-  var isNew = !doc;
-  var d = doc || { id: nextId(), pages:[], files:[], history:[], status:'Active', type:'Register' };
-  var title = readOnly ? '🔍 View — '+d.id : (isNew ? '＋ Add New Document' : '✏️ Edit — '+d.id);
+/* ═══════════════════════════════════════════════════════════
+   MODAL 1 — VIEW (read-only metadata summary)
+═══════════════════════════════════════════════════════════ */
+function openViewModal(doc){
+  var rows=[
+    ['Document Number', '<span class="dms-num">'+esc(doc.number)+'</span>'],
+    ['Title',           '<strong>'+esc(doc.title)+'</strong>'],
+    ['Current Revision','<span class="mono" style="font-weight:700">Rev. '+esc(doc.rev)+'</span>'],
+    ['Document Type',   esc(doc.type||'—')],
+    ['Status',          sBadge(doc.status)],
+    ['Date of Issue',   esc(doc.issued||'—')],
+    ['Review Due Date', '<span class="'+revCls(doc.reviewDue)+'">'+revLbl(doc.reviewDue)+'</span>'],
+    ['Document Owner',  esc(doc.owner||'—')],
+    ['Linked Pages',    (doc.pages||[]).map(function(p){return '<span class="dms-page-chip">'+p+'</span>';}).join(' ')||'—'],
+    ['Attachments',     (doc.files||[]).length+' file(s)'],
+    ['Version History', (doc.versions||[]).length+' revision(s) on record'],
+  ];
+  var tableHtml=rows.map(function(r){
+    return '<tr><td style="width:140px;font-weight:600;color:var(--navy);font-size:10px;vertical-align:top;padding:6px 10px;border-bottom:1px solid #f0f0f0">'+r[0]+'</td>'
+      +'<td style="font-size:11px;padding:6px 10px;border-bottom:1px solid #f0f0f0">'+r[1]+'</td></tr>';
+  }).join('');
+  openOverlay(
+    '<div class="dms-modal-hdr"><h4>🔍 Document Details — '+esc(doc.id)+'</h4><button class="dms-modal-close">×</button></div>'
+    +'<div class="dms-modal-body" style="padding:0">'
+    +'<table style="width:100%;border-collapse:collapse">'+tableHtml+'</table>'
+    +'</div>'
+    +'<div class="dms-modal-ftr">'
+    +(canEd()?'<button class="btn btn-navy" id="v-edit">✏️ Edit</button>':'')
+    +'<button class="btn btn-ghost-dk" id="v-attach">📎 Attachments</button>'
+    +'<button class="btn btn-ghost-dk" id="v-version">📋 Version History</button>'
+    +'<button class="btn btn-gold" id="v-close">Close</button>'
+    +'</div>'
+  );
+  document.getElementById('v-close').addEventListener('click',closeOverlay);
+  document.getElementById('v-attach').addEventListener('click',function(){ closeOverlay(); openAttachModal(doc); });
+  document.getElementById('v-version').addEventListener('click',function(){ closeOverlay(); openVersionModal(doc); });
+  if(canEd()) document.getElementById('v-edit').addEventListener('click',function(){ closeOverlay(); openEditModal(doc); });
+}
 
-  var typeOpts   = TYPES.map(function(t){ return '<option'+(d.type===t?' selected':'')+'>'+t+'</option>'; }).join('');
-  var statusOpts = STATUSES.map(function(s){ return '<option'+(d.status===s?' selected':'')+'>'+s+'</option>'; }).join('');
-  var ro = readOnly ? 'readonly' : '';
-  var dis = readOnly ? 'disabled' : '';
-
-  var revListHtml = '';
-  if (readOnly && d.history && d.history.length) {
-    revListHtml = '<div style="border:1px solid var(--border,#d0d8e8);border-radius:6px;max-height:140px;overflow-y:auto;margin-top:6px">'
-      + d.history.slice().reverse().map(function(h){
-        return '<div class="dms-ver-item'+(h.active?' dms-ver-active':'')+'">'
-          +'<span class="dms-ver-num">Rev.'+h.rev+'</span>'
-          +'<span class="dms-ver-date">'+h.ts+'</span>'
-          +'<span class="dms-ver-note">'+(h.note||'—')+'</span>'
-          +'<span class="dms-ver-who">'+h.user+'</span>'
-          +'</div>';
-      }).join('')
-      + '</div>';
-  }
+/* ═══════════════════════════════════════════════════════════
+   MODAL 2 — EDIT metadata
+═══════════════════════════════════════════════════════════ */
+function openEditModal(doc){
+  var isNew=!doc;
+  var d=doc||{id:nextId(),pages:[],files:[],versions:[],status:'Active',type:'Register'};
+  var typeOpts=TYPES.map(function(t){return '<option'+(d.type===t?' selected':'')+'>'+t+'</option>';}).join('');
+  var statusOpts=STATUSES.map(function(s){return '<option'+(d.status===s?' selected':'')+'>'+s+'</option>';}).join('');
 
   openOverlay(
-    '<div class="dms-modal-hdr"><h4>'+title+'</h4><button class="dms-modal-close">×</button></div>'
+    '<div class="dms-modal-hdr"><h4>'+(isNew?'＋ Add New Document':'✏️ Edit — '+esc(d.id))+'</h4><button class="dms-modal-close">×</button></div>'
     +'<div class="dms-modal-body">'
     +'<div class="dms-field-row">'
-      +'<div class="dms-field"><label>Document Title <span class="dms-req">*</span></label><input id="m-title" value="'+esc(d.title||'')+'" '+ro+' placeholder="e.g. CAPA Register"></div>'
-      +'<div class="dms-field"><label>Document Number <span class="dms-req">*</span></label><input id="m-number" value="'+esc(d.number||'')+'" '+ro+' placeholder="e.g. L4-IMS-1000-R-01"></div>'
+      +'<div class="dms-field"><label>Document Title <span class="dms-req">*</span></label><input id="m-title" value="'+esc(d.title||'')+'" placeholder="e.g. CAPA Register"></div>'
+      +'<div class="dms-field"><label>Document Number <span class="dms-req">*</span></label><input id="m-number" value="'+esc(d.number||'')+'" placeholder="e.g. L4-IMS-1000-R-01"></div>'
     +'</div>'
     +'<div class="dms-field-row">'
-      +'<div class="dms-field"><label>Revision No. <span class="dms-req">*</span></label><input id="m-rev" value="'+esc(d.rev||'01')+'" '+ro+' placeholder="01"></div>'
-      +'<div class="dms-field"><label>Document Type <span class="dms-req">*</span></label><select id="m-type" '+dis+'>'+typeOpts+'</select></div>'
+      +'<div class="dms-field"><label>Revision No. <span class="dms-req">*</span></label><input id="m-rev" value="'+esc(d.rev||'01')+'" placeholder="01"></div>'
+      +'<div class="dms-field"><label>Document Type</label><select id="m-type">'+typeOpts+'</select></div>'
     +'</div>'
     +'<div class="dms-field-row">'
-      +'<div class="dms-field"><label>Date of Issue</label><input type="date" id="m-issued" value="'+esc(d.issued||'')+'" '+ro+'></div>'
-      +'<div class="dms-field"><label>Review Due Date</label><input type="date" id="m-review" value="'+esc(d.reviewDue||'')+'" '+ro+'></div>'
+      +'<div class="dms-field"><label>Date of Issue</label><input type="date" id="m-issued" value="'+esc(d.issued||'')+'"></div>'
+      +'<div class="dms-field"><label>Review Due Date</label><input type="date" id="m-review" value="'+esc(d.reviewDue||'')+'"></div>'
     +'</div>'
     +'<div class="dms-field-row">'
-      +'<div class="dms-field"><label>Document Owner</label><input id="m-owner" value="'+esc(d.owner||'')+'" '+ro+' placeholder="e.g. IMS Manager"></div>'
-      +'<div class="dms-field"><label>Status</label><select id="m-status" '+dis+'>'+statusOpts+'</select></div>'
+      +'<div class="dms-field"><label>Document Owner</label><input id="m-owner" value="'+esc(d.owner||'')+'" placeholder="e.g. IMS Manager"></div>'
+      +'<div class="dms-field"><label>Status</label><select id="m-status">'+statusOpts+'</select></div>'
     +'</div>'
-    +'<div class="dms-field"><label>Linked IMS Pages <span class="muted" style="font-weight:400">(comma-separated filenames without .html)</span></label><input id="m-pages" value="'+esc((d.pages||[]).join(', '))+'" '+ro+' placeholder="hira, sea-register, energy"></div>'
-    +(!readOnly && !isNew
-      ? '<div class="dms-field"><label>Revision Note <span class="muted" style="font-weight:400">(reason for change)</span></label><textarea id="m-note" rows="2" placeholder="Describe what changed in this revision…"></textarea></div>'
-      : '')
-    +(revListHtml ? '<div class="dms-field"><label>Revision History</label>'+revListHtml+'</div>' : '')
+    +'<div class="dms-field"><label>Linked IMS Pages <span class="muted" style="font-weight:400">(comma-separated, no .html)</span></label>'
+      +'<input id="m-pages" value="'+esc((d.pages||[]).join(', '))+'" placeholder="hira, sea-register, energy"></div>'
+    +(isNew
+      ? '<div class="dms-field" style="background:#f8fafc;border:1px solid var(--g100);border-radius:6px;padding:10px;margin-top:4px">'
+        +'<label style="color:var(--navy)">Upload First Version File <span class="muted" style="font-weight:400">(optional — PDF, DOCX, XLSX, image — max '+MAX_FILE_MB+' MB)</span></label>'
+        +'<input type="file" id="m-firstfile" style="margin-top:6px;font-size:11px" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.txt,.csv">'
+        +'<div class="upload-prog" id="m-firstfile-prog"></div>'
+        +'</div>'
+      : '<div class="dms-field"><label>Revision Note <span class="muted" style="font-weight:400">(reason for this change)</span></label>'
+        +'<textarea id="m-note" rows="2" placeholder="Describe what changed in this revision…"></textarea></div>'
+    )
     +'</div>'
     +'<div class="dms-modal-ftr">'
       +'<button class="btn btn-ghost-dk" id="m-cancel">Cancel</button>'
-      +(!readOnly ? '<button class="btn btn-gold" id="m-save">'+(isNew?'Add Document':'Save Changes')+'</button>' : '')
+      +'<button class="btn btn-gold" id="m-save">'+(isNew?'Add Document':'Save Changes')+'</button>'
     +'</div>'
   );
+  document.getElementById('m-cancel').addEventListener('click',closeOverlay);
+  document.getElementById('m-save').addEventListener('click',function(){
+    var tv=document.getElementById('m-title').value.trim();
+    var nv=document.getElementById('m-number').value.trim();
+    if(!tv||!nv){toast('Title and Document Number are required.','err');return;}
+    var revVal=document.getElementById('m-rev').value.trim()||'01';
+    var note=(document.getElementById('m-note')||{value:''}).value.trim();
 
-  document.getElementById('m-cancel').addEventListener('click', closeOverlay);
-  if (!readOnly) {
-    document.getElementById('m-save').addEventListener('click', function() {
-      var tv = document.getElementById('m-title').value.trim();
-      var nv = document.getElementById('m-number').value.trim();
-      if (!tv || !nv) { toast('Title and Document Number are required.','err'); return; }
-      var note = (document.getElementById('m-note') || {}).value || '';
-      note = note.trim();
-      var docs = gAll();
-      var idx  = docs.findIndex(function(x){ return x.id === d.id; });
-      var upd  = Object.assign({}, d, {
-        title:     tv,
-        number:    nv,
-        rev:       document.getElementById('m-rev').value.trim() || '01',
-        type:      document.getElementById('m-type').value,
-        issued:    document.getElementById('m-issued').value,
-        reviewDue: document.getElementById('m-review').value,
-        owner:     document.getElementById('m-owner').value.trim(),
-        status:    document.getElementById('m-status').value,
-        pages:     document.getElementById('m-pages').value.split(',').map(function(p){ return p.trim(); }).filter(Boolean),
-        history:   (d.history||[]).concat(note ? [{ rev: document.getElementById('m-rev').value.trim(), note:note, ts: new Date().toISOString().split('T')[0], user:gRole() }] : []),
+    function doSave(dataUrl, fileName){
+      var docs=gAll(), idx=docs.findIndex(function(x){return x.id===d.id;});
+      var newVer={ rev:revVal, ts:new Date().toISOString().split('T')[0], note:isNew?'Initial issue':(note||'Saved'), user:gRole(), fileName:fileName||null, dataUrl:dataUrl||null };
+      var existingVersions=(d.versions||[]);
+      /* Only push a new version entry if rev changed or it's a new doc */
+      var latestRev=existingVersions.length?existingVersions[0].rev:'';
+      var versionsUpd = (isNew || revVal!==latestRev || dataUrl)
+        ? [newVer].concat(existingVersions)
+        : existingVersions;
+      var upd=Object.assign({},d,{
+        title:tv, number:nv, rev:revVal,
+        type:document.getElementById('m-type').value,
+        issued:document.getElementById('m-issued').value,
+        reviewDue:document.getElementById('m-review').value,
+        owner:document.getElementById('m-owner').value.trim(),
+        status:document.getElementById('m-status').value,
+        pages:document.getElementById('m-pages').value.split(',').map(function(p){return p.trim();}).filter(Boolean),
+        versions:versionsUpd,
+        files:d.files||[],
       });
-      if (idx >= 0) docs[idx] = upd; else docs.push(upd);
+      if(idx>=0)docs[idx]=upd; else docs.push(upd);
       sAll(docs);
-      logH(d.id, isNew ? 'ADDED' : 'EDITED', note || 'Saved');
-      closeOverlay();
-      populatePageFilter();
-      renderTable();
-      toast(isNew ? 'Document added.' : 'Changes saved.', 'ok');
-    });
-  }
+      logH(d.id,isNew?'ADDED':'EDITED',note||'Metadata saved');
+      closeOverlay(); populatePageFilter(); renderTable();
+      toast(isNew?'Document added.':'Changes saved.','ok');
+    }
+
+    if(isNew){
+      var fileInp=document.getElementById('m-firstfile');
+      if(fileInp&&fileInp.files&&fileInp.files[0]){
+        var f=fileInp.files[0];
+        document.getElementById('m-firstfile-prog').textContent='Reading file…';
+        readFileAsDataUrl(f).then(function(dataUrl){ doSave(dataUrl,f.name); })
+          .catch(function(e){ toast(e.message,'err'); document.getElementById('m-firstfile-prog').textContent=''; });
+      } else { doSave(null,null); }
+    } else { doSave(null,null); }
+  });
 }
 
-/* ── Revision history modal ─────────────────────────────────── */
-function openHistory(doc) {
-  var hist = gHist().filter(function(h){ return h.docId === doc.id; });
-  var rows = hist.length ? hist.slice().reverse().map(function(h){
-    return '<div class="dms-hist-item">'
-      +'<div class="dms-hist-action">'+h.action+'</div>'
-      +(h.detail ? '<div class="dms-hist-detail">'+h.detail+'</div>' : '')
-      +'<div class="dms-hist-meta">'+h.ts+'  ·  role: '+h.user+'</div>'
+/* ═══════════════════════════════════════════════════════════
+   MODAL 3 — ATTACHMENTS (supporting evidence files)
+   Purpose: store objective evidence linked to a document entry
+   (inspection records, certificates, photos, signed forms etc.)
+   These are DIFFERENT from version files — they are supporting
+   evidence for the current revision, not old versions.
+═══════════════════════════════════════════════════════════ */
+function openAttachModal(doc){
+  var fileList=(doc.files||[]).map(function(f){return Object.assign({},f);}); /* working copy */
+
+  function buildList(){
+    if(!fileList.length){
+      return '<div style="padding:14px 0;color:var(--text-lt);font-size:11px;text-align:center">'
+        +'No supporting files attached yet.</div>';
+    }
+    return '<div class="att-list">'
+      +fileList.map(function(f,i){
+        var dlHtml=f.dataUrl
+          ?'<a class="att-open" href="'+f.dataUrl+'" download="'+esc(f.name)+'" title="Download '+esc(f.name)+'">⬇ Download</a>'
+          +'<a class="att-open" href="'+f.dataUrl+'" target="_blank" title="Open '+esc(f.name)+'">↗ Open</a>'
+          :'<span class="att-open" style="opacity:.5;cursor:default">no file data</span>';
+        return '<div class="att-item">'
+          +'<span class="att-icon">'+fileIcon(f.name)+'</span>'
+          +'<span class="att-name" title="'+esc(f.name)+'">'+esc(f.name)+'</span>'
+          +'<span class="att-meta">'+esc(f.size||'')+'&nbsp;·&nbsp;'+esc(f.date||'')+'</span>'
+          +dlHtml
+          +(canEd()?'<span class="att-del" data-fi="'+i+'" title="Remove attachment">✕</span>':'')
+          +'</div>';
+      }).join('')
       +'</div>';
-  }).join('') : '<div style="padding:14px;color:var(--text-lt);font-size:11px">No history recorded.</div>';
-
-  // Also show revision list from document itself
-  var verRows = (doc.history||[]).length ? (doc.history||[]).slice().reverse().map(function(h,i){
-    var isLatest = i === 0;
-    return '<div class="dms-ver-item'+(isLatest?' dms-ver-active':'')+'">'
-      +'<span class="dms-ver-num">Rev.'+h.rev+'</span>'
-      +'<span class="dms-ver-date">'+h.ts+'</span>'
-      +'<span class="dms-ver-note">'+(h.note||'—')+'</span>'
-      +'<span class="dms-ver-who">'+h.user+'</span>'
-      +'</div>';
-  }).join('') : '<div style="padding:10px 14px;color:var(--text-lt);font-size:11px">No revision notes recorded.</div>';
-
-  openOverlay(
-    '<div class="dms-modal-hdr"><h4>📋 History — '+doc.id+' · '+doc.title+'</h4><button class="dms-modal-close">×</button></div>'
-    +'<div style="padding:0">'
-    +'<div class="sec-banner" style="margin-top:0;font-size:10px">REVISION VERSIONS</div>'
-    +'<div style="max-height:180px;overflow-y:auto;border:1px solid #d0d8e8;border-top:none">'+verRows+'</div>'
-    +'<div class="sec-banner" style="margin-top:0;font-size:10px">AUDIT LOG</div>'
-    +'<div style="max-height:200px;overflow-y:auto;border:1px solid #d0d8e8;border-top:none">'+rows+'</div>'
-    +'</div>'
-    +'<div class="dms-modal-ftr"><button class="btn btn-gold" id="m-cancel">Close</button></div>'
-  );
-  document.getElementById('m-cancel').addEventListener('click', closeOverlay);
-}
-
-/* ── File attachments modal ─────────────────────────────────── */
-function openFiles(doc) {
-  var fileList = (doc.files || []);
-  function buildFileHtml() {
-    if (!fileList.length) return '<div style="padding:14px;color:var(--text-lt);font-size:11px;text-align:center">No files attached yet.</div>';
-    return fileList.map(function(f, i) {
-      return '<div class="dms-attach-item">'
-        +'<span class="fa-name">'+f.name+'</span>'
-        +'<span class="fa-size">'+f.size+'</span>'
-        +'<span class="fa-size muted">'+f.date+'</span>'
-        +(canEdit() ? '<span class="fa-del" data-fi="'+i+'" title="Remove">✕</span>' : '')
-        +'</div>';
-    }).join('');
   }
 
   openOverlay(
-    '<div class="dms-modal-hdr"><h4>📎 Attachments — '+doc.id+' · '+doc.title+'</h4><button class="dms-modal-close">×</button></div>'
+    '<div class="dms-modal-hdr"><h4>📎 Attachments — '+esc(doc.number)+' · '+esc(doc.title)+'</h4><button class="dms-modal-close">×</button></div>'
     +'<div class="dms-modal-body">'
-    +'<div class="req-text">Attach supporting documents, images, certificates, inspection records, and other objective evidence linked to this controlled document.</div>'
-    +(canEdit()
-      ? '<div class="dms-attach-zone" id="drop-zone"><input type="file" id="file-inp" style="display:none" multiple>'
+    +'<div class="req-text" style="margin-bottom:12px">Attach supporting objective evidence: inspection records, certificates, signed forms, photographs, test reports, and any other evidence referenced by this document. Files are stored locally in your browser.</div>'
+    +(canEd()
+      ?'<div class="drop-zone" id="att-zone">'
+        +'<input type="file" id="att-inp" style="display:none" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.txt,.csv,.zip">'
         +'<div>📂 <strong>Click to select files</strong> or drag and drop here</div>'
-        +'<div class="muted" style="margin-top:4px;font-size:10px">PDF · DOCX · XLSX · JPG · PNG · any format</div>'
+        +'<div style="margin-top:5px;font-size:10px;color:var(--text-lt)">PDF · DOCX · XLSX · JPG · PNG · any format · max '+MAX_FILE_MB+' MB per file</div>'
+        +'<div class="upload-prog" id="att-prog"></div>'
         +'</div>'
-      : '')
-    +'<div id="file-list" style="margin-top:10px">'+buildFileHtml()+'</div>'
+      :'')
+    +'<div id="att-list" style="margin-top:10px">'+buildList()+'</div>'
     +'</div>'
     +'<div class="dms-modal-ftr">'
-    +(canEdit() ? '<button class="btn btn-gold" id="m-save-files">Save Attachments</button>' : '')
-    +'<button class="btn btn-ghost-dk" id="m-cancel">Close</button>'
+      +(canEd()?'<button class="btn btn-gold" id="att-save">Save Attachments</button>':'')
+      +'<button class="btn btn-ghost-dk" id="att-cancel">Close</button>'
     +'</div>'
   );
 
-  document.getElementById('m-cancel').addEventListener('click', closeOverlay);
+  document.getElementById('att-cancel').addEventListener('click',closeOverlay);
 
-  if (canEdit()) {
-    var zone = document.getElementById('drop-zone');
-    var inp  = document.getElementById('file-inp');
-    zone.addEventListener('click', function() { inp.click(); });
-    zone.addEventListener('dragover', function(e){ e.preventDefault(); zone.style.borderColor='var(--gold)'; });
-    zone.addEventListener('dragleave',function(){ zone.style.borderColor=''; });
-    zone.addEventListener('drop', function(e){
-      e.preventDefault(); zone.style.borderColor='';
-      addFiles(e.dataTransfer.files);
-    });
-    inp.addEventListener('change', function(){ addFiles(inp.files); });
-
-    function addFiles(fls) {
-      Array.from(fls).forEach(function(f) {
-        var sizeTxt = f.size > 1048576 ? (f.size/1048576).toFixed(1)+' MB' : (f.size/1024).toFixed(0)+' KB';
-        fileList.push({ name: f.name, size: sizeTxt, date: new Date().toISOString().split('T')[0], user: gRole() });
+  function refresh(){ document.getElementById('att-list').innerHTML=buildList(); wireDelBtns(); }
+  function wireDelBtns(){
+    document.querySelectorAll('.att-del[data-fi]').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        if(!confirm('Remove "'+fileList[parseInt(btn.dataset.fi)].name+'"?'))return;
+        fileList.splice(parseInt(btn.dataset.fi),1); refresh();
       });
-      document.getElementById('file-list').innerHTML = buildFileHtml();
-      wireDelBtns();
-    }
-
-    function wireDelBtns() {
-      document.querySelectorAll('.fa-del').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          fileList.splice(parseInt(btn.dataset.fi), 1);
-          document.getElementById('file-list').innerHTML = buildFileHtml();
-          wireDelBtns();
-        });
-      });
-    }
-    wireDelBtns();
-
-    document.getElementById('m-save-files').addEventListener('click', function() {
-      var docs = gAll();
-      var d2 = docs.find(function(x){ return x.id === doc.id; });
-      if (d2) { d2.files = fileList; sAll(docs); logH(doc.id,'FILES UPDATED', fileList.length + ' file(s)'); }
-      closeOverlay();
-      renderTable();
-      toast('Attachments saved.','ok');
     });
   }
+  wireDelBtns();
+
+  if(canEd()){
+    var zone=document.getElementById('att-zone');
+    var inp=document.getElementById('att-inp');
+    zone.addEventListener('click',function(e){ if(e.target!==inp)inp.click(); });
+    zone.addEventListener('dragover',function(e){ e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave',function(){ zone.classList.remove('drag-over'); });
+    zone.addEventListener('drop',function(e){ e.preventDefault(); zone.classList.remove('drag-over'); addFiles(Array.from(e.dataTransfer.files)); });
+    inp.addEventListener('change',function(){ addFiles(Array.from(inp.files)); inp.value=''; });
+
+    function addFiles(files){
+      if(!files.length)return;
+      var prog=document.getElementById('att-prog');
+      prog.textContent='Reading '+files.length+' file(s)…';
+      var promises=files.map(function(f){
+        return readFileAsDataUrl(f).then(function(dataUrl){
+          return { name:f.name, size:f.size>1048576?(f.size/1048576).toFixed(1)+' MB':(f.size/1024).toFixed(0)+' KB',
+                   date:new Date().toISOString().split('T')[0], user:gRole(), dataUrl:dataUrl };
+        });
+      });
+      Promise.all(promises).then(function(newFiles){
+        newFiles.forEach(function(nf){ fileList.push(nf); });
+        prog.textContent=newFiles.length+' file(s) ready — click Save Attachments to store.';
+        refresh();
+      }).catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
+    }
+
+    document.getElementById('att-save').addEventListener('click',function(){
+      var docs=gAll(), d2=docs.find(function(x){return x.id===doc.id;});
+      if(d2){ d2.files=fileList; sAll(docs); logH(doc.id,'ATTACHMENTS UPDATED',fileList.length+' file(s)'); }
+      closeOverlay(); renderTable(); toast('Attachments saved.','ok');
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MODAL 4 — VERSION HISTORY & NEW REVISION UPLOAD
+   Purpose: full revision control — each version entry has:
+     - revision number
+     - date
+     - change note
+     - uploaded by
+     - optional file (the actual document for that revision)
+   Latest revision = index 0, always marked as ACTIVE.
+   Previous versions remain downloadable for audit traceability.
+═══════════════════════════════════════════════════════════ */
+function openVersionModal(doc){
+  var activeModalTab='history'; /* 'history' | 'newrev' */
+
+  function buildHistory(){
+    var versions=doc.versions||[];
+    if(!versions.length){
+      return '<div style="padding:20px;color:var(--text-lt);font-size:11px;text-align:center">No version history recorded yet.<br>Use "Upload New Revision" to add the first version.</div>';
+    }
+    return '<div class="ver-timeline">'
+      +versions.map(function(v,i){
+        var isActive=i===0;
+        var dlHtml=v.dataUrl
+          ?'<a class="ver-dl" href="'+v.dataUrl+'" download="'+(v.fileName||'document')+'" title="Download Rev.'+v.rev+'">⬇ Rev.'+v.rev+'</a>'
+          +'<a class="ver-dl" href="'+v.dataUrl+'" target="_blank" title="Open in new tab">↗ Open</a>'
+          :'<span class="ver-dl-none">no file attached</span>';
+        return '<div class="ver-row'+(isActive?' ver-active':'')+'">'
+          +'<span class="ver-num">Rev. '+esc(v.rev)+'</span>'
+          +'<span class="ver-date">'+esc(v.ts||'—')+'</span>'
+          +'<span class="ver-note">'+esc(v.note||'—')+'<small>by: '+esc(v.user||'—')+(v.fileName?'  ·  '+esc(v.fileName):'')+'</small></span>'
+          +'<span style="display:flex;gap:4px;align-items:center">'+dlHtml+'</span>'
+          +'</div>';
+      }).join('')
+      +'</div>';
+  }
+
+  function buildNewRevForm(){
+    return '<div style="padding:4px 0">'
+      +'<div class="dms-field"><label>New Revision Number <span class="dms-req">*</span></label>'
+        +'<input id="nv-rev" placeholder="e.g. 03" value="'+(doc.rev||'01')+'" style="width:120px"></div>'
+      +'<div class="dms-field"><label>Date of This Revision</label>'
+        +'<input type="date" id="nv-date" value="'+new Date().toISOString().split('T')[0]+'" style="width:160px"></div>'
+      +'<div class="dms-field"><label>Description of Changes <span class="dms-req">*</span></label>'
+        +'<textarea id="nv-note" rows="3" placeholder="Describe what changed: e.g. \'Section 4.2 updated to reflect F4 SHC deviation investigation findings; Table 3 revised\'…"></textarea></div>'
+      +'<div class="dms-field" style="background:#f8fafc;border:1px solid var(--g100);border-radius:6px;padding:12px">'
+        +'<label style="color:var(--navy)">Upload Document File for This Revision</label>'
+        +'<div style="font-size:10px;color:var(--text-lt);margin:4px 0 8px">Attach the actual document file (PDF, DOCX, etc.). This will be stored as the permanent record for Rev. '+esc(doc.rev)+('. The previous version remains downloadable.')+'</div>'
+        +'<input type="file" id="nv-file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.txt,.csv" style="font-size:11px">'
+        +'<div class="upload-prog" id="nv-prog" style="margin-top:6px"></div>'
+      +'</div>'
+      +'<div class="alert-amb" style="margin-top:8px;font-size:10px">'
+        +'⚠ Saving a new revision will update the document\'s current revision number and add this entry to the top of the version history. Previous versions remain preserved and downloadable.'
+      +'</div>'
+    +'</div>';
+  }
+
+  function render(){
+    openOverlay(
+      '<div class="dms-modal-hdr"><h4>📋 Version Control — '+esc(doc.number)+' · '+esc(doc.title)+'</h4><button class="dms-modal-close">×</button></div>'
+      +'<div class="dms-modal-body" style="padding-bottom:0">'
+      +'<div class="m-tabs">'
+        +'<div class="m-tab'+(activeModalTab==='history'?' active':'')+'" id="mt-history">Version History</div>'
+        +(canEd()?'<div class="m-tab'+(activeModalTab==='newrev'?' active':'')+'" id="mt-newrev">＋ Upload New Revision</div>':'')
+      +'</div>'
+      +'<div id="m-tab-content" style="min-height:200px;max-height:400px;overflow-y:auto">'
+        +(activeModalTab==='history'?buildHistory():buildNewRevForm())
+      +'</div>'
+      +'</div>'
+      +'<div class="dms-modal-ftr">'
+        +(activeModalTab==='newrev'&&canEd()?'<button class="btn btn-gold" id="nv-save">Save New Revision</button>':'')
+        +'<button class="btn btn-ghost-dk" id="nv-cancel">Close</button>'
+      +'</div>'
+    );
+
+    document.getElementById('nv-cancel').addEventListener('click',closeOverlay);
+
+    var htab=document.getElementById('mt-history');
+    if(htab) htab.addEventListener('click',function(){ activeModalTab='history'; render(); });
+    var ntab=document.getElementById('mt-newrev');
+    if(ntab) ntab.addEventListener('click',function(){ activeModalTab='newrev'; render(); });
+
+    if(activeModalTab==='newrev'&&canEd()){
+      var saveBtn=document.getElementById('nv-save');
+      saveBtn.addEventListener('click',function(){
+        var newRevNum=document.getElementById('nv-rev').value.trim();
+        var newNote=document.getElementById('nv-note').value.trim();
+        if(!newRevNum||!newNote){ toast('Revision number and description are required.','err'); return; }
+        var fileInp=document.getElementById('nv-file');
+        var f=fileInp&&fileInp.files&&fileInp.files[0]?fileInp.files[0]:null;
+        var prog=document.getElementById('nv-prog');
+
+        function saveRevision(dataUrl, fileName){
+          var docs=gAll(), d2=docs.find(function(x){return x.id===doc.id;});
+          if(!d2)return;
+          var newVer={
+            rev:newRevNum,
+            ts:document.getElementById('nv-date').value||new Date().toISOString().split('T')[0],
+            note:newNote, user:gRole(),
+            fileName:fileName||null, dataUrl:dataUrl||null
+          };
+          /* Prepend new version — it becomes index 0 (ACTIVE) */
+          d2.versions=[newVer].concat(d2.versions||[]);
+          d2.rev=newRevNum; /* Update the document's current revision number */
+          sAll(docs);
+          logH(doc.id,'NEW REVISION','Rev.'+newRevNum+' — '+newNote+(fileName?' — file: '+fileName:''));
+          /* Update local doc reference for the re-render */
+          doc=d2;
+          activeModalTab='history';
+          render();
+          renderTable();
+          toast('Rev. '+newRevNum+' saved successfully.','ok');
+        }
+
+        if(f){
+          if(prog)prog.textContent='Reading file…';
+          readFileAsDataUrl(f)
+            .then(function(dataUrl){ saveRevision(dataUrl,f.name); })
+            .catch(function(e){ toast(e.message,'err'); if(prog)prog.textContent=''; });
+        } else {
+          saveRevision(null,null);
+        }
+      });
+    }
+  }
+
+  render();
 }
 
 /* ── Role UI ────────────────────────────────────────────────── */
-function updateRoleUI() {
-  document.getElementById('role-lbl').textContent = gRole();
-  var addBtn = document.getElementById('btn-add');
-  if (addBtn) addBtn.style.display = canAdd() ? '' : 'none';
-  var binTab = document.getElementById('tab-bin');
-  if (binTab) binTab.style.display = isAdmin() ? '' : 'none';
+function updateRoleUI(){
+  document.getElementById('role-lbl').textContent=gRole();
+  var addBtn=document.getElementById('btn-add');
+  if(addBtn)addBtn.style.display=canAdd()?'':'none';
+  var binTab=document.getElementById('tab-bin');
+  if(binTab)binTab.style.display=isAdm()?'':'none';
 }
-
-document.getElementById('role-pill').addEventListener('click', function() {
-  var r = prompt('Enter role:\n  viewer / contributor / editor / admin\n(Current: '+gRole()+')', gRole());
-  if (r && ROLES.includes(r.trim().toLowerCase())) {
-    sRole(r.trim().toLowerCase());
-    renderTable();
-    toast('Role: '+gRole(),'ok');
-  } else if (r !== null) {
-    toast('Invalid role. Use: viewer / contributor / editor / admin','err');
-  }
+document.getElementById('role-pill').addEventListener('click',function(){
+  var r=prompt('Enter role:\n  viewer / contributor / editor / admin\n\nCurrent: '+gRole(),gRole());
+  if(r&&ROLES.includes(r.trim().toLowerCase())){ sRole(r.trim().toLowerCase()); renderTable(); toast('Role: '+gRole(),'ok'); }
+  else if(r!==null) toast('Invalid role.','err');
 });
 
 /* ── Export CSV ─────────────────────────────────────────────── */
-document.getElementById('btn-export').addEventListener('click', function() {
-  var docs = gAll().filter(function(d){ return !d.deleted; });
-  var hdr  = ['ID','Document Number','Title','Rev','Type','Status','Issued','Review Due','Owner','Pages','Files'];
-  var rows = docs.map(function(d){
-    return [d.id, d.number, d.title, d.rev, d.type, d.status, d.issued, d.reviewDue, d.owner, (d.pages||[]).join('; '), (d.files||[]).length];
+document.getElementById('btn-export').addEventListener('click',function(){
+  var docs=gAll().filter(function(d){return !d.deleted;});
+  var hdr=['ID','Document Number','Title','Rev','Type','Status','Issued','Review Due','Owner','Pages','Attachments','Versions'];
+  var rows=docs.map(function(d){
+    return [d.id,d.number,d.title,d.rev,d.type,d.status,d.issued,d.reviewDue,d.owner,
+            (d.pages||[]).join('; '),(d.files||[]).length,(d.versions||[]).length];
   });
-  var csv  = [hdr].concat(rows).map(function(r){ return r.map(function(v){ return '"'+String(v||'').replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
-  var a    = document.createElement('a');
-  a.href   = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-  a.download = 'SAGCO_IMS_Document_Register_' + new Date().toISOString().split('T')[0] + '.csv';
-  a.click();
+  var csv=[hdr].concat(rows).map(function(r){return r.map(function(v){return '"'+String(v||'').replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='SAGCO_IMS_Document_Register_'+new Date().toISOString().split('T')[0]+'.csv'; a.click();
   toast('CSV exported.','ok');
 });
 
-/* ── Clear filters ──────────────────────────────────────────── */
-document.getElementById('btn-clear-f').addEventListener('click', function() {
-  document.getElementById('dms-q').value = '';
-  document.getElementById('dms-ftype').value = '';
-  document.getElementById('dms-fstatus').value = '';
-  document.getElementById('dms-fpage').value = '';
+/* ── Filter / sort / tab wiring ──────────────────────────────── */
+document.getElementById('btn-clear-f').addEventListener('click',function(){
+  document.getElementById('dms-q').value='';
+  document.getElementById('dms-ftype').value='';
+  document.getElementById('dms-fstatus').value='';
+  document.getElementById('dms-fpage').value='';
   renderTable();
 });
-
-/* ── Add button ─────────────────────────────────────────────── */
-document.getElementById('btn-add').addEventListener('click', function() { openModal(null, false); });
-
-/* ── Sort headers ───────────────────────────────────────────── */
-document.querySelectorAll('#dms-tbl th[data-col]').forEach(function(th) {
-  th.addEventListener('click', function() {
-    var col = th.dataset.col;
-    if (sortCol === col) sortAsc = !sortAsc; else { sortCol = col; sortAsc = true; }
+document.getElementById('btn-add').addEventListener('click',function(){ openEditModal(null); });
+document.querySelectorAll('#dms-tbl th[data-col]').forEach(function(th){
+  th.addEventListener('click',function(){
+    if(sortCol===th.dataset.col)sortAsc=!sortAsc; else{sortCol=th.dataset.col;sortAsc=true;}
     renderTable();
   });
 });
-
-/* ── Filter inputs ──────────────────────────────────────────── */
-['dms-q','dms-ftype','dms-fstatus','dms-fpage'].forEach(function(id) {
-  var el = document.getElementById(id);
-  el.addEventListener('input',  renderTable);
-  el.addEventListener('change', renderTable);
+['dms-q','dms-ftype','dms-fstatus','dms-fpage'].forEach(function(id){
+  var el=document.getElementById(id);
+  el.addEventListener('input',renderTable); el.addEventListener('change',renderTable);
 });
-
-/* ── Tabs ───────────────────────────────────────────────────── */
-document.querySelectorAll('.dms-tab').forEach(function(tab) {
-  tab.addEventListener('click', function() {
-    document.querySelectorAll('.dms-tab').forEach(function(t){ t.classList.remove('active'); });
-    tab.classList.add('active');
-    activeTab = tab.dataset.tab;
-    renderTable();
+document.querySelectorAll('.dms-tab').forEach(function(tab){
+  tab.addEventListener('click',function(){
+    document.querySelectorAll('.dms-tab').forEach(function(t){t.classList.remove('active');});
+    tab.classList.add('active'); activeTab=tab.dataset.tab; renderTable();
   });
 });
 
 /* ── Toast ──────────────────────────────────────────────────── */
-function toast(msg, type) {
-  var el = document.getElementById('dms-toast');
-  el.textContent = msg;
-  el.className = 'show t-'+(type||'ok');
-  clearTimeout(el._t);
-  el._t = setTimeout(function(){ el.className=''; }, 3000);
+function toast(msg,type){
+  var el=document.getElementById('dms-toast');
+  el.textContent=msg; el.className='show t-'+(type||'ok');
+  clearTimeout(el._t); el._t=setTimeout(function(){el.className='';},3500);
 }
-
-/* ── Escape HTML ────────────────────────────────────────────── */
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 /* ── Init ───────────────────────────────────────────────────── */
 seedIfEmpty();
 populatePageFilter();
 updateRoleUI();
 renderTable();
-
-/* ── IMS page init (sidebar + topbar via nav.js) ───────────── */
 initPage('document-management.html');
-document.getElementById('tb').innerHTML = renderTopbar(
+document.getElementById('tb').innerHTML=renderTopbar(
   'Document & Evidence Management',
   'L3-IMS-750-R-02  ·  Rev.01  ·  ISO §7.5 all four standards  ·  IMS Coordinator'
 );
