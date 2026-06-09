@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SAGCO IMS — User Management</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="auth.js"></script>
+  <script src="data.js"></script>
+  <script src="nav.js"></script>
+  <style>
+    /* ── Page-specific styles ── */
+    .um-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
+      font-family: var(--mono);
+    }
+    .role-tag {
+      display: inline-block; border-radius: 10px;
+      padding: 2px 10px; font-size: 10px; font-weight: 700;
+      font-family: var(--mono); white-space: nowrap;
+    }
+    .rt-superadmin { background:#fef9ed; color:#7a5500; border:1px solid var(--gold); }
+    .rt-admin       { background:#fff3cd; color:#856404; border:1px solid #ffc107; }
+    .rt-editor      { background:#e8f5e9; color:#1b5e20; border:1px solid #81c784; }
+    .rt-contributor { background:#e3f2fd; color:#0d47a1; border:1px solid #64b5f6; }
+    .rt-viewer      { background:#f3e5f5; color:#4a148c; border:1px solid #ba68c8; }
+    .rt-public      { background:#f5f5f5; color:#555;    border:1px solid #bdbdbd; }
+
+    .status-active   { background:#e8f5e9; color:#1b5e20; border:1px solid #81c784; }
+    .status-inactive { background:#fdecea; color:#7f1111; border:1px solid #ef9a9a; }
+    .status-suspended{ background:#fff8e1; color:#7a5800; border:1px solid #ffe082; }
+
+    /* Modal tab strip */
+    .um-tabs { display:flex; border-bottom:2px solid var(--g100); margin:0 -20px 16px; padding:0 20px; }
+    .um-tab  { padding:8px 16px; font-size:11px; font-weight:600; cursor:pointer; color:var(--text-lt); border-bottom:2px solid transparent; margin-bottom:-2px; }
+    .um-tab:hover  { color:var(--navy); }
+    .um-tab.active { color:var(--navy); border-bottom-color:var(--gold); }
+
+    /* Audit log */
+    .aud-row { padding:8px 14px; border-bottom:1px solid #edf0f5; font-size:11px; }
+    .aud-action { font-weight:700; color:var(--navy); }
+    .aud-meta { font-family:var(--mono); font-size:9px; color:#8899aa; margin-top:2px; }
+
+    /* Permission matrix */
+    .perm-grid { display:grid; grid-template-columns:1fr repeat(6,60px); gap:0; font-size:10px; border:1px solid #d0d8e8; border-radius:var(--radius); overflow:hidden; }
+    .perm-hdr  { background:var(--navy); color:#fff; font-weight:700; padding:6px 8px; text-align:center; font-size:9px; }
+    .perm-lbl  { background:var(--g100); font-weight:600; padding:6px 10px; border-bottom:1px solid #e8ecf3; color:var(--navy); }
+    .perm-cell { padding:6px 8px; border-bottom:1px solid #e8ecf3; text-align:center; }
+    .perm-yes  { color:var(--grn); font-size:14px; }
+    .perm-no   { color:#ccc; font-size:12px; }
+  </style>
+</head>
+<body>
+
+<div id="sidebar"></div>
+
+<div class="main">
+  <div id="tb"></div>
+  <div class="content">
+
+    <!-- 1. Back navigation -->
+    <div class="back-row">
+      <a href="index.html" class="back-link">← IMS Dashboard</a>
+    </div>
+
+    <!-- 2. KPI cards -->
+    <div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:14px">
+      <div class="kpi-card kc-nvy">
+        <div class="kpi-lbl">Total Users</div>
+        <div class="kpi-val" id="k-total">—</div>
+        <div class="kpi-sub">registered accounts</div>
+      </div>
+      <div class="kpi-card kc-grn">
+        <div class="kpi-lbl">Active</div>
+        <div class="kpi-val" id="k-active">—</div>
+        <div class="kpi-sub">can sign in</div>
+      </div>
+      <div class="kpi-card kc-red">
+        <div class="kpi-lbl">Inactive</div>
+        <div class="kpi-val" id="k-inactive">—</div>
+        <div class="kpi-sub">access disabled</div>
+      </div>
+      <div class="kpi-card kc-gold">
+        <div class="kpi-lbl">Admins</div>
+        <div class="kpi-val" id="k-admins">—</div>
+        <div class="kpi-sub">admin + superadmin</div>
+      </div>
+      <div class="kpi-card kc-blue">
+        <div class="kpi-lbl">Editors</div>
+        <div class="kpi-val" id="k-editors">—</div>
+        <div class="kpi-sub">can upload & edit</div>
+      </div>
+      <div class="kpi-card kc-amb">
+        <div class="kpi-lbl">Viewers</div>
+        <div class="kpi-val" id="k-viewers">—</div>
+        <div class="kpi-sub">read-only access</div>
+      </div>
+    </div>
+
+    <!-- 3. Requirement text box -->
+    <div class="req-text">
+      <strong>ISO 9001:2015 §7.1.2 · ISO 45001:2018 §7.1 · ISO 50001:2018 §8.2</strong> —
+      SAGCO shall ensure that persons are competent, and that access to the IMS platform is controlled.
+      This register defines all authorised system users, their roles, access permissions, and account status.
+      Role-based access controls ensure that documented information can only be modified by authorised personnel.
+      Document code: <strong>L4-IMS-750-UR-01</strong> · Managed by: IMS Coordinator (superadmin only)
+    </div>
+
+    <!-- 4. Access-gate alert — shown if not admin -->
+    <div class="alert-red" id="alert-access" style="display:none">
+      🔒 <strong>Administrator Access Required.</strong>
+      User management is restricted to <strong>admin</strong> and <strong>superadmin</strong> roles.
+      You are currently signed in as <strong id="alert-role-txt">viewer</strong>.
+      Contact the IMS Coordinator to request elevated access.
+    </div>
+
+    <!-- 5a. Section banner -->
+    <div class="sec-banner" style="display:flex;justify-content:space-between;align-items:center">
+      <span>👥 USER REGISTER — L4-IMS-750-UR-01</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="text" id="um-search" class="dms-search" placeholder="🔍  Search name, username, department…" style="min-width:220px;height:26px">
+        <select class="dms-sel" id="um-frole" style="height:26px">
+          <option value="">All Roles</option>
+          <option>superadmin</option><option>admin</option><option>editor</option>
+          <option>contributor</option><option>viewer</option>
+        </select>
+        <select class="dms-sel" id="um-fstatus" style="height:26px">
+          <option value="">All Statuses</option>
+          <option>Active</option><option>Inactive</option><option>Suspended</option>
+        </select>
+        <button class="btn btn-gold btn-sm" id="btn-add-user" style="display:none">＋ Add User</button>
+      </div>
+    </div>
+
+    <!-- 5b. User table -->
+    <div class="tbl-wrap" style="max-height:420px;overflow-y:auto">
+      <table class="tbl-stripe" id="um-table">
+        <thead>
+          <tr>
+            <th style="width:36px"></th>
+            <th>ID</th>
+            <th>Full Name</th>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Department</th>
+            <th>Title</th>
+            <th>Status</th>
+            <th>Last Login</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="um-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- 6. Permission matrix reference -->
+    <div class="sec-banner" style="margin-top:20px">ROLE PERMISSION MATRIX</div>
+    <div style="overflow-x:auto;border:1px solid #d0d8e8;border-top:none">
+      <div class="perm-grid" id="perm-grid">
+        <!-- filled by JS -->
+      </div>
+    </div>
+
+    <!-- 7. Sign-in audit log (admin only) -->
+    <div class="sec-banner" style="margin-top:20px;display:flex;justify-content:space-between;align-items:center" id="audit-banner" style="display:none">
+      <span>🔍 SIGN-IN AUDIT LOG</span>
+      <button class="btn btn-ghost btn-sm" id="btn-clear-audit" style="font-size:10px">Clear Log</button>
+    </div>
+    <div id="audit-section" style="display:none">
+      <div style="max-height:240px;overflow-y:auto;border:1px solid #d0d8e8;border-top:none" id="audit-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal overlay -->
+<div class="dms-overlay" id="um-overlay">
+  <div class="dms-modal" id="um-modal" style="width:660px"></div>
+</div>
+
+<!-- Toast -->
+<div id="dms-toast"></div>
+
+<script>
+'use strict';
+
+var ROLES    = ['superadmin','admin','editor','contributor','viewer'];
+var STATUSES = ['Active','Inactive','Suspended'];
+
+/* ── Permission descriptions ─────────────────────────────── */
+var PERM_ROWS = [
+  { label:'View IMS pages & registers',     perms:['superadmin','admin','editor','contributor','viewer'] },
+  { label:'Add new records / documents',    perms:['superadmin','admin','editor','contributor'] },
+  { label:'Edit existing records',          perms:['superadmin','admin','editor'] },
+  { label:'Upload & manage files',          perms:['superadmin','admin','editor'] },
+  { label:'Upload new document revisions',  perms:['superadmin','admin','editor'] },
+  { label:'Archive / move to recycle bin',  perms:['superadmin','admin'] },
+  { label:'Restore from recycle bin',       perms:['superadmin','admin'] },
+  { label:'Manage users & roles',           perms:['superadmin','admin'] },
+  { label:'Create / delete admin accounts', perms:['superadmin'] },
+  { label:'View sign-in audit log',         perms:['superadmin','admin'] },
+];
+
+/* Role avatar colours */
+var RCOLS = { superadmin:'#7a5500', admin:'#856404', editor:'#1b5e20', contributor:'#0d47a1', viewer:'#4a148c' };
+function avatarBg(role){ return { superadmin:'#C9A84C', admin:'#ffc107', editor:'#2E7D32', contributor:'#1565C0', viewer:'#7B1FA2'}[role]||'#78909C'; }
+function initials(name){ return (name||'?').split(' ').map(function(p){return p[0]||'';}).slice(0,2).join('').toUpperCase(); }
+
+function roleBadge(r){
+  return '<span class="role-tag rt-'+r+'">'+r+'</span>';
+}
+function statusBadge(s){
+  var cls={'Active':'status-active','Inactive':'status-inactive','Suspended':'status-suspended'}[s]||'status-inactive';
+  return '<span class="role-tag '+cls+'">'+s+'</span>';
+}
+function fmtTs(ts){ if(!ts)return'Never'; try{ return new Date(ts).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){return ts;} }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ── KPI update ────────────────────────────────────────────── */
+function updateKPIs(){
+  var users=IMS_AUTH.getUsers();
+  var active=users.filter(function(u){return u.status==='Active';}).length;
+  var inactive=users.filter(function(u){return u.status!=='Active';}).length;
+  var admins=users.filter(function(u){return ['admin','superadmin'].includes(u.role);}).length;
+  var editors=users.filter(function(u){return u.role==='editor';}).length;
+  var viewers=users.filter(function(u){return ['viewer','contributor'].includes(u.role);}).length;
+  document.getElementById('k-total').textContent=users.length;
+  document.getElementById('k-active').textContent=active;
+  document.getElementById('k-inactive').textContent=inactive;
+  document.getElementById('k-admins').textContent=admins;
+  document.getElementById('k-editors').textContent=editors;
+  document.getElementById('k-viewers').textContent=viewers;
+}
+
+/* ── Render user table ─────────────────────────────────────── */
+function renderTable(){
+  var tbody=document.getElementById('um-tbody');
+  var q=(document.getElementById('um-search').value||'').toLowerCase();
+  var fr=document.getElementById('um-frole').value;
+  var fs=document.getElementById('um-fstatus').value;
+  var session=IMS_AUTH.getUser();
+  var isAdmin=IMS_AUTH.can('manage_users');
+
+  var users=IMS_AUTH.getUsers().filter(function(u){
+    var hay=(u.name+' '+u.username+' '+u.department+' '+u.title).toLowerCase();
+    return(!q||hay.includes(q))&&(!fr||u.role===fr)&&(!fs||u.status===fs);
+  });
+
+  updateKPIs();
+
+  if(!users.length){
+    tbody.innerHTML='<tr><td colspan="10"><div class="empty-state"><strong>No users match your filters</strong></div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML=users.map(function(u){
+    var isSelf=session&&session.userId===u.id;
+    var canModify=isAdmin && !(u.role==='superadmin' && IMS_AUTH.getRole()!=='superadmin');
+    var acts='<button class="btn btn-teal btn-xs" data-ua="view" data-uid="'+u.id+'" title="View profile">🔍</button>';
+    if(canModify) acts+='<button class="btn btn-navy btn-xs" data-ua="edit" data-uid="'+u.id+'" title="Edit user"'+(isSelf?' style="outline:2px solid var(--gold)"':'')+'>✏️</button>';
+    if(canModify&&!isSelf) acts+='<button class="btn btn-red btn-xs" data-ua="toggle" data-uid="'+u.id+'" title="'+(u.status==='Active'?'Deactivate':'Activate')+'">'+( u.status==='Active'?'🚫':'✅')+'</button>';
+    return '<tr>'
+      +'<td><span class="um-avatar" style="background:'+avatarBg(u.role)+'">'+initials(u.name)+'</span></td>'
+      +'<td class="mono" style="font-size:9px;color:var(--text-lt)">'+u.id+'</td>'
+      +'<td style="font-weight:600">'+esc(u.name)+(isSelf?' <span style="font-size:9px;color:var(--gold)">(you)</span>':'')+'</td>'
+      +'<td class="mono" style="font-size:10px">'+esc(u.username)+'</td>'
+      +'<td>'+roleBadge(u.role)+'</td>'
+      +'<td style="font-size:10px">'+esc(u.department||'—')+'</td>'
+      +'<td style="font-size:10px;max-width:160px;white-space:normal">'+esc(u.title||'—')+'</td>'
+      +'<td>'+statusBadge(u.status)+'</td>'
+      +'<td style="font-size:10px;white-space:nowrap">'+fmtTs(u.lastLogin)+'</td>'
+      +'<td><div class="dms-actions">'+acts+'</div></td>'
+      +'</tr>';
+  }).join('');
+
+  tbody.querySelectorAll('[data-ua]').forEach(function(btn){
+    btn.addEventListener('click',function(){ dispatchAction(btn.dataset.ua,btn.dataset.uid); });
+  });
+}
+
+/* ── Action dispatcher ─────────────────────────────────────── */
+function dispatchAction(action,id){
+  var user=IMS_AUTH.getUserById(id);
+  if(!user)return;
+  if(action==='view')   openUserModal(user,true);
+  if(action==='edit')   openUserModal(user,false);
+  if(action==='toggle') toggleStatus(user);
+}
+
+function toggleStatus(user){
+  var newStatus=user.status==='Active'?'Inactive':'Active';
+  if(!confirm((newStatus==='Inactive'?'Deactivate':'Re-activate')+' user "'+user.username+'"?'))return;
+  var users=IMS_AUTH.getUsers();
+  var u2=users.find(function(x){return x.id===user.id;});
+  if(u2){ u2.status=newStatus; IMS_AUTH.saveUsers(users); IMS_AUTH.auditLog('USER_STATUS',user.username+' → '+newStatus, IMS_AUTH.getUser()&&IMS_AUTH.getUser().userId); }
+  renderTable(); toast(user.username+' set to '+newStatus,'ok');
+}
+
+/* ── Modal ─────────────────────────────────────────────────── */
+function openOverlay(html){
+  document.getElementById('um-modal').innerHTML=html;
+  document.getElementById('um-overlay').classList.add('open');
+  var cl=document.querySelector('#um-modal .dms-modal-close');
+  if(cl)cl.addEventListener('click',closeOverlay);
+  document.getElementById('um-overlay').addEventListener('click',function(e){if(e.target.id==='um-overlay')closeOverlay();});
+}
+function closeOverlay(){ document.getElementById('um-overlay').classList.remove('open'); }
+
+/* ── View / Edit user modal ────────────────────────────────── */
+function openUserModal(user, readOnly){
+  var isNew=!user;
+  var u=user||{ id:IMS_AUTH.nextUserId(), status:'Active', role:'viewer', created:new Date().toISOString().split('T')[0] };
+  var session=IMS_AUTH.getUser();
+  var isSelf=session&&session.userId===u.id;
+  var canSA=IMS_AUTH.getRole()==='superadmin';
+  var title=readOnly?'👤 '+u.name:(isNew?'＋ New User':'✏️ Edit — '+u.username);
+
+  var roleOpts=ROLES.filter(function(r){
+    /* Non-superadmins cannot create superadmin accounts */
+    if(r==='superadmin'&&!canSA)return false;
+    return true;
+  }).map(function(r){return '<option value="'+r+'"'+(u.role===r?' selected':'')+'>'+r+'</option>';}).join('');
+
+  var statusOpts=STATUSES.map(function(s){return '<option'+(u.status===s?' selected':'')+'>'+s+'</option>';}).join('');
+
+  var tabs = readOnly
+    ? '<div class="um-tabs"><div class="um-tab active" id="um-t-info">Profile</div><div class="um-tab" id="um-t-perm">Permissions</div></div>'
+    : '';
+
+  openOverlay(
+    '<div class="dms-modal-hdr"><h4>'+title+'</h4><button class="dms-modal-close">×</button></div>'
+    +'<div class="dms-modal-body">'
+    +tabs
+    +'<div id="um-tab-body">'
+    +(readOnly ? buildProfileView(u) : buildEditForm(u, isNew, roleOpts, statusOpts, isSelf, canSA))
+    +'</div>'
+    +'</div>'
+    +'<div class="dms-modal-ftr">'
+    +(!readOnly?'<button class="btn btn-ghost-dk" id="um-cancel">Cancel</button><button class="btn btn-gold" id="um-save">'+(isNew?'Create User':'Save Changes')+'</button>':'')
+    +(readOnly&&IMS_AUTH.can('manage_users')&&!isSelf?'<button class="btn btn-navy" id="um-go-edit">✏️ Edit</button>':'')
+    +'<button class="btn btn-gold" id="um-close">Close</button>'
+    +'</div>'
+  );
+
+  document.getElementById('um-close')?.addEventListener('click',closeOverlay);
+  document.getElementById('um-cancel')?.addEventListener('click',closeOverlay);
+  document.getElementById('um-go-edit')?.addEventListener('click',function(){ closeOverlay(); openUserModal(user,false); });
+
+  /* Tab switching on view modal */
+  if(readOnly){
+    var activeTab='info';
+    document.getElementById('um-t-info').addEventListener('click',function(){
+      activeTab='info';
+      document.getElementById('um-t-info').classList.add('active');
+      document.getElementById('um-t-perm').classList.remove('active');
+      document.getElementById('um-tab-body').innerHTML=buildProfileView(u);
+    });
+    document.getElementById('um-t-perm').addEventListener('click',function(){
+      activeTab='perm';
+      document.getElementById('um-t-perm').classList.add('active');
+      document.getElementById('um-t-info').classList.remove('active');
+      document.getElementById('um-tab-body').innerHTML=buildPermView(u.role);
+    });
+  }
+
+  /* Save handler */
+  document.getElementById('um-save')?.addEventListener('click',function(){
+    var nameVal=document.getElementById('uf-name').value.trim();
+    var unVal=document.getElementById('uf-un').value.trim().toLowerCase();
+    var pwVal=document.getElementById('uf-pw').value.trim();
+    var roleVal=document.getElementById('uf-role').value;
+    if(!nameVal||!unVal){ toast('Name and username are required.','err'); return; }
+    if(isNew&&!pwVal){ toast('Password is required for new users.','err'); return; }
+
+    /* Check username uniqueness */
+    var existing=IMS_AUTH.getUserByUsername(unVal);
+    if(existing&&existing.id!==u.id){ toast('Username "'+unVal+'" is already taken.','err'); return; }
+
+    var users=IMS_AUTH.getUsers();
+    var idx=users.findIndex(function(x){return x.id===u.id;});
+    var upd=Object.assign({},u,{
+      name:nameVal, username:unVal, role:roleVal,
+      title:  document.getElementById('uf-title').value.trim(),
+      department:document.getElementById('uf-dept').value.trim(),
+      email:  document.getElementById('uf-email').value.trim(),
+      status: document.getElementById('uf-status').value,
+      notes:  document.getElementById('uf-notes').value.trim(),
+    });
+    if(pwVal) upd.password=pwVal; /* plain text for demo */
+    if(isNew){ upd.createdBy=(IMS_AUTH.getUser()||{}).userId||'unknown'; }
+
+    if(idx>=0)users[idx]=upd; else users.push(upd);
+    IMS_AUTH.saveUsers(users);
+    IMS_AUTH.auditLog(isNew?'USER_CREATED':'USER_EDITED', upd.username+(isNew?'  created':' edited'), (IMS_AUTH.getUser()||{}).userId);
+    closeOverlay(); renderTable();
+    toast(isNew?'User created.':'Changes saved.','ok');
+  });
+}
+
+function buildProfileView(u){
+  var rows=[
+    ['User ID',        '<span class="mono" style="font-size:10px">'+esc(u.id)+'</span>'],
+    ['Full Name',      '<strong>'+esc(u.name)+'</strong>'],
+    ['Username',       '<span class="mono">'+esc(u.username)+'</span>'],
+    ['Role',           roleBadge(u.role)],
+    ['Title',          esc(u.title||'—')],
+    ['Department',     esc(u.department||'—')],
+    ['Email',          esc(u.email||'—')],
+    ['Account Status', statusBadge(u.status)],
+    ['Last Login',     fmtTs(u.lastLogin)],
+    ['Created',        esc(u.created||'—')],
+    ['Notes',          esc(u.notes||'—')],
+  ];
+  return '<table style="width:100%;border-collapse:collapse">'
+    +rows.map(function(r){
+      return '<tr><td style="width:130px;font-size:10px;font-weight:600;color:var(--navy);padding:7px 14px;border-bottom:1px solid #f0f3f9;vertical-align:top">'+r[0]+'</td>'
+        +'<td style="font-size:11px;padding:7px 14px;border-bottom:1px solid #f0f3f9">'+r[1]+'</td></tr>';
+    }).join('')
+    +'</table>';
+}
+
+function buildPermView(role){
+  var html='<div style="padding:12px 14px;font-size:11px;color:var(--text-lt);margin-bottom:8px">Permissions for role: '+roleBadge(role)+'</div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'
+    +'<tr><th style="background:var(--navy);color:#fff;padding:6px 12px;text-align:left">Action</th>'
+    +'<th style="background:var(--navy);color:#fff;padding:6px 12px;text-align:center;width:80px">Allowed</th></tr>';
+  PERM_ROWS.forEach(function(p){
+    var ok=p.perms.includes(role);
+    html+='<tr><td style="padding:7px 12px;border-bottom:1px solid #f0f3f9">'+p.label+'</td>'
+      +'<td style="padding:7px 12px;border-bottom:1px solid #f0f3f9;text-align:center">'
+      +(ok?'<span style="color:var(--grn);font-size:16px">✓</span>':'<span style="color:#ccc;font-size:14px">—</span>')
+      +'</td></tr>';
+  });
+  html+='</table></div>';
+  return html;
+}
+
+function buildEditForm(u, isNew, roleOpts, statusOpts, isSelf, canSA){
+  return '<div class="dms-field-row">'
+    +'<div class="dms-field"><label>Full Name <span class="dms-req">*</span></label><input id="uf-name" value="'+esc(u.name||'')+'" placeholder="e.g. Mohammed Al-Harbi"></div>'
+    +'<div class="dms-field"><label>Username <span class="dms-req">*</span></label><input id="uf-un" value="'+esc(u.username||'')+'" placeholder="e.g. shee.head" autocomplete="off"></div>'
+    +'</div>'
+    +'<div class="dms-field-row">'
+    +'<div class="dms-field"><label>'+(isNew?'Password <span class="dms-req">*</span>':'New Password <span class="muted" style="font-weight:400">(leave blank to keep current)</span>')+'</label>'
+      +'<input type="password" id="uf-pw" placeholder="'+(isNew?'Set password':'Enter new password to change')+'" autocomplete="new-password"></div>'
+    +'<div class="dms-field"><label>Role</label>'
+      +'<select id="uf-role"'+(isSelf&&!canSA?' disabled title="Cannot change your own role"':'')+'>'+roleOpts+'</select>'
+      +(isSelf?'<div style="font-size:9px;color:var(--text-lt);margin-top:3px">You cannot change your own role.</div>':'')
+    +'</div>'
+    +'</div>'
+    +'<div class="dms-field-row">'
+    +'<div class="dms-field"><label>Job Title</label><input id="uf-title" value="'+esc(u.title||'')+'" placeholder="e.g. SHEE Head"></div>'
+    +'<div class="dms-field"><label>Department</label><input id="uf-dept" value="'+esc(u.department||'')+'" placeholder="e.g. SHEE"></div>'
+    +'</div>'
+    +'<div class="dms-field-row">'
+    +'<div class="dms-field"><label>Email</label><input type="email" id="uf-email" value="'+esc(u.email||'')+'" placeholder="user@sagco.com.sa"></div>'
+    +'<div class="dms-field"><label>Status</label><select id="uf-status">'+statusOpts+'</select></div>'
+    +'</div>'
+    +'<div class="dms-field"><label>Notes</label><textarea id="uf-notes" rows="2" placeholder="Access notes, restrictions, or reminders…">'+esc(u.notes||'')+'</textarea></div>';
+}
+
+/* ── Permission matrix render ──────────────────────────────── */
+function renderPermMatrix(){
+  var grid=document.getElementById('perm-grid');
+  if(!grid)return;
+  var roleLabels=['superadmin','admin','editor','contributor','viewer'];
+  var html='<div class="perm-hdr" style="text-align:left;padding-left:12px">Permission</div>';
+  roleLabels.forEach(function(r){ html+='<div class="perm-hdr">'+r+'</div>'; });
+  PERM_ROWS.forEach(function(p){
+    html+='<div class="perm-lbl">'+p.label+'</div>';
+    roleLabels.forEach(function(r){
+      var ok=p.perms.includes(r);
+      html+='<div class="perm-cell">'+(ok?'<span class="perm-yes">✓</span>':'<span class="perm-no">—</span>')+'</div>';
+    });
+  });
+  grid.innerHTML=html;
+}
+
+/* ── Audit log render ──────────────────────────────────────── */
+function renderAuditLog(){
+  var list=document.getElementById('audit-list');
+  if(!list)return;
+  var logs=IMS_AUTH.getAuditLog().slice().reverse();
+  if(!logs.length){ list.innerHTML='<div class="empty-state" style="padding:16px"><strong>No events logged yet</strong></div>'; return; }
+  list.innerHTML=logs.slice(0,100).map(function(e){
+    var user=IMS_AUTH.getUserById(e.userId);
+    var who=user?user.name+'  ('+user.username+')':'Unknown';
+    var cls=e.action.includes('FAIL')||e.action.includes('DEACT')?'color:var(--red)':e.action.includes('OK')||e.action.includes('CREATE')?'color:var(--grn)':'color:var(--navy)';
+    return '<div class="aud-row"><span class="aud-action" style="'+cls+'">'+e.action+'</span>'
+      +(e.detail?' — <span style="color:var(--text-lt);font-size:10px">'+esc(e.detail)+'</span>':'')
+      +'<div class="aud-meta">'+fmtTs(e.ts)+'  ·  '+esc(who)+'</div></div>';
+  }).join('');
+}
+
+/* ── Role-gate UI ──────────────────────────────────────────── */
+function applyRoleGate(){
+  var canManage=IMS_AUTH.can('manage_users');
+  var role=IMS_AUTH.getRole();
+  var alertEl=document.getElementById('alert-access');
+
+  document.getElementById('btn-add-user').style.display=canManage?'':'none';
+
+  if(!canManage){
+    alertEl.style.display='';
+    document.getElementById('alert-role-txt').textContent=role;
+    /* Hide search bar and table actions for non-admins — keep table visible read-only */
+    document.getElementById('btn-add-user').style.display='none';
+  } else {
+    alertEl.style.display='none';
+  }
+
+  /* Show audit log only to admins */
+  var isAdmin=['admin','superadmin'].includes(role);
+  document.getElementById('audit-banner').style.display=isAdmin?'flex':'none';
+  document.getElementById('audit-section').style.display=isAdmin?'':'none';
+  if(isAdmin) renderAuditLog();
+}
+
+/* ── Filter wiring ─────────────────────────────────────────── */
+['um-search','um-frole','um-fstatus'].forEach(function(id){
+  var el=document.getElementById(id);
+  el.addEventListener('input',renderTable);
+  el.addEventListener('change',renderTable);
+});
+
+document.getElementById('btn-add-user').addEventListener('click',function(){ openUserModal(null,false); });
+
+document.getElementById('btn-clear-audit')?.addEventListener('click',function(){
+  if(!confirm('Clear the sign-in audit log?'))return;
+  localStorage.setItem('sagco_ims_auth_log','[]');
+  renderAuditLog();
+  toast('Audit log cleared.','ok');
+});
+
+/* ── Toast ─────────────────────────────────────────────────── */
+function toast(msg,type){
+  var el=document.getElementById('dms-toast');
+  el.textContent=msg; el.className='show t-'+(type||'ok');
+  clearTimeout(el._t); el._t=setTimeout(function(){el.className='';},3500);
+}
+
+/* ── Init ──────────────────────────────────────────────────── */
+IMS_AUTH.init({
+  onReady: function(session){
+    initPage('user-management.html');
+    document.getElementById('tb').innerHTML = renderTopbar(
+      'User Management',
+      'L4-IMS-750-UR-01  ·  Access Control Register  ·  Managed by: IMS Coordinator'
+    );
+    IMS_AUTH.injectUserBar();
+    applyRoleGate();
+    renderTable();
+    renderPermMatrix();
+  }
+});
+</script>
+</body>
+</html>

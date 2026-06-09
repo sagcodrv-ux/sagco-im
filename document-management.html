@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SAGCO IMS — Document &amp; Evidence Management</title>
   <link rel="stylesheet" href="style.css">
+  <script src="auth.js"></script>
   <script src="data.js"></script>
   <script src="nav.js"></script>
   <style>
@@ -882,48 +883,24 @@ function toast(msg,type){
 }
 
 /* ── Init ───────────────────────────────────────────────────── */
-seedIfEmpty();
-populatePageFilter();
-updateRoleUI();
-renderTable();
-initPage('document-management.html');
-document.getElementById('tb').innerHTML=renderTopbar(
-  'Document & Evidence Management',
-  'L3-IMS-750-R-02  ·  Rev.01  ·  ISO §7.5 all four standards  ·  IMS Coordinator'
-);
+IMS_AUTH.init({
+  onReady: function(session){
+    /* Sync DMS role from authenticated session */
+    var dmsRole = IMS_AUTH.mapRoleToDMS(session.role);
+    sessionStorage.setItem('sagco_dms_role', dmsRole);
 
-/* ── Role pill in topbar — always visible, colour-coded ─────── */
-(function(){
-  var tbRight = document.querySelector('.topbar-right');
-  if (!tbRight) return;
-  var pill = document.createElement('span');
-  pill.id = 'tb-role-pill';
-  pill.title = 'Current access role — click to change';
-  pill.style.cssText = 'font-family:var(--mono);font-size:10px;font-weight:700;border-radius:8px;padding:3px 11px;border:1px solid rgba(255,255,255,.35);cursor:pointer;margin-right:6px;white-space:nowrap;transition:color .2s';
-  var RCOLS = { admin:'#C9A84C', editor:'#5dd49a', contributor:'#6aa3ff', viewer:'rgba(255,255,255,.55)' };
-  function syncPill(){
-    var r = gRole();
-    pill.textContent = '● ' + r.toUpperCase();
-    pill.style.color = RCOLS[r] || '#fff';
-    pill.style.borderColor = RCOLS[r] || 'rgba(255,255,255,.35)';
+    seedIfEmpty();
+    populatePageFilter();
+    updateRoleUI();
+    renderTable();
+    initPage('document-management.html');
+    document.getElementById('tb').innerHTML = renderTopbar(
+      'Document & Evidence Management',
+      'L3-IMS-750-R-02  ·  Rev.01  ·  ISO §7.5 all four standards  ·  IMS Coordinator'
+    );
+    IMS_AUTH.injectUserBar();
   }
-  syncPill();
-  pill.addEventListener('click', function(){
-    var r = prompt('Change access role:\n\n  viewer       — read-only\n  contributor  — add documents\n  editor       — add + edit + upload files\n  admin        — full access\n\nCurrent: '+gRole(), gRole());
-    var valid = ['viewer','contributor','editor','admin'];
-    if (r && valid.includes(r.trim().toLowerCase())) {
-      sRole(r.trim().toLowerCase());
-      syncPill();
-      updateRoleUI();
-      var sp = document.getElementById('role-lbl'); if (sp) sp.textContent = gRole();
-      renderTable();
-      toast('Role: '+gRole(),'ok');
-    } else if (r !== null) {
-      toast('Use: viewer / contributor / editor / admin','err');
-    }
-  });
-  tbRight.insertBefore(pill, tbRight.firstChild);
-})();
+});
 </script>
 </body>
 </html>

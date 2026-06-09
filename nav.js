@@ -162,6 +162,11 @@ var TREE = [
   { id:'dms', label:'Document Management', level:'clause', children:[
     { id:'dmsp', label:'Document & Evidence Register', file:'document-management.html', level:'L2' },
   ]},
+
+  /* ── Administration ───────────────────────────── */
+  { id:'adm', label:'Administration', level:'clause', children:[
+    { id:'adm-usr', label:'User Management', file:'user-management.html', level:'L2' },
+  ]},
 ];
 
 /* ══════════════════════════════════════════════════════════════
