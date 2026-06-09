@@ -5,7 +5,7 @@
    Replace SHEETS_URL with your deployed Apps Script Web App URL.
 ═══════════════════════════════════════════════════════════════ */
 
-var SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyv00Y7ILOOwjXCQqr-yly_eM--awVH6fDYnPnKHzrRskKgPuh2iKbMTTqX8GHd6fsd/exec';
+var SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxQ9OxUOljch_w9jo7v4Ic6rB-2LalzPw5uXiIIUKxz_TBErubMv-fkmXLU10ijcpLslw/exec';
 
 /* ── Page → Tab key map (78 pages → 48 tabs) ──────────────── */
 var TAB_KEYS = {
