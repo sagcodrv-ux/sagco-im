@@ -467,3 +467,112 @@ function chartDefaults() {
   Chart.defaults.color       = '#1A2233';
   Chart.defaults.plugins.legend.labels.boxWidth = 12;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   DASHBOARD EXTENSIONS — Rev.18
+   Functions called by index.html: chartDefaults (return value),
+   CC.catMap, statusBadge, scorePill, riskRating,
+   getData, startRefresh
+══════════════════════════════════════════════════════════════ */
+
+/* ── chartDefaults — return shared options object ──────────── */
+/* Override: now returns a base options object AND sets defaults */
+(function() {
+  var _orig = chartDefaults;
+  chartDefaults = function() {
+    if (typeof Chart !== 'undefined') {
+      Chart.defaults.font.family = 'Arial';
+      Chart.defaults.font.size   = 11;
+      Chart.defaults.color       = '#1A2233';
+      Chart.defaults.plugins.legend.labels.boxWidth = 12;
+    }
+    /* Return a base options object that charts spread with {...cd} */
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { font: { size: 9, family: 'Arial' }, padding: 8, boxWidth: 10 }
+        },
+        tooltip: { bodyFont: { size: 10 }, titleFont: { size: 10 } }
+      }
+    };
+  };
+})();
+
+/* ── CC — add catMap for objective category colours ─────────── */
+CC.catMap = {
+  'Energy':       '#0D47A1',
+  'Environment':  '#1B5E20',
+  'Safety':       '#B71C1C',
+  'Quality':      '#E65100',
+  'Social':       '#4A148C',
+  'Governance':   '#37474F',
+  'ESG':          '#00695C',
+};
+
+/* ── statusBadge — returns CSS class string for a status ────── */
+function statusBadge(s) {
+  var v = String(s || '').toUpperCase().trim();
+  if (['URGENT','CRITICAL','OPEN','FAILED','NOT DONE'].some(function(x){ return v.includes(x); })) return 'badge-red';
+  if (['AT RISK','OVERDUE'].some(function(x){ return v.includes(x); }))                            return 'badge-org';
+  if (['IN PROGRESS','PENDING','PLANNED','MONITORING','MONITOR'].some(function(x){ return v.includes(x); })) return 'badge-amb';
+  if (['ON TRACK','COMPLETE','COMPLIANT','APPROVED','CLOSED','PASS','ACTIVE'].some(function(x){ return v.includes(x); })) return 'badge-grn';
+  return 'badge-grey';
+}
+
+/* ── scorePill — coloured score chip ───────────────────────── */
+function scorePill(score, rating) {
+  var s = parseInt(score) || 0;
+  var bg = '#9e9e9e';
+  var r = String(rating || '').toUpperCase();
+  if (r.includes('CRITICAL') || s >= 20) bg = '#B71C1C';
+  else if (r.includes('HIGH') || s >= 12) bg = '#E65100';
+  else if (r.includes('MEDIUM') || s >= 6) bg = '#F9A825';
+  else if (r.includes('LOW') || s >= 1)   bg = '#2E7D32';
+  return '<span class="score-pill" style="background:' + bg + '">' + (score || '—') + '</span>';
+}
+
+/* ── riskRating — returns {label, badge} for a score ───────── */
+function riskRating(score) {
+  var s = parseInt(score) || 0;
+  if (s >= 20) return { label: 'CRITICAL', badge: 'badge-red'  };
+  if (s >= 12) return { label: 'HIGH',     badge: 'badge-org'  };
+  if (s >= 6)  return { label: 'MEDIUM',   badge: 'badge-amb'  };
+  if (s >= 1)  return { label: 'LOW',      badge: 'badge-grn'  };
+  return           { label: '—',       badge: 'badge-grey' };
+}
+
+/* ── getData — fetch from Google Sheets via data.js ─────────── */
+/* Wraps autoLoadPageData into typed fetchers used by index.html */
+var getData = (function() {
+  function fetchTab(tab) {
+    return fetch(SHEETS_URL + '?tab=' + tab + '&action=read')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        /* Convert rows to objects keyed by header */
+        if (!data || !data.headers || !data.rows) return [];
+        return data.rows.map(function(row) {
+          var obj = {};
+          data.headers.forEach(function(h, i) { obj[h.toLowerCase().replace(/\s+/g,'_')] = row[i] || ''; });
+          return obj;
+        });
+      });
+  }
+  return {
+    risks:      function() { return fetchTab('risks'); },
+    objectives: function() { return fetchTab('objectives'); },
+    compliance: function() { return fetchTab('compliance'); },
+    kpis:       function() { return fetchTab('kpi_dashboard'); },
+  };
+})();
+
+/* ── startRefresh — auto-refresh dashboard every 5 minutes ──── */
+function startRefresh(fn) {
+  var INTERVAL = 5 * 60 * 1000; /* 5 minutes */
+  setTimeout(function tick() {
+    fn();
+    setTimeout(tick, INTERVAL);
+  }, INTERVAL);
+}
