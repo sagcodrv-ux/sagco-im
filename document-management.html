@@ -722,18 +722,94 @@ function openAttachModal(doc){
     document.getElementById('att-upload-btn').addEventListener('click', function() {
       var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
       if (!url) { toast('SHEETS_URL not configured in data.js','err'); return; }
-      /* Store current docId so global listener knows which modal to refresh */
+
+      /* Store active doc id for global listener */
       window._activeUploadDocId = doc.id;
+
+      /* Track current file count before upload */
+      var countBefore = DMS_DRIVE.localGet(doc.id).length;
+
       var popupUrl = url
         + '?action=picker'
         + '&docId='    + encodeURIComponent(doc.id)
         + '&username=' + encodeURIComponent(currentUser());
+
       var popup = window.open(popupUrl, 'SAGCO_Upload',
         'width=560,height=540,top=100,left=200,resizable=no,scrollbars=no');
+
       if (!popup) {
         toast('Popup blocked — allow popups for this site in your browser settings.','err');
+        return;
       }
+
+      /* ── Poll for new files every 2 seconds ──────────────────
+         Checks both localStorage cache (postMessage path) and
+         Apps Script (direct fetch path). Stops after 60 seconds
+         or when popup is closed and a new file is detected.     */
+      var pollCount = 0;
+      var maxPolls  = 30; /* 30 × 2s = 60 seconds */
+      var pollTimer = setInterval(function() {
+        pollCount++;
+
+        /* Check local cache first (instant — updated by postMessage) */
+        var cached = DMS_DRIVE.localGet(doc.id);
+        if (cached.length > countBefore) {
+          clearInterval(pollTimer);
+          refreshAttachList(cached);
+          return;
+        }
+
+        /* Also fetch from Apps Script to catch files not via postMessage */
+        DMS_DRIVE.listFiles(doc.id).then(function(result) {
+          var files = result.files || [];
+          if (files.length > countBefore) {
+            clearInterval(pollTimer);
+            refreshAttachList(files);
+          }
+        }).catch(function(){});
+
+        /* Stop polling after max attempts */
+        if (pollCount >= maxPolls) {
+          clearInterval(pollTimer);
+        }
+
+        /* Stop polling if popup is closed and still no new files */
+        if (popup.closed && pollCount > 3) {
+          clearInterval(pollTimer);
+          /* Do one final refresh */
+          DMS_DRIVE.listFiles(doc.id).then(function(result) {
+            refreshAttachList(result.files || []);
+          }).catch(function(){});
+        }
+      }, 2000);
+
+      /* Clean up poll if modal is closed */
+      document.getElementById('att-cancel').addEventListener('click', function() {
+        clearInterval(pollTimer);
+      });
     });
+  }
+
+  /* ── Refresh the attachment list with new files ────────────── */
+  function refreshAttachList(files) {
+    var attList = document.getElementById('att-list');
+    var st      = document.getElementById('att-status');
+    if (!attList) return;
+
+    if (!files.length) {
+      attList.innerHTML = '<div style="padding:14px 0;color:var(--text-lt);font-size:11px;text-align:center">No supporting files attached yet.</div>';
+      return;
+    }
+
+    attList.innerHTML = buildList(files);
+    wireDelBtns(files);
+    renderTable();
+
+    if (st) {
+      st.textContent = '✅ ' + files.length + ' file' + (files.length > 1 ? 's' : '') + ' attached';
+      st.style.color = 'var(--grn)';
+    }
+    toast('Attachment list updated.', 'ok');
   }
 }
 
@@ -933,9 +1009,7 @@ function toast(msg,type){
   clearTimeout(el._t); el._t=setTimeout(function(){el.className='';},3500);
 }
 
-/* ── Global listener for Drive upload popup ─────────────────────
-   Single persistent listener for the page lifetime.
-   Receives IMS_FILE_UPLOADED from Apps Script popup.           */
+/* ── Global listener for Drive upload popup ─────────────────── */
 window._activeUploadDocId = null;
 
 window.addEventListener('message', function(event) {
@@ -946,7 +1020,7 @@ window.addEventListener('message', function(event) {
   var docId = f.docId || window._activeUploadDocId || '';
   if (!docId) return;
 
-  /* Cache locally */
+  /* Cache locally immediately — polling will pick this up */
   if (typeof DMS_DRIVE !== 'undefined') {
     var existing = DMS_DRIVE.localGet(docId);
     if (!existing.some(function(x){ return x.fileId === f.fileId; })) {
@@ -967,45 +1041,8 @@ window.addEventListener('message', function(event) {
       DMS_DRIVE.localSet(docId, existing);
     }
   }
-
-  /* Update status badge in open modal */
-  var st = document.getElementById('att-status');
-  if (st) st.textContent = '✅ ' + f.fileName + ' uploaded successfully';
-
-  /* Refresh attachment list if modal is open */
-  var attList = document.getElementById('att-list');
-  if (attList && typeof DMS_DRIVE !== 'undefined') {
-    var files = DMS_DRIVE.localGet(docId);
-    var esc2  = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
-    if (!files.length) {
-      attList.innerHTML = '<div style="padding:10px;color:var(--text-lt);font-size:11px;text-align:center">No files yet.</div>';
-    } else {
-      attList.innerHTML = '<div class="att-list">'
-        + files.map(function(file) {
-            var fname = file.fileName || file.name || 'file';
-            var ext   = fname.split('.').pop().toLowerCase();
-            var ico   = {pdf:'📄',docx:'📝',doc:'📝',xlsx:'📊',xls:'📊',jpg:'🖼',jpeg:'🖼',png:'🖼',pptx:'📋'}[ext] || '📎';
-            var viewHtml = file.webViewLink
-              ? '<a class="att-open" href="'+esc2(file.webViewLink)+'" target="_blank">↗ Open</a>'
-                +'<a class="att-open" href="'+esc2(file.downloadLink)+'" target="_blank">⬇ Download</a>'
-              : '<span class="att-open" style="opacity:.5;cursor:default">processing…</span>';
-            var src = file.source === 'drive'
-              ? '<span style="font-size:9px;color:var(--grn);margin-left:4px">☁ Drive</span>'
-              : '<span style="font-size:9px;color:var(--amb);margin-left:4px">💾 Local</span>';
-            return '<div class="att-item">'
-              + '<span class="att-icon">'+ico+'</span>'
-              + '<span class="att-name">'+esc2(fname)+src+'</span>'
-              + '<span class="att-meta">'+esc2(file.size||'')+'&nbsp;·&nbsp;'+esc2(file.date||'')+'</span>'
-              + viewHtml
-              + '</div>';
-          }).join('')
-        + '</div>';
-    }
-  }
-
-  /* Update main table count and toast */
-  if (typeof renderTable === 'function') renderTable();
-  if (typeof toast === 'function') toast('✅ ' + f.fileName + ' uploaded to Google Drive.', 'ok');
+  /* Polling in openAttachModal will detect the new cached file
+     and refresh the list automatically within 2 seconds */
   if (typeof logH === 'function') logH(docId, 'ATTACHMENT UPLOADED', f.fileName);
 });
 
