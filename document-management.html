@@ -866,12 +866,10 @@ function openVersionModal(doc){
       '<div class="dms-field"><label>Description of Changes <span class="dms-req">*</span></label>'+
         '<textarea id="nv-note" rows="3" placeholder="Describe what changed…"></textarea></div>'+
       '<div class="dms-field" style="background:#f8fafc;border:1px solid var(--g100);border-radius:6px;padding:12px">'+
-        '<label style="color:var(--navy)">Upload Document File <span class="muted" style="font-weight:400">(optional)</span></label>'+
-        '<div style="margin-top:8px">'+
-          '<button class="btn btn-ghost-dk" id="nv-upload-btn" type="button" style="font-size:11px">📂 Select & Upload File</button>'+
-          '<span id="nv-file-status" style="font-size:10px;color:var(--grn);margin-left:10px"></span>'+
-        '</div>'+
-        '<div style="font-size:10px;color:var(--text-lt);margin-top:6px">File uploads to Google Drive — visible to all users</div>'+
+        '<label style="color:var(--navy)">Upload Document File <span class="muted" style="font-weight:400">(optional — PDF, DOCX, XLSX, image)</span></label>'+
+        '<input type="file" id="nv-file-inp" style="margin-top:8px;font-size:11px;width:100%" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.txt,.csv">'+
+        '<div id="nv-file-status" style="font-size:10px;color:var(--grn);margin-top:5px;min-height:14px"></div>'+
+        '<div style="font-size:10px;color:var(--text-lt);margin-top:4px">File uploads to Google Drive on Save — visible to all users on all devices</div>'+
       '</div>'+
       '<div class="alert-amb" style="margin-top:8px;font-size:10px">'+
         '⚠ Saving creates a new version entry and updates the current revision number. Previous versions are preserved.'+
@@ -915,64 +913,70 @@ function openVersionModal(doc){
     var ntab=document.getElementById('mt-newrev');
     if(ntab) ntab.addEventListener('click',function(){ activeModalTab='newrev'; render(null); });
 
-    var uploadBtn=document.getElementById('nv-upload-btn');
-    if(uploadBtn) uploadBtn.addEventListener('click',function(){
-      if(!SHEETS_URL_VAL){toast('SHEETS_URL not configured','err');return;}
-      window._activeUploadDocId = doc.id+'_version';
-      window._pendingVersionFile = null; /* reset */
-      var popupUrl = SHEETS_URL_VAL+'?action=picker&docId='+encodeURIComponent(doc.id+'_version')+'&username='+encodeURIComponent(currentUser());
-      var popup = window.open(popupUrl,'SAGCO_VersionUpload','width=560,height=540,top=100,left=200,resizable=no,scrollbars=no');
-      if(!popup){toast('Popup blocked','err');return;}
-      /* Poll for pending file set by global message listener */
-      var pollV=setInterval(function(){
-        if(window._pendingVersionFile){
-          clearInterval(pollV);
-          pendingVersionFile=window._pendingVersionFile;
-          var st=document.getElementById('nv-file-status');
-          if(st){st.textContent='✅ '+pendingVersionFile.fileName+' ready';st.style.color='var(--grn)';}
-        }
-        if(popup.closed) clearInterval(pollV);
-      },500);
-    });
-
     var saveBtn=document.getElementById('nv-save');
     if(saveBtn) saveBtn.addEventListener('click',function(){
       var newRevNum=document.getElementById('nv-rev').value.trim();
       var newNote=document.getElementById('nv-note').value.trim();
       if(!newRevNum||!newNote){toast('Revision number and description are required.','err');return;}
-      var newVer={
-        docId:doc.id, rev:newRevNum,
-        ts:document.getElementById('nv-date').value||new Date().toISOString().split('T')[0],
-        note:newNote, user:currentUser(),
-        fileName:pendingVersionFile?pendingVersionFile.fileName:null,
-        webViewLink:pendingVersionFile?pendingVersionFile.webViewLink:null,
-        downloadLink:pendingVersionFile?pendingVersionFile.downloadLink:null,
-      };
-      if(SHEETS_URL_VAL){
-        fetch(SHEETS_URL_VAL, {
-          method: 'POST',
-          body: JSON.stringify({
-            action:       'saveVersion',
-            docId:        newVer.docId,
-            rev:          newVer.rev,
-            ts:           newVer.ts,
-            note:         newVer.note,
-            user:         newVer.user,
-            fileName:     newVer.fileName     || '',
-            webViewLink:  newVer.webViewLink  || '',
-            downloadLink: newVer.downloadLink || '',
-          }),
-          redirect: 'follow'
-        }).catch(function(){});
+
+      var fileInp=document.getElementById('nv-file-inp');
+      var file=fileInp&&fileInp.files&&fileInp.files[0]?fileInp.files[0]:null;
+
+      var st=document.getElementById('nv-file-status');
+
+      function doSave(fileData){
+        var newVer={
+          docId:doc.id, rev:newRevNum,
+          ts:document.getElementById('nv-date').value||new Date().toISOString().split('T')[0],
+          note:newNote, user:currentUser(),
+          fileName:     fileData?fileData.fileName:null,
+          webViewLink:  fileData?fileData.webViewLink:null,
+          downloadLink: fileData?fileData.downloadLink:null,
+        };
+        /* Save to Apps Script Versions sheet */
+        if(SHEETS_URL_VAL){
+          fetch(SHEETS_URL_VAL, {
+            method:'POST',
+            body:JSON.stringify({
+              action:'saveVersion',
+              docId:newVer.docId, rev:newVer.rev, ts:newVer.ts,
+              note:newVer.note, user:newVer.user,
+              fileName:newVer.fileName||'',
+              webViewLink:newVer.webViewLink||'',
+              downloadLink:newVer.downloadLink||'',
+            }),
+            redirect:'follow'
+          }).catch(function(){});
+        }
+        /* Update localStorage */
+        var docs=gAll(), d2=docs.find(function(x){return x.id===doc.id;});
+        if(d2){d2.versions=[newVer].concat(d2.versions||[]);d2.rev=newRevNum;sAll(docs);doc=d2;}
+        logH(doc.id,'NEW REVISION','Rev.'+newRevNum+' — '+newNote);
+        pendingVersionFile=null;
+        activeModalTab='history';
+        loadVersions(function(vers){render(vers);});
+        renderTable();
+        toast('Rev. '+newRevNum+' saved.','ok');
       }
-      var docs=gAll(), d2=docs.find(function(x){return x.id===doc.id;});
-      if(d2){d2.versions=[newVer].concat(d2.versions||[]);d2.rev=newRevNum;sAll(docs);doc=d2;}
-      logH(doc.id,'NEW REVISION','Rev.'+newRevNum+' — '+newNote);
-      pendingVersionFile=null;
-      activeModalTab='history';
-      loadVersions(function(vers){render(vers);});
-      renderTable();
-      toast('Rev. '+newRevNum+' saved.','ok');
+
+      if(file){
+        if(st) st.textContent='⏳ Uploading file to Google Drive…';
+        saveBtn.disabled=true;
+        DMS_DRIVE.uploadFile(file, doc.id+'_ver_'+newRevNum, 'version', 'Rev.'+newRevNum, currentUser())
+          .then(function(result){
+            saveBtn.disabled=false;
+            if(st) st.textContent='✅ '+file.name+' uploaded';
+            doSave(result);
+          })
+          .catch(function(e){
+            saveBtn.disabled=false;
+            toast('File upload failed: '+e.message,'err');
+            if(st) st.textContent='❌ Upload failed — saving revision without file';
+            doSave(null);
+          });
+      } else {
+        doSave(null);
+      }
     });
   }
 
