@@ -251,72 +251,6 @@ function canAdd(){ return ['contributor','editor','admin'].includes(gRole()); }
 function canEd() { return ['editor','admin'].includes(gRole()); }
 function isAdm() { return gRole() === 'admin'; }
 
-/* ── Load documents from Google Sheets ─────────────────────────
-   Fetches the 📄 Document Register tab from Apps Script and
-   merges with localStorage. Sheets = source of truth.
-   Called on page init — all browsers see the same records.     */
-function loadDocsFromSheets(cb) {
-  var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
-  if (!url) { seedIfEmpty(); cb(); return; }
-
-  fetch(url + '?action=read&tab=documents')
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      if (!data || !data.rows || !data.rows.length) {
-        /* Sheets empty — use localStorage seed */
-        seedIfEmpty(); cb(); return;
-      }
-      /* Map Sheets rows to document objects */
-      var headers = data.headers || [];
-      function col(row, name) {
-        var idx = headers.findIndex(function(h){
-          return h.toLowerCase().replace(/[\s_]/g,'') === name.toLowerCase().replace(/[\s_]/g,'');
-        });
-        return idx >= 0 ? String(row[idx] || '') : '';
-      }
-      var sheetDocs = data.rows.map(function(row) {
-        return {
-          id:        col(row,'Doc ID') || col(row,'DocID'),
-          number:    col(row,'Document Number') || col(row,'DocumentNumber'),
-          title:     col(row,'Document Title') || col(row,'Title'),
-          rev:       col(row,'Current Rev.') || col(row,'Rev') || '01',
-          type:      col(row,'Document Type') || col(row,'Type') || 'Register',
-          status:    col(row,'Status') || 'Active',
-          issued:    col(row,'Date of Issue') || col(row,'Issued') || '',
-          reviewDue: col(row,'Review Due Date') || col(row,'ReviewDue') || '',
-          owner:     col(row,'Document Owner') || col(row,'Owner') || '',
-          pages:     (col(row,'Linked IMS Pages') || '').split(',').map(function(p){return p.trim();}).filter(Boolean),
-          deleted:   false,
-          files:     [],
-          versions:  [],
-          created:   col(row,'Last Updated') || new Date().toISOString().split('T')[0],
-        };
-      }).filter(function(d){ return d.id && d.title; });
-
-      if (sheetDocs.length > 0) {
-        /* Merge with localStorage — Sheets wins for metadata */
-        var local = gAll();
-        sheetDocs.forEach(function(sd) {
-          var existing = local.find(function(ld){ return ld.id === sd.id; });
-          if (existing) {
-            /* Keep local files/versions arrays, update metadata from Sheets */
-            sd.files    = existing.files    || [];
-            sd.versions = existing.versions || [];
-            sd.deleted  = existing.deleted  || false;
-          }
-        });
-        sAll(sheetDocs);
-      } else {
-        seedIfEmpty();
-      }
-      cb();
-    })
-    .catch(function(){
-      /* Network error — fall back to localStorage */
-      seedIfEmpty(); cb();
-    });
-}
-
 function logH(id, action, detail) {
   var h = gHist();
   h.push({ docId:id, action:action, detail:detail, user:gRole(), ts:new Date().toISOString() });
@@ -764,20 +698,14 @@ function openAttachModal(doc){
     +'<div class="req-text" style="margin-bottom:12px">Supporting objective evidence attached to this document record. '
     +'Files are uploaded to <strong>Google Drive</strong> and accessible to all users on all devices.</div>'
     +(canEd()
-      ?'<div style="background:#f8fafc;border:1px solid var(--g100);border-radius:6px;padding:12px;margin-bottom:14px">'
-        +'<label style="font-size:11px;font-weight:600;color:var(--navy);display:block;margin-bottom:6px">Attach Supporting Evidence</label>'
-        +'<input type="file" id="att-file-inp" multiple style="font-size:11px;width:100%" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.txt,.csv,.zip">'
-        +'<div id="att-prog-wrap" style="display:none;margin-top:8px">'
-          +'<div style="font-size:10px;color:var(--text-lt);margin-bottom:4px" id="att-prog-txt">Uploading…</div>'
-          +'<div style="height:6px;background:#e8ecf3;border-radius:3px;overflow:hidden">'
-            +'<div id="att-prog-fill" style="height:100%;background:#C9A84C;border-radius:3px;width:0;transition:width .3s"></div>'
-          +'</div>'
-        +'</div>'
-        +'<div id="att-status" style="font-size:11px;margin-top:6px;min-height:16px"></div>'
-        +'<button id="att-save-btn" class="btn btn-gold" style="margin-top:10px;width:100%" disabled>'
-          +'📎 Upload Selected Files'
+      ?'<div style="margin-bottom:14px">'
+        +'<button id="att-upload-btn" class="btn btn-gold" style="width:100%;padding:11px;font-size:13px">'
+          +'📂 &nbsp;Click to Upload a File'
         +'</button>'
-        +'<div style="font-size:10px;color:var(--text-lt);margin-top:5px">PDF · DOCX · XLSX · JPG · PNG · any format · max 25 MB per file</div>'
+        +'<div style="font-size:10px;color:var(--text-lt);text-align:center;margin-top:6px">'
+          +'A secure upload window will open · PDF · DOCX · XLSX · JPG · PNG · max 25 MB'
+        +'</div>'
+        +'<div id="att-status" style="font-size:11px;color:var(--grn);text-align:center;margin-top:6px;min-height:18px"></div>'
       +'</div>'
       :'')
     +'<div id="att-list"></div>'
@@ -791,129 +719,99 @@ function openAttachModal(doc){
   loadAndRender();
 
   if (canEd()) {
-    var fileInp   = document.getElementById('att-file-inp');
-    var saveBtn2  = document.getElementById('att-save-btn');
-    var progWrap  = document.getElementById('att-prog-wrap');
-    var progFill  = document.getElementById('att-prog-fill');
-    var progTxt   = document.getElementById('att-prog-txt');
-    var statusEl  = document.getElementById('att-status');
-    var url       = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
+    document.getElementById('att-upload-btn').addEventListener('click', function() {
+      var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
+      if (!url) { toast('SHEETS_URL not configured in data.js','err'); return; }
 
-    /* Enable upload button when files selected */
-    fileInp.addEventListener('change', function() {
-      saveBtn2.disabled = !fileInp.files || !fileInp.files.length;
-      if (fileInp.files && fileInp.files.length) {
-        statusEl.textContent = fileInp.files.length + ' file(s) selected — click Upload';
-        statusEl.style.color = 'var(--text-lt)';
-      }
-    });
+      /* Store active doc id for global listener */
+      window._activeUploadDocId = doc.id;
 
-    saveBtn2.addEventListener('click', function() {
-      var files = Array.from(fileInp.files || []);
-      if (!files.length) return;
-      saveBtn2.disabled = true;
-      fileInp.disabled  = true;
-      progWrap.style.display = '';
-      statusEl.textContent = '';
+      /* Track current file count before upload */
+      var countBefore = DMS_DRIVE.localGet(doc.id).length;
 
-      var uploaded = 0;
-      var failed   = 0;
-      var total    = files.length;
+      var popupUrl = url
+        + '?action=picker'
+        + '&docId='    + encodeURIComponent(doc.id)
+        + '&username=' + encodeURIComponent(currentUser());
 
-      function uploadNext(idx) {
-        if (idx >= total) {
-          /* All done */
-          progFill.style.width = '100%';
-          progFill.style.background = '#2E7D32';
-          progTxt.textContent = '✅ Done!';
-          statusEl.textContent = '✅ ' + uploaded + ' file(s) uploaded' + (failed ? ' · ' + failed + ' failed' : '');
-          statusEl.style.color = 'var(--grn)';
-          fileInp.disabled = false;
-          saveBtn2.disabled = false;
-          loadAndRender();
-          return;
-        }
+      var popup = window.open(popupUrl, 'SAGCO_Upload',
+        'width=560,height=540,top=100,left=200,resizable=no,scrollbars=no');
 
-        var file = files[idx];
-        var pct  = Math.round((idx / total) * 80);
-        progFill.style.width = pct + '%';
-        progTxt.textContent  = '☁ Uploading ' + file.name + ' (' + (idx+1) + '/' + total + ')…';
-
-        if (!url) {
-          /* No Apps Script — local fallback */
-          DMS_DRIVE.uploadFile(file, doc.id, 'attachment', '', currentUser())
-            .then(function(r){ if(r) uploaded++; else failed++; uploadNext(idx+1); })
-            .catch(function(){ failed++; uploadNext(idx+1); });
-          return;
-        }
-
-        /* Direct base64 POST to Apps Script */
-        var reader = new FileReader();
-        reader.onerror = function() { failed++; uploadNext(idx+1); };
-        reader.onload  = function(ev) {
-          var b64 = ev.target.result.split(',')[1];
-          fetch(url, {
-            method:   'POST',
-            body:     JSON.stringify({
-              action:   'uploadFilePicker',
-              docId:    doc.id,
-              username: currentUser(),
-              fileName: file.name,
-              mimeType: file.type || 'application/octet-stream',
-              b64:      b64,
-            }),
-            redirect: 'follow',
-          })
-          .then(function(r){ return r.text(); })
-          .then(function(txt){
-            var res;
-            try{ res = JSON.parse(txt); } catch(e){ res = {ok:false}; }
-            if (res.ok) {
-              uploaded++;
-              /* Cache locally so list updates instantly */
-              var existing = DMS_DRIVE.localGet(doc.id);
-              existing.push({
-                fileId:       res.fileId,
-                fileName:     res.fileName || file.name,
-                mimeType:     file.type || '',
-                size:         file.size > 1048576 ? (file.size/1048576).toFixed(1)+' MB' : Math.round(file.size/1024)+' KB',
-                date:         new Date().toISOString().split('T')[0],
-                user:         currentUser(),
-                webViewLink:  res.webViewLink,
-                downloadLink: res.downloadLink,
-                attachType:   'attachment',
-                source:       'drive',
-              });
-              DMS_DRIVE.localSet(doc.id, existing);
-              logH(doc.id, 'ATTACHMENT UPLOADED', file.name);
-            } else {
-              failed++;
-            }
-            uploadNext(idx+1);
-          })
-          .catch(function(){ failed++; uploadNext(idx+1); });
-        };
-        reader.readAsDataURL(file);
-      }
-
-      uploadNext(0);
-    });
-
-    /* Keep the refresh function for polling */
-    function refreshAttachList(files) {
-      var attList = document.getElementById('att-list');
-      var st = document.getElementById('att-status');
-      if (!attList) return;
-      if (!files.length) {
-        attList.innerHTML = '<div style="padding:14px 0;color:var(--text-lt);font-size:11px;text-align:center">No supporting files attached yet.</div>';
+      if (!popup) {
+        toast('Popup blocked — allow popups for this site in your browser settings.','err');
         return;
       }
-      attList.innerHTML = buildList(files);
-      wireDelBtns(files);
-      renderTable();
-      if (st) { st.textContent = '✅ '+files.length+' file'+(files.length>1?'s':'')+' attached'; st.style.color='var(--grn)'; }
-    }
+
+      /* ── Poll for new files every 2 seconds ──────────────────
+         Checks both localStorage cache (postMessage path) and
+         Apps Script (direct fetch path). Stops after 60 seconds
+         or when popup is closed and a new file is detected.     */
+      var pollCount = 0;
+      var maxPolls  = 30; /* 30 × 2s = 60 seconds */
+      var pollTimer = setInterval(function() {
+        pollCount++;
+
+        /* Check local cache first (instant — updated by postMessage) */
+        var cached = DMS_DRIVE.localGet(doc.id);
+        if (cached.length > countBefore) {
+          clearInterval(pollTimer);
+          refreshAttachList(cached);
+          return;
+        }
+
+        /* Also fetch from Apps Script to catch files not via postMessage */
+        DMS_DRIVE.listFiles(doc.id).then(function(result) {
+          var files = result.files || [];
+          if (files.length > countBefore) {
+            clearInterval(pollTimer);
+            refreshAttachList(files);
+          }
+        }).catch(function(){});
+
+        /* Stop polling after max attempts */
+        if (pollCount >= maxPolls) {
+          clearInterval(pollTimer);
+        }
+
+        /* Stop polling if popup is closed and still no new files */
+        if (popup.closed && pollCount > 3) {
+          clearInterval(pollTimer);
+          /* Do one final refresh */
+          DMS_DRIVE.listFiles(doc.id).then(function(result) {
+            refreshAttachList(result.files || []);
+          }).catch(function(){});
+        }
+      }, 2000);
+
+      /* Clean up poll if modal is closed */
+      document.getElementById('att-cancel').addEventListener('click', function() {
+        clearInterval(pollTimer);
+      });
+    });
   }
+
+  /* ── Refresh the attachment list with new files ────────────── */
+  function refreshAttachList(files) {
+    var attList = document.getElementById('att-list');
+    var st      = document.getElementById('att-status');
+    if (!attList) return;
+
+    if (!files.length) {
+      attList.innerHTML = '<div style="padding:14px 0;color:var(--text-lt);font-size:11px;text-align:center">No supporting files attached yet.</div>';
+      return;
+    }
+
+    attList.innerHTML = buildList(files);
+    wireDelBtns(files);
+    renderTable();
+
+    if (st) {
+      st.textContent = '✅ ' + files.length + ' file' + (files.length > 1 ? 's' : '') + ' attached';
+      st.style.color = 'var(--grn)';
+    }
+    toast('Attachment list updated.', 'ok');
+  }
+}
 
 /* ═══════════════════════════════════════════════════════════
    MODAL 4 — VERSION HISTORY & NEW REVISION UPLOAD
@@ -1250,23 +1148,16 @@ window.addEventListener('message', function(event) {
 /* ── Init ───────────────────────────────────────────────────── */
 IMS_AUTH.init({
   onReady: function(session){
+    /* Sync DMS role from authenticated session */
     var dmsRole = IMS_AUTH.mapRoleToDMS(session.role);
     sessionStorage.setItem('sagco_dms_role', dmsRole);
 
+    seedIfEmpty();
     populatePageFilter();
     updateRoleUI();
-
-    /* Show loading state while fetching from Sheets */
-    document.getElementById('dms-body').innerHTML =
-      '<tr><td colspan="12"><div class="empty-state">⏳ Loading documents from Google Sheets…</div></td></tr>';
-
-    /* Load from Sheets first — seeds if empty */
-    loadDocsFromSheets(function(){
-      populatePageFilter();
-      renderTable();
-      setTimeout(preloadAttachmentCounts, 1500);
-    });
-
+    renderTable();
+    /* Pre-load attachment counts from Apps Script */
+    setTimeout(preloadAttachmentCounts, 1500);
     initPage('document-management.html');
     document.getElementById('tb').innerHTML = renderTopbar(
       'Document & Evidence Management',
