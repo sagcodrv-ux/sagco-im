@@ -251,6 +251,72 @@ function canAdd(){ return ['contributor','editor','admin'].includes(gRole()); }
 function canEd() { return ['editor','admin'].includes(gRole()); }
 function isAdm() { return gRole() === 'admin'; }
 
+/* ── Load documents from Google Sheets ─────────────────────────
+   Fetches the 📄 Document Register tab from Apps Script and
+   merges with localStorage. Sheets = source of truth.
+   Called on page init — all browsers see the same records.     */
+function loadDocsFromSheets(cb) {
+  var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
+  if (!url) { seedIfEmpty(); cb(); return; }
+
+  fetch(url + '?action=read&tab=documents')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data || !data.rows || !data.rows.length) {
+        /* Sheets empty — use localStorage seed */
+        seedIfEmpty(); cb(); return;
+      }
+      /* Map Sheets rows to document objects */
+      var headers = data.headers || [];
+      function col(row, name) {
+        var idx = headers.findIndex(function(h){
+          return h.toLowerCase().replace(/[\s_]/g,'') === name.toLowerCase().replace(/[\s_]/g,'');
+        });
+        return idx >= 0 ? String(row[idx] || '') : '';
+      }
+      var sheetDocs = data.rows.map(function(row) {
+        return {
+          id:        col(row,'Doc ID') || col(row,'DocID'),
+          number:    col(row,'Document Number') || col(row,'DocumentNumber'),
+          title:     col(row,'Document Title') || col(row,'Title'),
+          rev:       col(row,'Current Rev.') || col(row,'Rev') || '01',
+          type:      col(row,'Document Type') || col(row,'Type') || 'Register',
+          status:    col(row,'Status') || 'Active',
+          issued:    col(row,'Date of Issue') || col(row,'Issued') || '',
+          reviewDue: col(row,'Review Due Date') || col(row,'ReviewDue') || '',
+          owner:     col(row,'Document Owner') || col(row,'Owner') || '',
+          pages:     (col(row,'Linked IMS Pages') || '').split(',').map(function(p){return p.trim();}).filter(Boolean),
+          deleted:   false,
+          files:     [],
+          versions:  [],
+          created:   col(row,'Last Updated') || new Date().toISOString().split('T')[0],
+        };
+      }).filter(function(d){ return d.id && d.title; });
+
+      if (sheetDocs.length > 0) {
+        /* Merge with localStorage — Sheets wins for metadata */
+        var local = gAll();
+        sheetDocs.forEach(function(sd) {
+          var existing = local.find(function(ld){ return ld.id === sd.id; });
+          if (existing) {
+            /* Keep local files/versions arrays, update metadata from Sheets */
+            sd.files    = existing.files    || [];
+            sd.versions = existing.versions || [];
+            sd.deleted  = existing.deleted  || false;
+          }
+        });
+        sAll(sheetDocs);
+      } else {
+        seedIfEmpty();
+      }
+      cb();
+    })
+    .catch(function(){
+      /* Network error — fall back to localStorage */
+      seedIfEmpty(); cb();
+    });
+}
+
 function logH(id, action, detail) {
   var h = gHist();
   h.push({ docId:id, action:action, detail:detail, user:gRole(), ts:new Date().toISOString() });
@@ -1184,16 +1250,23 @@ window.addEventListener('message', function(event) {
 /* ── Init ───────────────────────────────────────────────────── */
 IMS_AUTH.init({
   onReady: function(session){
-    /* Sync DMS role from authenticated session */
     var dmsRole = IMS_AUTH.mapRoleToDMS(session.role);
     sessionStorage.setItem('sagco_dms_role', dmsRole);
 
-    seedIfEmpty();
     populatePageFilter();
     updateRoleUI();
-    renderTable();
-    /* Pre-load attachment counts from Apps Script */
-    setTimeout(preloadAttachmentCounts, 1500);
+
+    /* Show loading state while fetching from Sheets */
+    document.getElementById('dms-body').innerHTML =
+      '<tr><td colspan="12"><div class="empty-state">⏳ Loading documents from Google Sheets…</div></td></tr>';
+
+    /* Load from Sheets first — seeds if empty */
+    loadDocsFromSheets(function(){
+      populatePageFilter();
+      renderTable();
+      setTimeout(preloadAttachmentCounts, 1500);
+    });
+
     initPage('document-management.html');
     document.getElementById('tb').innerHTML = renderTopbar(
       'Document & Evidence Management',
