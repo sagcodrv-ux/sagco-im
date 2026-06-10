@@ -325,33 +325,39 @@ function seedIfEmpty() {
 }
 
 /* ── Load latest revision numbers from Google Sheets ───────────
-   Only updates rev if the Sheets version is genuinely newer.
-   Prevents test data from overwriting correct seed values.     */
+   Reads the 📄 Document Register tab directly.
+   This is the single source of truth for current revision.     */
 function loadLatestRevisions() {
   var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
   if (!url) return;
-  fetch(url + '?action=listAllVersions')
+  fetch(url + '?action=read&tab=documents')
     .then(function(r){ return r.json(); })
     .then(function(data){
-      if (!data || !data.versions || !data.versions.length) return;
+      if (!data || !data.rows || !data.rows.length) return;
+      var headers = data.headers || [];
+      /* Find column indices */
+      function colIdx(names) {
+        for (var n = 0; n < names.length; n++) {
+          for (var h = 0; h < headers.length; h++) {
+            if (headers[h].toLowerCase().replace(/[\s\._]/g,'') ===
+                names[n].toLowerCase().replace(/[\s\._]/g,'')) return h;
+          }
+        }
+        return -1;
+      }
+      var idIdx  = colIdx(['docid','id','Doc ID']);
+      var revIdx = colIdx(['currentrev','rev','revision','Current Rev.']);
+      if (idIdx < 0 || revIdx < 0) return;
+
       var docs = gAll();
       var changed = false;
-      /* Group by docId — find latest rev per doc */
-      var latestMap = {};
-      data.versions.forEach(function(v){
-        if (!v.docId || !v.rev) return;
-        var rev = String(v.rev).trim();
-        /* Skip obviously wrong test values (> 4 chars is suspicious) */
-        if (rev.length > 4) return;
-        if (!latestMap[v.docId] || rev > String(latestMap[v.docId])) {
-          latestMap[v.docId] = rev;
-        }
-      });
-      docs.forEach(function(d){
-        var sheetRev = latestMap[d.id];
-        /* Only update if sheet rev is different AND looks like a real rev number */
-        if (sheetRev && sheetRev !== d.rev && sheetRev.length <= 4) {
-          d.rev = sheetRev;
+      data.rows.forEach(function(row) {
+        var sheetId  = String(row[idIdx]  || '').trim();
+        var sheetRev = String(row[revIdx] || '').trim();
+        if (!sheetId || !sheetRev) return;
+        var doc = docs.find(function(d){ return d.id === sheetId; });
+        if (doc && sheetRev !== doc.rev) {
+          doc.rev = sheetRev;
           changed = true;
         }
       });
