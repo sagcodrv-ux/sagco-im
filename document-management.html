@@ -948,16 +948,21 @@ function openVersionModal(doc){
         downloadLink:pendingVersionFile?pendingVersionFile.downloadLink:null,
       };
       if(SHEETS_URL_VAL){
-        fetch(SHEETS_URL_VAL+'?action=saveVersion'+
-          '&docId='+encodeURIComponent(newVer.docId)+
-          '&rev='+encodeURIComponent(newVer.rev)+
-          '&ts='+encodeURIComponent(newVer.ts)+
-          '&note='+encodeURIComponent(newVer.note)+
-          '&user='+encodeURIComponent(newVer.user)+
-          '&fileName='+encodeURIComponent(newVer.fileName||'')+
-          '&webViewLink='+encodeURIComponent(newVer.webViewLink||'')+
-          '&downloadLink='+encodeURIComponent(newVer.downloadLink||''))
-        .catch(function(){});
+        fetch(SHEETS_URL_VAL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action:       'saveVersion',
+            docId:        newVer.docId,
+            rev:          newVer.rev,
+            ts:           newVer.ts,
+            note:         newVer.note,
+            user:         newVer.user,
+            fileName:     newVer.fileName     || '',
+            webViewLink:  newVer.webViewLink  || '',
+            downloadLink: newVer.downloadLink || '',
+          }),
+          redirect: 'follow'
+        }).catch(function(){});
       }
       var docs=gAll(), d2=docs.find(function(x){return x.id===doc.id;});
       if(d2){d2.versions=[newVer].concat(d2.versions||[]);d2.rev=newRevNum;sAll(docs);doc=d2;}
