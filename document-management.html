@@ -9,7 +9,6 @@
   <script src="data.js"></script>
   <script src="dms-drive.js"></script>
   <script src="nav.js"></script>
-  <script src="sharepoint-links.js"></script>
   <style>
     /* ── DMS-specific additions not in style.css ── */
 
@@ -403,7 +402,9 @@ function renderTable(){
 
   tbody.innerHTML=docs.map(function(d){
     var rc=revCls(d.reviewDue), rl=revLbl(d.reviewDue);
-    var fc=(d.files||[]).length;
+    /* Read file count from DMS_DRIVE local cache — where uploaded files are stored */
+    var driveFiles = (typeof DMS_DRIVE !== 'undefined') ? DMS_DRIVE.localGet(d.id) : (d.files||[]);
+    var fc = driveFiles.length;
     var vc=(d.versions||[]).length;
     var fBadge=fc?'<span class="nb nb-blue">'+fc+' file'+(fc>1?'s':'')+'</span>':'<span class="muted nb nb-grey">none</span>';
     var vBadge=vc?'<span class="nb nb-gold">'+vc+' ver.</span>':'<span class="muted nb nb-grey">—</span>';
@@ -616,6 +617,8 @@ function openAttachModal(doc){
       var fileList=result.files||[];
       if(listEl) listEl.innerHTML=buildList(fileList);
       wireDelBtns(fileList);
+      /* Update the attachment count badge in the main table */
+      renderTable();
     }).catch(function(){ if(listEl) listEl.innerHTML='<div style="padding:10px;color:var(--red);font-size:11px">Failed to load attachments.</div>'; });
   }
 
@@ -650,17 +653,32 @@ function openAttachModal(doc){
   function wireDelBtns(fileList){
     document.querySelectorAll('.att-del').forEach(function(btn){
       btn.addEventListener('click',function(){
-        var fname=(fileList[parseInt(btn.dataset.fi)]||{}).fileName||(fileList[parseInt(btn.dataset.fi)]||{}).name||'this file';
-        if(!confirm('Remove "'+fname+'"?\nThis will delete it from Google Drive and cannot be undone.'))return;
+        var idx=parseInt(btn.dataset.fi);
+        var f=fileList[idx]||{};
+        var fname=f.fileName||f.name||'this file';
+        if(!confirm('Remove "'+fname+'" from the register?\n\nNote: The file will remain in Google Drive but will no longer appear in the IMS register.'))return;
         var fid=btn.dataset.fid;
-        DMS_DRIVE.deleteFile(fid,doc.id).then(function(){
-          logH(doc.id,'ATTACHMENT REMOVED',fname);
-          DMS_DRIVE.logAudit('FILE_DELETED',doc.id+' — '+fname,
-            (IMS_AUTH.getUser()||{}).userId,currentUser());
-          loadAndRender();
-          renderTable();
-          toast('Attachment removed.','ok');
-        }).catch(function(e){ toast(e.message,'err'); });
+
+        /* Remove from local cache immediately */
+        DMS_DRIVE.localSet(doc.id, fileList.filter(function(_,i){ return i!==idx; }));
+        fileList.splice(idx,1);
+
+        /* Also remove from Apps Script Attachments sheet */
+        var url=typeof SHEETS_URL!=='undefined'?SHEETS_URL:null;
+        if(url && fid && !fid.startsWith('local-')){
+          fetch(url+'?action=deleteAttachment&fileId='+encodeURIComponent(fid)+'&docId='+encodeURIComponent(doc.id))
+            .catch(function(){});
+        }
+
+        logH(doc.id,'ATTACHMENT REMOVED',fname);
+        DMS_DRIVE.logAudit('FILE_DELETED',doc.id+' — '+fname,
+          (IMS_AUTH.getUser()||{}).userId,currentUser());
+
+        /* Re-render from updated local cache — do NOT re-fetch from server */
+        document.getElementById('att-list').innerHTML=buildList(fileList);
+        wireDelBtns(fileList);
+        renderTable();
+        toast('Attachment removed from register.','ok');
       });
     });
   }
@@ -730,7 +748,6 @@ function openAttachModal(doc){
           var docs=gAll(), d2=docs.find(function(x){return x.id===doc.id;});
           if(d2){ d2._attachCount=(d2._attachCount||0)+results.length; sAll(docs); }
           loadAndRender();
-          renderTable();
         })
         .catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
     }
