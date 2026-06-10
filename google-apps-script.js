@@ -238,8 +238,7 @@ function buildPickerHtml(docId, username) {
     + 'var DOC_ID='     + JSON.stringify(docId)     + ';\n'
     + 'var USERNAME='   + JSON.stringify(username)  + ';\n'
     + 'var uploading=false;\n'
-
-    /* DOM refs */
+    + 'var simTimer=null;\n'
     + 'var zone=document.getElementById("zone");\n'
     + 'var fi=document.getElementById("fi");\n'
     + 'var prog=document.getElementById("prog");\n'
@@ -249,90 +248,99 @@ function buildPickerHtml(docId, username) {
     + 'var result=document.getElementById("result");\n'
     + 'var finfo=document.getElementById("finfo");\n'
     + 'var btnClose=document.getElementById("btn-close");\n'
-
-    /* Wire events */
     + 'zone.addEventListener("click",function(e){if(!uploading&&e.target!==fi)fi.click();});\n'
     + 'zone.addEventListener("dragover",function(e){e.preventDefault();zone.classList.add("over");});\n'
     + 'zone.addEventListener("dragleave",function(){zone.classList.remove("over");});\n'
     + 'zone.addEventListener("drop",function(e){e.preventDefault();zone.classList.remove("over");if(!uploading&&e.dataTransfer.files[0])go(e.dataTransfer.files[0]);});\n'
     + 'fi.addEventListener("change",function(){if(!uploading&&fi.files[0])go(fi.files[0]);});\n'
-
-    /* Prevent accidental close during upload */
     + 'window.addEventListener("beforeunload",function(e){if(uploading){e.preventDefault();e.returnValue="";}});\n'
 
-    /* Main upload function */
-    + 'function go(file){\n'
-    + '  if(file.size>26214400){showErr("File too large. Maximum is 25 MB.");return;}\n'
-    + '  uploading=true;\n'
-    + '  zone.style.opacity=".4";zone.style.pointerEvents="none";\n'
-    + '  finfo.style.display="";\n'
-    + '  document.getElementById("fname").textContent=file.name;\n'
-    + '  document.getElementById("fsize").textContent=file.size>1048576?(file.size/1048576).toFixed(1)+" MB":(Math.round(file.size/1024))+" KB";\n'
-    + '  prog.style.display="";\n'
-    + '  result.style.display="none";\n'
-    + '  setProgress(5,"Reading file…");\n'
+    + 'function startSim(from,to,label,ms){\n'
+    + '  clearInterval(simTimer);\n'
+    + '  var cur=from,step=(to-from)/(ms/80);\n'
+    + '  setP(cur,label);\n'
+    + '  simTimer=setInterval(function(){cur=Math.min(cur+step,to);setP(Math.round(cur),label);if(cur>=to)clearInterval(simTimer);},80);\n'
+    + '}\n'
 
-    /* Read as base64 */
+    + 'function setP(pct,label,cls){\n'
+    + '  progFill.style.width=pct+"%";\n'
+    + '  if(cls)progFill.className="prog-fill "+cls;\n'
+    + '  if(label){progTxt.textContent=label;}\n'
+    + '  progPct.textContent=pct+"%";\n'
+    + '}\n'
+
+    + 'function go(file){\n'
+    + '  if(file.size>26214400){showErr("File too large — max 25 MB.");return;}\n'
+    + '  uploading=true;\n'
+
+    /* Immediately show everything — do NOT rely on async for UI visibility */
+    + '  zone.style.opacity="0.3";\n'
+    + '  zone.style.pointerEvents="none";\n'
+
+    /* Show file info */
+    + '  finfo.style.display="block";\n'
+    + '  document.getElementById("fname").textContent=file.name;\n'
+    + '  document.getElementById("fsize").textContent=file.size>1048576?(file.size/1048576).toFixed(1)+" MB":Math.round(file.size/1024)+" KB";\n'
+
+    /* Show progress bar immediately */
+    + '  prog.style.display="block";\n'
+    + '  result.style.display="none";\n'
+    + '  setP(2,"📖 Reading file…");\n'
+
+    /* Read file */
     + '  var reader=new FileReader();\n'
     + '  reader.onerror=function(){showErr("Could not read the file.");};\n'
-    + '  reader.onprogress=function(e){if(e.lengthComputable)setProgress(5+Math.round(e.loaded/e.total*25),"Reading…");};\n'
     + '  reader.onload=function(ev){\n'
-    + '    setProgress(30,"Sending to Google Drive…");\n'
+    + '    startSim(25,75,"☁ Uploading to Google Drive…",4000);\n'
     + '    var b64=ev.target.result.split(",")[1];\n'
-
-    /* POST via XHR so we can track progress */
-    + '    var xhr=new XMLHttpRequest();\n'
-    + '    xhr.open("POST",SCRIPT_URL,true);\n'
-    + '    xhr.setRequestHeader("Content-Type","text/plain");\n'
-    + '    xhr.upload.onprogress=function(e){\n'
-    + '      if(e.lengthComputable)setProgress(30+Math.round(e.loaded/e.total*50),"Uploading…");\n'
-    + '    };\n'
-    + '    xhr.onload=function(){\n'
-    + '      setProgress(90,"Processing…");\n'
-    + '      try{\n'
-    + '        var res=JSON.parse(xhr.responseText);\n'
-    + '        if(res.ok){\n'
-    + '          setProgress(100,"✅ Upload complete!","done");\n'
-    + '          showOk(res);\n'
-    + '          if(window.opener)window.opener.postMessage({type:"IMS_FILE_UPLOADED",file:res},"*");\n'
-    + '          setTimeout(function(){window.close();},2500);\n'
-    + '        } else { showErr(res.error||"Upload failed on server."); }\n'
-    + '      } catch(e){ showErr("Server response error: "+xhr.responseText.substring(0,120)); }\n'
-    + '    };\n'
-    + '    xhr.onerror=function(){showErr("Network error — could not reach server.");};\n'
-    + '    xhr.ontimeout=function(){showErr("Upload timed out. Try a smaller file.");};\n'
-    + '    xhr.timeout=120000;\n'
-    /* Send JSON payload as text/plain to satisfy Apps Script CORS */
     + '    var payload=JSON.stringify({action:"uploadFilePicker",docId:DOC_ID,username:USERNAME,fileName:file.name,mimeType:file.type||"application/octet-stream",b64:b64});\n'
-    + '    xhr.send(payload);\n'
+    + '    fetch(SCRIPT_URL,{method:"POST",body:payload,redirect:"follow"})\n'
+    + '    .then(function(r){startSim(75,90,"⚙ Processing…",1200);return r.text();})\n'
+    + '    .then(function(txt){\n'
+    + '      clearInterval(simTimer);\n'
+    + '      var res;\n'
+    + '      try{res=JSON.parse(txt);}catch(e){showErr("Bad response — check Apps Script deployment.");return;}\n'
+    + '      if(res.ok){setP(100,"✅ Done!","done");showOk(res);if(window.opener)window.opener.postMessage({type:"IMS_FILE_UPLOADED",file:res},"*");setTimeout(function(){window.close();},3000);}\n'
+    + '      else{showErr(res.error||"Upload failed on server.");}\n'
+    + '    })\n'
+    + '    .catch(function(err){clearInterval(simTimer);showErr("Network error: "+err.message);});\n'
     + '  };\n'
+    /* Simulate reading progress */
+    + '  startSim(2,25,"📖 Reading file…",600);\n'
     + '  reader.readAsDataURL(file);\n'
     + '}\n'
 
-    /* Helpers */
-    + 'function setProgress(pct,label,cls){\n'
-    + '  progFill.style.width=pct+"%";\n'
-    + '  if(cls)progFill.className="prog-fill "+cls;\n'
-    + '  progTxt.textContent=label||"";\n'
-    + '  progPct.textContent=pct+"%";\n'
-    + '}\n'
     + 'function showOk(res){\n'
+    + '  result.style.display="block";\n'
     + '  result.className="result ok";\n'
-    + '  result.innerHTML="✅ <strong>"+res.fileName+"</strong> uploaded successfully to Google Drive.<br>'
-    +   '<small>This window will close automatically.</small>";\n'
-    + '  result.style.display="";\n'
-    + '  btnClose.style.display="";\n'
+    + '  result.innerHTML="✅ <strong>"+res.fileName+"</strong> saved to Google Drive.<br><small style=\'opacity:.7\'>You can now close this window.</small>";\n'
+    + '  btnClose.style.display="block";\n'
     + '  uploading=false;\n'
+    /* postMessage to parent */
+    + '  if(window.opener){try{window.opener.postMessage({type:"IMS_FILE_UPLOADED",file:res},"*");}catch(e){}}\n'
+    /* Auto-close: navigate to blank page — works even when window.close() is blocked */
+    + '  setTimeout(function(){\n'
+    + '    try{window.close();}catch(e){}\n'
+    + '    try{window.location.replace("about:blank");}catch(e){}\n'
+    + '  },3000);\n'
     + '}\n'
+
     + 'function showErr(msg){\n'
-    + '  setProgress(100,"Failed","fail");\n'
+    + '  clearInterval(simTimer);\n'
+    + '  setP(100,"❌ Failed","fail");\n'
+    + '  result.style.display="block";\n'
     + '  result.className="result err";\n'
-    + '  result.innerHTML="❌ "+msg+"<br><small>Please try again or use a smaller file.</small>";\n'
-    + '  result.style.display="";\n'
-    + '  btnClose.style.display="";\n'
-    + '  zone.style.opacity=""; zone.style.pointerEvents="";\n'
+    + '  result.innerHTML="❌ "+msg+"<br><small>Please try again.</small>";\n'
+    + '  btnClose.style.display="block";\n'
+    + '  zone.style.opacity="";\n'
+    + '  zone.style.pointerEvents="";\n'
     + '  uploading=false;\n'
     + '}\n'
+    /* Close button: try all methods */
+    + 'btnClose.addEventListener("click",function(){\n'
+    + '  try{window.close();}catch(e){}\n'
+    + '  try{window.location.replace("about:blank");}catch(e){}\n'
+    + '});\n'
     + '</script></body></html>';
 }
 
@@ -372,6 +380,7 @@ function uploadFileFromPicker(docId, fileName, mimeType, base64Data, uploadedBy)
       ok:          true,
       fileId:      fileId,
       fileName:    fileName,
+      docId:       docId,
       webViewLink: webViewLink,
       downloadLink:downloadLink,
       previewLink: 'https://drive.google.com/file/d/' + fileId + '/preview',
