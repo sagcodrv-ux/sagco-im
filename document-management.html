@@ -325,9 +325,8 @@ function seedIfEmpty() {
 }
 
 /* ── Load latest revision numbers from Google Sheets ───────────
-   Fetches 📋 Versions sheet and updates revision numbers in the
-   main table. Cross-browser — all users see current rev numbers.
-   Called after seedIfEmpty() so local data always shows first.  */
+   Only updates rev if the Sheets version is genuinely newer.
+   Prevents test data from overwriting correct seed values.     */
 function loadLatestRevisions() {
   var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
   if (!url) return;
@@ -337,26 +336,26 @@ function loadLatestRevisions() {
       if (!data || !data.versions || !data.versions.length) return;
       var docs = gAll();
       var changed = false;
-      /* Group versions by docId — find latest rev per doc */
-      var latestRevMap = {};
+      /* Group by docId — find latest rev per doc */
+      var latestMap = {};
       data.versions.forEach(function(v){
-        var did = v.docId;
-        if (!did) return;
-        if (!latestRevMap[did] || String(v.rev) > String(latestRevMap[did])) {
-          latestRevMap[did] = v.rev;
+        if (!v.docId || !v.rev) return;
+        var rev = String(v.rev).trim();
+        /* Skip obviously wrong test values (> 4 chars is suspicious) */
+        if (rev.length > 4) return;
+        if (!latestMap[v.docId] || rev > String(latestMap[v.docId])) {
+          latestMap[v.docId] = rev;
         }
       });
-      /* Update docs with latest rev from Sheets */
       docs.forEach(function(d){
-        if (latestRevMap[d.id] && latestRevMap[d.id] !== d.rev) {
-          d.rev = latestRevMap[d.id];
+        var sheetRev = latestMap[d.id];
+        /* Only update if sheet rev is different AND looks like a real rev number */
+        if (sheetRev && sheetRev !== d.rev && sheetRev.length <= 4) {
+          d.rev = sheetRev;
           changed = true;
         }
       });
-      if (changed) {
-        sAll(docs);
-        renderTable();
-      }
+      if (changed) { sAll(docs); renderTable(); }
     })
     .catch(function(){});
 }
@@ -879,11 +878,30 @@ function openVersionModal(doc){
   var pendingVersionFile = null;
 
   function loadVersions(cb) {
-    if (!SHEETS_URL_VAL) { cb(doc.versions || []); return; }
+    var localVers = doc.versions || [];
+    if (!SHEETS_URL_VAL) { cb(localVers); return; }
     fetch(SHEETS_URL_VAL + '?action=listVersions&docId=' + encodeURIComponent(doc.id))
       .then(function(r){ return r.json(); })
-      .then(function(data){ cb(data.versions || doc.versions || []); })
-      .catch(function(){ cb(doc.versions || []); });
+      .then(function(data){
+        var sheetVers = data.versions || [];
+        /* Merge sheet + local versions, deduplicate by rev */
+        var merged = sheetVers.slice();
+        localVers.forEach(function(lv){
+          var dup = merged.some(function(sv){
+            return String(sv.rev).trim() === String(lv.rev).trim();
+          });
+          if (!dup) merged.push(lv);
+        });
+        /* Sort newest first, filter out bad test data */
+        merged = merged.filter(function(v){
+          return v.rev && String(v.rev).trim().length <= 6;
+        });
+        merged.sort(function(a,b){
+          return String(b.rev).localeCompare(String(a.rev),undefined,{numeric:true});
+        });
+        cb(merged.length ? merged : localVers);
+      })
+      .catch(function(){ cb(localVers); });
   }
 
   function buildHistory(versions) {
