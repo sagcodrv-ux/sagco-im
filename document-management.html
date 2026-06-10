@@ -695,62 +695,83 @@ function openAttachModal(doc){
     '<div class="dms-modal-hdr"><h4>📎 Attachments — '+esc(doc.number)+' · '+esc(doc.title)+'</h4><button class="dms-modal-close">×</button></div>'
     +'<div class="dms-modal-body">'
     +roleNotice
-    +storageNotice()
-    +'<div class="req-text" style="margin-bottom:12px">Attach supporting objective evidence: inspection records, certificates, signed forms, photographs, test reports. '
-    +(DMS_DRIVE.isConfigured()
-        ? 'Files are uploaded to <strong>Google Drive</strong> and accessible to all users on all devices.'
-        : 'Files will be saved locally until Google Drive is configured in data.js.')
-    +'  Max <strong>'+MAX_FILE_MB+' MB</strong> per file.</div>'
+    +'<div class="req-text" style="margin-bottom:12px">Supporting objective evidence attached to this document record. '
+    +'Files are uploaded to <strong>Google Drive</strong> and accessible to all users on all devices.</div>'
     +(canEd()
-      ?'<div class="drop-zone" id="att-zone">'
-        +'<input type="file" id="att-inp" style="display:none" multiple>'
-        +'<div>📂 <strong>Click to select files</strong> or drag and drop here</div>'
-        +'<div style="margin-top:5px;font-size:10px;color:var(--text-lt)">PDF · DOCX · XLSX · JPG · PNG · any format</div>'
-        +'<div class="upload-prog" id="att-prog"></div>'
+      ?'<div style="margin-bottom:14px">'
+        +'<button id="att-upload-btn" class="btn btn-gold" style="width:100%;padding:11px;font-size:13px">'
+          +'📂 &nbsp;Click to Upload a File'
+        +'</button>'
+        +'<div style="font-size:10px;color:var(--text-lt);text-align:center;margin-top:6px">'
+          +'A secure upload window will open · PDF · DOCX · XLSX · JPG · PNG · max 25 MB'
         +'</div>'
+        +'<div id="att-status" style="font-size:11px;color:var(--grn);text-align:center;margin-top:6px;min-height:18px"></div>'
+      +'</div>'
       :'')
-    +'<div id="att-list" style="margin-top:10px"></div>'
+    +'<div id="att-list"></div>'
     +'</div>'
     +'<div class="dms-modal-ftr">'
       +'<button class="btn btn-ghost-dk" id="att-cancel">Close</button>'
     +'</div>'
   );
 
-  document.getElementById('att-cancel').addEventListener('click',closeOverlay);
+  document.getElementById('att-cancel').addEventListener('click', closeOverlay);
   loadAndRender();
 
-  if(canEd()){
-    var zone=document.getElementById('att-zone');
-    var inp=document.getElementById('att-inp');
-    zone.addEventListener('click',function(e){ if(e.target!==inp)inp.click(); });
-    zone.addEventListener('dragover',function(e){ e.preventDefault(); zone.classList.add('drag-over'); });
-    zone.addEventListener('dragleave',function(){ zone.classList.remove('drag-over'); });
-    zone.addEventListener('drop',function(e){ e.preventDefault(); zone.classList.remove('drag-over'); handleUpload(Array.from(e.dataTransfer.files)); });
-    inp.addEventListener('change',function(){ handleUpload(Array.from(inp.files)); inp.value=''; });
+  /* ── Listen for file uploaded message from the popup ──── */
+  function onPopupMessage(event) {
+    if (!event.data || event.data.type !== 'IMS_FILE_UPLOADED') return;
+    var f = event.data.file;
+    if (!f || !f.ok) return;
+    /* Cache locally */
+    DMS_DRIVE.localSet(doc.id,
+      DMS_DRIVE.localGet(doc.id).concat([{
+        fileId:       f.fileId,
+        fileName:     f.fileName,
+        mimeType:     f.mimeType || '',
+        size:         f.size     || '',
+        date:         f.date     || new Date().toISOString().split('T')[0],
+        user:         currentUser(),
+        webViewLink:  f.webViewLink,
+        downloadLink: f.downloadLink,
+        previewLink:  f.previewLink || null,
+        attachType:   'attachment',
+        revNote:      '',
+        source:       'drive',
+      }])
+    );
+    logH(doc.id, 'ATTACHMENT UPLOADED', f.fileName);
+    DMS_DRIVE.logAudit('FILE_UPLOADED', doc.id+' — '+f.fileName,
+      (IMS_AUTH.getUser()||{}).userId, currentUser());
+    /* Update status label and refresh list */
+    var st = document.getElementById('att-status');
+    if (st) st.textContent = '✅ '+f.fileName+' uploaded successfully';
+    loadAndRender();
+  }
+  window.addEventListener('message', onPopupMessage);
 
-    function handleUpload(files){
-      if(!files.length)return;
-      var prog=document.getElementById('att-prog');
-      prog.textContent='Uploading '+files.length+' file(s)…';
-      var promises=files.map(function(f){
-        return DMS_DRIVE.uploadFile(f, doc.id, 'attachment', '', currentUser())
-          .then(function(result){
-            if(result.warning) toast(result.warning,'ok');
-            logH(doc.id,'ATTACHMENT UPLOADED', f.name);
-            DMS_DRIVE.logAudit('FILE_UPLOADED', doc.id+' — '+f.name,
-              (IMS_AUTH.getUser()||{}).userId, currentUser());
-            return result;
-          });
-      });
-      Promise.all(promises)
-        .then(function(results){
-          prog.textContent=results.length+' file(s) '+(DMS_DRIVE.isConfigured()?'uploaded to Google Drive.':'saved locally.');
-          var docs=gAll(), d2=docs.find(function(x){return x.id===doc.id;});
-          if(d2){ d2._attachCount=(d2._attachCount||0)+results.length; sAll(docs); }
-          loadAndRender();
-        })
-        .catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
-    }
+  /* Clean up listener when modal closes */
+  document.querySelector('.dms-modal-close').addEventListener('click', function() {
+    window.removeEventListener('message', onPopupMessage);
+  });
+  document.getElementById('att-cancel').addEventListener('click', function() {
+    window.removeEventListener('message', onPopupMessage);
+  });
+
+  if (canEd()) {
+    document.getElementById('att-upload-btn').addEventListener('click', function() {
+      var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
+      if (!url) { toast('SHEETS_URL not configured in data.js','err'); return; }
+      var popupUrl = url
+        + '?action=picker'
+        + '&docId='    + encodeURIComponent(doc.id)
+        + '&username=' + encodeURIComponent(currentUser());
+      var popup = window.open(popupUrl, 'SAGCO_Upload',
+        'width=560,height=520,top=120,left=300,resizable=no,scrollbars=no');
+      if (!popup) {
+        toast('Popup blocked — allow popups for this site in your browser settings.','err');
+      }
+    });
   }
 }
 

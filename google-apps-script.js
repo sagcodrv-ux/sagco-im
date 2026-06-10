@@ -119,69 +119,294 @@ var TABS = {
    POST requests handled by doPost() for file uploads.
 ══════════════════════════════════════════════════════════════ */
 function doGet(e) {
+  var action = e.parameter.action || 'read';
+
+  /* ── Serve the file picker HTML page ─────────────────────── */
+  if (action === 'picker') {
+    var docId    = e.parameter.docId    || '';
+    var username = e.parameter.username || 'unknown';
+    var html     = buildPickerHtml(docId, username);
+    return HtmlService.createHtmlOutput(html)
+      .setTitle('SAGCO IMS — Upload File')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
+  /* ── Standard JSON API ────────────────────────────────────── */
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
 
   try {
-    var action = e.parameter.action || 'read';
     var result;
-
     switch (action) {
-      case 'read':
-        result = readSheet(e.parameter.tab);
+      case 'read':       result = readSheet(e.parameter.tab);               break;
+      case 'readDoc':    result = readDocument(e.parameter.docId);          break;
+      case 'listFiles':  result = listDocumentFiles(e.parameter.docId);     break;
+      case 'writeDoc':   result = writeDocument(e.parameter);               break;
+      case 'deleteAttachment': result = deleteAttachmentFromSheet(e.parameter.fileId, e.parameter.docId); break;
+      case 'uploadFilePicker':
+        /* Called via GET from the picker popup — handles the actual Drive upload */
+        result = uploadFileFromPicker(
+          e.parameter.docId,
+          e.parameter.fileName,
+          e.parameter.mimeType,
+          e.parameter.b64,
+          e.parameter.username
+        );
         break;
-
-      case 'readDoc':
-        /* Read a single document record by ID */
-        result = readDocument(e.parameter.docId);
-        break;
-
-      case 'listFiles':
-        /* List all files attached to a document */
-        result = listDocumentFiles(e.parameter.docId);
-        break;
-
-      case 'writeDoc':
-        /* Write / update a document record */
-        result = writeDocument(e.parameter);
-        break;
-
       case 'logAudit':
-        /* Append an audit log entry */
         result = appendAuditLog(e.parameter.action2, e.parameter.detail,
                                 e.parameter.userId, e.parameter.username);
         break;
-
       default:
         result = { error: 'Unknown action: ' + action };
     }
-
     output.setContent(JSON.stringify(result));
   } catch (err) {
-    output.setContent(JSON.stringify({ error: err.message, stack: err.stack }));
+    output.setContent(JSON.stringify({ error: err.message }));
   }
   return output;
 }
 
-/* ── POST handler: file upload to Google Drive ──────────────── */
+/* ══════════════════════════════════════════════════════════════
+   FILE PICKER HTML
+   Served as a popup from the IMS website.
+   Uses multipart POST to send file to Apps Script.
+   Progress bar + success/error feedback shown in popup.
+   postMessage sends link back to parent website on success.
+══════════════════════════════════════════════════════════════ */
+function buildPickerHtml(docId, username) {
+  var scriptUrl = ScriptApp.getService().getUrl();
+
+  return '<!DOCTYPE html><html><head>'
+    + '<meta charset="UTF-8">'
+    + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<title>SAGCO IMS — Upload File</title>'
+    + '<style>'
+    + '*{box-sizing:border-box;margin:0;padding:0}'
+    + 'body{font-family:Arial,sans-serif;background:#f0f3f9;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}'
+    + '.box{background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);width:100%;max-width:500px;overflow:hidden}'
+    + '.hdr{background:#1B2A4A;color:#fff;padding:16px 22px}'
+    + '.hdr h2{font-size:14px;font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:8px}'
+    + '.hdr p{font-size:10px;opacity:.65}'
+    + '.body{padding:22px}'
+    + '.zone{border:2px dashed #c8d4e8;border-radius:8px;padding:28px 20px;text-align:center;cursor:pointer;transition:all .15s;background:#f8fafc}'
+    + '.zone:hover,.zone.over{border-color:#C9A84C;background:#fef9ed}'
+    + '.zone .ico{font-size:32px;margin-bottom:8px}'
+    + '.zone strong{display:block;color:#1B2A4A;font-size:13px;margin-bottom:4px}'
+    + '.zone small{font-size:10px;color:#5A6478}'
+    + 'input[type=file]{display:none}'
+    /* Progress */
+    + '.prog{margin-top:16px;display:none}'
+    + '.prog-label{font-size:11px;color:#5A6478;margin-bottom:6px;display:flex;justify-content:space-between}'
+    + '.prog-track{height:8px;background:#e8ecf3;border-radius:4px;overflow:hidden}'
+    + '.prog-fill{height:100%;background:#C9A84C;border-radius:4px;width:0;transition:width .4s ease}'
+    + '.prog-fill.done{background:#2E7D32}'
+    + '.prog-fill.fail{background:#B71C1C}'
+    /* Result */
+    + '.result{margin-top:14px;padding:11px 14px;border-radius:6px;font-size:12px;line-height:1.5;display:none}'
+    + '.result.ok{background:#e8f5e9;border-left:4px solid #2E7D32;color:#1b5e20}'
+    + '.result.err{background:#fdecea;border-left:4px solid #B71C1C;color:#7f1111}'
+    /* File info */
+    + '.finfo{margin-top:12px;padding:10px 12px;background:#f0f3f9;border-radius:6px;font-size:11px;color:#1B2A4A;display:none}'
+    + '.finfo strong{display:block;margin-bottom:2px}'
+    + '.note{font-size:10px;color:#8899aa;text-align:center;margin-top:14px;line-height:1.5}'
+    + '.btn-close{display:none;width:100%;margin-top:12px;background:#1B2A4A;color:#fff;border:none;border-radius:6px;padding:10px;font-size:12px;font-weight:700;cursor:pointer}'
+    + '</style></head><body>'
+    + '<div class="box">'
+    +   '<div class="hdr"><h2>📎 Upload Supporting Document</h2>'
+    +     '<p>SAGCO IMS · Doc: ' + docId + ' · User: ' + username + '</p></div>'
+    +   '<div class="body">'
+    +     '<div class="zone" id="zone">'
+    +       '<input type="file" id="fi">'
+    +       '<div class="ico">📂</div>'
+    +       '<strong>Click to select a file or drag &amp; drop</strong>'
+    +       '<small>PDF · DOCX · XLSX · JPG · PNG · any format · max 25 MB</small>'
+    +     '</div>'
+    +     '<div class="finfo" id="finfo"><strong id="fname"></strong><span id="fsize"></span></div>'
+    +     '<div class="prog" id="prog">'
+    +       '<div class="prog-label"><span id="prog-txt">Uploading…</span><span id="prog-pct">0%</span></div>'
+    +       '<div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>'
+    +     '</div>'
+    +     '<div class="result" id="result"></div>'
+    +     '<button class="btn-close" id="btn-close" onclick="window.close()">Close this window</button>'
+    +     '<p class="note">Files are saved to the SAGCO IMS Google Drive folder<br>and accessible to all users on all devices.</p>'
+    +   '</div>'
+    + '</div>'
+
+    + '<script>'
+    + 'var SCRIPT_URL=' + JSON.stringify(scriptUrl) + ';\n'
+    + 'var DOC_ID='     + JSON.stringify(docId)     + ';\n'
+    + 'var USERNAME='   + JSON.stringify(username)  + ';\n'
+    + 'var uploading=false;\n'
+
+    /* DOM refs */
+    + 'var zone=document.getElementById("zone");\n'
+    + 'var fi=document.getElementById("fi");\n'
+    + 'var prog=document.getElementById("prog");\n'
+    + 'var progFill=document.getElementById("prog-fill");\n'
+    + 'var progTxt=document.getElementById("prog-txt");\n'
+    + 'var progPct=document.getElementById("prog-pct");\n'
+    + 'var result=document.getElementById("result");\n'
+    + 'var finfo=document.getElementById("finfo");\n'
+    + 'var btnClose=document.getElementById("btn-close");\n'
+
+    /* Wire events */
+    + 'zone.addEventListener("click",function(e){if(!uploading&&e.target!==fi)fi.click();});\n'
+    + 'zone.addEventListener("dragover",function(e){e.preventDefault();zone.classList.add("over");});\n'
+    + 'zone.addEventListener("dragleave",function(){zone.classList.remove("over");});\n'
+    + 'zone.addEventListener("drop",function(e){e.preventDefault();zone.classList.remove("over");if(!uploading&&e.dataTransfer.files[0])go(e.dataTransfer.files[0]);});\n'
+    + 'fi.addEventListener("change",function(){if(!uploading&&fi.files[0])go(fi.files[0]);});\n'
+
+    /* Prevent accidental close during upload */
+    + 'window.addEventListener("beforeunload",function(e){if(uploading){e.preventDefault();e.returnValue="";}});\n'
+
+    /* Main upload function */
+    + 'function go(file){\n'
+    + '  if(file.size>26214400){showErr("File too large. Maximum is 25 MB.");return;}\n'
+    + '  uploading=true;\n'
+    + '  zone.style.opacity=".4";zone.style.pointerEvents="none";\n'
+    + '  finfo.style.display="";\n'
+    + '  document.getElementById("fname").textContent=file.name;\n'
+    + '  document.getElementById("fsize").textContent=file.size>1048576?(file.size/1048576).toFixed(1)+" MB":(Math.round(file.size/1024))+" KB";\n'
+    + '  prog.style.display="";\n'
+    + '  result.style.display="none";\n'
+    + '  setProgress(5,"Reading file…");\n'
+
+    /* Read as base64 */
+    + '  var reader=new FileReader();\n'
+    + '  reader.onerror=function(){showErr("Could not read the file.");};\n'
+    + '  reader.onprogress=function(e){if(e.lengthComputable)setProgress(5+Math.round(e.loaded/e.total*25),"Reading…");};\n'
+    + '  reader.onload=function(ev){\n'
+    + '    setProgress(30,"Sending to Google Drive…");\n'
+    + '    var b64=ev.target.result.split(",")[1];\n'
+
+    /* POST via XHR so we can track progress */
+    + '    var xhr=new XMLHttpRequest();\n'
+    + '    xhr.open("POST",SCRIPT_URL,true);\n'
+    + '    xhr.setRequestHeader("Content-Type","text/plain");\n'
+    + '    xhr.upload.onprogress=function(e){\n'
+    + '      if(e.lengthComputable)setProgress(30+Math.round(e.loaded/e.total*50),"Uploading…");\n'
+    + '    };\n'
+    + '    xhr.onload=function(){\n'
+    + '      setProgress(90,"Processing…");\n'
+    + '      try{\n'
+    + '        var res=JSON.parse(xhr.responseText);\n'
+    + '        if(res.ok){\n'
+    + '          setProgress(100,"✅ Upload complete!","done");\n'
+    + '          showOk(res);\n'
+    + '          if(window.opener)window.opener.postMessage({type:"IMS_FILE_UPLOADED",file:res},"*");\n'
+    + '          setTimeout(function(){window.close();},2500);\n'
+    + '        } else { showErr(res.error||"Upload failed on server."); }\n'
+    + '      } catch(e){ showErr("Server response error: "+xhr.responseText.substring(0,120)); }\n'
+    + '    };\n'
+    + '    xhr.onerror=function(){showErr("Network error — could not reach server.");};\n'
+    + '    xhr.ontimeout=function(){showErr("Upload timed out. Try a smaller file.");};\n'
+    + '    xhr.timeout=120000;\n'
+    /* Send JSON payload as text/plain to satisfy Apps Script CORS */
+    + '    var payload=JSON.stringify({action:"uploadFilePicker",docId:DOC_ID,username:USERNAME,fileName:file.name,mimeType:file.type||"application/octet-stream",b64:b64});\n'
+    + '    xhr.send(payload);\n'
+    + '  };\n'
+    + '  reader.readAsDataURL(file);\n'
+    + '}\n'
+
+    /* Helpers */
+    + 'function setProgress(pct,label,cls){\n'
+    + '  progFill.style.width=pct+"%";\n'
+    + '  if(cls)progFill.className="prog-fill "+cls;\n'
+    + '  progTxt.textContent=label||"";\n'
+    + '  progPct.textContent=pct+"%";\n'
+    + '}\n'
+    + 'function showOk(res){\n'
+    + '  result.className="result ok";\n'
+    + '  result.innerHTML="✅ <strong>"+res.fileName+"</strong> uploaded successfully to Google Drive.<br>'
+    +   '<small>This window will close automatically.</small>";\n'
+    + '  result.style.display="";\n'
+    + '  btnClose.style.display="";\n'
+    + '  uploading=false;\n'
+    + '}\n'
+    + 'function showErr(msg){\n'
+    + '  setProgress(100,"Failed","fail");\n'
+    + '  result.className="result err";\n'
+    + '  result.innerHTML="❌ "+msg+"<br><small>Please try again or use a smaller file.</small>";\n'
+    + '  result.style.display="";\n'
+    + '  btnClose.style.display="";\n'
+    + '  zone.style.opacity=""; zone.style.pointerEvents="";\n'
+    + '  uploading=false;\n'
+    + '}\n'
+    + '</script></body></html>';
+}
+
+/* ── Server-side upload function called from picker HTML ──────── */
+function uploadFileFromPicker(docId, fileName, mimeType, base64Data, uploadedBy) {
+  try {
+    var folder = getImsFolder();
+
+    /* Sub-folder per document */
+    var subFolderName = docId || 'general';
+    var subFolder;
+    var subFolders = folder.getFoldersByName(subFolderName);
+    if (subFolders.hasNext()) {
+      subFolder = subFolders.next();
+    } else {
+      subFolder = folder.createFolder(subFolderName);
+    }
+
+    /* Decode base64 and create file */
+    var decoded  = Utilities.base64Decode(base64Data);
+    var blob     = Utilities.newBlob(decoded, mimeType || 'application/octet-stream', fileName);
+    var file     = subFolder.createFile(blob);
+
+    /* Make accessible to anyone with the link */
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    var fileId       = file.getId();
+    var webViewLink  = 'https://drive.google.com/file/d/' + fileId + '/view';
+    var downloadLink = 'https://drive.google.com/uc?export=download&id=' + fileId;
+
+    /* Record in Attachments sheet */
+    recordAttachmentInSheet(docId, fileId, fileName, mimeType,
+                            webViewLink, downloadLink, uploadedBy || 'unknown',
+                            '', 'attachment');
+
+    return {
+      ok:          true,
+      fileId:      fileId,
+      fileName:    fileName,
+      webViewLink: webViewLink,
+      downloadLink:downloadLink,
+      previewLink: 'https://drive.google.com/file/d/' + fileId + '/preview',
+      source:      'drive',
+      date:        new Date().toISOString().split('T')[0],
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/* ── POST handler ───────────────────────────────────────────── */
 function doPost(e) {
   var output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
-
   try {
-    var params  = JSON.parse(e.postData.contents);
-    var action  = params.action || 'uploadFile';
+    var body = e.postData ? e.postData.contents : '{}';
+    var params = {};
+    try { params = JSON.parse(body); } catch(pe) { params = { error: 'parse failed' }; }
 
-    if (action === 'uploadFile') {
-      output.setContent(JSON.stringify(uploadFileToDrive(params)));
+    var action = params.action || '';
+    var result;
+
+    if (action === 'uploadFilePicker') {
+      result = uploadFileFromPicker(
+        params.docId, params.fileName, params.mimeType, params.b64, params.username);
     } else if (action === 'deleteFile') {
-      output.setContent(JSON.stringify(deleteFileFromDrive(params.fileId)));
+      result = deleteFileFromDrive(params.fileId);
     } else if (action === 'saveDocument') {
-      output.setContent(JSON.stringify(saveDocumentRecord(params)));
+      result = saveDocumentRecord(params);
     } else {
-      output.setContent(JSON.stringify({ error: 'Unknown POST action: ' + action }));
+      result = { error: 'Unknown POST action: ' + action };
     }
-  } catch (err) {
+    output.setContent(JSON.stringify(result));
+  } catch(err) {
     output.setContent(JSON.stringify({ error: err.message }));
   }
   return output;
@@ -245,6 +470,28 @@ function uploadFileToDrive(params) {
     previewLink:  previewLink,
     folderId:     subFolder.getId(),
   };
+}
+
+/* ── Delete attachment record from Attachments sheet ────────── */
+function deleteAttachmentFromSheet(fileId, docId) {
+  try {
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('📎 Attachments');
+    if (!sheet) return { ok: false, error: 'Attachments sheet not found' };
+
+    var data = sheet.getDataRange().getValues();
+    for (var i = data.length - 1; i >= 3; i--) {
+      /* fileId is in column B (index 1) */
+      if (String(data[i][1]) === fileId) {
+        sheet.deleteRow(i + 1);
+        updateAttachmentCount(docId);
+        return { ok: true, fileId: fileId, rowDeleted: i + 1 };
+      }
+    }
+    return { ok: false, error: 'File not found in register: ' + fileId };
+  } catch(err) {
+    return { ok: false, error: err.message };
+  }
 }
 
 /* ── Delete a file from Drive ───────────────────────────────── */
