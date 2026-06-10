@@ -960,20 +960,46 @@ function openVersionModal(doc){
       }
 
       if(file){
-        if(st) st.textContent='⏳ Uploading file to Google Drive…';
+        if(st) st.textContent='⏳ Uploading '+file.name+' to Google Drive…';
         saveBtn.disabled=true;
-        DMS_DRIVE.uploadFile(file, doc.id+'_ver_'+newRevNum, 'version', 'Rev.'+newRevNum, currentUser())
-          .then(function(result){
-            saveBtn.disabled=false;
-            if(st) st.textContent='✅ '+file.name+' uploaded';
-            doSave(result);
-          })
-          .catch(function(e){
-            saveBtn.disabled=false;
-            toast('File upload failed: '+e.message,'err');
-            if(st) st.textContent='❌ Upload failed — saving revision without file';
-            doSave(null);
+        /* Read file as base64 then POST directly to Apps Script */
+        var reader=new FileReader();
+        reader.onerror=function(){
+          saveBtn.disabled=false;
+          if(st) st.textContent='❌ Could not read file';
+          doSave(null);
+        };
+        reader.onload=function(ev){
+          var b64=ev.target.result.split(',')[1];
+          var payload=JSON.stringify({
+            action:'uploadFilePicker',
+            docId:doc.id+'_ver',
+            username:currentUser(),
+            fileName:file.name,
+            mimeType:file.type||'application/octet-stream',
+            b64:b64
           });
+          fetch(SHEETS_URL_VAL,{method:'POST',body:payload,redirect:'follow'})
+            .then(function(r){return r.text();})
+            .then(function(txt){
+              saveBtn.disabled=false;
+              var res;
+              try{res=JSON.parse(txt);}catch(e){res={ok:false,error:'Bad response'};}
+              if(res.ok){
+                if(st) st.textContent='✅ '+file.name+' uploaded';
+                doSave(res);
+              } else {
+                if(st) st.textContent='⚠ File upload failed — saving without file';
+                doSave(null);
+              }
+            })
+            .catch(function(){
+              saveBtn.disabled=false;
+              if(st) st.textContent='⚠ Upload error — saving without file';
+              doSave(null);
+            });
+        };
+        reader.readAsDataURL(file);
       } else {
         doSave(null);
       }
