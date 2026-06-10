@@ -141,8 +141,9 @@ function doGet(e) {
       case 'read':       result = readSheet(e.parameter.tab);               break;
       case 'readDoc':    result = readDocument(e.parameter.docId);          break;
       case 'listFiles':  result = listDocumentFiles(e.parameter.docId);     break;
-      case 'listVersions': result = listVersions(e.parameter.docId);        break;
-      case 'saveVersion':  result = saveVersion(e.parameter);               break;
+      case 'listVersions':    result = listVersions(e.parameter.docId);        break;
+      case 'listAllVersions': result = listAllVersions();                       break;
+      case 'saveVersion':     result = saveVersion(e.parameter);               break;
       case 'writeDoc':   result = writeDocument(e.parameter);               break;
       case 'deleteAttachment': result = deleteAttachmentFromSheet(e.parameter.fileId, e.parameter.docId); break;
       case 'uploadFilePicker':
@@ -517,6 +518,22 @@ function deleteAttachmentFromSheet(fileId, docId) {
   } catch(err) {
     return { ok: false, error: err.message };
   }
+}
+
+/* ── List all versions (for rev number sync) ────────────────── */
+function listAllVersions() {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('📋 Versions');
+  if (!sheet) return { versions: [] };
+  var data = sheet.getDataRange().getValues();
+  var versions = [];
+  for (var i = 3; i < data.length; i++) {
+    var row = data[i];
+    if (row[0] && row[1]) {
+      versions.push({ docId: String(row[0]), rev: String(row[1]) });
+    }
+  }
+  return { versions: versions };
 }
 
 /* ── List versions for a document ───────────────────────────── */

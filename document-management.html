@@ -324,7 +324,42 @@ function seedIfEmpty() {
   ]);
 }
 
-/* ── Date helpers ───────────────────────────────────────────── */
+/* ── Load latest revision numbers from Google Sheets ───────────
+   Fetches 📋 Versions sheet and updates revision numbers in the
+   main table. Cross-browser — all users see current rev numbers.
+   Called after seedIfEmpty() so local data always shows first.  */
+function loadLatestRevisions() {
+  var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
+  if (!url) return;
+  fetch(url + '?action=listAllVersions')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data || !data.versions || !data.versions.length) return;
+      var docs = gAll();
+      var changed = false;
+      /* Group versions by docId — find latest rev per doc */
+      var latestRevMap = {};
+      data.versions.forEach(function(v){
+        var did = v.docId;
+        if (!did) return;
+        if (!latestRevMap[did] || String(v.rev) > String(latestRevMap[did])) {
+          latestRevMap[did] = v.rev;
+        }
+      });
+      /* Update docs with latest rev from Sheets */
+      docs.forEach(function(d){
+        if (latestRevMap[d.id] && latestRevMap[d.id] !== d.rev) {
+          d.rev = latestRevMap[d.id];
+          changed = true;
+        }
+      });
+      if (changed) {
+        sAll(docs);
+        renderTable();
+      }
+    })
+    .catch(function(){});
+}
 function daysUntil(d){ return Math.ceil((new Date(d)-new Date())/86400000); }
 function revCls(d){ if(!d)return''; var n=daysUntil(d); if(n<0)return'dms-overdue'; if(n<90)return'dms-duesoon'; return''; }
 function revLbl(d){ if(!d)return'—'; var n=daysUntil(d); if(n<0)return d+' ⚠'; if(n<90)return d+' ('+n+'d)'; return d; }
@@ -1176,6 +1211,8 @@ IMS_AUTH.init({
     populatePageFilter();
     updateRoleUI();
     renderTable();
+    /* Load latest revision numbers from Sheets — cross-browser sync */
+    setTimeout(loadLatestRevisions, 1000);
     /* Pre-load attachment counts from Apps Script */
     setTimeout(preloadAttachmentCounts, 1500);
     initPage('document-management.html');
