@@ -919,19 +919,20 @@ function openVersionModal(doc){
     if(uploadBtn) uploadBtn.addEventListener('click',function(){
       if(!SHEETS_URL_VAL){toast('SHEETS_URL not configured','err');return;}
       window._activeUploadDocId = doc.id+'_version';
+      window._pendingVersionFile = null; /* reset */
       var popupUrl = SHEETS_URL_VAL+'?action=picker&docId='+encodeURIComponent(doc.id+'_version')+'&username='+encodeURIComponent(currentUser());
       var popup = window.open(popupUrl,'SAGCO_VersionUpload','width=560,height=540,top=100,left=200,resizable=no,scrollbars=no');
       if(!popup){toast('Popup blocked','err');return;}
-      var msgH=function(event){
-        if(!event.data||event.data.type!=='IMS_FILE_UPLOADED')return;
-        var f=event.data.file;
-        if(!f||!f.ok)return;
-        window.removeEventListener('message',msgH);
-        pendingVersionFile=f;
-        var st=document.getElementById('nv-file-status');
-        if(st) st.textContent='✅ '+f.fileName+' ready';
-      };
-      window.addEventListener('message',msgH);
+      /* Poll for pending file set by global message listener */
+      var pollV=setInterval(function(){
+        if(window._pendingVersionFile){
+          clearInterval(pollV);
+          pendingVersionFile=window._pendingVersionFile;
+          var st=document.getElementById('nv-file-status');
+          if(st){st.textContent='✅ '+pendingVersionFile.fileName+' ready';st.style.color='var(--grn)';}
+        }
+        if(popup.closed) clearInterval(pollV);
+      },500);
     });
 
     var saveBtn=document.getElementById('nv-save');
@@ -1071,10 +1072,25 @@ window.addEventListener('message', function(event) {
   var f = event.data.file;
   if (!f || !f.ok) return;
 
-  var docId = f.docId || window._activeUploadDocId || '';
-  if (!docId) return;
+  var rawDocId = f.docId || window._activeUploadDocId || '';
+  if (!rawDocId) return;
 
-  /* Cache locally immediately — polling will pick this up */
+  /* Determine if this is a version file upload (docId ends with _version) */
+  var isVersion = rawDocId.indexOf('_version') >= 0;
+  var docId     = isVersion ? rawDocId.replace('_version', '') : rawDocId;
+
+  if (isVersion) {
+    /* ── Version file uploaded ─────────────────────────────
+       Update the nv-file-status label in the version modal */
+    var st = document.getElementById('nv-file-status');
+    if (st) st.textContent = '✅ ' + f.fileName + ' ready — click Save New Revision';
+    /* Store as pending version file for the save button */
+    window._pendingVersionFile = f;
+    toast('✅ ' + f.fileName + ' ready — fill in the form and click Save New Revision', 'ok');
+    return;
+  }
+
+  /* ── Attachment file uploaded ──────────────────────────── */
   if (typeof DMS_DRIVE !== 'undefined') {
     var existing = DMS_DRIVE.localGet(docId);
     if (!existing.some(function(x){ return x.fileId === f.fileId; })) {
@@ -1095,8 +1111,6 @@ window.addEventListener('message', function(event) {
       DMS_DRIVE.localSet(docId, existing);
     }
   }
-  /* Polling in openAttachModal will detect the new cached file
-     and refresh the list automatically within 2 seconds */
   if (typeof logH === 'function') logH(docId, 'ATTACHMENT UPLOADED', f.fileName);
 });
 
