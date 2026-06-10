@@ -295,17 +295,29 @@ function buildPickerHtml(docId, username) {
     + '  reader.onload=function(ev){\n'
     + '    startSim(25,75,"☁ Uploading to Google Drive…",4000);\n'
     + '    var b64=ev.target.result.split(",")[1];\n'
-    + '    var payload=JSON.stringify({action:"uploadFilePicker",docId:DOC_ID,username:USERNAME,fileName:file.name,mimeType:file.type||"application/octet-stream",b64:b64});\n'
-    + '    fetch(SCRIPT_URL,{method:"POST",body:payload,redirect:"follow"})\n'
-    + '    .then(function(r){startSim(75,90,"⚙ Processing…",1200);return r.text();})\n'
-    + '    .then(function(txt){\n'
-    + '      clearInterval(simTimer);\n'
-    + '      var res;\n'
-    + '      try{res=JSON.parse(txt);}catch(e){showErr("Bad response — check Apps Script deployment.");return;}\n'
-    + '      if(res.ok){setP(100,"✅ Done!","done");showOk(res);if(window.opener)window.opener.postMessage({type:"IMS_FILE_UPLOADED",file:res},"*");setTimeout(function(){window.close();},3000);}\n'
-    + '      else{showErr(res.error||"Upload failed on server.");}\n'
-    + '    })\n'
-    + '    .catch(function(err){clearInterval(simTimer);showErr("Network error: "+err.message);});\n'
+    /* Use google.script.run — works correctly when page is served by Apps Script */
+    + '    google.script.run\n'
+    + '      .withSuccessHandler(function(res){\n'
+    + '        clearInterval(simTimer);\n'
+    + '        if(res&&res.ok){\n'
+    + '          setP(100,"✅ Done!","done");\n'
+    + '          showOk(res);\n'
+    + '          if(window.opener){\n'
+    + '            try{window.opener.postMessage({type:"IMS_FILE_UPLOADED",file:res},"*");}catch(e){}\n'
+    + '          }\n'
+    + '          setTimeout(function(){\n'
+    + '            try{window.close();}catch(e){}\n'
+    + '            try{window.location.replace("about:blank");}catch(e){}\n'
+    + '          },3000);\n'
+    + '        } else {\n'
+    + '          showErr((res&&res.error)||"Upload failed on server.");\n'
+    + '        }\n'
+    + '      })\n'
+    + '      .withFailureHandler(function(err){\n'
+    + '        clearInterval(simTimer);\n'
+    + '        showErr(err.message||"Server error — check Apps Script logs.");\n'
+    + '      })\n'
+    + '      .uploadFileFromPicker(DOC_ID,file.name,file.type||"application/octet-stream",b64,USERNAME);\n'
     + '  };\n'
     /* Simulate reading progress */
     + '  startSim(2,25,"📖 Reading file…",600);\n'
@@ -413,6 +425,8 @@ function doPost(e) {
       result = deleteFileFromDrive(params.fileId);
     } else if (action === 'saveDocument') {
       result = saveDocumentRecord(params);
+    } else if (action === 'saveVersion') {
+      result = saveVersion(params);
     } else {
       result = { error: 'Unknown POST action: ' + action };
     }
