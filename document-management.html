@@ -948,7 +948,31 @@ function openVersionModal(doc){
   render();
 }
 
-/* ── Role UI ────────────────────────────────────────────────── */
+/* ── Pre-load attachment counts from Apps Script on page load ───
+   Fetches file counts for all documents so the Attachments
+   column shows correct numbers without opening each modal.      */
+function preloadAttachmentCounts() {
+  var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
+  if (!url) return;
+  var docs = gAll().filter(function(d){ return !d.deleted; });
+  if (!docs.length) return;
+  var pending = docs.length;
+  docs.forEach(function(d) {
+    DMS_DRIVE.listFiles(d.id)
+      .then(function(result) {
+        /* Cache is updated by listFiles — just decrement counter */
+        pending--;
+        if (pending === 0) {
+          /* All counts loaded — re-render table with correct counts */
+          renderTable();
+        }
+      })
+      .catch(function() {
+        pending--;
+        if (pending === 0) renderTable();
+      });
+  });
+}
 function updateRoleUI(){
   document.getElementById('role-lbl').textContent=gRole();
   var addBtn=document.getElementById('btn-add');
@@ -1058,6 +1082,8 @@ IMS_AUTH.init({
     populatePageFilter();
     updateRoleUI();
     renderTable();
+    /* Pre-load attachment counts from Apps Script */
+    setTimeout(preloadAttachmentCounts, 1500);
     initPage('document-management.html');
     document.getElementById('tb').innerHTML = renderTopbar(
       'Document & Evidence Management',
