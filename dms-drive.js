@@ -135,12 +135,13 @@ function uploadFile(file, docId, attachType, revNote, username) {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   LIST FILES — reads from Apps Script + local cache
+   LIST FILES — always fetches from Apps Script (shared)
+   localStorage used only as instant-display cache
 ══════════════════════════════════════════════════════════════ */
 function listFiles(docId) {
   var url = getUrl();
 
-  /* Try Apps Script first for server-side file list */
+  /* Always try Apps Script first — this is the shared source of truth */
   if (url) {
     return fetch(url + '?action=listFiles&docId=' + encodeURIComponent(docId))
       .then(function(r) { return r.json(); })
@@ -161,24 +162,29 @@ function listFiles(docId) {
             source:       'drive',
           };
         });
-        /* Update local cache with Drive truth */
-        if (driveFiles.length > 0) localStorageSetFiles(docId, driveFiles);
-        /* Merge — Drive files take priority, add any local-only entries */
-        var local = localStorageGetFiles(docId);
+
+        /* Always update local cache with the authoritative Drive list */
+        localStorageSetFiles(docId, driveFiles);
+
+        /* Also include any locally-cached files not yet confirmed by server
+           (uploaded in this session but server hasn't processed yet) */
+        var localFiles = localStorageGetFiles(docId);
         var merged = driveFiles.slice();
-        local.forEach(function(lf) {
-          if (!merged.some(function(df){ return df.fileId===lf.fileId; })) {
-            merged.push(lf);
+        localFiles.forEach(function(lf) {
+          if (!merged.some(function(df){ return df.fileId === lf.fileId; })) {
+            merged.push(lf); /* pending file — show while server catches up */
           }
         });
+
         return { files: merged, source: 'drive' };
       })
       .catch(function() {
-        /* Network error — return local cache */
+        /* Network error — fall back to local cache so UI is not empty */
         return { files: localStorageGetFiles(docId), source: 'local-fallback' };
       });
   }
 
+  /* No Apps Script configured — local only */
   return Promise.resolve({ files: localStorageGetFiles(docId), source: 'local' });
 }
 
