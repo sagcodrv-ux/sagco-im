@@ -141,6 +141,8 @@ function doGet(e) {
       case 'read':       result = readSheet(e.parameter.tab);               break;
       case 'readDoc':    result = readDocument(e.parameter.docId);          break;
       case 'listFiles':  result = listDocumentFiles(e.parameter.docId);     break;
+      case 'listVersions': result = listVersions(e.parameter.docId);        break;
+      case 'saveVersion':  result = saveVersion(e.parameter);               break;
       case 'writeDoc':   result = writeDocument(e.parameter);               break;
       case 'deleteAttachment': result = deleteAttachmentFromSheet(e.parameter.fileId, e.parameter.docId); break;
       case 'uploadFilePicker':
@@ -501,6 +503,67 @@ function deleteAttachmentFromSheet(fileId, docId) {
   } catch(err) {
     return { ok: false, error: err.message };
   }
+}
+
+/* ── List versions for a document ───────────────────────────── */
+function listVersions(docId) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('📋 Versions');
+  if (!sheet) return { versions: [] };
+  var data = sheet.getDataRange().getValues();
+  var versions = [];
+  for (var i = 3; i < data.length; i++) {
+    var row = data[i];
+    if (String(row[0]) === docId && row[1]) {
+      versions.push({
+        docId:        String(row[0]),
+        rev:          String(row[1]),
+        ts:           String(row[2]),
+        note:         String(row[3]),
+        user:         String(row[4]),
+        fileName:     String(row[5] || ''),
+        webViewLink:  String(row[6] || ''),
+        downloadLink: String(row[7] || ''),
+      });
+    }
+  }
+  /* Sort newest first (rev descending) */
+  versions.sort(function(a, b) {
+    return String(b.rev).localeCompare(String(a.rev), undefined, {numeric: true});
+  });
+  return { versions: versions, docId: docId };
+}
+
+/* ── Save a new version record ──────────────────────────────── */
+function saveVersion(params) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('📋 Versions');
+
+  /* Create sheet if it does not exist */
+  if (!sheet) {
+    sheet = ss.insertSheet('📋 Versions');
+    sheet.getRange('A1').setValue('SAGCO IMS — Document Version History');
+    sheet.getRange('A2').setValue('Auto-maintained by Apps Script — do not edit manually');
+    sheet.getRange('A3:H3').setValues([[
+      'Doc ID','Revision','Date','Change Description',
+      'Updated By','File Name','View Link','Download Link'
+    ]]);
+    Logger.log('Created 📋 Versions sheet.');
+  }
+
+  var lastRow = sheet.getLastRow();
+  sheet.getRange(lastRow + 1, 1, 1, 8).setValues([[
+    params.docId    || '',
+    params.rev      || '',
+    params.ts       || new Date().toISOString().split('T')[0],
+    params.note     || '',
+    params.user     || '',
+    params.fileName || '',
+    params.webViewLink  || '',
+    params.downloadLink || '',
+  ]]);
+
+  return { ok: true, docId: params.docId, rev: params.rev };
 }
 
 /* ── Delete a file from Drive ───────────────────────────────── */
