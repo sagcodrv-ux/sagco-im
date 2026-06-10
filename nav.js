@@ -448,12 +448,19 @@ function initPage(filename) {
   }
 
   wireToggles();
-  wireNavLinks();   /* FIX Issue 1 — attach scroll-save before navigation */
+  wireNavLinks();
   wireSearch();
   bindHoverCollapse();
-
-  /* FIX Issue 1 — restore scroll position after render */
   restoreScroll();
+
+  /* ── Sidebar starts collapsed on all pages ──────────────────
+     Expands instantly on hover / left-edge mouse approach.
+     Dashboard (index.html) always starts collapsed for full width.
+     All other pages also start collapsed — user hovers to expand. */
+  var sb   = document.getElementById('sidebar');
+  var main = document.querySelector('.main');
+  if (sb)   sb.classList.add('sb-off');
+  if (main) main.classList.add('sb-off');
 }
 
 /* ══════════════════════════════════════════════════════════════

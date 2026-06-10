@@ -146,13 +146,78 @@ function autoLoadPageData() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       renderTable(data, liveDiv);
+
       var ts = document.getElementById('live-ts');
       if (ts) ts.textContent = 'Updated: ' + new Date().toLocaleTimeString();
+
+      /* ── Auto-hide static tables when live data loads successfully ──────
+         If Google Sheets returns real rows, hide any static placeholder
+         table on the same page to avoid showing duplicate data.
+         Static tables are identified by .tbl-wrap inside .content but
+         outside #live-table. The live-section header is also updated
+         to remove the "LIVE DATA" label — replaced with a clean banner. */
+      if (data && data.rows && data.rows.length > 0) {
+        hideStaticTables();
+        upgradeLiveBanner();
+      }
     })
     .catch(function() {
       liveDiv.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>'
         + 'Could not reach Google Sheets. Check your internet connection.</div>';
     });
+}
+
+/* ── Hide static placeholder tables ────────────────────────────
+   Finds all .tbl-wrap elements on the page that are NOT inside
+   #live-table or .live-section and hides them.                  */
+function hideStaticTables() {
+  var content = document.querySelector('.content');
+  if (!content) return;
+
+  /* Find the live section container */
+  var liveSection = document.querySelector('.live-section')
+    || document.getElementById('live-table').parentElement;
+
+  /* Find all table wrappers in content */
+  var allTblWraps = content.querySelectorAll('.tbl-wrap');
+  allTblWraps.forEach(function(wrap) {
+    /* Skip if it is inside the live section */
+    if (liveSection && liveSection.contains(wrap)) return;
+    /* Skip if it is inside #live-table itself */
+    var liveDiv = document.getElementById('live-table');
+    if (liveDiv && liveDiv.contains(wrap)) return;
+    /* Hide the static table and its nearest section banner */
+    wrap.style.display = 'none';
+    /* Also hide the sec-banner immediately before this table if present */
+    var prev = wrap.previousElementSibling;
+    while (prev) {
+      if (prev.classList && prev.classList.contains('sec-banner')) {
+        prev.style.display = 'none';
+        break;
+      }
+      /* Stop if we hit another major element */
+      if (prev.classList && (prev.classList.contains('kpi-grid') ||
+          prev.classList.contains('req-text') ||
+          prev.classList.contains('alert-red') ||
+          prev.classList.contains('alert-amb'))) break;
+      prev = prev.previousElementSibling;
+    }
+  });
+}
+
+/* ── Upgrade live data banner ───────────────────────────────────
+   Replaces the "▶ LIVE DATA — Google Sheets | Updates automatically
+   when you edit the spreadsheet" banner with a cleaner label that
+   matches the page's sec-banner style.                           */
+function upgradeLiveBanner() {
+  var banner = document.querySelector('.live-banner');
+  if (!banner) return;
+  /* Extract the page title from the topbar subtitle for context */
+  var sub = document.querySelector('.topbar-sub');
+  var docCode = sub ? (sub.textContent.split('·')[0] || '').trim() : '';
+  banner.innerHTML = '📡 Live data — Google Sheets'
+    + (docCode ? ' &nbsp;·&nbsp; ' + docCode : '')
+    + ' &nbsp;<span id="live-ts" style="font-size:9px;opacity:.7"></span>';
 }
 
 window.reloadLive = autoLoadPageData;

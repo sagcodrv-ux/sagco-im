@@ -159,80 +159,134 @@ async function loadDash() {
   showLoader(true);
   try {
     const [risks, objs] = await Promise.all([getData.risks(), getData.objectives()]);
-    // Risk counts
-    const rc={CRITICAL:0,HIGH:0,MEDIUM:0,LOW:0,OPPORTUNITY:0};
-    risks.forEach(r=>{ const k=String(r.rating_inh||'').toUpperCase(); if(rc.hasOwnProperty(k))rc[k]++; });
-    document.getElementById('kn-crit').textContent=rc.CRITICAL;
-    document.getElementById('kn-high').textContent=rc.HIGH;
-    document.getElementById('kn-med').textContent=rc.MEDIUM;
-    document.getElementById('kn-low').textContent=rc.LOW;
-    // Obj counts
-    const oc={};
-    objs.forEach(o=>{ const s=String(o.status||'').trim(); oc[s]=(oc[s]||0)+1; });
-    const ontrack=(oc['ON TRACK']||0)+(oc['COMPLETE']||0)+(oc['COMPLIANT']||0);
-    const urgentN=oc['URGENT']||0;
-    document.getElementById('kn-ontrack').textContent=ontrack;
-    document.getElementById('kn-urgent').textContent=urgentN;
 
-    // Risk doughnut
-    new Chart(document.getElementById('cRisk'),{type:'doughnut',data:{
+    /* ── Debug: log first row to console so we can see actual column names ── */
+    if (risks.length)  console.log('Risk columns:',      Object.keys(risks[0]));
+    if (objs.length)   console.log('Objective columns:', Object.keys(objs[0]));
+
+    /* ── Flexible column finder ─────────────────────────────────────────────
+       Searches for a column by multiple possible names (case-insensitive).
+       Returns the value or '' if not found.                                  */
+    function col(obj, ...names) {
+      if (!obj) return '';
+      const keys = Object.keys(obj);
+      for (const name of names) {
+        const found = keys.find(k => k.toLowerCase().replace(/[\s_]/g,'') === name.toLowerCase().replace(/[\s_]/g,''));
+        if (found && obj[found] !== undefined && obj[found] !== null) return String(obj[found]);
+      }
+      return '';
+    }
+
+    /* ── Risk counts ────────────────────────────────────────────────────── */
+    const rc = {CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0, OPPORTUNITY:0};
+    risks.forEach(r => {
+      /* Try multiple possible column names for rating */
+      const rating = col(r,'Rating (Inh.)','rating_inh','Rating','RatingInh','InherentRating','Score').toUpperCase();
+      const score  = parseInt(col(r,'Score','score_inh','InherentScore','RiskScore','Score (Inh.)')) || 0;
+      if (rating.includes('CRITICAL') || score >= 20)     rc.CRITICAL++;
+      else if (rating.includes('HIGH') || score >= 12)    rc.HIGH++;
+      else if (rating.includes('MEDIUM') || score >= 6)   rc.MEDIUM++;
+      else if (rating.includes('LOW') || score >= 1)      rc.LOW++;
+      else if (rating.includes('OPPORTUNITY'))            rc.OPPORTUNITY++;
+    });
+    document.getElementById('kn-crit').textContent = rc.CRITICAL;
+    document.getElementById('kn-high').textContent = rc.HIGH;
+    document.getElementById('kn-med').textContent  = rc.MEDIUM;
+    document.getElementById('kn-low').textContent  = rc.LOW;
+
+    /* ── Objective counts ───────────────────────────────────────────────── */
+    const oc = {};
+    objs.forEach(o => {
+      const s = col(o,'Status','status','ObjStatus').trim().toUpperCase() || 'UNKNOWN';
+      oc[s] = (oc[s] || 0) + 1;
+    });
+    const ontrack = (oc['ON TRACK']||0) + (oc['COMPLETE']||0) + (oc['COMPLIANT']||0);
+    const urgentN = oc['URGENT'] || 0;
+    document.getElementById('kn-ontrack').textContent = ontrack;
+    document.getElementById('kn-urgent').textContent  = urgentN;
+
+    /* ── Risk doughnut ──────────────────────────────────────────────────── */
+    new Chart(document.getElementById('cRisk'), {type:'doughnut', data:{
       labels:['Critical','High','Medium','Low','Opportunity'],
       datasets:[{data:[rc.CRITICAL,rc.HIGH,rc.MEDIUM,rc.LOW,rc.OPPORTUNITY],
         backgroundColor:['#B71C1C','#E65100','#F9A825','#2E7D32','#0D47A1'],borderWidth:0}]
-    },options:{...cd,cutout:'62%'}});
+    }, options:{...cd, cutout:'62%'}});
 
-    // Obj status bar
-    const statColors=s=>{
-      const v=s.toUpperCase();
-      if(v.includes('ON TRACK')||v.includes('COMPLETE'))return '#2E7D32';
-      if(v.includes('IN PROGRESS'))return '#1565C0';
-      if(v.includes('PLANNED'))return '#4A5568';
-      if(v.includes('MONITOR'))return '#78909C';
-      if(v.includes('AT RISK'))return '#F57F17';
-      if(v.includes('URGENT'))return '#B71C1C';
+    /* ── Objectives bar ─────────────────────────────────────────────────── */
+    const statColors = s => {
+      const v = s.toUpperCase();
+      if (v.includes('ON TRACK')||v.includes('COMPLETE')) return '#2E7D32';
+      if (v.includes('IN PROGRESS'))  return '#1565C0';
+      if (v.includes('PLANNED'))      return '#4A5568';
+      if (v.includes('MONITOR'))      return '#78909C';
+      if (v.includes('AT RISK'))      return '#F57F17';
+      if (v.includes('URGENT'))       return '#B71C1C';
       return '#9E9E9E';
     };
-    new Chart(document.getElementById('cObj'),{type:'bar',data:{
-      labels:Object.keys(oc),
-      datasets:[{data:Object.values(oc),backgroundColor:Object.keys(oc).map(statColors),borderRadius:4}]
-    },options:{...cd,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:9},maxRotation:25}},y:{beginAtZero:true,ticks:{stepSize:1}}}}});
+    const ocDisplay = {};
+    Object.keys(oc).forEach(k => { ocDisplay[k] = oc[k]; });
+    new Chart(document.getElementById('cObj'), {type:'bar', data:{
+      labels: Object.keys(ocDisplay),
+      datasets:[{data:Object.values(ocDisplay), backgroundColor:Object.keys(ocDisplay).map(statColors), borderRadius:4}]
+    }, options:{...cd, plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:9},maxRotation:25}}, y:{beginAtZero:true,ticks:{stepSize:1}}}}});
 
-    // Compliance doughnut
-    new Chart(document.getElementById('cComp'),{type:'doughnut',data:{
+    /* ── Compliance doughnut ────────────────────────────────────────────── */
+    new Chart(document.getElementById('cComp'), {type:'doughnut', data:{
       labels:['Compliant (44)','Partial (7)','In Progress (7)','Monitoring (7)'],
-      datasets:[{data:[44,7,7,7],backgroundColor:['#1B5E20','#F57F17','#1565C0','#78909C'],borderWidth:0}]
-    },options:{...cd,cutout:'60%'}});
+      datasets:[{data:[44,7,7,7], backgroundColor:['#1B5E20','#F57F17','#1565C0','#78909C'], borderWidth:0}]
+    }, options:{...cd, cutout:'60%'}});
 
-    // Objectives table (urgent/at-risk/in-progress first)
-    const priority=['URGENT','AT RISK','IN PROGRESS','PLANNED','MONITORING'];
-    const sortedObjs=[...objs].sort((a,b)=>{
-      const ai=priority.indexOf(a.status.toUpperCase());
-      const bi=priority.indexOf(b.status.toUpperCase());
-      return (ai<0?99:ai)-(bi<0?99:bi);
+    /* ── Objectives table ───────────────────────────────────────────────── */
+    const priority = ['URGENT','AT RISK','IN PROGRESS','PLANNED','MONITORING'];
+    const sortedObjs = [...objs].sort((a,b) => {
+      const as = col(a,'Status','status').toUpperCase();
+      const bs = col(b,'Status','status').toUpperCase();
+      const ai = priority.findIndex(p => as.includes(p));
+      const bi = priority.findIndex(p => bs.includes(p));
+      return (ai<0?99:ai) - (bi<0?99:bi);
     });
-    document.getElementById('obj-rows').innerHTML=sortedObjs.slice(0,8).map(o=>`<tr>
-      <td><a href="objectives.html#${o.id}" class="trace-link">${o.id}</a></td>
-      <td style="font-size:11.5px">${String(o.desc||'').substring(0,60)}…</td>
-      <td><span class="badge" style="background:${(CC.catMap[o.cat]||'#37474F')}22;color:${CC.catMap[o.cat]||'#37474F'};font-size:9px">${String(o.cat||'').substring(0,14)}</span></td>
-      <td><span class="badge ${statusBadge(o.status)}">${o.status||'—'}</span></td>
-      <td style="font-size:11px;white-space:nowrap">${o.due||'—'}</td>
-    </tr>`).join('');
-
-    // Risk table (critical+high)
-    const topRisks=risks.filter(r=>['CRITICAL','HIGH'].includes(String(r.rating_inh||'').toUpperCase())).slice(0,8);
-    document.getElementById('risk-rows').innerHTML=topRisks.map(r=>{
-      const rt=riskRating(r.score_inh);
+    document.getElementById('obj-rows').innerHTML = sortedObjs.slice(0,8).map(o => {
+      const id     = col(o,'Obj ID','id','ObjID','Objective ID');
+      const desc   = col(o,'Objective Description','desc','Description','Objective');
+      const cat    = col(o,'Category','cat','Standard');
+      const status = col(o,'Status','status');
+      const due    = col(o,'Due Date','due','DueDate');
+      const catCol = CC.catMap[cat] || '#37474F';
       return `<tr>
-        <td><a href="risk-register.html#${r.ref}" class="trace-link">${r.ref}</a></td>
-        <td style="font-size:11.5px">${String(r.desc||'').substring(0,58)}…</td>
-        <td>${scorePill(r.score_inh,r.rating_inh)}</td>
-        <td><span class="badge ${rt.badge}">${rt.label}</span></td>
-        <td style="font-size:11px;white-space:nowrap">${r.due||'—'}</td>
+        <td><a href="objectives.html" class="trace-link">${id||'—'}</a></td>
+        <td style="font-size:11px">${String(desc).substring(0,60)}${desc.length>60?'…':''}</td>
+        <td><span class="badge" style="background:${catCol}22;color:${catCol};font-size:9px">${String(cat).substring(0,14)||'—'}</span></td>
+        <td><span class="badge ${statusBadge(status)}">${status||'—'}</span></td>
+        <td style="font-size:11px;white-space:nowrap">${due||'—'}</td>
       </tr>`;
-    }).join('');
+    }).join('') || '<tr><td colspan="5" style="text-align:center;color:#8899aa;font-size:11px;padding:12px">No objectives data — populate the Objectives tab in Google Sheets</td></tr>';
 
-  } catch(e){console.error(e);}
-  finally{showLoader(false);}
+    /* ── Risk table ─────────────────────────────────────────────────────── */
+    const topRisks = risks.filter(r => {
+      const rating = col(r,'Rating (Inh.)','rating_inh','Rating').toUpperCase();
+      const score  = parseInt(col(r,'Score','score_inh','Score (Inh.)')) || 0;
+      return rating.includes('CRITICAL') || rating.includes('HIGH') || score >= 12;
+    }).slice(0,8);
+
+    document.getElementById('risk-rows').innerHTML = topRisks.map(r => {
+      const ref    = col(r,'Ref','ref','Risk Ref','ID');
+      const desc   = col(r,'Risk / Opportunity Description','desc','Description','Risk Description');
+      const score  = col(r,'Score','score_inh','Score (Inh.)');
+      const rating = col(r,'Rating (Inh.)','rating_inh','Rating');
+      const due    = col(r,'Due Date','due','DueDate');
+      const rt     = riskRating(score);
+      return `<tr>
+        <td><a href="risk-register.html" class="trace-link">${ref||'—'}</a></td>
+        <td style="font-size:11px">${String(desc).substring(0,55)}${desc.length>55?'…':''}</td>
+        <td>${scorePill(score, rating)}</td>
+        <td><span class="badge ${rt.badge}">${rt.label}</span></td>
+        <td style="font-size:11px;white-space:nowrap">${due||'—'}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="5" style="text-align:center;color:#8899aa;font-size:11px;padding:12px">No critical/high risks — populate the Risk Register tab in Google Sheets</td></tr>';
+
+  } catch(e) { console.error('Dashboard load error:', e); }
+  finally { showLoader(false); }
 }
 function showLoader(s){const l=document.getElementById('loader');if(l)l.classList.toggle('hidden',!s);}
 loadDash();
