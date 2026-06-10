@@ -971,6 +971,88 @@ function toast(msg,type){
   clearTimeout(el._t); el._t=setTimeout(function(){el.className='';},3500);
 }
 
+/* ── Global listener for Drive upload popup ─────────────────────
+   Persists for the entire page lifetime — not inside modal.
+   Receives IMS_FILE_UPLOADED from the Apps Script popup and
+   updates the attachment list + main table immediately.          */
+window.addEventListener('message', function(event) {
+  if (!event.data || event.data.type !== 'IMS_FILE_UPLOADED') return;
+  var f = event.data.file;
+  if (!f || !f.ok) return;
+
+  /* Find which doc this belongs to — stored in popup URL docId param */
+  /* The popup sends the docId back in the file object */
+  var docId = f.docId || '';
+
+  /* Cache the file locally */
+  if (docId && typeof DMS_DRIVE !== 'undefined') {
+    var existing = DMS_DRIVE.localGet(docId);
+    var already  = existing.some(function(x){ return x.fileId === f.fileId; });
+    if (!already) {
+      existing.push({
+        fileId:       f.fileId,
+        fileName:     f.fileName,
+        mimeType:     f.mimeType || '',
+        size:         f.size     || '',
+        date:         f.date     || new Date().toISOString().split('T')[0],
+        user:         (IMS_AUTH.getUser()||{}).username || 'admin',
+        webViewLink:  f.webViewLink,
+        downloadLink: f.downloadLink,
+        previewLink:  f.previewLink || null,
+        attachType:   'attachment',
+        revNote:      '',
+        source:       'drive',
+      });
+      DMS_DRIVE.localSet(docId, existing);
+    }
+  }
+
+  /* Refresh the attachment list if modal is open for this doc */
+  var attList = document.getElementById('att-list');
+  if (attList && docId && typeof DMS_DRIVE !== 'undefined') {
+    DMS_DRIVE.listFiles(docId).then(function(result) {
+      var files = result.files || [];
+      /* Rebuild the attachment list HTML inline */
+      if (!files.length) {
+        attList.innerHTML = '<div style="padding:10px;color:var(--text-lt);font-size:11px">No files yet.</div>';
+      } else {
+        attList.innerHTML = '<div class="att-list">'
+          + files.map(function(file, i) {
+              var fname = file.fileName || file.name || 'file';
+              var ext   = fname.split('.').pop().toLowerCase();
+              var ico   = {pdf:'📄',docx:'📝',doc:'📝',xlsx:'📊',jpg:'🖼',jpeg:'🖼',png:'🖼'}[ext] || '📎';
+              var viewHtml = file.webViewLink
+                ? '<a class="att-open" href="'+file.webViewLink+'" target="_blank">↗ Open</a>'
+                  +'<a class="att-open" href="'+file.downloadLink+'" target="_blank">⬇ Download</a>'
+                : '<span class="att-open" style="opacity:.5;cursor:default">pending link</span>';
+              var src = file.source==='drive'
+                ? '<span style="font-size:9px;color:var(--grn);margin-left:4px">☁ Drive</span>'
+                : '<span style="font-size:9px;color:var(--amb);margin-left:4px">💾 Local</span>';
+              return '<div class="att-item">'
+                + '<span class="att-icon">'+ico+'</span>'
+                + '<span class="att-name">'+fname+src+'</span>'
+                + '<span class="att-meta">'+(file.size||'')+'&nbsp;·&nbsp;'+(file.date||'')+'</span>'
+                + viewHtml
+                + '</div>';
+            }).join('')
+          + '</div>';
+      }
+
+      /* Update status label */
+      var st = document.getElementById('att-status');
+      if (st) st.textContent = '✅ ' + f.fileName + ' uploaded successfully';
+
+      /* Update main table attachment count */
+      renderTable();
+      toast('✅ '+f.fileName+' uploaded to Google Drive.','ok');
+    });
+  } else {
+    /* Modal not open — just update table and show toast */
+    renderTable();
+    toast('✅ '+f.fileName+' uploaded to Google Drive.','ok');
+  }
+});
+
 /* ── Init ───────────────────────────────────────────────────── */
 IMS_AUTH.init({
   onReady: function(session){
