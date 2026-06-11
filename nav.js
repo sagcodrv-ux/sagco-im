@@ -637,3 +637,23 @@ function startRefresh(fn) {
     setTimeout(tick, INTERVAL);
   }, INTERVAL);
 }
+
+/* ── traceLinks — global utility for all pages ──────────────── */
+/* Converts semicolon-separated ref strings to anchor links.
+   Used by pestle-swot.html, risk-register.html, etc.            */
+function traceLinks(refs) {
+  if (!refs || refs === '—' || String(refs).trim() === '') return '—';
+  return String(refs).split(';').map(function(r) {
+    r = r.trim();
+    if (!r || r === '—') return '';
+    return '<a href="#' + r + '" class="trace-link" style="font-size:10px;margin-right:4px">' + r + '</a>';
+  }).filter(Boolean).join(' ');
+}
+
+/* ── scrollToHash — scroll to anchor on page load ───────────── */
+function scrollToHash() {
+  if (window.location.hash) {
+    var el = document.querySelector(window.location.hash);
+    if (el) setTimeout(function(){ el.scrollIntoView({behavior:'smooth',block:'center'}); }, 300);
+  }
+}
