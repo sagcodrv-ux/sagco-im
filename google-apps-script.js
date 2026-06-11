@@ -904,7 +904,20 @@ function readSheet(tabKey) {
 
   return {
     headers:  headers.map(String),
-    rows:     nonEmpty.map(function(r){ return r.map(function(c){ return c === '' ? '' : String(c); }); }),
+    rows:     nonEmpty.map(function(r){
+      return r.map(function(c){
+        if (c === '' || c === null || c === undefined) return '';
+        /* Format Date objects as YYYY-MM-DD */
+        if (c instanceof Date) {
+          if (isNaN(c.getTime())) return '';
+          var y = c.getFullYear();
+          var m = String(c.getMonth()+1).padStart(2,'0');
+          var d = String(c.getDate()).padStart(2,'0');
+          return y+'-'+m+'-'+d;
+        }
+        return String(c);
+      });
+    }),
     rowCount: nonEmpty.length,
     sheet:    sheet.getName(),
     tab:      tabKey,

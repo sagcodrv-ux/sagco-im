@@ -291,6 +291,21 @@ function nextId() {
   return 'DOC-' + String(Math.max.apply(null,[0].concat(nums))+1).padStart(3,'0');
 }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+/* Format any date string to YYYY-MM-DD — strips timestamps */
+function fmtDate(s) {
+  if (!s || s === '—') return '—';
+  /* Already YYYY-MM-DD */
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(s))) return s;
+  /* Try to parse and reformat */
+  try {
+    var d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    }
+  } catch(e) {}
+  /* Return first 10 chars as fallback */
+  return String(s).substring(0,10);
+}
 
 /* ── File icon by extension ─────────────────────────────────── */
 function fileIcon(name) {
@@ -443,7 +458,7 @@ function renderTable(){
       +'<td style="text-align:center;font-weight:700;font-family:var(--mono)">'+esc(d.rev)+'</td>'
       +'<td>'+esc(d.type)+'</td>'
       +'<td>'+sBadge(d.status)+'</td>'
-      +'<td class="nowrap">'+esc(d.issued||'—')+'</td>'
+      +'<td class="nowrap">'+esc(fmtDate(d.issued)||'—')+'</td>'
       +'<td class="nowrap '+rc+'">'+rl+'</td>'
       +'<td class="nowrap">'+esc(d.owner||'—')+'</td>'
       +'<td>'+fBadge+'</td>'
@@ -1194,11 +1209,11 @@ function loadDocsFromSheets(cb){
         var id=col(row,['docid','id']);if(!id)return null;
         return{id:id,number:col(row,['documentnumber','docnumber','number']),
           title:col(row,['documenttitle','title']),
-          rev:col(row,['currentrev','rev','revision','versions'])||'01',
+          rev:(function(r){r=String(r||'01').trim();return r.length===1?'0'+r:r;})(col(row,['currentrev','rev','revision','versions'])),
           type:col(row,['documenttype','type'])||'Register',
           status:col(row,['status'])||'Active',
-          issued:col(row,['dateofissue','issued','issuedate']),
-          reviewDue:col(row,['reviewduedate','reviewdue','nextreview']),
+          issued:   fmtDate(col(row,['dateofissue','issued','issuedate'])),
+          reviewDue:fmtDate(col(row,['reviewduedate','reviewdue','nextreview'])),
           owner:col(row,['documentowner','owner']),
           pages:[],deleted:false,files:[],versions:[],
           created:col(row,['lastupdated','created'])||new Date().toISOString().split('T')[0]};
