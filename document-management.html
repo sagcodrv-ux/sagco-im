@@ -615,28 +615,24 @@ function openEditModal(doc){
       if(idx>=0)docs[idx]=upd; else docs.push(upd);
       sAll(docs);
 
-      /* ── Save to Google Sheets Document Register ─────────────
-         POST to Apps Script — writes/updates row in the sheet.
-         Fire and forget — localStorage is already updated.      */
+      /* ── Save to Google Sheets via GET (avoids redirect issue) */
       var sheetUrl = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
       if (sheetUrl) {
-        fetch(sheetUrl, {
-          method: 'POST',
-          body: JSON.stringify({
-            action:      'saveDocumentRecord',
-            docId:       upd.id,
-            docNumber:   upd.number,
-            title:       upd.title,
-            rev:         upd.rev,
-            type:        upd.type,
-            status:      upd.status,
-            issued:      upd.issued,
-            reviewDue:   upd.reviewDue,
-            owner:       upd.owner,
-            isNew:       isNew,
-          }),
-          redirect: 'follow',
-        }).catch(function(){});
+        var params = '?action=saveDocumentRecord'
+          + '&docId='     + encodeURIComponent(upd.id)
+          + '&docNumber=' + encodeURIComponent(upd.number)
+          + '&title='     + encodeURIComponent(upd.title)
+          + '&rev='       + encodeURIComponent(upd.rev)
+          + '&type='      + encodeURIComponent(upd.type)
+          + '&status='    + encodeURIComponent(upd.status)
+          + '&issued='    + encodeURIComponent(upd.issued)
+          + '&reviewDue=' + encodeURIComponent(upd.reviewDue)
+          + '&owner='     + encodeURIComponent(upd.owner)
+          + '&isNew='     + encodeURIComponent(isNew);
+        fetch(sheetUrl + params)
+          .then(function(r){ return r.json(); })
+          .then(function(res){ console.log('Sheets save:', res); })
+          .catch(function(e){ console.warn('Sheets save failed:', e.message); });
       }
 
       logH(d.id,isNew?'ADDED':'EDITED',note||'Metadata saved');

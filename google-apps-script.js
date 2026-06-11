@@ -24,18 +24,18 @@
 
 /* ── Google Drive folder for IMS attachments ────────────────── */
 /* Run initDriveFolder() once, copy the logged ID here */
-var DRIVE_FOLDER_ID = 'PASTE_FOLDER_ID_HERE_AFTER_RUNNING_initDriveFolder';
+var DRIVE_FOLDER_ID = '1PZQ2VLPg8548BIgbrfqg4mcojKE7J7lU';
 
 /* ── Sheet name map ─────────────────────────────────────────── */
 var TABS = {
   /* Document Management + Admin (NEW Rev.18) */
-  'documents':       '📄 Document Register',
-  'users':           '👥 User Register',
-  'audit_log':       '🔐 Access & Audit Log',
+  'documents':       'Document Register',
+  'users':           'User Register',
+  'audit_log':       'Access & Audit Log',
 
   /* Clause 4 */
-  'context':         '📋 Context',
-  'pestle':          '📊 PESTLE-SWOT',
+  'context':         'Context',
+  'pestle':          'PESTLE-SWOT',
 
   /* Clause 5 */
   'policies':        '📋 Policies',
@@ -141,9 +141,10 @@ function doGet(e) {
       case 'read':       result = readSheet(e.parameter.tab);               break;
       case 'readDoc':    result = readDocument(e.parameter.docId);          break;
       case 'listFiles':  result = listDocumentFiles(e.parameter.docId);     break;
-      case 'listVersions':    result = listVersions(e.parameter.docId);        break;
-      case 'listAllVersions': result = listAllVersions();                       break;
-      case 'saveVersion':     result = saveVersion(e.parameter);               break;
+      case 'listVersions':       result = listVersions(e.parameter.docId);        break;
+      case 'listAllVersions':    result = listAllVersions();                       break;
+      case 'saveVersion':        result = saveVersion(e.parameter);               break;
+      case 'saveDocumentRecord': result = saveDocumentRecord(e.parameter);        break;
       case 'writeDoc':   result = writeDocument(e.parameter);               break;
       case 'deleteAttachment': result = deleteAttachmentFromSheet(e.parameter.fileId, e.parameter.docId); break;
       case 'uploadFilePicker':
@@ -424,7 +425,7 @@ function doPost(e) {
         params.docId, params.fileName, params.mimeType, params.b64, params.username);
     } else if (action === 'deleteFile') {
       result = deleteFileFromDrive(params.fileId);
-    } else if (action === 'saveDocument') {
+    } else if (action === 'saveDocumentRecord' || action === 'saveDocument') {
       result = saveDocumentRecord(params);
     } else if (action === 'saveVersion') {
       result = saveVersion(params);
@@ -520,6 +521,82 @@ function deleteAttachmentFromSheet(fileId, docId) {
   }
 }
 
+/* ── Save / update a document record in Document Register ────── */
+function saveDocumentRecord(params) {
+  try {
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Document Register');
+    if (!sheet) {
+      /* Try fuzzy match */
+      var sheets = ss.getSheets();
+      for (var i = 0; i < sheets.length; i++) {
+        if (sheets[i].getName().toLowerCase().replace(/[^\w]/g,'').indexOf('documentregister') >= 0) {
+          sheet = sheets[i]; break;
+        }
+      }
+    }
+    if (!sheet) return { ok: false, error: 'Document Register sheet not found' };
+
+    var data    = sheet.getDataRange().getValues();
+    var headers = data[2] || []; /* Row 3 = headers */
+
+    /* Find column indices */
+    function findCol(names) {
+      for (var n = 0; n < names.length; n++) {
+        for (var c = 0; c < headers.length; c++) {
+          if (String(headers[c]).toLowerCase().replace(/[\s\._]/g,'') ===
+              names[n].toLowerCase().replace(/[\s\._]/g,'')) return c;
+        }
+      }
+      return -1;
+    }
+
+    var cols = {
+      id:        findCol(['docid','id','Doc ID']),
+      number:    findCol(['documentnumber','docnumber','number']),
+      title:     findCol(['documenttitle','title']),
+      rev:       findCol(['currentrev','rev','revision','versions']),
+      type:      findCol(['documenttype','type']),
+      status:    findCol(['status']),
+      issued:    findCol(['dateofissue','issued','issuedate']),
+      reviewDue: findCol(['reviewduedate','reviewdue','nextreview']),
+      owner:     findCol(['documentowner','owner']),
+    };
+
+    /* Find existing row by Doc ID */
+    var existingRow = -1;
+    for (var r = 3; r < data.length; r++) {
+      if (cols.id >= 0 && String(data[r][cols.id]) === String(params.docId)) {
+        existingRow = r + 1; /* 1-indexed */
+        break;
+      }
+    }
+
+    /* Build row values in header order */
+    var rowData = headers.map(function(h, c) {
+      var key = Object.keys(cols).find(function(k){ return cols[k] === c; });
+      if (!key) return data[existingRow > 0 ? existingRow - 1 : 3] ? data[existingRow > 0 ? existingRow - 1 : 3][c] || '' : '';
+      var map = { id:'docId', number:'docNumber', title:'title', rev:'rev',
+                  type:'type', status:'status', issued:'issued',
+                  reviewDue:'reviewDue', owner:'owner' };
+      return params[map[key]] || '';
+    });
+
+    if (existingRow > 0) {
+      /* Update existing row */
+      sheet.getRange(existingRow, 1, 1, rowData.length).setValues([rowData]);
+    } else {
+      /* Append new row */
+      var lastRow = sheet.getLastRow();
+      sheet.getRange(lastRow + 1, 1, 1, rowData.length).setValues([rowData]);
+    }
+
+    return { ok: true, docId: params.docId, action: existingRow > 0 ? 'updated' : 'added' };
+  } catch(err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 /* ── List all versions (for rev number sync) ────────────────── */
 function listAllVersions() {
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
@@ -594,7 +671,39 @@ function saveVersion(params) {
     params.downloadLink || '',
   ]]);
 
+  /* Also update the Current Rev column in Document Register sheet */
+  updateDocumentRev(params.docId, params.rev);
+
   return { ok: true, docId: params.docId, rev: params.rev };
+}
+
+/* ── Update revision number in Document Register sheet ─────── */
+function updateDocumentRev(docId, rev) {
+  try {
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('📄 Document Register');
+    if (!sheet) return;
+    var data    = sheet.getDataRange().getValues();
+    var headers = data[2] || []; /* row 3 = headers (0-indexed row 2) */
+    /* Find Doc ID column and Rev column */
+    var idCol  = -1;
+    var revCol = -1;
+    for (var c = 0; c < headers.length; c++) {
+      var h = String(headers[c]).toLowerCase().replace(/[\s\.]/g,'');
+      if (h === 'docid' || h === 'id') idCol = c;
+      if (h === 'currentrev' || h === 'rev' || h === 'revision' || h === 'versions' || h === 'version') revCol = c;
+    }
+    if (idCol < 0 || revCol < 0) return;
+    /* Find the row for this docId and update rev */
+    for (var r = 3; r < data.length; r++) {
+      if (String(data[r][idCol]) === String(docId)) {
+        sheet.getRange(r + 1, revCol + 1).setValue(rev);
+        return;
+      }
+    }
+  } catch(e) {
+    Logger.log('updateDocumentRev error: ' + e.message);
+  }
 }
 
 /* ── Delete a file from Drive ───────────────────────────────── */
@@ -648,37 +757,7 @@ function readDocument(docId) {
 }
 
 /* ── Save / update a document record ───────────────────────── */
-function saveDocumentRecord(params) {
-  /* params: full document object with all metadata fields */
-  var ss    = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('📄 Document Register');
-  if (!sheet) return { error: 'Document Register sheet not found' };
 
-  var data    = sheet.getDataRange().getValues();
-  var headers = data[2];
-
-  /* Find existing row */
-  var docId = params['Doc ID'] || params.docId;
-  var rowIdx = -1;
-  for (var i = 3; i < data.length; i++) {
-    if (String(data[i][0]) === docId) { rowIdx = i; break; }
-  }
-
-  /* Build row array from params in header order */
-  var newRow = headers.map(function(h) { return params[h] || ''; });
-  newRow[15] = new Date().toISOString().split('T')[0]; /* Last Updated */
-
-  if (rowIdx >= 0) {
-    /* Update existing */
-    sheet.getRange(rowIdx + 1, 1, 1, newRow.length).setValues([newRow]);
-  } else {
-    /* Append new */
-    var lastRow = sheet.getLastRow();
-    sheet.getRange(lastRow + 1, 1, 1, newRow.length).setValues([newRow]);
-  }
-
-  return { ok: true, docId: docId, action: rowIdx >= 0 ? 'updated' : 'inserted' };
-}
 
 /* ── List files for a document ──────────────────────────────── */
 function listDocumentFiles(docId) {
@@ -798,6 +877,24 @@ function readSheet(tabKey) {
 
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
+
+  /* ── Fuzzy match if exact name not found ───────────────────
+     Strips emojis and special chars, does case-insensitive
+     comparison. Handles sheets named without emoji prefixes.  */
+  if (!sheet) {
+    function normalize(s) {
+      return String(s).replace(/[^\w\s\-&\.]/g, '').replace(/\s+/g,' ').trim().toLowerCase();
+    }
+    var targetNorm = normalize(sheetName);
+    var allSheets  = ss.getSheets();
+    for (var i = 0; i < allSheets.length; i++) {
+      if (normalize(allSheets[i].getName()) === targetNorm) {
+        sheet = allSheets[i];
+        break;
+      }
+    }
+  }
+
   if (!sheet) return { error: 'Sheet not found: ' + sheetName, headers: [], rows: [], rowCount: 0 };
 
   var data     = sheet.getDataRange().getValues();
@@ -809,7 +906,7 @@ function readSheet(tabKey) {
     headers:  headers.map(String),
     rows:     nonEmpty.map(function(r){ return r.map(function(c){ return c === '' ? '' : String(c); }); }),
     rowCount: nonEmpty.length,
-    sheet:    sheetName,
+    sheet:    sheet.getName(),
     tab:      tabKey,
   };
 }
