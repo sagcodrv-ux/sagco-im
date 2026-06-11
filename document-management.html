@@ -313,47 +313,7 @@ function seedIfEmpty() {
   sAll([]);
 }
 
-/* ── Load latest revision numbers from Google Sheets ───────────
-   Reads the 📄 Document Register tab directly.
-   This is the single source of truth for current revision.     */
-function loadLatestRevisions() {
-  var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
-  if (!url) return;
-  fetch(url + '?action=read&tab=documents')
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      if (!data || !data.rows || !data.rows.length) return;
-      var headers = data.headers || [];
-      /* Find column indices */
-      function colIdx(names) {
-        for (var n = 0; n < names.length; n++) {
-          for (var h = 0; h < headers.length; h++) {
-            if (headers[h].toLowerCase().replace(/[\s\._]/g,'') ===
-                names[n].toLowerCase().replace(/[\s\._]/g,'')) return h;
-          }
-        }
-        return -1;
-      }
-      var idIdx  = colIdx(['docid','id','Doc ID']);
-      var revIdx = colIdx(['currentrev','rev','revision','Current Rev.','versions','Versions','Version']);
-      if (idIdx < 0 || revIdx < 0) return;
-
-      var docs = gAll();
-      var changed = false;
-      data.rows.forEach(function(row) {
-        var sheetId  = String(row[idIdx]  || '').trim();
-        var sheetRev = String(row[revIdx] || '').trim();
-        if (!sheetId || !sheetRev) return;
-        var doc = docs.find(function(d){ return d.id === sheetId; });
-        if (doc && sheetRev !== doc.rev) {
-          doc.rev = sheetRev;
-          changed = true;
-        }
-      });
-      if (changed) { sAll(docs); renderTable(); }
-    })
-    .catch(function(){});
-}
+/* ── Date helpers ───────────────────────────────────────────── */
 function daysUntil(d){ return Math.ceil((new Date(d)-new Date())/86400000); }
 function revCls(d){ if(!d)return''; var n=daysUntil(d); if(n<0)return'dms-overdue'; if(n<90)return'dms-duesoon'; return''; }
 function revLbl(d){ if(!d)return'—'; var n=daysUntil(d); if(n<0)return d+' ⚠'; if(n<90)return d+' ('+n+'d)'; return d; }
@@ -614,27 +574,21 @@ function openEditModal(doc){
       });
       if(idx>=0)docs[idx]=upd; else docs.push(upd);
       sAll(docs);
-
-      /* ── Save to Google Sheets via GET (avoids redirect issue) */
-      var sheetUrl = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
-      if (sheetUrl) {
-        var params = '?action=saveDocumentRecord'
-          + '&docId='     + encodeURIComponent(upd.id)
-          + '&docNumber=' + encodeURIComponent(upd.number)
-          + '&title='     + encodeURIComponent(upd.title)
-          + '&rev='       + encodeURIComponent(upd.rev)
-          + '&type='      + encodeURIComponent(upd.type)
-          + '&status='    + encodeURIComponent(upd.status)
-          + '&issued='    + encodeURIComponent(upd.issued)
-          + '&reviewDue=' + encodeURIComponent(upd.reviewDue)
-          + '&owner='     + encodeURIComponent(upd.owner)
-          + '&isNew='     + encodeURIComponent(isNew);
-        fetch(sheetUrl + params)
-          .then(function(r){ return r.json(); })
-          .then(function(res){ console.log('Sheets save:', res); })
-          .catch(function(e){ console.warn('Sheets save failed:', e.message); });
+      /* Save to Google Sheets via GET */
+      var _su = typeof SHEETS_URL!=='undefined'?SHEETS_URL:null;
+      if(_su){
+        fetch(_su+'?action=saveDocumentRecord'
+          +'&docId='+encodeURIComponent(upd.id)
+          +'&docNumber='+encodeURIComponent(upd.number)
+          +'&title='+encodeURIComponent(upd.title)
+          +'&rev='+encodeURIComponent(upd.rev)
+          +'&type='+encodeURIComponent(upd.type)
+          +'&status='+encodeURIComponent(upd.status)
+          +'&issued='+encodeURIComponent(upd.issued)
+          +'&reviewDue='+encodeURIComponent(upd.reviewDue)
+          +'&owner='+encodeURIComponent(upd.owner)
+        ).then(function(r){return r.json();}).then(function(res){console.log('Sheets save:',res);}).catch(function(e){console.warn('Sheets save failed:',e.message);});
       }
-
       logH(d.id,isNew?'ADDED':'EDITED',note||'Metadata saved');
       closeOverlay(); populatePageFilter(); renderTable();
       toast(isNew?'Document added.':'Changes saved.','ok');
@@ -748,18 +702,14 @@ function openAttachModal(doc){
     +'<div class="req-text" style="margin-bottom:12px">Supporting objective evidence attached to this document record. '
     +'Files are uploaded to <strong>Google Drive</strong> and accessible to all users on all devices.</div>'
     +(canEd()
-      ?'<div style="background:#f8fafc;border:1px solid var(--g100);border-radius:6px;padding:12px;margin-bottom:14px">'
-        +'<label style="font-size:11px;font-weight:600;color:var(--navy);display:block;margin-bottom:6px">📎 Attach Supporting Evidence</label>'
-        +'<input type="file" id="att-file-inp" multiple style="font-size:11px;width:100%">'
-        +'<div id="att-prog-wrap" style="display:none;margin-top:8px">'
-          +'<div id="att-prog-txt" style="font-size:10px;color:var(--text-lt);margin-bottom:4px">Uploading…</div>'
-          +'<div style="height:6px;background:#e8ecf3;border-radius:3px;overflow:hidden">'
-            +'<div id="att-prog-fill" style="height:100%;background:#C9A84C;border-radius:3px;width:0;transition:width .3s"></div>'
-          +'</div>'
+      ?'<div style="margin-bottom:14px">'
+        +'<button id="att-upload-btn" class="btn btn-gold" style="width:100%;padding:11px;font-size:13px">'
+          +'📂 &nbsp;Click to Upload a File'
+        +'</button>'
+        +'<div style="font-size:10px;color:var(--text-lt);text-align:center;margin-top:6px">'
+          +'A secure upload window will open · PDF · DOCX · XLSX · JPG · PNG · max 25 MB'
         +'</div>'
-        +'<div id="att-status" style="font-size:11px;margin-top:6px;min-height:16px"></div>'
-        +'<button id="att-save-btn" class="btn btn-gold" style="margin-top:10px;width:100%" disabled>📎 Upload Selected Files</button>'
-        +'<div style="font-size:10px;color:var(--text-lt);margin-top:5px">PDF · DOCX · XLSX · JPG · PNG · any format · max 25 MB per file</div>'
+        +'<div id="att-status" style="font-size:11px;color:var(--grn);text-align:center;margin-top:6px;min-height:18px"></div>'
       +'</div>'
       :'')
     +'<div id="att-list"></div>'
@@ -773,90 +723,74 @@ function openAttachModal(doc){
   loadAndRender();
 
   if (canEd()) {
-    var fileInp2  = document.getElementById('att-file-inp');
-    var saveBtn2  = document.getElementById('att-save-btn');
-    var progWrap  = document.getElementById('att-prog-wrap');
-    var progFill2 = document.getElementById('att-prog-fill');
-    var progTxt2  = document.getElementById('att-prog-txt');
-    var statusEl  = document.getElementById('att-status');
-    var url2      = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
+    document.getElementById('att-upload-btn').addEventListener('click', function() {
+      var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
+      if (!url) { toast('SHEETS_URL not configured in data.js','err'); return; }
 
-    fileInp2.addEventListener('change', function() {
-      saveBtn2.disabled = !fileInp2.files || !fileInp2.files.length;
-      if (fileInp2.files && fileInp2.files.length) {
-        statusEl.textContent = fileInp2.files.length + ' file(s) selected — click Upload';
-        statusEl.style.color = 'var(--text-lt)';
+      /* Store active doc id for global listener */
+      window._activeUploadDocId = doc.id;
+
+      /* Track current file count before upload */
+      var countBefore = DMS_DRIVE.localGet(doc.id).length;
+
+      var popupUrl = url
+        + '?action=picker'
+        + '&docId='    + encodeURIComponent(doc.id)
+        + '&username=' + encodeURIComponent(currentUser());
+
+      var popup = window.open(popupUrl, 'SAGCO_Upload',
+        'width=560,height=540,top=100,left=200,resizable=no,scrollbars=no');
+
+      if (!popup) {
+        toast('Popup blocked — allow popups for this site in your browser settings.','err');
+        return;
       }
-    });
 
-    saveBtn2.addEventListener('click', function() {
-      var files = Array.from(fileInp2.files || []);
-      if (!files.length) return;
-      saveBtn2.disabled = true;
-      fileInp2.disabled = true;
-      progWrap.style.display = '';
-      statusEl.textContent = '';
-      var uploaded = 0, failed = 0, total = files.length;
+      /* ── Poll for new files every 2 seconds ──────────────────
+         Checks both localStorage cache (postMessage path) and
+         Apps Script (direct fetch path). Stops after 60 seconds
+         or when popup is closed and a new file is detected.     */
+      var pollCount = 0;
+      var maxPolls  = 30; /* 30 × 2s = 60 seconds */
+      var pollTimer = setInterval(function() {
+        pollCount++;
 
-      function uploadNext(idx) {
-        if (idx >= total) {
-          progFill2.style.width = '100%';
-          progFill2.style.background = '#2E7D32';
-          progTxt2.textContent = '✅ Done!';
-          statusEl.textContent = '✅ ' + uploaded + ' file(s) uploaded' + (failed ? ' · ' + failed + ' failed' : '');
-          statusEl.style.color = 'var(--grn)';
-          fileInp2.disabled = false;
-          saveBtn2.disabled = false;
-          loadAndRender();
-          return;
-        }
-        var file = files[idx];
-        progFill2.style.width = Math.round((idx / total) * 80) + '%';
-        progTxt2.textContent  = '☁ Uploading ' + file.name + ' (' + (idx+1) + '/' + total + ')…';
-
-        if (!url2) {
-          DMS_DRIVE.uploadFile(file, doc.id, 'attachment', '', currentUser())
-            .then(function(){ uploaded++; uploadNext(idx+1); })
-            .catch(function(){ failed++; uploadNext(idx+1); });
+        /* Check local cache first (instant — updated by postMessage) */
+        var cached = DMS_DRIVE.localGet(doc.id);
+        if (cached.length > countBefore) {
+          clearInterval(pollTimer);
+          refreshAttachList(cached);
           return;
         }
 
-        var reader = new FileReader();
-        reader.onerror = function() { failed++; uploadNext(idx+1); };
-        reader.onload  = function(ev) {
-          var b64 = ev.target.result.split(',')[1];
-          fetch(url2, {
-            method: 'POST',
-            body: JSON.stringify({
-              action:'uploadFilePicker', docId:doc.id,
-              username:currentUser(), fileName:file.name,
-              mimeType:file.type||'application/octet-stream', b64:b64,
-            }),
-            redirect: 'follow',
-          })
-          .then(function(r){ return r.text(); })
-          .then(function(txt){
-            var res; try{ res=JSON.parse(txt); } catch(e){ res={ok:false}; }
-            if (res.ok) {
-              uploaded++;
-              var existing = DMS_DRIVE.localGet(doc.id);
-              existing.push({
-                fileId:file.name+'-'+Date.now(), fileName:res.fileName||file.name,
-                mimeType:file.type||'', size:file.size>1048576?(file.size/1048576).toFixed(1)+' MB':Math.round(file.size/1024)+' KB',
-                date:new Date().toISOString().split('T')[0], user:currentUser(),
-                webViewLink:res.webViewLink, downloadLink:res.downloadLink,
-                attachType:'attachment', source:'drive',
-              });
-              DMS_DRIVE.localSet(doc.id, existing);
-              logH(doc.id,'ATTACHMENT UPLOADED',file.name);
-            } else { failed++; }
-            uploadNext(idx+1);
-          })
-          .catch(function(){ failed++; uploadNext(idx+1); });
-        };
-        reader.readAsDataURL(file);
-      }
-      uploadNext(0);
+        /* Also fetch from Apps Script to catch files not via postMessage */
+        DMS_DRIVE.listFiles(doc.id).then(function(result) {
+          var files = result.files || [];
+          if (files.length > countBefore) {
+            clearInterval(pollTimer);
+            refreshAttachList(files);
+          }
+        }).catch(function(){});
+
+        /* Stop polling after max attempts */
+        if (pollCount >= maxPolls) {
+          clearInterval(pollTimer);
+        }
+
+        /* Stop polling if popup is closed and still no new files */
+        if (popup.closed && pollCount > 3) {
+          clearInterval(pollTimer);
+          /* Do one final refresh */
+          DMS_DRIVE.listFiles(doc.id).then(function(result) {
+            refreshAttachList(result.files || []);
+          }).catch(function(){});
+        }
+      }, 2000);
+
+      /* Clean up poll if modal is closed */
+      document.getElementById('att-cancel').addEventListener('click', function() {
+        clearInterval(pollTimer);
+      });
     });
   }
 
@@ -894,30 +828,11 @@ function openVersionModal(doc){
   var pendingVersionFile = null;
 
   function loadVersions(cb) {
-    var localVers = doc.versions || [];
-    if (!SHEETS_URL_VAL) { cb(localVers); return; }
+    if (!SHEETS_URL_VAL) { cb(doc.versions || []); return; }
     fetch(SHEETS_URL_VAL + '?action=listVersions&docId=' + encodeURIComponent(doc.id))
       .then(function(r){ return r.json(); })
-      .then(function(data){
-        var sheetVers = data.versions || [];
-        /* Merge sheet + local versions, deduplicate by rev */
-        var merged = sheetVers.slice();
-        localVers.forEach(function(lv){
-          var dup = merged.some(function(sv){
-            return String(sv.rev).trim() === String(lv.rev).trim();
-          });
-          if (!dup) merged.push(lv);
-        });
-        /* Sort newest first, filter out bad test data */
-        merged = merged.filter(function(v){
-          return v.rev && String(v.rev).trim().length <= 6;
-        });
-        merged.sort(function(a,b){
-          return String(b.rev).localeCompare(String(a.rev),undefined,{numeric:true});
-        });
-        cb(merged.length ? merged : localVers);
-      })
-      .catch(function(){ cb(localVers); });
+      .then(function(data){ cb(data.versions || doc.versions || []); })
+      .catch(function(){ cb(doc.versions || []); });
   }
 
   function buildHistory(versions) {
@@ -1245,9 +1160,8 @@ IMS_AUTH.init({
     populatePageFilter();
     updateRoleUI();
     renderTable();
-    /* Load latest revision numbers from Sheets — cross-browser sync */
-    setTimeout(loadLatestRevisions, 1000);
-    /* Pre-load attachment counts from Apps Script */
+    setTimeout(loadDocsFromSheets, 300);
+    setTimeout(loadLatestRevisions, 1200);
     setTimeout(preloadAttachmentCounts, 1500);
     initPage('document-management.html');
     document.getElementById('tb').innerHTML = renderTopbar(
@@ -1257,6 +1171,74 @@ IMS_AUTH.init({
     IMS_AUTH.injectUserBar();
   }
 });
+function loadDocsFromSheets(cb){
+  var url=typeof SHEETS_URL!=='undefined'?SHEETS_URL:null;
+  if(!url){if(cb)cb();return;}
+  fetch(url+'?action=read&tab=documents')
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(!data||!data.rows||!data.rows.length){if(cb)cb();return;}
+      var hdr=data.headers||[];
+      function col(row,names){
+        for(var n=0;n<names.length;n++)
+          for(var h=0;h<hdr.length;h++)
+            if(hdr[h].toLowerCase().replace(/[\s_\-.]/g,'')===names[n].toLowerCase().replace(/[\s_\-.]/g,''))
+              return String(row[h]||'');
+        return '';
+      }
+      var docs=data.rows.map(function(row){
+        var id=col(row,['docid','id']);if(!id)return null;
+        return{id:id,number:col(row,['documentnumber','docnumber','number']),
+          title:col(row,['documenttitle','title']),
+          rev:col(row,['currentrev','rev','revision','versions'])||'01',
+          type:col(row,['documenttype','type'])||'Register',
+          status:col(row,['status'])||'Active',
+          issued:col(row,['dateofissue','issued','issuedate']),
+          reviewDue:col(row,['reviewduedate','reviewdue','nextreview']),
+          owner:col(row,['documentowner','owner']),
+          pages:[],deleted:false,files:[],versions:[],
+          created:col(row,['lastupdated','created'])||new Date().toISOString().split('T')[0]};
+      }).filter(Boolean);
+      if(docs.length>0){
+        var local=gAll();
+        docs.forEach(function(sd){
+          var ex=local.find(function(ld){return ld.id===sd.id;});
+          if(ex){sd.files=ex.files||[];sd.versions=ex.versions||[];sd.deleted=ex.deleted||false;}
+        });
+        sAll(docs);populatePageFilter();renderTable();
+      }
+      if(cb)cb();
+    }).catch(function(){if(cb)cb();});
+}
+
+function loadLatestRevisions(){
+  var url=typeof SHEETS_URL!=='undefined'?SHEETS_URL:null;
+  if(!url)return;
+  fetch(url+'?action=read&tab=documents')
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(!data||!data.rows||!data.rows.length)return;
+      var hdr=data.headers||[];
+      function ci(names){
+        for(var n=0;n<names.length;n++)
+          for(var h=0;h<hdr.length;h++)
+            if(hdr[h].toLowerCase().replace(/[\s_\-.]/g,'')===names[n].toLowerCase().replace(/[\s_\-.]/g,''))
+              return h;
+        return -1;
+      }
+      var idIdx=ci(['docid','id']),revIdx=ci(['currentrev','rev','revision','versions']);
+      if(idIdx<0||revIdx<0)return;
+      var docs=gAll(),changed=false;
+      data.rows.forEach(function(row){
+        var sid=String(row[idIdx]||'').trim(),srev=String(row[revIdx]||'').trim();
+        if(!sid||!srev)return;
+        var d=docs.find(function(x){return x.id===sid;});
+        if(d&&srev!==d.rev){d.rev=srev;changed=true;}
+      });
+      if(changed){sAll(docs);renderTable();}
+    }).catch(function(){});
+}
+
 </script>
 </body>
 </html>
