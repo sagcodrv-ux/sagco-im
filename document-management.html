@@ -389,7 +389,7 @@ function renderTable(){
     /* Read file count from DMS_DRIVE local cache — where uploaded files are stored */
     var driveFiles = (typeof DMS_DRIVE !== 'undefined') ? DMS_DRIVE.localGet(d.id) : (d.files||[]);
     var fc = driveFiles.length;
-    var vc=(d.versions||[]).length;
+    var vc = d.verCount || (d.versions||[]).length;
     var fBadge=fc?'<span class="nb nb-blue">'+fc+' file'+(fc>1?'s':'')+'</span>':'<span class="muted nb nb-grey">none</span>';
     var vBadge=vc?'<span class="nb nb-gold">'+vc+' ver.</span>':'<span class="muted nb nb-grey">—</span>';
     var acts='<button class="btn btn-teal btn-xs" data-a="view"  data-id="'+d.id+'" title="View details">🔍</button>';
@@ -793,7 +793,7 @@ function openVersionModal(doc){
               : '<span class="ver-dl-none">no file attached</span>');
         return '<div class="ver-row'+(isActive?' ver-active':'')+'">'+
           '<span class="ver-num">Rev. '+esc(v.rev)+'</span>'+
-          '<span class="ver-date">'+esc(v.ts||v.date||'—')+'</span>'+
+          '<span class="ver-date">'+esc(fmtDate(v.ts||v.date)||'—')+'</span>'+
           '<span class="ver-note">'+esc(v.note||'—')+'<small>'+esc(v.user||v.uploadedBy||'—')+
           (v.fileName?' · '+esc(v.fileName):'')+'</small></span>'+
           '<span style="display:flex;gap:4px;align-items:center">'+dlHtml+'</span>'+
@@ -1092,6 +1092,29 @@ IMS_AUTH.init({
       DMS_DATA.loadAll(function() {
         populatePageFilter();
         renderTable();
+        /* Load version counts from Sheets */
+        var _url = typeof SHEETS_URL!=='undefined'?SHEETS_URL:null;
+        if (_url) {
+          fetch(_url+'?action=listAllVersions')
+            .then(function(r){return r.json();})
+            .then(function(data){
+              if(!data||!data.versions) return;
+              /* Count versions per docId */
+              var counts={};
+              data.versions.forEach(function(v){
+                counts[v.docId]=(counts[v.docId]||0)+1;
+              });
+              /* Update cache with counts */
+              var docs=DMS_DATA.cache();
+              var changed=false;
+              docs.forEach(function(d){
+                if(counts[d.id]&&d.verCount!==counts[d.id]){
+                  d.verCount=counts[d.id];changed=true;
+                }
+              });
+              if(changed) renderTable();
+            }).catch(function(){});
+        }
         setTimeout(preloadAttachmentCounts, 500);
       });
     }, 300);
