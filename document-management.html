@@ -242,7 +242,37 @@ var MAX_FILE_MB = DMS_DRIVE.isConfigured() ? 20 : 4;
 
 /* ── Store helpers ──────────────────────────────────────────── */
 function gAll()  { try { return JSON.parse(localStorage.getItem(SK)||'[]'); } catch(e){ return []; } }
-function sAll(a) { localStorage.setItem(SK, JSON.stringify(a)); }
+function sAll(a) {
+  try {
+    /* Strip large data (base64 files) before saving to localStorage
+       Google Sheets + Drive are the source of truth for real data */
+    var slim = a.map(function(d) {
+      return Object.assign({}, d, {
+        versions: (d.versions||[]).map(function(v){
+          return Object.assign({}, v, { dataUrl: null });
+        }),
+        files: (d.files||[]).map(function(f){
+          return Object.assign({}, f, { dataUrl: null, b64: null });
+        }),
+      });
+    });
+    localStorage.setItem(SK, JSON.stringify(slim));
+  } catch(e) {
+    /* Quota exceeded — clear old data and try again with just IDs */
+    try {
+      localStorage.removeItem(SK);
+      var minimal = a.map(function(d){
+        return { id:d.id, number:d.number, title:d.title, rev:d.rev,
+                 type:d.type, status:d.status, issued:d.issued,
+                 reviewDue:d.reviewDue, owner:d.owner,
+                 deleted:d.deleted||false, files:[], versions:[], pages:d.pages||[] };
+      });
+      localStorage.setItem(SK, JSON.stringify(minimal));
+    } catch(e2) {
+      console.warn('localStorage quota exceeded — data will reload from Google Sheets');
+    }
+  }
+}
 function gHist() { try { return JSON.parse(localStorage.getItem(HK)||'[]'); } catch(e){ return []; } }
 function sHist(a){ localStorage.setItem(HK, JSON.stringify(a)); }
 function gRole() { return sessionStorage.getItem(RK) || 'viewer'; }
