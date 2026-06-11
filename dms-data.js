@@ -86,26 +86,32 @@ var DMS_DATA = (function() {
         }
         var hdr = data.headers || [];
         function col(row, names) {
-          for (var n = 0; n < names.length; n++)
+          for (var n = 0; n < names.length; n++) {
+            /* Exact match first */
             for (var h = 0; h < hdr.length; h++)
-              if (hdr[h].toLowerCase().replace(/[\s_\-\.]/g,'') ===
+              if (hdr[h] === names[n]) return String(row[h] || '');
+            /* Fuzzy match fallback */
+            for (var h2 = 0; h2 < hdr.length; h2++)
+              if (hdr[h2].toLowerCase().replace(/[\s_\-\.]/g,'') ===
                   names[n].toLowerCase().replace(/[\s_\-\.]/g,''))
-                return String(row[h] || '');
+                return String(row[h2] || '');
+          }
           return '';
         }
         var docs = data.rows.map(function(row) {
-          var id = col(row, ['docid','id']);
+          var id = col(row, ['Doc ID']);
           if (!id) return null;
           return {
             id:         id,
-            number:     col(row, ['documentnumber','docnumber','number']),
-            title:      col(row, ['documenttitle','title']),
-            rev:        fmtRev(col(row, ['currentrev','rev','revision','versions'])),
-            type:       col(row, ['documenttype','type']) || 'Register',
-            status:     col(row, ['status']) || 'Active',
-            issued:     fmtDate(col(row, ['dateofissue','issued','issuedate'])),
-            reviewDue:  fmtDate(col(row, ['reviewduedate','reviewdue','nextreview'])),
-            owner:      col(row, ['documentowner','owner']),
+            number:     col(row, ['Document Number']),
+            title:      col(row, ['Document Title']),
+            rev:        fmtRev(col(row, ['Current Rev.'])),
+            type:       col(row, ['Document Type']) || 'Register',
+            status:     col(row, ['Status']) || 'Active',
+            issued:     fmtDate(col(row, ['Date of Issue'])),
+            reviewDue:  fmtDate(col(row, ['Review Due Date'])),
+            owner:      col(row, ['Document Owner']),
+            dept:       col(row, ['Department']) || '',
             pages:      [],
             deleted:    false,
             files:      [],

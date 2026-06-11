@@ -543,24 +543,27 @@ function saveDocumentRecord(params) {
     /* Find column indices */
     function findCol(names) {
       for (var n = 0; n < names.length; n++) {
-        for (var c = 0; c < headers.length; c++) {
-          if (String(headers[c]).toLowerCase().replace(/[\s\._]/g,'') ===
-              names[n].toLowerCase().replace(/[\s\._]/g,'')) return c;
-        }
+        /* Exact match first */
+        for (var c = 0; c < headers.length; c++)
+          if (String(headers[c]) === names[n]) return c;
+        /* Fuzzy fallback */
+        for (var c2 = 0; c2 < headers.length; c2++)
+          if (String(headers[c2]).toLowerCase().replace(/[\s\._]/g,'') ===
+              names[n].toLowerCase().replace(/[\s\._]/g,'')) return c2;
       }
       return -1;
     }
 
     var cols = {
-      id:        findCol(['docid','id','Doc ID']),
-      number:    findCol(['documentnumber','docnumber','number']),
-      title:     findCol(['documenttitle','title']),
-      rev:       findCol(['currentrev','rev','revision','versions']),
-      type:      findCol(['documenttype','type']),
-      status:    findCol(['status']),
-      issued:    findCol(['dateofissue','issued','issuedate']),
-      reviewDue: findCol(['reviewduedate','reviewdue','nextreview']),
-      owner:     findCol(['documentowner','owner']),
+      id:        findCol(['Doc ID']),
+      number:    findCol(['Document Number']),
+      title:     findCol(['Document Title']),
+      rev:       findCol(['Current Rev.']),
+      type:      findCol(['Document Type']),
+      status:    findCol(['Status']),
+      issued:    findCol(['Date of Issue']),
+      reviewDue: findCol(['Review Due Date']),
+      owner:     findCol(['Document Owner']),
     };
 
     /* Find existing row by Doc ID */
