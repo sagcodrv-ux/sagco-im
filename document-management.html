@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SAGCO IMS — Document &amp; Evidence Management</title>
   <link rel="stylesheet" href="style.css">
-  <script src="auth.js"></script>
   <script src="data.js"></script>
-  <script src="dms-drive.js"></script>
   <script src="nav.js"></script>
   <style>
     /* ── DMS-specific additions not in style.css ── */
@@ -237,8 +235,7 @@ var ROLES    = ['viewer','contributor','editor','admin'];
 var STATUSES = ['Active','Under Review','Superseded','Obsolete','Archived'];
 var TYPES    = ['Procedure','Policy','Register','Record','Certificate','Report',
                 'Checklist','Form','Monitoring Log','Drawing','Specification','Image','Other'];
-/* File size limit shown in UI — actual enforcement is in dms-drive.js */
-var MAX_FILE_MB = DMS_DRIVE.isConfigured() ? 20 : 4;
+var MAX_FILE_MB = 4; /* localStorage limit per file */
 
 /* ── Store helpers ──────────────────────────────────────────── */
 function gAll()  { try { return JSON.parse(localStorage.getItem(SK)||'[]'); } catch(e){ return []; } }
@@ -271,32 +268,12 @@ function fileIcon(name) {
   return map[ext] || '📎';
 }
 
-/* ── Storage mode notice ────────────────────────────────────── */
-/* Shows a prominent banner if Drive is not connected */
-function storageNotice() {
-  if (DMS_DRIVE.isConfigured()) return '';
-  return '<div style="background:#fff3cd;border-left:3px solid #f9a825;border-radius:0 5px 5px 0;'
-    +'padding:8px 12px;margin-bottom:10px;font-size:10px;color:#7a5800">'
-    +'⚠ <strong>Local storage mode</strong> — Google Drive is not configured. '
-    +'Files are saved in <em>this browser only</em> and will not appear on other devices. '
-    +'To enable shared storage, paste your Apps Script Web App URL into '
-    +'<code>SHEETS_URL</code> in <strong>data.js</strong>.'
-    +'</div>';
-}
-
-/* ── Current username for audit trail ───────────────────────── */
-function currentUser() {
-  var s = (typeof IMS_AUTH !== 'undefined') ? IMS_AUTH.getUser() : null;
-  return s ? s.username : gRole();
-}
-
-/* ── readFileAsDataUrl: delegate to DMS_DRIVE ───────────────── */
-/* Kept for backward-compat with version upload in openEditModal */
+/* ── Read file as base64 data URL ───────────────────────────── */
 function readFileAsDataUrl(file) {
   return new Promise(function(resolve, reject) {
     var mb = file.size / 1048576;
     if (mb > MAX_FILE_MB) {
-      reject(new Error('"' + file.name + '" is ' + mb.toFixed(1) + ' MB — max ' + MAX_FILE_MB + ' MB.'));
+      reject(new Error('"' + file.name + '" is ' + mb.toFixed(1) + ' MB — max allowed is ' + MAX_FILE_MB + ' MB per file on a static site.'));
       return;
     }
     var reader = new FileReader();
@@ -324,47 +301,7 @@ function seedIfEmpty() {
   ]);
 }
 
-/* ── Load latest revision numbers from Google Sheets ───────────
-   Reads the 📄 Document Register tab directly.
-   This is the single source of truth for current revision.     */
-function loadLatestRevisions() {
-  var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
-  if (!url) return;
-  fetch(url + '?action=read&tab=documents')
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      if (!data || !data.rows || !data.rows.length) return;
-      var headers = data.headers || [];
-      /* Find column indices */
-      function colIdx(names) {
-        for (var n = 0; n < names.length; n++) {
-          for (var h = 0; h < headers.length; h++) {
-            if (headers[h].toLowerCase().replace(/[\s\._]/g,'') ===
-                names[n].toLowerCase().replace(/[\s\._]/g,'')) return h;
-          }
-        }
-        return -1;
-      }
-      var idIdx  = colIdx(['docid','id','Doc ID']);
-      var revIdx = colIdx(['currentrev','rev','revision','Current Rev.','versions','Versions','Version']);
-      if (idIdx < 0 || revIdx < 0) return;
-
-      var docs = gAll();
-      var changed = false;
-      data.rows.forEach(function(row) {
-        var sheetId  = String(row[idIdx]  || '').trim();
-        var sheetRev = String(row[revIdx] || '').trim();
-        if (!sheetId || !sheetRev) return;
-        var doc = docs.find(function(d){ return d.id === sheetId; });
-        if (doc && sheetRev !== doc.rev) {
-          doc.rev = sheetRev;
-          changed = true;
-        }
-      });
-      if (changed) { sAll(docs); renderTable(); }
-    })
-    .catch(function(){});
-}
+/* ── Date helpers ───────────────────────────────────────────── */
 function daysUntil(d){ return Math.ceil((new Date(d)-new Date())/86400000); }
 function revCls(d){ if(!d)return''; var n=daysUntil(d); if(n<0)return'dms-overdue'; if(n<90)return'dms-duesoon'; return''; }
 function revLbl(d){ if(!d)return'—'; var n=daysUntil(d); if(n<0)return d+' ⚠'; if(n<90)return d+' ('+n+'d)'; return d; }
@@ -442,9 +379,7 @@ function renderTable(){
 
   tbody.innerHTML=docs.map(function(d){
     var rc=revCls(d.reviewDue), rl=revLbl(d.reviewDue);
-    /* Read file count from DMS_DRIVE local cache — where uploaded files are stored */
-    var driveFiles = (typeof DMS_DRIVE !== 'undefined') ? DMS_DRIVE.localGet(d.id) : (d.files||[]);
-    var fc = driveFiles.length;
+    var fc=(d.files||[]).length;
     var vc=(d.versions||[]).length;
     var fBadge=fc?'<span class="nb nb-blue">'+fc+' file'+(fc>1?'s':'')+'</span>':'<span class="muted nb nb-grey">none</span>';
     var vBadge=vc?'<span class="nb nb-gold">'+vc+' ver.</span>':'<span class="muted nb nb-grey">—</span>';
@@ -644,475 +579,232 @@ function openEditModal(doc){
 
 /* ═══════════════════════════════════════════════════════════
    MODAL 3 — ATTACHMENTS (supporting evidence files)
-   Files uploaded to Google Drive via Apps Script (shared across all
-   users and sessions). Falls back to localStorage when not configured.
+   Purpose: store objective evidence linked to a document entry
+   (inspection records, certificates, photos, signed forms etc.)
+   These are DIFFERENT from version files — they are supporting
+   evidence for the current revision, not old versions.
 ═══════════════════════════════════════════════════════════ */
 function openAttachModal(doc){
+  var fileList=(doc.files||[]).map(function(f){return Object.assign({},f);}); /* working copy */
 
-  /* Load current files from Drive / local cache */
-  function loadAndRender(){
-    var listEl=document.getElementById('att-list');
-    if(listEl) listEl.innerHTML='<div style="padding:10px;color:var(--text-lt);font-size:11px">⏳ Loading attachments…</div>';
-    DMS_DRIVE.listFiles(doc.id).then(function(result){
-      var fileList=result.files||[];
-      if(listEl) listEl.innerHTML=buildList(fileList);
-      wireDelBtns(fileList);
-      /* Update the attachment count badge in the main table */
-      renderTable();
-    }).catch(function(){ if(listEl) listEl.innerHTML='<div style="padding:10px;color:var(--red);font-size:11px">Failed to load attachments.</div>'; });
-  }
-
-  function buildList(fileList){
+  function buildList(){
     if(!fileList.length){
-      return '<div style="padding:14px 0;color:var(--text-lt);font-size:11px;text-align:center">No supporting files attached yet.</div>';
+      return '<div style="padding:14px 0;color:var(--text-lt);font-size:11px;text-align:center">'
+        +'No supporting files attached yet.</div>';
     }
     return '<div class="att-list">'
       +fileList.map(function(f,i){
-        /* Drive files: use webViewLink / downloadLink; local files: use downloadLink as data URL */
-        var viewHtml = f.webViewLink
-          ? '<a class="att-open" href="'+esc(f.webViewLink)+'" target="_blank">↗ Open</a>'
-            +'<a class="att-open" href="'+esc(f.downloadLink)+'" target="_blank">⬇ Download</a>'
-          : (f.downloadLink
-              ? '<a class="att-open" href="'+esc(f.downloadLink)+'" download="'+esc(f.fileName||f.name)+'">⬇ Download</a>'
-              : '<span class="att-open" style="opacity:.5;cursor:default">no link</span>');
-        var fname=f.fileName||f.name||'file';
-        var src=f.source==='drive'
-          ? '<span style="font-size:9px;color:var(--grn);margin-left:4px">☁ Drive</span>'
-          : '<span style="font-size:9px;color:var(--amb);margin-left:4px">💾 Local</span>';
+        var dlHtml=f.dataUrl
+          ?'<a class="att-open" href="'+f.dataUrl+'" download="'+esc(f.name)+'" title="Download '+esc(f.name)+'">⬇ Download</a>'
+          +'<a class="att-open" href="'+f.dataUrl+'" target="_blank" title="Open '+esc(f.name)+'">↗ Open</a>'
+          :'<span class="att-open" style="opacity:.5;cursor:default">no file data</span>';
         return '<div class="att-item">'
-          +'<span class="att-icon">'+fileIcon(fname)+'</span>'
-          +'<span class="att-name" title="'+esc(fname)+'">'+esc(fname)+src+'</span>'
-          +'<span class="att-meta">'+esc(f.size||'')+'&nbsp;·&nbsp;'+esc(f.date||f.uploadedDate||'')+'</span>'
-          +viewHtml
-          +(canEd()?'<span class="att-del" data-fid="'+esc(f.fileId)+'" data-fi="'+i+'" title="Remove">✕</span>':'')
+          +'<span class="att-icon">'+fileIcon(f.name)+'</span>'
+          +'<span class="att-name" title="'+esc(f.name)+'">'+esc(f.name)+'</span>'
+          +'<span class="att-meta">'+esc(f.size||'')+'&nbsp;·&nbsp;'+esc(f.date||'')+'</span>'
+          +dlHtml
+          +(canEd()?'<span class="att-del" data-fi="'+i+'" title="Remove attachment">✕</span>':'')
           +'</div>';
       }).join('')
       +'</div>';
   }
 
-  function wireDelBtns(fileList){
-    document.querySelectorAll('.att-del').forEach(function(btn){
-      btn.addEventListener('click',function(){
-        var idx=parseInt(btn.dataset.fi);
-        var f=fileList[idx]||{};
-        var fname=f.fileName||f.name||'this file';
-        if(!confirm('Remove "'+fname+'" from the register?\n\nNote: The file will remain in Google Drive but will no longer appear in the IMS register.'))return;
-        var fid=btn.dataset.fid;
-
-        /* Remove from local cache immediately */
-        DMS_DRIVE.localSet(doc.id, fileList.filter(function(_,i){ return i!==idx; }));
-        fileList.splice(idx,1);
-
-        /* Also remove from Apps Script Attachments sheet */
-        var url=typeof SHEETS_URL!=='undefined'?SHEETS_URL:null;
-        if(url && fid && !fid.startsWith('local-')){
-          fetch(url+'?action=deleteAttachment&fileId='+encodeURIComponent(fid)+'&docId='+encodeURIComponent(doc.id))
-            .catch(function(){});
-        }
-
-        logH(doc.id,'ATTACHMENT REMOVED',fname);
-        DMS_DRIVE.logAudit('FILE_DELETED',doc.id+' — '+fname,
-          (IMS_AUTH.getUser()||{}).userId,currentUser());
-
-        /* Re-render from updated local cache — do NOT re-fetch from server */
-        document.getElementById('att-list').innerHTML=buildList(fileList);
-        wireDelBtns(fileList);
-        renderTable();
-        toast('Attachment removed from register.','ok');
-      });
-    });
-  }
-
-  var roleNotice = !canEd()
-    ? '<div class="alert-amb" style="margin-bottom:10px;font-size:11px">'
-        +'🔒 <strong>Upload disabled — current role: '+gRole()+'</strong><br>'
-        +'You need <strong>editor</strong> or <strong>admin</strong> role to upload files. '
-        +'Click the role indicator in the topbar to change your role.'
-      +'</div>'
-    : '';
-
   openOverlay(
     '<div class="dms-modal-hdr"><h4>📎 Attachments — '+esc(doc.number)+' · '+esc(doc.title)+'</h4><button class="dms-modal-close">×</button></div>'
     +'<div class="dms-modal-body">'
-    +roleNotice
-    +'<div class="req-text" style="margin-bottom:12px">Supporting objective evidence attached to this document record. '
-    +'Files are uploaded to <strong>Google Drive</strong> and accessible to all users on all devices.</div>'
+    +'<div class="req-text" style="margin-bottom:12px">Attach supporting objective evidence: inspection records, certificates, signed forms, photographs, test reports, and any other evidence referenced by this document. Files are stored locally in your browser.</div>'
     +(canEd()
-      ?'<div style="background:#f8fafc;border:1px solid var(--g100);border-radius:6px;padding:12px;margin-bottom:14px">'
-        +'<label style="font-size:11px;font-weight:600;color:var(--navy);display:block;margin-bottom:6px">📎 Attach Supporting Evidence</label>'
-        +'<input type="file" id="att-file-inp" multiple style="font-size:11px;width:100%">'
-        +'<div id="att-prog-wrap" style="display:none;margin-top:8px">'
-          +'<div id="att-prog-txt" style="font-size:10px;color:var(--text-lt);margin-bottom:4px">Uploading…</div>'
-          +'<div style="height:6px;background:#e8ecf3;border-radius:3px;overflow:hidden">'
-            +'<div id="att-prog-fill" style="height:100%;background:#C9A84C;border-radius:3px;width:0;transition:width .3s"></div>'
-          +'</div>'
+      ?'<div class="drop-zone" id="att-zone">'
+        +'<input type="file" id="att-inp" style="display:none" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.txt,.csv,.zip">'
+        +'<div>📂 <strong>Click to select files</strong> or drag and drop here</div>'
+        +'<div style="margin-top:5px;font-size:10px;color:var(--text-lt)">PDF · DOCX · XLSX · JPG · PNG · any format · max '+MAX_FILE_MB+' MB per file</div>'
+        +'<div class="upload-prog" id="att-prog"></div>'
         +'</div>'
-        +'<div id="att-status" style="font-size:11px;margin-top:6px;min-height:16px"></div>'
-        +'<button id="att-save-btn" class="btn btn-gold" style="margin-top:10px;width:100%" disabled>📎 Upload Selected Files</button>'
-        +'<div style="font-size:10px;color:var(--text-lt);margin-top:5px">PDF · DOCX · XLSX · JPG · PNG · any format · max 25 MB per file</div>'
-      +'</div>'
       :'')
-    +'<div id="att-list"></div>'
+    +'<div id="att-list" style="margin-top:10px">'+buildList()+'</div>'
     +'</div>'
     +'<div class="dms-modal-ftr">'
+      +(canEd()?'<button class="btn btn-gold" id="att-save">Save Attachments</button>':'')
       +'<button class="btn btn-ghost-dk" id="att-cancel">Close</button>'
     +'</div>'
   );
 
-  document.getElementById('att-cancel').addEventListener('click', closeOverlay);
-  loadAndRender();
+  document.getElementById('att-cancel').addEventListener('click',closeOverlay);
 
-  if (canEd()) {
-    var fileInp2  = document.getElementById('att-file-inp');
-    var saveBtn2  = document.getElementById('att-save-btn');
-    var progWrap  = document.getElementById('att-prog-wrap');
-    var progFill2 = document.getElementById('att-prog-fill');
-    var progTxt2  = document.getElementById('att-prog-txt');
-    var statusEl  = document.getElementById('att-status');
-    var url2      = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
-
-    fileInp2.addEventListener('change', function() {
-      saveBtn2.disabled = !fileInp2.files || !fileInp2.files.length;
-      if (fileInp2.files && fileInp2.files.length) {
-        statusEl.textContent = fileInp2.files.length + ' file(s) selected — click Upload';
-        statusEl.style.color = 'var(--text-lt)';
-      }
-    });
-
-    saveBtn2.addEventListener('click', function() {
-      var files = Array.from(fileInp2.files || []);
-      if (!files.length) return;
-      saveBtn2.disabled = true;
-      fileInp2.disabled = true;
-      progWrap.style.display = '';
-      statusEl.textContent = '';
-      var uploaded = 0, failed = 0, total = files.length;
-
-      function uploadNext(idx) {
-        if (idx >= total) {
-          progFill2.style.width = '100%';
-          progFill2.style.background = '#2E7D32';
-          progTxt2.textContent = '✅ Done!';
-          statusEl.textContent = '✅ ' + uploaded + ' file(s) uploaded' + (failed ? ' · ' + failed + ' failed' : '');
-          statusEl.style.color = 'var(--grn)';
-          fileInp2.disabled = false;
-          saveBtn2.disabled = false;
-          loadAndRender();
-          return;
-        }
-        var file = files[idx];
-        progFill2.style.width = Math.round((idx / total) * 80) + '%';
-        progTxt2.textContent  = '☁ Uploading ' + file.name + ' (' + (idx+1) + '/' + total + ')…';
-
-        if (!url2) {
-          DMS_DRIVE.uploadFile(file, doc.id, 'attachment', '', currentUser())
-            .then(function(){ uploaded++; uploadNext(idx+1); })
-            .catch(function(){ failed++; uploadNext(idx+1); });
-          return;
-        }
-
-        var reader = new FileReader();
-        reader.onerror = function() { failed++; uploadNext(idx+1); };
-        reader.onload  = function(ev) {
-          var b64 = ev.target.result.split(',')[1];
-          fetch(url2, {
-            method: 'POST',
-            body: JSON.stringify({
-              action:'uploadFilePicker', docId:doc.id,
-              username:currentUser(), fileName:file.name,
-              mimeType:file.type||'application/octet-stream', b64:b64,
-            }),
-            redirect: 'follow',
-          })
-          .then(function(r){ return r.text(); })
-          .then(function(txt){
-            var res; try{ res=JSON.parse(txt); } catch(e){ res={ok:false}; }
-            if (res.ok) {
-              uploaded++;
-              var existing = DMS_DRIVE.localGet(doc.id);
-              existing.push({
-                fileId:file.name+'-'+Date.now(), fileName:res.fileName||file.name,
-                mimeType:file.type||'', size:file.size>1048576?(file.size/1048576).toFixed(1)+' MB':Math.round(file.size/1024)+' KB',
-                date:new Date().toISOString().split('T')[0], user:currentUser(),
-                webViewLink:res.webViewLink, downloadLink:res.downloadLink,
-                attachType:'attachment', source:'drive',
-              });
-              DMS_DRIVE.localSet(doc.id, existing);
-              logH(doc.id,'ATTACHMENT UPLOADED',file.name);
-            } else { failed++; }
-            uploadNext(idx+1);
-          })
-          .catch(function(){ failed++; uploadNext(idx+1); });
-        };
-        reader.readAsDataURL(file);
-      }
-      uploadNext(0);
+  function refresh(){ document.getElementById('att-list').innerHTML=buildList(); wireDelBtns(); }
+  function wireDelBtns(){
+    document.querySelectorAll('.att-del[data-fi]').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        if(!confirm('Remove "'+fileList[parseInt(btn.dataset.fi)].name+'"?'))return;
+        fileList.splice(parseInt(btn.dataset.fi),1); refresh();
+      });
     });
   }
+  wireDelBtns();
 
-  /* ── Refresh the attachment list with new files ────────────── */
-  function refreshAttachList(files) {
-    var attList = document.getElementById('att-list');
-    var st      = document.getElementById('att-status');
-    if (!attList) return;
+  if(canEd()){
+    var zone=document.getElementById('att-zone');
+    var inp=document.getElementById('att-inp');
+    zone.addEventListener('click',function(e){ if(e.target!==inp)inp.click(); });
+    zone.addEventListener('dragover',function(e){ e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave',function(){ zone.classList.remove('drag-over'); });
+    zone.addEventListener('drop',function(e){ e.preventDefault(); zone.classList.remove('drag-over'); addFiles(Array.from(e.dataTransfer.files)); });
+    inp.addEventListener('change',function(){ addFiles(Array.from(inp.files)); inp.value=''; });
 
-    if (!files.length) {
-      attList.innerHTML = '<div style="padding:14px 0;color:var(--text-lt);font-size:11px;text-align:center">No supporting files attached yet.</div>';
-      return;
+    function addFiles(files){
+      if(!files.length)return;
+      var prog=document.getElementById('att-prog');
+      prog.textContent='Reading '+files.length+' file(s)…';
+      var promises=files.map(function(f){
+        return readFileAsDataUrl(f).then(function(dataUrl){
+          return { name:f.name, size:f.size>1048576?(f.size/1048576).toFixed(1)+' MB':(f.size/1024).toFixed(0)+' KB',
+                   date:new Date().toISOString().split('T')[0], user:gRole(), dataUrl:dataUrl };
+        });
+      });
+      Promise.all(promises).then(function(newFiles){
+        newFiles.forEach(function(nf){ fileList.push(nf); });
+        prog.textContent=newFiles.length+' file(s) ready — click Save Attachments to store.';
+        refresh();
+      }).catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
     }
 
-    attList.innerHTML = buildList(files);
-    wireDelBtns(files);
-    renderTable();
-
-    if (st) {
-      st.textContent = '✅ ' + files.length + ' file' + (files.length > 1 ? 's' : '') + ' attached';
-      st.style.color = 'var(--grn)';
-    }
-    toast('Attachment list updated.', 'ok');
+    document.getElementById('att-save').addEventListener('click',function(){
+      var docs=gAll(), d2=docs.find(function(x){return x.id===doc.id;});
+      if(d2){ d2.files=fileList; sAll(docs); logH(doc.id,'ATTACHMENTS UPDATED',fileList.length+' file(s)'); }
+      closeOverlay(); renderTable(); toast('Attachments saved.','ok');
+    });
   }
 }
 
 /* ═══════════════════════════════════════════════════════════
    MODAL 4 — VERSION HISTORY & NEW REVISION UPLOAD
-   Versions stored in Google Sheets 📋 Versions tab via
-   Apps Script — visible to all users on all devices.
+   Purpose: full revision control — each version entry has:
+     - revision number
+     - date
+     - change note
+     - uploaded by
+     - optional file (the actual document for that revision)
+   Latest revision = index 0, always marked as ACTIVE.
+   Previous versions remain downloadable for audit traceability.
 ═══════════════════════════════════════════════════════════ */
 function openVersionModal(doc){
-  var activeModalTab = 'history';
-  var SHEETS_URL_VAL = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
-  var pendingVersionFile = null;
+  var activeModalTab='history'; /* 'history' | 'newrev' */
 
-  function loadVersions(cb) {
-    var localVers = doc.versions || [];
-    if (!SHEETS_URL_VAL) { cb(localVers); return; }
-    fetch(SHEETS_URL_VAL + '?action=listVersions&docId=' + encodeURIComponent(doc.id))
-      .then(function(r){ return r.json(); })
-      .then(function(data){
-        var sheetVers = data.versions || [];
-        /* Merge sheet + local versions, deduplicate by rev */
-        var merged = sheetVers.slice();
-        localVers.forEach(function(lv){
-          var dup = merged.some(function(sv){
-            return String(sv.rev).trim() === String(lv.rev).trim();
-          });
-          if (!dup) merged.push(lv);
-        });
-        /* Sort newest first, filter out bad test data */
-        merged = merged.filter(function(v){
-          return v.rev && String(v.rev).trim().length <= 6;
-        });
-        merged.sort(function(a,b){
-          return String(b.rev).localeCompare(String(a.rev),undefined,{numeric:true});
-        });
-        cb(merged.length ? merged : localVers);
-      })
-      .catch(function(){ cb(localVers); });
-  }
-
-  function buildHistory(versions) {
-    if (!versions.length) {
-      return '<div style="padding:20px;color:var(--text-lt);font-size:11px;text-align:center">'+
-        'No version history recorded yet.<br>Use "Upload New Revision" to add the first version.</div>';
+  function buildHistory(){
+    var versions=doc.versions||[];
+    if(!versions.length){
+      return '<div style="padding:20px;color:var(--text-lt);font-size:11px;text-align:center">No version history recorded yet.<br>Use "Upload New Revision" to add the first version.</div>';
     }
-    return '<div class="ver-timeline">'+
-      versions.map(function(v,i){
+    return '<div class="ver-timeline">'
+      +versions.map(function(v,i){
         var isActive=i===0;
-        var dlHtml = v.webViewLink
-          ? '<a class="ver-dl" href="'+esc(v.webViewLink)+'" target="_blank">↗ Open</a>'
-            +'<a class="ver-dl" href="'+esc(v.downloadLink||v.webViewLink)+'" target="_blank">⬇ Download</a>'
-          : (v.dataUrl
-              ? '<a class="ver-dl" href="'+v.dataUrl+'" download="'+esc(v.fileName||'document')+'">⬇ Rev.'+v.rev+'</a>'
-              : '<span class="ver-dl-none">no file attached</span>');
-        return '<div class="ver-row'+(isActive?' ver-active':'')+'">'+
-          '<span class="ver-num">Rev. '+esc(v.rev)+'</span>'+
-          '<span class="ver-date">'+esc(v.ts||v.date||'—')+'</span>'+
-          '<span class="ver-note">'+esc(v.note||'—')+'<small>'+esc(v.user||v.uploadedBy||'—')+
-          (v.fileName?' · '+esc(v.fileName):'')+'</small></span>'+
-          '<span style="display:flex;gap:4px;align-items:center">'+dlHtml+'</span>'+
-          '</div>';
-      }).join('')+'</div>';
+        var dlHtml=v.dataUrl
+          ?'<a class="ver-dl" href="'+v.dataUrl+'" download="'+(v.fileName||'document')+'" title="Download Rev.'+v.rev+'">⬇ Rev.'+v.rev+'</a>'
+          +'<a class="ver-dl" href="'+v.dataUrl+'" target="_blank" title="Open in new tab">↗ Open</a>'
+          :'<span class="ver-dl-none">no file attached</span>';
+        return '<div class="ver-row'+(isActive?' ver-active':'')+'">'
+          +'<span class="ver-num">Rev. '+esc(v.rev)+'</span>'
+          +'<span class="ver-date">'+esc(v.ts||'—')+'</span>'
+          +'<span class="ver-note">'+esc(v.note||'—')+'<small>by: '+esc(v.user||'—')+(v.fileName?'  ·  '+esc(v.fileName):'')+'</small></span>'
+          +'<span style="display:flex;gap:4px;align-items:center">'+dlHtml+'</span>'
+          +'</div>';
+      }).join('')
+      +'</div>';
   }
 
-  function buildNewRevForm() {
-    return '<div style="padding:4px 0">'+
-      '<div class="dms-field-row">'+
-        '<div class="dms-field"><label>New Revision Number <span class="dms-req">*</span></label>'+
-          '<input id="nv-rev" placeholder="e.g. 03" value="'+esc(doc.rev||'01')+'" style="width:120px"></div>'+
-        '<div class="dms-field"><label>Date</label>'+
-          '<input type="date" id="nv-date" value="'+new Date().toISOString().split('T')[0]+'" style="width:160px"></div>'+
-      '</div>'+
-      '<div class="dms-field"><label>Description of Changes <span class="dms-req">*</span></label>'+
-        '<textarea id="nv-note" rows="3" placeholder="Describe what changed…"></textarea></div>'+
-      '<div class="dms-field" style="background:#f8fafc;border:1px solid var(--g100);border-radius:6px;padding:12px">'+
-        '<label style="color:var(--navy)">Upload Document File <span class="muted" style="font-weight:400">(optional — PDF, DOCX, XLSX, image)</span></label>'+
-        '<input type="file" id="nv-file-inp" style="margin-top:8px;font-size:11px;width:100%" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.txt,.csv">'+
-        '<div id="nv-file-status" style="font-size:10px;color:var(--grn);margin-top:5px;min-height:14px"></div>'+
-        '<div style="font-size:10px;color:var(--text-lt);margin-top:4px">File uploads to Google Drive on Save — visible to all users on all devices</div>'+
-      '</div>'+
-      '<div class="alert-amb" style="margin-top:8px;font-size:10px">'+
-        '⚠ Saving creates a new version entry and updates the current revision number. Previous versions are preserved.'+
-      '</div>'+
-    '</div>';
+  function buildNewRevForm(){
+    return '<div style="padding:4px 0">'
+      +'<div class="dms-field"><label>New Revision Number <span class="dms-req">*</span></label>'
+        +'<input id="nv-rev" placeholder="e.g. 03" value="'+(doc.rev||'01')+'" style="width:120px"></div>'
+      +'<div class="dms-field"><label>Date of This Revision</label>'
+        +'<input type="date" id="nv-date" value="'+new Date().toISOString().split('T')[0]+'" style="width:160px"></div>'
+      +'<div class="dms-field"><label>Description of Changes <span class="dms-req">*</span></label>'
+        +'<textarea id="nv-note" rows="3" placeholder="Describe what changed: e.g. \'Section 4.2 updated to reflect F4 SHC deviation investigation findings; Table 3 revised\'…"></textarea></div>'
+      +'<div class="dms-field" style="background:#f8fafc;border:1px solid var(--g100);border-radius:6px;padding:12px">'
+        +'<label style="color:var(--navy)">Upload Document File for This Revision</label>'
+        +'<div style="font-size:10px;color:var(--text-lt);margin:4px 0 8px">Attach the actual document file (PDF, DOCX, etc.). This will be stored as the permanent record for Rev. '+esc(doc.rev)+('. The previous version remains downloadable.')+'</div>'
+        +'<input type="file" id="nv-file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.txt,.csv" style="font-size:11px">'
+        +'<div class="upload-prog" id="nv-prog" style="margin-top:6px"></div>'
+      +'</div>'
+      +'<div class="alert-amb" style="margin-top:8px;font-size:10px">'
+        +'⚠ Saving a new revision will update the document\'s current revision number and add this entry to the top of the version history. Previous versions remain preserved and downloadable.'
+      +'</div>'
+    +'</div>';
   }
 
-  function render(versionsArr) {
-    var roleNoticeTab = !canEd()
-      ? '<div style="font-size:10px;background:#fff8e1;border-left:3px solid var(--amb);border-radius:0 4px 4px 0;padding:6px 12px;margin-bottom:10px;color:#7a5800">'+
-          '🔒 <strong>Role: '+gRole()+'</strong> — "Upload New Revision" requires editor or admin.'+
-        '</div>'
-      : '';
+  function render(){
     openOverlay(
-      '<div class="dms-modal-hdr"><h4>📋 Version Control — '+esc(doc.number)+' · '+esc(doc.title)+'</h4><button class="dms-modal-close">×</button></div>'+
-      '<div class="dms-modal-body" style="padding-bottom:0">'+
-      roleNoticeTab+
-      '<div class="m-tabs">'+
-        '<div class="m-tab'+(activeModalTab==='history'?' active':'')+'" id="mt-history">Version History</div>'+
-        (canEd()?'<div class="m-tab'+(activeModalTab==='newrev'?' active':'')+'" id="mt-newrev">＋ Upload New Revision</div>':'')+
-      '</div>'+
-      '<div id="m-tab-content" style="min-height:200px;max-height:400px;overflow-y:auto">'+
-        (activeModalTab==='history'
-          ? (versionsArr ? buildHistory(versionsArr) : '<div style="padding:20px;text-align:center;color:var(--text-lt);font-size:11px">⏳ Loading versions…</div>')
-          : buildNewRevForm())+
-      '</div>'+
-      '</div>'+
-      '<div class="dms-modal-ftr">'+
-        (activeModalTab==='newrev'&&canEd()?'<button class="btn btn-gold" id="nv-save">Save New Revision</button>':'')+
-        '<button class="btn btn-ghost-dk" id="nv-cancel">Close</button>'+
-      '</div>'
+      '<div class="dms-modal-hdr"><h4>📋 Version Control — '+esc(doc.number)+' · '+esc(doc.title)+'</h4><button class="dms-modal-close">×</button></div>'
+      +'<div class="dms-modal-body" style="padding-bottom:0">'
+      +'<div class="m-tabs">'
+        +'<div class="m-tab'+(activeModalTab==='history'?' active':'')+'" id="mt-history">Version History</div>'
+        +(canEd()?'<div class="m-tab'+(activeModalTab==='newrev'?' active':'')+'" id="mt-newrev">＋ Upload New Revision</div>':'')
+      +'</div>'
+      +'<div id="m-tab-content" style="min-height:200px;max-height:400px;overflow-y:auto">'
+        +(activeModalTab==='history'?buildHistory():buildNewRevForm())
+      +'</div>'
+      +'</div>'
+      +'<div class="dms-modal-ftr">'
+        +(activeModalTab==='newrev'&&canEd()?'<button class="btn btn-gold" id="nv-save">Save New Revision</button>':'')
+        +'<button class="btn btn-ghost-dk" id="nv-cancel">Close</button>'
+      +'</div>'
     );
 
-    document.getElementById('nv-cancel').addEventListener('click', closeOverlay);
+    document.getElementById('nv-cancel').addEventListener('click',closeOverlay);
 
     var htab=document.getElementById('mt-history');
-    if(htab) htab.addEventListener('click',function(){
-      activeModalTab='history';
-      loadVersions(function(vers){ render(vers); });
-    });
+    if(htab) htab.addEventListener('click',function(){ activeModalTab='history'; render(); });
     var ntab=document.getElementById('mt-newrev');
-    if(ntab) ntab.addEventListener('click',function(){ activeModalTab='newrev'; render(null); });
+    if(ntab) ntab.addEventListener('click',function(){ activeModalTab='newrev'; render(); });
 
-    var saveBtn=document.getElementById('nv-save');
-    if(saveBtn) saveBtn.addEventListener('click',function(){
-      var newRevNum=document.getElementById('nv-rev').value.trim();
-      var newNote=document.getElementById('nv-note').value.trim();
-      if(!newRevNum||!newNote){toast('Revision number and description are required.','err');return;}
+    if(activeModalTab==='newrev'&&canEd()){
+      var saveBtn=document.getElementById('nv-save');
+      saveBtn.addEventListener('click',function(){
+        var newRevNum=document.getElementById('nv-rev').value.trim();
+        var newNote=document.getElementById('nv-note').value.trim();
+        if(!newRevNum||!newNote){ toast('Revision number and description are required.','err'); return; }
+        var fileInp=document.getElementById('nv-file');
+        var f=fileInp&&fileInp.files&&fileInp.files[0]?fileInp.files[0]:null;
+        var prog=document.getElementById('nv-prog');
 
-      var fileInp=document.getElementById('nv-file-inp');
-      var file=fileInp&&fileInp.files&&fileInp.files[0]?fileInp.files[0]:null;
-
-      var st=document.getElementById('nv-file-status');
-
-      function doSave(fileData){
-        var newVer={
-          docId:doc.id, rev:newRevNum,
-          ts:document.getElementById('nv-date').value||new Date().toISOString().split('T')[0],
-          note:newNote, user:currentUser(),
-          fileName:     fileData?fileData.fileName:null,
-          webViewLink:  fileData?fileData.webViewLink:null,
-          downloadLink: fileData?fileData.downloadLink:null,
-        };
-        /* Save to Apps Script Versions sheet */
-        if(SHEETS_URL_VAL){
-          fetch(SHEETS_URL_VAL, {
-            method:'POST',
-            body:JSON.stringify({
-              action:'saveVersion',
-              docId:newVer.docId, rev:newVer.rev, ts:newVer.ts,
-              note:newVer.note, user:newVer.user,
-              fileName:newVer.fileName||'',
-              webViewLink:newVer.webViewLink||'',
-              downloadLink:newVer.downloadLink||'',
-            }),
-            redirect:'follow'
-          }).catch(function(){});
+        function saveRevision(dataUrl, fileName){
+          var docs=gAll(), d2=docs.find(function(x){return x.id===doc.id;});
+          if(!d2)return;
+          var newVer={
+            rev:newRevNum,
+            ts:document.getElementById('nv-date').value||new Date().toISOString().split('T')[0],
+            note:newNote, user:gRole(),
+            fileName:fileName||null, dataUrl:dataUrl||null
+          };
+          /* Prepend new version — it becomes index 0 (ACTIVE) */
+          d2.versions=[newVer].concat(d2.versions||[]);
+          d2.rev=newRevNum; /* Update the document's current revision number */
+          sAll(docs);
+          logH(doc.id,'NEW REVISION','Rev.'+newRevNum+' — '+newNote+(fileName?' — file: '+fileName:''));
+          /* Update local doc reference for the re-render */
+          doc=d2;
+          activeModalTab='history';
+          render();
+          renderTable();
+          toast('Rev. '+newRevNum+' saved successfully.','ok');
         }
-        /* Update localStorage */
-        var docs=gAll(), d2=docs.find(function(x){return x.id===doc.id;});
-        if(d2){d2.versions=[newVer].concat(d2.versions||[]);d2.rev=newRevNum;sAll(docs);doc=d2;}
-        logH(doc.id,'NEW REVISION','Rev.'+newRevNum+' — '+newNote);
-        pendingVersionFile=null;
-        activeModalTab='history';
-        loadVersions(function(vers){render(vers);});
-        renderTable();
-        toast('Rev. '+newRevNum+' saved.','ok');
-      }
 
-      if(file){
-        if(st) st.textContent='⏳ Uploading '+file.name+' to Google Drive…';
-        saveBtn.disabled=true;
-        /* Read file as base64 then POST directly to Apps Script */
-        var reader=new FileReader();
-        reader.onerror=function(){
-          saveBtn.disabled=false;
-          if(st) st.textContent='❌ Could not read file';
-          doSave(null);
-        };
-        reader.onload=function(ev){
-          var b64=ev.target.result.split(',')[1];
-          var payload=JSON.stringify({
-            action:'uploadFilePicker',
-            docId:doc.id+'_ver',
-            username:currentUser(),
-            fileName:file.name,
-            mimeType:file.type||'application/octet-stream',
-            b64:b64
-          });
-          fetch(SHEETS_URL_VAL,{method:'POST',body:payload,redirect:'follow'})
-            .then(function(r){return r.text();})
-            .then(function(txt){
-              saveBtn.disabled=false;
-              var res;
-              try{res=JSON.parse(txt);}catch(e){res={ok:false,error:'Bad response'};}
-              if(res.ok){
-                if(st) st.textContent='✅ '+file.name+' uploaded';
-                doSave(res);
-              } else {
-                if(st) st.textContent='⚠ File upload failed — saving without file';
-                doSave(null);
-              }
-            })
-            .catch(function(){
-              saveBtn.disabled=false;
-              if(st) st.textContent='⚠ Upload error — saving without file';
-              doSave(null);
-            });
-        };
-        reader.readAsDataURL(file);
-      } else {
-        doSave(null);
-      }
-    });
+        if(f){
+          if(prog)prog.textContent='Reading file…';
+          readFileAsDataUrl(f)
+            .then(function(dataUrl){ saveRevision(dataUrl,f.name); })
+            .catch(function(e){ toast(e.message,'err'); if(prog)prog.textContent=''; });
+        } else {
+          saveRevision(null,null);
+        }
+      });
+    }
   }
 
-  render(null);
-  loadVersions(function(vers){ render(vers); });
+  render();
 }
-/* ── Pre-load attachment counts from Apps Script on page load ───
-   Fetches file counts for all documents so the Attachments
-   column shows correct numbers without opening each modal.      */
-function preloadAttachmentCounts() {
-  var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
-  if (!url) return;
-  var docs = gAll().filter(function(d){ return !d.deleted; });
-  if (!docs.length) return;
-  var pending = docs.length;
-  docs.forEach(function(d) {
-    DMS_DRIVE.listFiles(d.id)
-      .then(function(result) {
-        /* Cache is updated by listFiles — just decrement counter */
-        pending--;
-        if (pending === 0) {
-          /* All counts loaded — re-render table with correct counts */
-          renderTable();
-        }
-      })
-      .catch(function() {
-        pending--;
-        if (pending === 0) renderTable();
-      });
-  });
-}
+
+/* ── Role UI ────────────────────────────────────────────────── */
 function updateRoleUI(){
   document.getElementById('role-lbl').textContent=gRole();
   var addBtn=document.getElementById('btn-add');
@@ -1173,80 +865,16 @@ function toast(msg,type){
   clearTimeout(el._t); el._t=setTimeout(function(){el.className='';},3500);
 }
 
-/* ── Global listener for Drive upload popup ─────────────────── */
-window._activeUploadDocId = null;
-
-window.addEventListener('message', function(event) {
-  if (!event.data || event.data.type !== 'IMS_FILE_UPLOADED') return;
-  var f = event.data.file;
-  if (!f || !f.ok) return;
-
-  var rawDocId = f.docId || window._activeUploadDocId || '';
-  if (!rawDocId) return;
-
-  /* Determine if this is a version file upload (docId ends with _version) */
-  var isVersion = rawDocId.indexOf('_version') >= 0;
-  var docId     = isVersion ? rawDocId.replace('_version', '') : rawDocId;
-
-  if (isVersion) {
-    /* ── Version file uploaded ─────────────────────────────
-       Update the nv-file-status label in the version modal */
-    var st = document.getElementById('nv-file-status');
-    if (st) st.textContent = '✅ ' + f.fileName + ' ready — click Save New Revision';
-    /* Store as pending version file for the save button */
-    window._pendingVersionFile = f;
-    toast('✅ ' + f.fileName + ' ready — fill in the form and click Save New Revision', 'ok');
-    return;
-  }
-
-  /* ── Attachment file uploaded ──────────────────────────── */
-  if (typeof DMS_DRIVE !== 'undefined') {
-    var existing = DMS_DRIVE.localGet(docId);
-    if (!existing.some(function(x){ return x.fileId === f.fileId; })) {
-      existing.push({
-        fileId:       f.fileId,
-        fileName:     f.fileName,
-        mimeType:     f.mimeType || '',
-        size:         f.size     || '',
-        date:         f.date     || new Date().toISOString().split('T')[0],
-        user:         currentUser ? currentUser() : 'admin',
-        webViewLink:  f.webViewLink,
-        downloadLink: f.downloadLink,
-        previewLink:  f.previewLink || null,
-        attachType:   'attachment',
-        revNote:      '',
-        source:       'drive',
-      });
-      DMS_DRIVE.localSet(docId, existing);
-    }
-  }
-  if (typeof logH === 'function') logH(docId, 'ATTACHMENT UPLOADED', f.fileName);
-});
-
-
 /* ── Init ───────────────────────────────────────────────────── */
-IMS_AUTH.init({
-  onReady: function(session){
-    /* Sync DMS role from authenticated session */
-    var dmsRole = IMS_AUTH.mapRoleToDMS(session.role);
-    sessionStorage.setItem('sagco_dms_role', dmsRole);
-
-    seedIfEmpty();
-    populatePageFilter();
-    updateRoleUI();
-    renderTable();
-    /* Load latest revision numbers from Sheets — cross-browser sync */
-    setTimeout(loadLatestRevisions, 1000);
-    /* Pre-load attachment counts from Apps Script */
-    setTimeout(preloadAttachmentCounts, 1500);
-    initPage('document-management.html');
-    document.getElementById('tb').innerHTML = renderTopbar(
-      'Document & Evidence Management',
-      'L3-IMS-750-R-02  ·  Rev.01  ·  ISO §7.5 all four standards  ·  IMS Coordinator'
-    );
-    IMS_AUTH.injectUserBar();
-  }
-});
+seedIfEmpty();
+populatePageFilter();
+updateRoleUI();
+renderTable();
+initPage('document-management.html');
+document.getElementById('tb').innerHTML=renderTopbar(
+  'Document & Evidence Management',
+  'L3-IMS-750-R-02  ·  Rev.01  ·  ISO §7.5 all four standards  ·  IMS Coordinator'
+);
 </script>
 </body>
 </html>
