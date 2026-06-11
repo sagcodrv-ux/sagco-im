@@ -5,7 +5,7 @@
 <title>SAGCO IMS — PESTLE & SWOT Summary</title>
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="auth.js"></script><script src="data.js"></script><script src="nav.js"></script>
+<script src="data.js"></script><script src="nav.js"></script>
 <style>
 .swot-grid { display:grid; grid-template-columns:1fr 1fr; gap:3px; border-radius:var(--radius-lg); overflow:hidden; margin-bottom:20px; }
 .swot-q { padding:16px 18px; }
@@ -83,15 +83,8 @@
 
 </div></div>
 <script>
-IMS_AUTH.init({
-  onReady: function() {
-    initPage('pestle-swot.html');
-    document.getElementById('tb').innerHTML = renderTopbar('PESTLE & SWOT Summary','ISO §4.1 Context of the Organisation · 38 PESTLE factors + 51 SWOT items');
-    IMS_AUTH.injectUserBar();
-    renderCharts();
-    renderAllTables();
-  }
-});
+initPage('pestle-swot.html');
+document.getElementById('tb').innerHTML = renderTopbar('PESTLE & SWOT Summary','ISO §4.1 Context of the Organisation · 38 PESTLE factors + 51 SWOT items');
 
 const catCol = {
   'Political':'#1565C0','Economic':'#6A1F0E','Social':'#1B5E20',
@@ -99,31 +92,30 @@ const catCol = {
 };
 const swotCols = { O:'#0D47A1', T:'#37474F', 'O/T':'#4A148C', None:'#78909C' };
 
-function renderCharts() {
-  const cd = chartDefaults();
-  new Chart(document.getElementById('cPest'), {
-    type:'doughnut',
-    data:{ labels:['Political (9)','Economic (7)','Social (4)','Technological (5)','Environmental (5)','Legal (5)','Other (3)'],
-      datasets:[{ data:[9,7,4,5,5,5,3], backgroundColor:Object.values(catCol), borderWidth:0 }] },
-    options:{ ...cd, cutout:'58%' }
-  });
-  new Chart(document.getElementById('cSwotOut'), {
-    type:'doughnut',
-    data:{ labels:['Opportunity','Threat','O & T','None'],
-      datasets:[{ data:[11,18,8,1], backgroundColor:['#0D47A1','#B71C1C','#4A148C','#78909C'], borderWidth:0 }] },
-    options:{ ...cd, cutout:'55%' }
-  });
-  new Chart(document.getElementById('cSwotQ'), {
-    type:'bar',
-    data:{ labels:['Strengths','Weaknesses','Opportunities','Threats'],
-      datasets:[
-        { label:'Critical', data:[0,2,0,0], backgroundColor:'#B71C1C', borderRadius:[4,4,0,0] },
-        { label:'High',     data:[7,9,7,7], backgroundColor:'#E65100', borderRadius:4 },
-        { label:'Medium',   data:[4,3,5,7], backgroundColor:'#F9A825', borderRadius:4 }
-      ]},
-    options:{ ...cd, scales:{ x:{stacked:true,grid:{display:false}}, y:{stacked:true,beginAtZero:true} } }
-  });
-}
+// Charts (static — data from workbook)
+const cd = chartDefaults();
+new Chart(document.getElementById('cPest'), {
+  type:'doughnut',
+  data:{ labels:['Political (9)','Economic (7)','Social (4)','Technological (5)','Environmental (5)','Legal (5)','Other (3)'],
+    datasets:[{ data:[9,7,4,5,5,5,3], backgroundColor:Object.values(catCol), borderWidth:0 }] },
+  options:{ ...cd, cutout:'58%' }
+});
+new Chart(document.getElementById('cSwotOut'), {
+  type:'doughnut',
+  data:{ labels:['Opportunity','Threat','O & T','None'],
+    datasets:[{ data:[11,18,8,1], backgroundColor:['#0D47A1','#B71C1C','#4A148C','#78909C'], borderWidth:0 }] },
+  options:{ ...cd, cutout:'55%' }
+});
+new Chart(document.getElementById('cSwotQ'), {
+  type:'bar',
+  data:{ labels:['Strengths','Weaknesses','Opportunities','Threats'],
+    datasets:[
+      { label:'Critical', data:[0,2,0,0], backgroundColor:'#B71C1C', borderRadius:[4,4,0,0] },
+      { label:'High',     data:[7,9,7,7], backgroundColor:'#E65100', borderRadius:4 },
+      { label:'Medium',   data:[4,3,5,7], backgroundColor:'#F9A825', borderRadius:4 }
+    ]},
+  options:{ ...cd, scales:{ x:{stacked:true,grid:{display:false}}, y:{stacked:true,beginAtZero:true} } }
+});
 
 // PESTLE data (PS-01 – PS-38 from workbook)
 const PESTLE = [
@@ -227,8 +219,9 @@ const trendC={'↑':'var(--low)','→':'#E65100','?':'var(--g700)'};
 const swotB={'O':'#E3F2FD','T':'var(--g100)','O/T':'#EDE7F6','None':'var(--g100)'};
 const swotFg={'O':'#0D47A1','T':'#37474F','O/T':'#4A148C','None':'#78909C'};
 
-function renderAllTables() {
-  document.getElementById('pest-tbody').innerHTML = PESTLE.map(d => `<tr id="${d.ref}">
+function renderTables() {
+  var tbody = document.getElementById('pest-tbody');
+  if (tbody) tbody.innerHTML = PESTLE.map(d => `<tr id="${d.ref}">
   <td><a href="#${d.ref}" class="trace-link" style="font-size:10.5px">${d.ref}</a></td>
   <td><span class="badge" style="background:${catCol[d.cat]||'#37474F'}22;color:${catCol[d.cat]||'#37474F'};font-size:9px">${d.cat}</span></td>
   <td style="font-size:12px;line-height:1.35">${d.desc}</td>
@@ -242,14 +235,23 @@ function renderAllTables() {
   // SWOT quadrant cards
   ['S','W','O','T'].forEach(q => {
     const items = SWOT.filter(s => s.q === q);
-    document.getElementById(`sw-${q}`).innerHTML = items.map(s => `
+    const el = document.getElementById(`sw-${q}`);
+    if (el) el.innerHTML = items.map(s => `
       <div class="swot-item" id="${s.ref}">
         <span class="swot-ref">${s.ref}</span>
         <span style="flex:1">${s.desc}</span>
         <span class="swot-prio ${s.prio}">${s.prio}</span>
       </div>`).join('');
   });
+
+  // Ensure tab-pestle is visible
+  var tab = document.getElementById('tab-pestle');
+  if (tab) tab.style.display = '';
 }
+
+// Render now and again after nav.js finishes
+renderTables();
+setTimeout(renderTables, 300);
 
 function showTab(tab) {
   document.getElementById('tab-pestle').style.display = tab==='pestle'?'':'none';
