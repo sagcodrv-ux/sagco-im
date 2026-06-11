@@ -702,14 +702,18 @@ function openAttachModal(doc){
     +'<div class="req-text" style="margin-bottom:12px">Supporting objective evidence attached to this document record. '
     +'Files are uploaded to <strong>Google Drive</strong> and accessible to all users on all devices.</div>'
     +(canEd()
-      ?'<div style="margin-bottom:14px">'
-        +'<button id="att-upload-btn" class="btn btn-gold" style="width:100%;padding:11px;font-size:13px">'
-          +'📂 &nbsp;Click to Upload a File'
-        +'</button>'
-        +'<div style="font-size:10px;color:var(--text-lt);text-align:center;margin-top:6px">'
-          +'A secure upload window will open · PDF · DOCX · XLSX · JPG · PNG · max 25 MB'
+      ?'<div style="background:#f8fafc;border:1px solid var(--g100);border-radius:6px;padding:12px;margin-bottom:14px">'
+        +'<label style="font-size:11px;font-weight:600;color:var(--navy);display:block;margin-bottom:6px">Attach Supporting Evidence</label>'
+        +'<input type="file" id="att-file-inp" multiple style="font-size:11px;width:100%">'
+        +'<div id="att-prog-wrap" style="display:none;margin-top:8px">'
+          +'<div id="att-prog-txt" style="font-size:10px;color:var(--text-lt);margin-bottom:4px">Uploading...</div>'
+          +'<div style="height:6px;background:#e8ecf3;border-radius:3px;overflow:hidden">'
+            +'<div id="att-prog-fill" style="height:100%;background:#C9A84C;border-radius:3px;width:0;transition:width .3s"></div>'
+          +'</div>'
         +'</div>'
-        +'<div id="att-status" style="font-size:11px;color:var(--grn);text-align:center;margin-top:6px;min-height:18px"></div>'
+        +'<div id="att-status" style="font-size:11px;margin-top:6px;min-height:16px"></div>'
+        +'<button id="att-save-btn" class="btn btn-gold" style="margin-top:10px;width:100%" disabled>Upload Selected Files</button>'
+        +'<div style="font-size:10px;color:var(--text-lt);margin-top:5px">PDF · DOCX · XLSX · JPG · PNG · max 25 MB per file</div>'
       +'</div>'
       :'')
     +'<div id="att-list"></div>'
@@ -723,97 +727,51 @@ function openAttachModal(doc){
   loadAndRender();
 
   if (canEd()) {
-    document.getElementById('att-upload-btn').addEventListener('click', function() {
-      var url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
-      if (!url) { toast('SHEETS_URL not configured in data.js','err'); return; }
+    var _fi   = document.getElementById('att-file-inp');
+    var _sb   = document.getElementById('att-save-btn');
+    var _pw   = document.getElementById('att-prog-wrap');
+    var _pf   = document.getElementById('att-prog-fill');
+    var _pt   = document.getElementById('att-prog-txt');
+    var _st   = document.getElementById('att-status');
+    var _url  = typeof SHEETS_URL!=='undefined'?SHEETS_URL:null;
 
-      /* Store active doc id for global listener */
-      window._activeUploadDocId = doc.id;
-
-      /* Track current file count before upload */
-      var countBefore = DMS_DRIVE.localGet(doc.id).length;
-
-      var popupUrl = url
-        + '?action=picker'
-        + '&docId='    + encodeURIComponent(doc.id)
-        + '&username=' + encodeURIComponent(currentUser());
-
-      var popup = window.open(popupUrl, 'SAGCO_Upload',
-        'width=560,height=540,top=100,left=200,resizable=no,scrollbars=no');
-
-      if (!popup) {
-        toast('Popup blocked — allow popups for this site in your browser settings.','err');
-        return;
-      }
-
-      /* ── Poll for new files every 2 seconds ──────────────────
-         Checks both localStorage cache (postMessage path) and
-         Apps Script (direct fetch path). Stops after 60 seconds
-         or when popup is closed and a new file is detected.     */
-      var pollCount = 0;
-      var maxPolls  = 30; /* 30 × 2s = 60 seconds */
-      var pollTimer = setInterval(function() {
-        pollCount++;
-
-        /* Check local cache first (instant — updated by postMessage) */
-        var cached = DMS_DRIVE.localGet(doc.id);
-        if (cached.length > countBefore) {
-          clearInterval(pollTimer);
-          refreshAttachList(cached);
-          return;
-        }
-
-        /* Also fetch from Apps Script to catch files not via postMessage */
-        DMS_DRIVE.listFiles(doc.id).then(function(result) {
-          var files = result.files || [];
-          if (files.length > countBefore) {
-            clearInterval(pollTimer);
-            refreshAttachList(files);
-          }
-        }).catch(function(){});
-
-        /* Stop polling after max attempts */
-        if (pollCount >= maxPolls) {
-          clearInterval(pollTimer);
-        }
-
-        /* Stop polling if popup is closed and still no new files */
-        if (popup.closed && pollCount > 3) {
-          clearInterval(pollTimer);
-          /* Do one final refresh */
-          DMS_DRIVE.listFiles(doc.id).then(function(result) {
-            refreshAttachList(result.files || []);
-          }).catch(function(){});
-        }
-      }, 2000);
-
-      /* Clean up poll if modal is closed */
-      document.getElementById('att-cancel').addEventListener('click', function() {
-        clearInterval(pollTimer);
-      });
+    _fi.addEventListener('change',function(){
+      _sb.disabled=!_fi.files||!_fi.files.length;
+      if(_fi.files&&_fi.files.length){_st.textContent=_fi.files.length+' file(s) selected';_st.style.color='var(--text-lt)';}
     });
-  }
 
-  /* ── Refresh the attachment list with new files ────────────── */
-  function refreshAttachList(files) {
-    var attList = document.getElementById('att-list');
-    var st      = document.getElementById('att-status');
-    if (!attList) return;
-
-    if (!files.length) {
-      attList.innerHTML = '<div style="padding:14px 0;color:var(--text-lt);font-size:11px;text-align:center">No supporting files attached yet.</div>';
-      return;
-    }
-
-    attList.innerHTML = buildList(files);
-    wireDelBtns(files);
-    renderTable();
-
-    if (st) {
-      st.textContent = '✅ ' + files.length + ' file' + (files.length > 1 ? 's' : '') + ' attached';
-      st.style.color = 'var(--grn)';
-    }
-    toast('Attachment list updated.', 'ok');
+    _sb.addEventListener('click',function(){
+      var files=Array.from(_fi.files||[]);
+      if(!files.length)return;
+      _sb.disabled=true;_fi.disabled=true;_pw.style.display='';_st.textContent='';
+      var uploaded=0,failed=0,total=files.length;
+      function next(idx){
+        if(idx>=total){
+          _pf.style.width='100%';_pf.style.background='#2E7D32';_pt.textContent='Done!';
+          _st.textContent='✅ '+uploaded+' file(s) uploaded'+(failed?' · '+failed+' failed':'');
+          _st.style.color='var(--grn)';_fi.disabled=false;_sb.disabled=false;
+          loadAndRender();return;
+        }
+        var file=files[idx];
+        _pf.style.width=Math.round(idx/total*80)+'%';
+        _pt.textContent='Uploading '+file.name+' ('+(idx+1)+'/'+total+')...';
+        if(!_url){DMS_DRIVE.uploadFile(file,doc.id,'attachment','',currentUser()).then(function(){uploaded++;next(idx+1);}).catch(function(){failed++;next(idx+1);});return;}
+        var reader=new FileReader();
+        reader.onerror=function(){failed++;next(idx+1);};
+        reader.onload=function(ev){
+          var b64=ev.target.result.split(',')[1];
+          fetch(_url,{method:'POST',body:JSON.stringify({action:'uploadFilePicker',docId:doc.id,username:currentUser(),fileName:file.name,mimeType:file.type||'application/octet-stream',b64:b64}),redirect:'follow'})
+            .then(function(r){return r.text();})
+            .then(function(txt){
+              var res;try{res=JSON.parse(txt);}catch(e){res={ok:false};}
+              if(res.ok){uploaded++;var ex=DMS_DRIVE.localGet(doc.id);ex.push({fileId:res.fileId||('f'+Date.now()),fileName:res.fileName||file.name,mimeType:file.type||'',size:file.size>1048576?(file.size/1048576).toFixed(1)+' MB':Math.round(file.size/1024)+' KB',date:new Date().toISOString().split('T')[0],user:currentUser(),webViewLink:res.webViewLink,downloadLink:res.downloadLink,attachType:'attachment',source:'drive'});DMS_DRIVE.localSet(doc.id,ex);logH(doc.id,'ATTACHMENT UPLOADED',file.name);}else{failed++;}
+              next(idx+1);
+            }).catch(function(){failed++;next(idx+1);});
+        };
+        reader.readAsDataURL(file);
+      }
+      next(0);
+    });
   }
 }
 
@@ -828,11 +786,27 @@ function openVersionModal(doc){
   var pendingVersionFile = null;
 
   function loadVersions(cb) {
-    if (!SHEETS_URL_VAL) { cb(doc.versions || []); return; }
+    var localVers = doc.versions || [];
+    if (!SHEETS_URL_VAL) { cb(localVers); return; }
     fetch(SHEETS_URL_VAL + '?action=listVersions&docId=' + encodeURIComponent(doc.id))
       .then(function(r){ return r.json(); })
-      .then(function(data){ cb(data.versions || doc.versions || []); })
-      .catch(function(){ cb(doc.versions || []); });
+      .then(function(data){
+        var sheetVers = data.versions || [];
+        /* Always merge both sources — dedup by rev number */
+        var merged = sheetVers.slice();
+        localVers.forEach(function(lv){
+          var dup = merged.some(function(sv){
+            return String(sv.rev).trim() === String(lv.rev).trim();
+          });
+          if (!dup) merged.push(lv);
+        });
+        /* Sort newest first */
+        merged.sort(function(a,b){
+          return String(b.rev).localeCompare(String(a.rev),undefined,{numeric:true});
+        });
+        cb(merged.length ? merged : localVers);
+      })
+      .catch(function(){ cb(localVers); });
   }
 
   function buildHistory(versions) {
