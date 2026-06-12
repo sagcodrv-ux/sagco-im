@@ -178,27 +178,23 @@ var DMS_DATA = (function() {
       .catch(function() { cb(localVersions || []); });
   }
 
-  /* ── Save version to Sheets ───────────────────────────────── */
+  /* Save version to Google Sheets via GET (avoids POST redirect) */
   function saveVersion(ver, cb) {
     if (!url) { if(cb) cb({ok:true}); return; }
-    fetch(url, {
-      method: 'POST',
-      body: JSON.stringify({
-        action:      'saveVersion',
-        docId:       ver.docId,
-        rev:         ver.rev,
-        ts:          ver.ts,
-        note:        ver.note,
-        user:        ver.user,
-        fileName:    ver.fileName || '',
-        webViewLink: ver.webViewLink || '',
-        downloadLink:ver.downloadLink || '',
-      }),
-      redirect: 'follow',
-    })
+    fetch(url
+      + '?action=saveVersion'
+      + '&docId='       + encodeURIComponent(ver.docId || '')
+      + '&rev='         + encodeURIComponent(ver.rev || '')
+      + '&ts='          + encodeURIComponent(ver.ts || '')
+      + '&note='        + encodeURIComponent(ver.note || '')
+      + '&user='        + encodeURIComponent(ver.user || '')
+      + '&fileName='    + encodeURIComponent(ver.fileName || '')
+      + '&webViewLink=' + encodeURIComponent(ver.webViewLink || '')
+      + '&downloadLink='+ encodeURIComponent(ver.downloadLink || '')
+    )
     .then(function(r) { return r.json(); })
     .then(function(res) { if(cb) cb(res); })
-    .catch(function() { if(cb) cb({ok:false}); });
+    .catch(function(e) { console.warn('Version save failed:', e.message); if(cb) cb({ok:false}); });
   }
 
   /* ── Load attachments from Sheets ────────────────────────── */
