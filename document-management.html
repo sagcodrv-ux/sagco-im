@@ -158,6 +158,7 @@
         <span class="role-pill" id="role-pill" title="Click to change role">● <span id="role-lbl">viewer</span></span>
         <button class="btn btn-gold btn-sm" id="btn-add" style="display:none">＋ Add Document</button>
         <button class="btn btn-ghost btn-sm" id="btn-export">⬇ CSV</button>
+        <button class="btn btn-ghost btn-sm" id="btn-refresh-data" title="Reload all data from Google Sheets">↻ Refresh</button>
       </div>
     </div>
 
@@ -232,6 +233,21 @@
 var SK = 'sagco_dms_store';
 var HK = 'sagco_dms_hist';
 var RK = 'sagco_dms_role';
+
+/* ── Auto-migration: clear old localStorage format ─────────────
+   Runs once per browser. If old data exists (has files/versions
+   arrays with data), clears it so Sheets data loads cleanly.
+   Version key prevents repeated clearing.                       */
+(function autoMigrate() {
+  var MIGRATION_KEY = 'sagco_dms_migrated_v2';
+  if (localStorage.getItem(MIGRATION_KEY)) return; /* already done */
+  /* Clear old store — new architecture reads from Google Sheets */
+  localStorage.removeItem(SK);
+  localStorage.removeItem(HK);
+  localStorage.removeItem('sagco_dms_files');
+  /* Mark as migrated so this never runs again */
+  localStorage.setItem(MIGRATION_KEY, '1');
+})();
 
 /* ── Constants ──────────────────────────────────────────────── */
 var ROLES    = ['viewer','contributor','editor','admin'];
@@ -989,6 +1005,17 @@ document.getElementById('btn-export').addEventListener('click',function(){
   var a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
   a.download='SAGCO_IMS_Document_Register_'+new Date().toISOString().split('T')[0]+'.csv'; a.click();
   toast('CSV exported.','ok');
+});
+
+/* ── Refresh button — reloads all data from Google Sheets ─────── */
+document.getElementById('btn-refresh-data').addEventListener('click', function() {
+  DMS_DATA.clearCache();
+  toast('Reloading from Google Sheets…', 'ok');
+  DMS_DATA.loadAll(function() {
+    populatePageFilter();
+    renderTable();
+    toast('✅ Data refreshed from Google Sheets', 'ok');
+  });
 });
 
 /* ── Filter / sort / tab wiring ──────────────────────────────── */
