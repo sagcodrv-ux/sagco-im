@@ -487,6 +487,7 @@ function closeOverlay(){ document.getElementById('dms-overlay').classList.remove
    MODAL 1 — VIEW (read-only metadata summary)
 ═══════════════════════════════════════════════════════════ */
 function openViewModal(doc){
+  var driveFiles = (typeof DMS_DRIVE !== 'undefined') ? DMS_DRIVE.localGet(doc.id) : (doc.files||[]);
   var rows=[
     ['Document Number', '<span class="dms-num">'+esc(doc.number)+'</span>'],
     ['Title',           '<strong>'+esc(doc.title)+'</strong>'],
@@ -497,7 +498,7 @@ function openViewModal(doc){
     ['Review Due Date', '<span class="'+revCls(doc.reviewDue)+'">'+revLbl(doc.reviewDue)+'</span>'],
     ['Document Owner',  esc(doc.owner||'—')],
     ['Linked Pages',    (doc.pages||[]).map(function(p){return '<span class="dms-page-chip">'+p+'</span>';}).join(' ')||'—'],
-    ['Attachments',     (doc.files||[]).length+' file(s)'],
+    ['Attachments',     '<span id="v-attach-count">'+driveFiles.length+' file(s)</span>'],
     ['Version History', (doc.versions||[]).length+' revision(s) on record'],
   ];
   var tableHtml=rows.map(function(r){
@@ -520,6 +521,15 @@ function openViewModal(doc){
   document.getElementById('v-attach').addEventListener('click',function(){ closeOverlay(); openAttachModal(doc); });
   document.getElementById('v-version').addEventListener('click',function(){ closeOverlay(); openVersionModal(doc); });
   if(canEd()) document.getElementById('v-edit').addEventListener('click',function(){ closeOverlay(); openEditModal(doc); });
+  /* Fetch live attachment count from Drive */
+  if(typeof DMS_DRIVE !== 'undefined'){
+    DMS_DRIVE.listFiles(doc.id).then(function(result){
+      var files = result.files || [];
+      DMS_DRIVE.localSet(doc.id, files);
+      var el = document.getElementById('v-attach-count');
+      if(el) el.textContent = files.length+' file(s)';
+    }).catch(function(){});
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
