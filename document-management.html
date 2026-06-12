@@ -1088,15 +1088,12 @@ document.getElementById('btn-export').addEventListener('click',function(){
   toast('CSV exported.','ok');
 });
 
-/* ── Refresh button — reloads all data from Google Sheets ─────── */
+/* ── Refresh button — hard reload (clears all cache) ─────── */
 document.getElementById('btn-refresh-data').addEventListener('click', function() {
   DMS_DATA.clearCache();
-  toast('Reloading from Google Sheets…', 'ok');
-  DMS_DATA.loadAll(function() {
-    populatePageFilter();
-    renderTable();
-    toast('✅ Data refreshed from Google Sheets', 'ok');
-  });
+  if(typeof DMS_DRIVE !== 'undefined') localStorage.removeItem('sagco_drive_cache');
+  sessionStorage.removeItem('dms_hard_reloaded');
+  location.reload(true);
 });
 
 /* ── Filter / sort / tab wiring ──────────────────────────────── */
@@ -1230,6 +1227,14 @@ IMS_AUTH.init({
         setTimeout(preloadAttachmentCounts, 500);
       });
     }, 300);
+    /* Auto hard-reload once per page visit to ensure fresh data */
+    if(!sessionStorage.getItem('dms_hard_reloaded')){
+      sessionStorage.setItem('dms_hard_reloaded','1');
+      DMS_DATA.clearCache();
+      if(typeof DMS_DRIVE !== 'undefined') localStorage.removeItem('sagco_drive_cache');
+      location.reload(true);
+      return;
+    }
     initPage('document-management.html');
     document.getElementById('tb').innerHTML = renderTopbar(
       'Document & Evidence Management',
