@@ -454,7 +454,7 @@ function renderTopbar(title, subtitle) {
     + '<div class="topbar-sub">'   + (subtitle || '') + '</div>'
     + '</div>'
     + '<div class="topbar-right">'
-    + '<button class="btn btn-ghost" onclick="onclick="localStorage.clear();sessionStorage.clear();var u=location.href.split(&quot;?&quot;)[0]+&quot;?_cb=&quot;+Date.now();location.replace(u)"">↻ Refresh</button>'
+    + '<button class="btn btn-ghost" onclick="localStorage.clear();var u=location.href.split(&quot;?&quot;)[0]+&quot;?_cb=&quot;+Date.now();location.replace(u)">↻ Refresh</button>'
     + '</div>'
     + '</div>';
 }

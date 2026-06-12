@@ -1092,7 +1092,6 @@ document.getElementById('btn-export').addEventListener('click',function(){
 document.getElementById('btn-refresh-data').addEventListener('click', function() {
   DMS_DATA.clearCache();
   localStorage.clear();
-  sessionStorage.clear();
   var url = location.href.split('?')[0] + '?_cb=' + Date.now();
   location.replace(url);
 });
@@ -1228,14 +1227,16 @@ IMS_AUTH.init({
         setTimeout(preloadAttachmentCounts, 500);
       });
     }, 300);
-    /* Auto hard-reload once per page visit to ensure fresh data */
-    if(!sessionStorage.getItem('dms_hard_reloaded')){
+    /* Auto hard-reload once per visit — skip if already cache-busted (_cb in URL) */
+    var _hasCB = location.search.indexOf('_cb=') !== -1;
+    if(!_hasCB && !sessionStorage.getItem('dms_hard_reloaded')){
       sessionStorage.setItem('dms_hard_reloaded','1');
       localStorage.clear();
       var url = location.href.split('?')[0] + '?_cb=' + Date.now();
       location.replace(url);
       return;
     }
+    sessionStorage.setItem('dms_hard_reloaded','1');
     initPage('document-management.html');
     document.getElementById('tb').innerHTML = renderTopbar(
       'Document & Evidence Management',
