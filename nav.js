@@ -454,7 +454,7 @@ function renderTopbar(title, subtitle) {
     + '<div class="topbar-sub">'   + (subtitle || '') + '</div>'
     + '</div>'
     + '<div class="topbar-right">'
-    + '<button class="btn btn-ghost" onclick="if(window.reloadLive)reloadLive()">↻ Refresh</button>'
+    + '<button class="btn btn-ghost" onclick="localStorage.clear();sessionStorage.clear();location.replace(location.href.split('?')[0]+'?_cb='+Date.now())">↻ Refresh</button>'
     + '</div>'
     + '</div>';
 }
