@@ -428,7 +428,7 @@ function renderTable(){
       +'<td class="nowrap '+rc+'">'+rl+'</td>'
       +'<td class="nowrap">'+esc(d.owner||'—')+'</td>'
       +'<td>'+fBadge+'</td>'
-      +'<td>'+vBadge+'</td>'
+      +'<td class="ver-cell">'+vBadge+'</td>'
       +'<td><div class="dms-actions">'+acts+'</div></td>'
       +'</tr>';
   }).join('');
@@ -1126,20 +1126,29 @@ IMS_AUTH.init({
             .then(function(r){return r.json();})
             .then(function(data){
               if(!data||!data.versions) return;
-              /* Count versions per docId */
               var counts={};
               data.versions.forEach(function(v){
                 counts[v.docId]=(counts[v.docId]||0)+1;
               });
-              /* Update cache with counts */
-              var docs=DMS_DATA.cache();
-              var changed=false;
-              docs.forEach(function(d){
-                if(counts[d.id]&&d.verCount!==counts[d.id]){
-                  d.verCount=counts[d.id];changed=true;
+              /* Update DOM directly — no need to touch cache */
+              var changed = false;
+              document.querySelectorAll('tr[data-id]').forEach(function(row){
+                var docId = row.getAttribute('data-id');
+                if(counts[docId]){
+                  var cell = row.querySelector('td.ver-cell');
+                  if(cell){
+                    cell.innerHTML='<span class="nb nb-gold">'+counts[docId]+' ver.</span>';
+                    changed = true;
+                  }
                 }
               });
-              if(changed) renderTable();
+              /* Also update cache for future renders */
+              if(Object.keys(counts).length > 0){
+                var docs = DMS_DATA.cache();
+                docs.forEach(function(d){ if(counts[d.id]) d.verCount=counts[d.id]; });
+                localStorage.setItem('sagco_dms_v2', JSON.stringify(docs));
+                renderTable();
+              }
             }).catch(function(){});
         }
         setTimeout(preloadAttachmentCounts, 500);
