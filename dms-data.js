@@ -220,6 +220,7 @@ var DMS_DATA = (function() {
   /* ── Public API ───────────────────────────────────────────── */
   return {
     init:            init,
+    _url:            function(){ return url; },
     loadAll:         loadAll,
     saveDoc:         saveDoc,
     loadVersions:    loadVersions,

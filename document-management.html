@@ -575,11 +575,10 @@ function openEditModal(doc){
     var revVal=document.getElementById('m-rev').value.trim()||'01';
     var note=(document.getElementById('m-note')||{value:''}).value.trim();
 
-    function doSave(dataUrl, fileName){
+    function doSave(dataUrl, fileName, mimeType){
       var docs=gAll(), idx=docs.findIndex(function(x){return x.id===d.id;});
-      var newVer={ rev:revVal, ts:new Date().toISOString().split('T')[0], note:isNew?'Initial issue':(note||'Saved'), user:gRole(), fileName:fileName||null, dataUrl:dataUrl||null };
+      var newVer={ rev:revVal, ts:new Date().toISOString().split('T')[0], note:isNew?'Initial issue':(note||'Saved'), user:gRole(), fileName:fileName||null };
       var existingVersions=(d.versions||[]);
-      /* Only push a new version entry if rev changed or it's a new doc */
       var latestRev=existingVersions.length?existingVersions[0].rev:'';
       var versionsUpd = (isNew || revVal!==latestRev || dataUrl)
         ? [newVer].concat(existingVersions)
@@ -597,14 +596,60 @@ function openEditModal(doc){
         deleted: false,
         deletedAt: '',
       });
-      /* Save to Google Sheets — reload table from Sheets on success */
       toast(isNew?'Adding document…':'Saving changes…','ok');
+      closeOverlay();
       DMS_DATA.saveDoc(upd, function(res){
         logH(d.id,isNew?'ADDED':'EDITED',note||'Metadata saved');
-        DMS_DATA.loadAll(function(fresh){ sAll(fresh); populatePageFilter(); renderTable(); });
-        toast(isNew?'Document added.':'Changes saved.','ok');
+        /* If a file was selected, upload it to Drive as an attachment */
+        if(dataUrl && fileName){
+          var _url = (typeof SHEETS_URL !== 'undefined') ? SHEETS_URL : ((typeof DMS_DATA !== 'undefined' && DMS_DATA._url) ? DMS_DATA._url() : null);
+          if(_url){
+            var b64 = dataUrl.split(',')[1];
+            toast('Uploading file…','ok');
+            fetch(_url, {
+              method:'POST',
+              body: JSON.stringify({
+                action:'uploadFilePicker',
+                docId: upd.id,
+                username: currentUser(),
+                fileName: fileName,
+                mimeType: mimeType || 'application/octet-stream',
+                b64: b64
+              }),
+              redirect:'follow'
+            })
+            .then(function(r){ return r.json(); })
+            .then(function(res2){
+              if(res2.ok){
+                var ex = DMS_DRIVE.localGet(upd.id);
+                ex.push({
+                  fileId: res2.fileId||('f'+Date.now()),
+                  fileName: res2.fileName||fileName,
+                  mimeType: mimeType||'',
+                  date: new Date().toISOString().split('T')[0],
+                  user: currentUser(),
+                  webViewLink: res2.webViewLink,
+                  downloadLink: res2.downloadLink,
+                  attachType: 'attachment',
+                  source: 'drive'
+                });
+                DMS_DRIVE.localSet(upd.id, ex);
+                logH(upd.id,'ATTACHMENT UPLOADED', fileName);
+                toast('File uploaded.','ok');
+              } else { toast('File upload failed.','err'); }
+            })
+            .catch(function(){ toast('File upload failed.','err'); })
+            .finally(function(){
+              DMS_DATA.loadAll(function(fresh){ sAll(fresh); populatePageFilter(); renderTable(); });
+            });
+          } else {
+            DMS_DATA.loadAll(function(fresh){ sAll(fresh); populatePageFilter(); renderTable(); });
+          }
+        } else {
+          DMS_DATA.loadAll(function(fresh){ sAll(fresh); populatePageFilter(); renderTable(); });
+          toast(isNew?'Document added.':'Changes saved.','ok');
+        }
       });
-      closeOverlay();
     }
 
     if(isNew){
@@ -612,7 +657,7 @@ function openEditModal(doc){
       if(fileInp&&fileInp.files&&fileInp.files[0]){
         var f=fileInp.files[0];
         document.getElementById('m-firstfile-prog').textContent='Reading file…';
-        readFileAsDataUrl(f).then(function(dataUrl){ doSave(dataUrl,f.name); })
+        readFileAsDataUrl(f).then(function(dataUrl){ doSave(dataUrl,f.name,f.type||'application/octet-stream'); })
           .catch(function(e){ toast(e.message,'err'); document.getElementById('m-firstfile-prog').textContent=''; });
       } else { doSave(null,null); }
     } else { doSave(null,null); }
