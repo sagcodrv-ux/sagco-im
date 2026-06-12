@@ -113,7 +113,7 @@ var DMS_DATA = (function() {
             owner:      col(row, ['Document Owner']),
             dept:       col(row, ['Department']) || '',
             pages:      [],
-            deleted:    false,
+            deleted:    col(row, ['Deleted']) === 'true',
             files:      [],
             versions:   [],
             attachCount: 0,
@@ -149,6 +149,8 @@ var DMS_DATA = (function() {
       + '&issued='    + encodeURIComponent(doc.issued || '')
       + '&reviewDue=' + encodeURIComponent(doc.reviewDue || '')
       + '&owner='     + encodeURIComponent(doc.owner || '')
+      + '&deleted='    + encodeURIComponent(doc.deleted ? 'true' : 'false')
+      + '&deletedAt='  + encodeURIComponent(doc.deletedAt || '')
     )
     .then(function(r) { return r.json(); })
     .then(function(res) { if(cb) cb(res); })

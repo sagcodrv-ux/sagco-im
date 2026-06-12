@@ -204,7 +204,6 @@
             <th data-col="reviewDue">Review Due <span class="si">⇅</span></th>
             <th data-col="owner">Owner <span class="si">⇅</span></th>
             <th>Attachments</th>
-            <th style="display:none">Versions</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -405,9 +404,7 @@ function renderTable(){
     /* Read file count from DMS_DRIVE local cache — where uploaded files are stored */
     var driveFiles = (typeof DMS_DRIVE !== 'undefined') ? DMS_DRIVE.localGet(d.id) : (d.files||[]);
     var fc = driveFiles.length;
-    var vc = d.verCount || (d.versions||[]).length;
     var fBadge=fc?'<span class="nb nb-blue">'+fc+' file'+(fc>1?'s':'')+'</span>':'<span class="muted nb nb-grey">none</span>';
-    var vBadge=vc?'<span class="nb nb-gold">'+vc+' ver.</span>':'<span class="muted nb nb-grey">—</span>';
     var acts='<button class="btn btn-teal btn-xs" data-a="view"  data-id="'+d.id+'" title="View details">🔍</button>';
     if(!d.deleted){
       if(canEd()) acts+='<button class="btn btn-navy btn-xs" data-a="edit"    data-id="'+d.id+'" title="Edit metadata">✏️</button>';
@@ -428,7 +425,6 @@ function renderTable(){
       +'<td class="nowrap '+rc+'">'+rl+'</td>'
       +'<td class="nowrap">'+esc(d.owner||'—')+'</td>'
       +'<td>'+fBadge+'</td>'
-      +'<td class="ver-cell" style="display:none">'+vBadge+'</td>'
       +'<td><div class="dms-actions">'+acts+'</div></td>'
       +'</tr>';
   }).join('');
@@ -454,11 +450,27 @@ function handleAction(action, id){
 function softDel(id){
   if(!confirm('Move this document to the Recycle Bin?\nIt can be restored at any time.'))return;
   var docs=gAll(), d=docs.find(function(x){return x.id===id;});
-  if(d){d.deleted=true;d.deletedAt=new Date().toISOString().split('T')[0];sAll(docs);logH(id,'ARCHIVED','Moved to Recycle Bin');renderTable();toast('Moved to Recycle Bin','ok');}
+  if(d){
+    d.deleted=true;
+    d.deletedAt=new Date().toISOString().split('T')[0];
+    d.status='Archived';
+    sAll(docs); renderTable(); toast('Moving to Recycle Bin…','ok');
+    DMS_DATA.saveDoc(d, function(res){
+      logH(id,'ARCHIVED','Moved to Recycle Bin');
+      DMS_DATA.loadAll(function(fresh){ sAll(fresh); renderTable(); toast('Moved to Recycle Bin','ok'); });
+    });
+  }
 }
 function restoreDoc(id){
   var docs=gAll(), d=docs.find(function(x){return x.id===id;});
-  if(d){d.deleted=false;delete d.deletedAt;sAll(docs);logH(id,'RESTORED','Restored from Recycle Bin');renderTable();toast('Restored','ok');}
+  if(d){
+    d.deleted=false; delete d.deletedAt; d.status='Active';
+    sAll(docs); renderTable(); toast('Restoring…','ok');
+    DMS_DATA.saveDoc(d, function(res){
+      logH(id,'RESTORED','Restored from Recycle Bin');
+      DMS_DATA.loadAll(function(fresh){ sAll(fresh); renderTable(); toast('Restored','ok'); });
+    });
+  }
 }
 
 /* ── Modal infrastructure ───────────────────────────────────── */
@@ -582,12 +594,17 @@ function openEditModal(doc){
         pages:document.getElementById('m-pages').value.split(',').map(function(p){return p.trim();}).filter(Boolean),
         versions:versionsUpd,
         files:d.files||[],
+        deleted: false,
+        deletedAt: '',
       });
-      /* Save to Google Sheets via DMS_DATA */
-      DMS_DATA.saveDoc(upd, function(res){ console.log('Sheets save:', res); });
-      logH(d.id,isNew?'ADDED':'EDITED',note||'Metadata saved');
-      closeOverlay(); populatePageFilter(); renderTable();
-      toast(isNew?'Document added.':'Changes saved.','ok');
+      /* Save to Google Sheets — reload table from Sheets on success */
+      toast(isNew?'Adding document…':'Saving changes…','ok');
+      DMS_DATA.saveDoc(upd, function(res){
+        logH(d.id,isNew?'ADDED':'EDITED',note||'Metadata saved');
+        DMS_DATA.loadAll(function(fresh){ sAll(fresh); populatePageFilter(); renderTable(); });
+        toast(isNew?'Document added.':'Changes saved.','ok');
+      });
+      closeOverlay();
     }
 
     if(isNew){
@@ -1135,11 +1152,6 @@ IMS_AUTH.init({
               document.querySelectorAll('tr[data-id]').forEach(function(row){
                 var docId = row.getAttribute('data-id');
                 if(counts[docId]){
-                  var cell = row.querySelector('td.ver-cell');
-                  if(cell){
-                    cell.innerHTML='<span class="nb nb-gold">'+counts[docId]+' ver.</span>';
-                    changed = true;
-                  }
                 }
               });
               /* Also update cache for future renders */
