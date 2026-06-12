@@ -636,11 +636,20 @@ function openEditModal(doc){
                 DMS_DRIVE.localSet(upd.id, ex);
                 logH(upd.id,'ATTACHMENT UPLOADED', fileName);
                 toast('File uploaded.','ok');
+                /* Update attachment badge in DOM immediately */
+                var row = document.querySelector('tr[data-id="'+upd.id+'"]');
+                if(row){
+                  var attCell = row.querySelector('td:nth-child(10)');
+                  if(attCell){ attCell.innerHTML='<span class="nb nb-blue">'+ex.length+' file'+(ex.length>1?'s':'')+'</span>'; }
+                }
               } else { toast('File upload failed.','err'); }
             })
             .catch(function(){ toast('File upload failed.','err'); })
             .finally(function(){
-              DMS_DATA.loadAll(function(fresh){ sAll(fresh); populatePageFilter(); renderTable(); });
+              /* Wait 1.5s for Drive/Sheets to sync, then reload */
+              setTimeout(function(){
+                DMS_DATA.loadAll(function(fresh){ sAll(fresh); populatePageFilter(); renderTable(); });
+              }, 1500);
             });
           } else {
             DMS_DATA.loadAll(function(fresh){ sAll(fresh); populatePageFilter(); renderTable(); });
