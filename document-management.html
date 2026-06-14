@@ -621,37 +621,57 @@ function openApproveModal(doc){
       return r.status === 'Pending' &&
              (r.approver.toLowerCase() === myName.toLowerCase() || canApproveDoc());
     });
+    /* If no records yet (cache miss) but user is approver — still allow action */
+    var pendingApprovers = records.filter(function(r){ return r.status==='Pending'; });
+
+    var now = new Date();
+    var nowDate = now.toISOString().split('T')[0];
+    var nowTime = now.toTimeString().split(' ')[0];
 
     var historyHtml = records.length ? records.map(function(r){
       var cls = r.status==='Approved'?'nb-apv-approved':r.status==='Rejected'?'nb-apv-rejected':'nb-apv-pending';
-      return '<div class="apv-row">'
+      return '<div class="apv-row" style="grid-template-columns:150px 90px 90px 90px 1fr">'
         +'<div><div class="apv-approver">'+esc(r.approver)+'</div><div class="apv-role">'+esc(r.approverRole)+'</div></div>'
         +'<span class="'+cls+'">'+r.status+'</span>'
-        +'<div class="apv-date">'+esc(r.timestamp||'—')+'</div>'
+        +'<div class="apv-date" title="Decision date">'+esc(r.timestamp||'—')+'</div>'
+        +'<div class="apv-date" title="Submitted">'+esc(r.submittedAt||'—')+'</div>'
         +'<div class="apv-comment">'+esc(r.comments||'—')+'</div>'
-        +'<div></div><div></div>'
         +'</div>';
-    }).join('') : '<div class="muted" style="font-size:11px;padding:10px">No approval records found.</div>';
+    }).join('')
+    : '<div class="muted" style="font-size:11px;padding:10px">No approval records loaded — records may still be syncing from Sheets.</div>';
 
     var actionHtml = '';
-    if(myRecords.length && canApproveDoc()){
-      var opts = myRecords.map(function(r,i){
-        return '<option value="'+i+'">'+esc(r.approver)+' ('+esc(r.approverRole)+')</option>';
-      }).join('');
+    if(canApproveDoc()){
+      /* Show approver info panel */
+      var approverInfo = '<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:10px">'
+        +'<strong style="color:#2e7d32">Acting as:</strong> '+esc(myName)
+        +' &nbsp;|&nbsp; <strong style="color:#2e7d32">Date:</strong> '+nowDate
+        +' &nbsp;|&nbsp; <strong style="color:#2e7d32">Time:</strong> '+nowTime
+        +'</div>';
+
+      /* Approver selector — from records or free entry */
+      var approverSelector = '';
+      if(pendingApprovers.length > 0){
+        var opts = pendingApprovers.map(function(r,i){
+          return '<option value="'+i+'">'+esc(r.approver)+' ('+esc(r.approverRole)+')</option>';
+        }).join('');
+        approverSelector = '<div class="dms-field"><label>Approving on behalf of</label>'
+          +'<select class="dms-sel" id="apv-which-approver">'+opts+'</select></div>';
+      }
+
       actionHtml = '<div class="apv-submit-form">'
         +'<div style="font-size:11px;font-weight:600;color:var(--navy);margin-bottom:8px">Record Decision</div>'
-        +(myRecords.length>1?'<div class="dms-field"><label>Acting as Approver</label><select class="dms-sel" id="apv-which-approver">'+opts+'</select></div>':'')
+        +approverInfo
+        +approverSelector
         +'<div class="dms-field"><label>Comments (optional)</label>'
-        +'<textarea id="apv-comments" class="dms-inp" rows="3" placeholder="Enter review comments…" style="width:100%;resize:vertical"></textarea></div>'
+        +'<textarea id="apv-comments" class="dms-inp" rows="3" placeholder="Enter review comments, reason for rejection…" style="width:100%;resize:vertical"></textarea></div>'
         +'<div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">'
         +'<button class="btn btn-ghost" id="apv-modal-cancel">Cancel</button>'
         +'<button class="btn btn-red" id="apv-reject-btn">❌ Reject</button>'
         +'<button class="btn btn-grn" id="apv-approve-btn">✅ Approve</button>'
         +'</div></div>';
-    } else if(!canApproveDoc()){
-      actionHtml = '<div class="muted" style="font-size:11px;padding:10px;font-style:italic">You do not have approver permissions.</div>';
     } else {
-      actionHtml = '<div class="muted" style="font-size:11px;padding:10px;font-style:italic">No pending decisions for you on this revision.</div>';
+      actionHtml = '<div class="muted" style="font-size:11px;padding:10px;font-style:italic">You need approver or admin role to record a decision.</div>';
     }
 
     var html = '<div class="dms-modal-hdr">✅ Approval Workflow — '+esc(doc.number)+'</div>'
@@ -669,11 +689,17 @@ function openApproveModal(doc){
       var idx = 0;
       var selEl = document.getElementById('apv-which-approver');
       if(selEl) idx = parseInt(selEl.value) || 0;
-      var rec = myRecords[idx];
       var comments = (document.getElementById('apv-comments').value||'').trim();
+      var nowFull  = new Date().toISOString().replace('T',' ').substring(0,19);
+      /* Use cached record if available, else build one from currentUser */
+      var rec = (pendingApprovers.length > 0 && pendingApprovers[idx])
+        ? pendingApprovers[idx]
+        : { approvalId: 'APR-'+doc.id+'-'+doc.rev+'-1', docId: doc.id, rev: doc.rev,
+            approver: myName, approverRole: gRole(), status: 'Pending',
+            submittedBy: myName, submittedAt: nowFull, timestamp: nowFull };
       toast(status==='Approved'?'Approving…':'Rejecting…','ok');
       closeOverlay();
-      DMS_APPROVAL.recordDecision(rec.approvalId, doc.id, doc.rev, rec.approver, status, comments, function(res){
+      DMS_APPROVAL.recordDecision(rec.approvalId, doc.id, doc.rev, myName, status, comments, function(res){
         /* Reload approval records to check overall status */
         DMS_APPROVAL.getForDoc(doc.id, doc.rev, function(updated){
           var overall = DMS_APPROVAL.getOverallStatus(updated);
