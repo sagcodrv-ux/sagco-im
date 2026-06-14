@@ -504,8 +504,8 @@ function handleAction(action, id){
 ══════════════════════════════════════════════════════════════ */
 
 /* ── Role helpers ─────────────────────────────────────────── */
-function canSubmitApproval(){ return DMS_APPROVAL.canSubmit(gRole()); }
-function canApproveDoc()    { return DMS_APPROVAL.canApprove(gRole()); }
+function canSubmitApproval(){ return typeof DMS_APPROVAL!=='undefined' && DMS_APPROVAL.canSubmit(gRole()); }
+function canApproveDoc()    { return typeof DMS_APPROVAL!=='undefined' && DMS_APPROVAL.canApprove(gRole()); }
 
 /* ── Approval badge for table row ─────────────────────────── */
 function apvBadge(doc){
@@ -521,6 +521,7 @@ function apvBadge(doc){
 
 /* ── Pending approval notification banner ────────────────── */
 function refreshApprovalBanner(){
+  if(typeof DMS_APPROVAL==='undefined') return;
   var docs = gAll().filter(function(d){ return !d.deleted; });
   var pending = docs.filter(function(d){ return d.approvalStatus === 'Pending Approval'; });
   var banner  = document.getElementById('apv-notification');
@@ -566,7 +567,7 @@ function openSubmitApprovalModal(doc){
     row.id = id;
     row.innerHTML = '<input type="text" class="dms-inp" placeholder="Approver name (e.g. CEO)" value="'+(name||'')+'" style="flex:2">'
       +'<input type="text" class="dms-inp" placeholder="Role (e.g. CEO, IMS Manager)" value="'+(role||'')+'" style="flex:1">'
-      +'<button class="btn btn-red btn-xs" onclick="document.getElementById(''+id+'').remove()">✕</button>';
+      +'<button class="btn btn-red btn-xs" onclick="document.getElementById(&quot;'+id+'&quot;).remove()">✕</button>';
     approversList.appendChild(row);
   }
 
@@ -722,9 +723,11 @@ function renderApprovalTab(doc, container){
 
 /* ── Init approval module ────────────────────────────────── */
 function initApprovalModule(){
-  var _url = (typeof SHEETS_URL !== 'undefined') ? SHEETS_URL : (DMS_DATA._url ? DMS_DATA._url() : null);
-  if(typeof DMS_APPROVAL !== 'undefined' && _url) DMS_APPROVAL.init(_url);
-  refreshApprovalBanner();
+  try {
+    var _url = (typeof SHEETS_URL !== 'undefined') ? SHEETS_URL : (typeof DMS_DATA !== 'undefined' && DMS_DATA._url ? DMS_DATA._url() : null);
+    if(typeof DMS_APPROVAL !== 'undefined' && _url) DMS_APPROVAL.init(_url);
+    refreshApprovalBanner();
+  } catch(e) { console.warn('Approval module init failed:', e.message); }
 }
 
 /* ── Pending tab filter ──────────────────────────────────── */
@@ -1542,8 +1545,9 @@ IMS_AUTH.init({
       return;
     }
     sessionStorage.setItem('dms_hard_reloaded','1');
-    initApprovalModule();
     initPage('document-management.html');
+    /* Init approval module AFTER initPage so SHEETS_URL is available */
+    setTimeout(function(){ initApprovalModule(); }, 800);
     document.getElementById('tb').innerHTML = renderTopbar(
       'Document & Evidence Management',
       'L3-IMS-750-R-02  ·  Rev.01  ·  ISO §7.5 all four standards  ·  IMS Coordinator'
