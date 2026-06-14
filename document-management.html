@@ -314,9 +314,28 @@ function canEd() { return ['editor','admin'].includes(gRole()); }
 function isAdm() { return gRole() === 'admin'; }
 
 function logH(id, action, detail) {
+  /* 1. Save to sessionStorage for in-page history */
   var h = gHist();
   h.push({ docId:id, action:action, detail:detail, user:gRole(), ts:new Date().toISOString() });
   sHist(h);
+
+  /* 2. Write to Google Sheets Access & Audit Log asynchronously */
+  try {
+    var _url = (typeof SHEETS_URL !== 'undefined') ? SHEETS_URL
+             : (typeof DMS_DATA !== 'undefined' && DMS_DATA._url ? DMS_DATA._url() : null);
+    if(!_url) return;
+    var user   = currentUser();
+    var userId = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser())
+                 ? (IMS_AUTH.getUser().userId || '') : '';
+    var fullDetail = (id ? '['+id+'] ' : '') + (detail || '');
+    fetch(_url
+      + '?action=logAudit'
+      + '&action2='  + encodeURIComponent(action  || '')
+      + '&detail='   + encodeURIComponent(fullDetail)
+      + '&userId='   + encodeURIComponent(userId)
+      + '&username=' + encodeURIComponent(user)
+    ).catch(function(){}); /* Fire-and-forget — never block UI */
+  } catch(e) { /* silent */ }
 }
 function nextId() { return DMS_DATA.nextId(); }
 function fmtDate(s){ return DMS_DATA.fmtDate(s); }
@@ -1701,7 +1720,11 @@ IMS_AUTH.init({
     sessionStorage.setItem('dms_hard_reloaded','1');
     initPage('document-management.html');
     /* Init approval module AFTER initPage so SHEETS_URL is available */
-    setTimeout(function(){ initApprovalModule(); }, 800);
+    setTimeout(function(){
+      initApprovalModule();
+      /* Log page access to Audit Log */
+      logH('', 'PAGE ACCESS', 'Document Management page loaded');
+    }, 800);
     document.getElementById('tb').innerHTML = renderTopbar(
       'Document & Evidence Management',
       'L3-IMS-750-R-02  ·  Rev.01  ·  ISO §7.5 all four standards  ·  IMS Coordinator'
