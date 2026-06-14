@@ -10,6 +10,7 @@
   <script src="dms-drive.js"></script>
 <script src="dms-data.js"></script>
   <script src="nav.js"></script>
+  <script src="approval-workflow.js"></script>
   <style>
     /* ── DMS-specific additions not in style.css ── */
 
@@ -91,6 +92,38 @@
     .upload-prog { font-size:10px; color:var(--text-lt); margin-top:6px; }
 
     /* File type icon helper */
+
+    /* ── Approval workflow styles ────────────────────────────── */
+    .apv-banner {
+      background:linear-gradient(135deg,#fff8e1,#fffde7);
+      border:1px solid #ffe082; border-radius:var(--radius);
+      padding:10px 16px; margin-bottom:12px;
+      display:flex; align-items:center; gap:10px; font-size:11px;
+    }
+    .apv-banner strong { color:#e65100; }
+    .apv-banner .apv-count {
+      background:#ff6f00; color:#fff; border-radius:10px;
+      padding:1px 8px; font-size:10px; font-weight:700;
+    }
+    .apv-list { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+    .apv-row {
+      display:grid; grid-template-columns:140px 80px 80px 1fr auto auto;
+      align-items:center; gap:8px;
+      padding:10px 14px; border:1px solid #e0e8f0;
+      border-radius:var(--radius); font-size:11px; background:#fff;
+    }
+    .apv-row:hover { background:#f7f9fc; }
+    .apv-approver { font-weight:600; color:var(--navy); }
+    .apv-role     { font-size:9px; color:var(--text-lt); }
+    .apv-date     { font-family:var(--mono); font-size:10px; color:var(--text-lt); }
+    .apv-comment  { color:var(--text); font-size:10px; font-style:italic; }
+    .apv-submit-form { background:#f7f9fc; border:1px solid #d0d8e8; border-radius:var(--radius); padding:14px; margin-top:12px; }
+    .apv-approver-entry { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+    .apv-approver-entry input { flex:1; }
+    .nb-apv-pending  { background:#fff3e0; color:#e65100; border:1px solid #ffcc80; border-radius:10px; padding:1px 8px; font-size:9px; font-weight:700; white-space:nowrap; }
+    .nb-apv-approved { background:#e8f5e9; color:#2e7d32; border:1px solid #a5d6a7; border-radius:10px; padding:1px 8px; font-size:9px; font-weight:700; white-space:nowrap; }
+    .nb-apv-rejected { background:#fce4ec; color:#c62828; border:1px solid #ef9a9a; border-radius:10px; padding:1px 8px; font-size:9px; font-weight:700; white-space:nowrap; }
+    .nb-apv-draft    { background:#f5f5f5; color:#757575; border:1px solid #e0e0e0; border-radius:10px; padding:1px 8px; font-size:9px; font-weight:700; white-space:nowrap; }
   </style>
 </head>
 <body>
@@ -151,6 +184,13 @@
       Initiate document review in accordance with L2-IMS-700-P-04 §4.5.
     </div>
 
+    <!-- Pending approvals notification banner -->
+    <div id="apv-notification" style="display:none" class="apv-banner">
+      🔔 <strong>Pending Approvals:</strong>
+      <span id="apv-notif-text">documents are awaiting your approval.</span>
+      <span class="apv-count" id="apv-notif-count">0</span>
+    </div>
+
     <!-- 5a. Section banner + toolbar -->
     <div class="sec-banner" style="justify-content:space-between;align-items:center;display:flex">
       <span>📄 DOCUMENT &amp; EVIDENCE REGISTER — L3-IMS-750-R-02</span>
@@ -173,7 +213,7 @@
       </select>
       <select class="dms-sel" id="dms-fstatus">
         <option value="">All Statuses</option>
-        <option>Active</option><option>Under Review</option><option>Superseded</option>
+        <option>Draft</option><option>Pending Approval</option><option>Active</option><option>Under Review</option><option>Superseded</option>
         <option>Obsolete</option><option>Archived</option>
       </select>
       <select class="dms-sel" id="dms-fpage"><option value="">All Pages</option></select>
@@ -186,6 +226,7 @@
       <div class="dms-tab active" data-tab="active">Active <span class="dms-tab-count" id="tc-active">0</span></div>
       <div class="dms-tab" data-tab="all">All Documents <span class="dms-tab-count" id="tc-all">0</span></div>
       <div class="dms-tab" data-tab="overdue">⚠ Overdue <span class="dms-tab-count" id="tc-overdue">0</span></div>
+      <div class="dms-tab" data-tab="pending" id="tab-pending">⏳ Pending Approval <span class="dms-tab-count" id="tc-pending">0</span></div>
       <div class="dms-tab" data-tab="bin" id="tab-bin" style="display:none">🗑 Recycle Bin <span class="dms-tab-count" id="tc-bin">0</span></div>
     </div>
 
@@ -203,6 +244,7 @@
             <th data-col="issued">Issued <span class="si">⇅</span></th>
             <th data-col="reviewDue">Review Due <span class="si">⇅</span></th>
             <th data-col="owner">Owner <span class="si">⇅</span></th>
+            <th>Approval</th>
             <th>Attachments</th>
             <th>Actions</th>
           </tr>
@@ -249,8 +291,8 @@ var RK = 'sagco_dms_role';
 })();
 
 /* ── Constants ──────────────────────────────────────────────── */
-var ROLES    = ['viewer','contributor','editor','admin'];
-var STATUSES = ['Active','Under Review','Superseded','Obsolete','Archived'];
+var ROLES    = ['viewer','contributor','editor','approver','admin'];
+var STATUSES = ['Draft','Pending Approval','Active','Under Review','Superseded','Obsolete','Archived'];
 var TYPES    = ['Procedure','Policy','Register','Record','Certificate','Report',
                 'Checklist','Form','Monitoring Log','Drawing','Specification','Image','Other'];
 /* File size limit shown in UI — actual enforcement is in dms-drive.js */
@@ -351,7 +393,9 @@ function updateKPIs(){
   document.getElementById('k-bin').textContent=bin;
   document.getElementById('alert-overdue').style.display=ovr>0?'':'none';
   var all=docs.filter(function(d){return !d.deleted;});
-  document.getElementById('tc-active').textContent=all.filter(function(d){return d.status!=='Obsolete'&&d.status!=='Archived';}).length;
+  document.getElementById('tc-active').textContent=all.filter(function(d){return d.status!=='Obsolete'&&d.status!=='Archived'&&d.status!=='Pending Approval'&&d.status!=='Draft';}).length;
+  var pendingCount=all.filter(function(d){return !d.deleted&&(d.approvalStatus==='Pending Approval'||d.status==='Pending Approval');}).length;
+  document.getElementById('tc-pending').textContent=pendingCount;
   document.getElementById('tc-all').textContent=all.length;
   document.getElementById('tc-overdue').textContent=all.filter(function(d){return d.reviewDue&&daysUntil(d.reviewDue)<0;}).length;
   document.getElementById('tc-bin').textContent=bin;
@@ -376,7 +420,8 @@ function renderTable(){
   var docs=gAll();
 
   switch(activeTab){
-    case 'active':  docs=docs.filter(function(d){return !d.deleted&&d.status!=='Obsolete'&&d.status!=='Archived';}); break;
+    case 'active':   docs=docs.filter(function(d){return !d.deleted&&d.status!=='Obsolete'&&d.status!=='Archived'&&d.status!=='Pending Approval'&&d.status!=='Draft';}); break;
+    case 'pending':  docs=docs.filter(function(d){return !d.deleted&&(d.approvalStatus==='Pending Approval'||d.status==='Pending Approval');}); break;
     case 'all':     docs=docs.filter(function(d){return !d.deleted;}); break;
     case 'overdue': docs=docs.filter(function(d){return !d.deleted&&d.reviewDue&&daysUntil(d.reviewDue)<0;}); break;
     case 'bin':     docs=docs.filter(function(d){return d.deleted;}); break;
@@ -410,6 +455,11 @@ function renderTable(){
       if(canEd()) acts+='<button class="btn btn-navy btn-xs" data-a="edit"    data-id="'+d.id+'" title="Edit metadata">✏️</button>';
       acts+='<button class="btn btn-ghost-dk btn-xs" data-a="attach"  data-id="'+d.id+'" title="Manage attachments">📎</button>';
       acts+='<button class="btn btn-ghost-dk btn-xs" data-a="version" data-id="'+d.id+'" title="Version history &amp; revision upload">📋</button>';
+      /* Approval actions */
+      if(canSubmitApproval() && (d.approvalStatus==='Draft'||!d.approvalStatus||d.approvalStatus==='Rejected'))
+        acts+='<button class="btn btn-amb btn-xs" data-a="submit-approval" data-id="'+d.id+'" title="Submit for Approval">📤</button>';
+      if(canApproveDoc() && d.approvalStatus==='Pending Approval')
+        acts+='<button class="btn btn-grn btn-xs" data-a="approve" data-id="'+d.id+'" title="Approve / Reject">✅</button>';
       if(isAdm()) acts+='<button class="btn btn-red btn-xs" data-a="del" data-id="'+d.id+'" title="Move to bin">🗑</button>';
     } else {
       if(isAdm()) acts+='<button class="btn btn-grn btn-xs" data-a="restore" data-id="'+d.id+'" title="Restore">↩</button>';
@@ -424,6 +474,7 @@ function renderTable(){
       +'<td class="nowrap">'+esc(fmtDate(d.issued)||'—')+'</td>'
       +'<td class="nowrap '+rc+'">'+rl+'</td>'
       +'<td class="nowrap">'+esc(d.owner||'—')+'</td>'
+      +'<td>'+apvBadge(d)+'</td>'
       +'<td>'+fBadge+'</td>'
       +'<td><div class="dms-actions">'+acts+'</div></td>'
       +'</tr>';
@@ -442,9 +493,242 @@ function handleAction(action, id){
   if(action==='edit')    openEditModal(doc);
   if(action==='attach')  openAttachModal(doc);
   if(action==='version') openVersionModal(doc);
-  if(action==='del')     softDel(id);
+  if(action==='del')            softDel(id);
+  if(action==='submit-approval') openSubmitApprovalModal(doc);
+  if(action==='approve')         openApproveModal(doc);
   if(action==='restore') restoreDoc(id);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   APPROVAL WORKFLOW — UI & Logic
+══════════════════════════════════════════════════════════════ */
+
+/* ── Role helpers ─────────────────────────────────────────── */
+function canSubmitApproval(){ return DMS_APPROVAL.canSubmit(gRole()); }
+function canApproveDoc()    { return DMS_APPROVAL.canApprove(gRole()); }
+
+/* ── Approval badge for table row ─────────────────────────── */
+function apvBadge(doc){
+  var s = doc.approvalStatus || 'Draft';
+  var cls = {
+    'Draft':            'nb-apv-draft',
+    'Pending Approval': 'nb-apv-pending',
+    'Approved':         'nb-apv-approved',
+    'Rejected':         'nb-apv-rejected',
+  }[s] || 'nb-apv-draft';
+  return '<span class="'+cls+'">'+s+'</span>';
+}
+
+/* ── Pending approval notification banner ────────────────── */
+function refreshApprovalBanner(){
+  var docs = gAll().filter(function(d){ return !d.deleted; });
+  var pending = docs.filter(function(d){ return d.approvalStatus === 'Pending Approval'; });
+  var banner  = document.getElementById('apv-notification');
+  var countEl = document.getElementById('apv-notif-count');
+  var textEl  = document.getElementById('apv-notif-text');
+  if(!banner) return;
+  if(pending.length > 0){
+    banner.style.display = 'flex';
+    countEl.textContent  = pending.length;
+    if(canApproveDoc()){
+      textEl.textContent = 'document'+(pending.length>1?'s are':' is')+' awaiting your approval.';
+    } else {
+      textEl.textContent = 'document'+(pending.length>1?'s are':' is')+' pending approval.';
+    }
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+/* ── Submit for Approval modal ───────────────────────────── */
+function openSubmitApprovalModal(doc){
+  var html = '<div class="dms-modal-hdr">📤 Submit for Approval — '+esc(doc.number)+'</div>'
+    +'<div style="font-size:11px;color:var(--text-lt);margin-bottom:12px">'
+    +esc(doc.title)+' · Rev. '+esc(doc.rev)+'</div>'
+    +'<div style="font-size:11px;color:var(--navy);font-weight:600;margin-bottom:6px">Approvers Required</div>'
+    +'<div style="font-size:10px;color:var(--text-lt);margin-bottom:10px">Add one or more approvers. All must approve before the document becomes Active.</div>'
+    +'<div id="apv-approvers-list"></div>'
+    +'<button class="btn btn-ghost btn-sm" id="apv-add-approver" style="margin-top:6px">＋ Add Approver</button>'
+    +'<div style="margin-top:16px;padding-top:12px;border-top:1px solid #edf0f5;display:flex;gap:8px;justify-content:flex-end">'
+    +'<button class="btn btn-ghost" id="apv-cancel">Cancel</button>'
+    +'<button class="btn btn-gold" id="apv-submit-btn">📤 Submit for Approval</button>'
+    +'</div>';
+  openOverlay(html);
+
+  var approversList = document.getElementById('apv-approvers-list');
+  var approverCount = 0;
+
+  function addApproverRow(name, role){
+    approverCount++;
+    var id = 'apvr-'+approverCount;
+    var row = document.createElement('div');
+    row.className = 'apv-approver-entry';
+    row.id = id;
+    row.innerHTML = '<input type="text" class="dms-inp" placeholder="Approver name (e.g. CEO)" value="'+(name||'')+'" style="flex:2">'
+      +'<input type="text" class="dms-inp" placeholder="Role (e.g. CEO, IMS Manager)" value="'+(role||'')+'" style="flex:1">'
+      +'<button class="btn btn-red btn-xs" onclick="document.getElementById(''+id+'').remove()">✕</button>';
+    approversList.appendChild(row);
+  }
+
+  /* Default: CEO approver */
+  addApproverRow('CEO', 'CEO');
+
+  document.getElementById('apv-add-approver').addEventListener('click', function(){
+    addApproverRow('','');
+  });
+  document.getElementById('apv-cancel').addEventListener('click', closeOverlay);
+  document.getElementById('apv-submit-btn').addEventListener('click', function(){
+    var rows = approversList.querySelectorAll('.apv-approver-entry');
+    var approvers = [];
+    rows.forEach(function(row){
+      var inputs = row.querySelectorAll('input');
+      var name = inputs[0].value.trim();
+      var role = inputs[1].value.trim();
+      if(name) approvers.push({name:name, role:role||'Approver'});
+    });
+    if(!approvers.length){ toast('Add at least one approver.','err'); return; }
+
+    /* Update doc status to Pending Approval */
+    var docs = gAll();
+    var d = docs.find(function(x){ return x.id === doc.id; });
+    if(d){
+      d.approvalStatus = 'Pending Approval';
+      d.status = 'Pending Approval';
+    }
+    toast('Submitting for approval…','ok');
+    closeOverlay();
+
+    /* Save approval records to Sheets */
+    DMS_APPROVAL.submitForApproval(doc, currentUser(), approvers, function(res){
+      /* Update doc in Sheets */
+      var upd = Object.assign({}, doc, { approvalStatus:'Pending Approval', status:'Pending Approval' });
+      DMS_DATA.saveDoc(upd, function(){
+        DMS_DATA.loadAll(function(fresh){ sAll(fresh); renderTable(); refreshApprovalBanner(); });
+        logH(doc.id, 'SUBMITTED FOR APPROVAL', 'Approvers: '+approvers.map(function(a){return a.name;}).join(', '));
+        toast('Submitted for approval.','ok');
+      });
+    });
+  });
+}
+
+/* ── Approve / Reject modal ──────────────────────────────── */
+function openApproveModal(doc){
+  DMS_APPROVAL.getForDoc(doc.id, doc.rev, function(records){
+    var myName = currentUser();
+    /* Find pending records this user can act on */
+    var myRecords = records.filter(function(r){
+      return r.status === 'Pending' &&
+             (r.approver.toLowerCase() === myName.toLowerCase() || canApproveDoc());
+    });
+
+    var historyHtml = records.length ? records.map(function(r){
+      var cls = r.status==='Approved'?'nb-apv-approved':r.status==='Rejected'?'nb-apv-rejected':'nb-apv-pending';
+      return '<div class="apv-row">'
+        +'<div><div class="apv-approver">'+esc(r.approver)+'</div><div class="apv-role">'+esc(r.approverRole)+'</div></div>'
+        +'<span class="'+cls+'">'+r.status+'</span>'
+        +'<div class="apv-date">'+esc(r.timestamp||'—')+'</div>'
+        +'<div class="apv-comment">'+esc(r.comments||'—')+'</div>'
+        +'<div></div><div></div>'
+        +'</div>';
+    }).join('') : '<div class="muted" style="font-size:11px;padding:10px">No approval records found.</div>';
+
+    var actionHtml = '';
+    if(myRecords.length && canApproveDoc()){
+      var opts = myRecords.map(function(r,i){
+        return '<option value="'+i+'">'+esc(r.approver)+' ('+esc(r.approverRole)+')</option>';
+      }).join('');
+      actionHtml = '<div class="apv-submit-form">'
+        +'<div style="font-size:11px;font-weight:600;color:var(--navy);margin-bottom:8px">Record Decision</div>'
+        +(myRecords.length>1?'<div class="dms-field"><label>Acting as Approver</label><select class="dms-sel" id="apv-which-approver">'+opts+'</select></div>':'')
+        +'<div class="dms-field"><label>Comments (optional)</label>'
+        +'<textarea id="apv-comments" class="dms-inp" rows="3" placeholder="Enter review comments…" style="width:100%;resize:vertical"></textarea></div>'
+        +'<div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">'
+        +'<button class="btn btn-ghost" id="apv-modal-cancel">Cancel</button>'
+        +'<button class="btn btn-red" id="apv-reject-btn">❌ Reject</button>'
+        +'<button class="btn btn-grn" id="apv-approve-btn">✅ Approve</button>'
+        +'</div></div>';
+    } else if(!canApproveDoc()){
+      actionHtml = '<div class="muted" style="font-size:11px;padding:10px;font-style:italic">You do not have approver permissions.</div>';
+    } else {
+      actionHtml = '<div class="muted" style="font-size:11px;padding:10px;font-style:italic">No pending decisions for you on this revision.</div>';
+    }
+
+    var html = '<div class="dms-modal-hdr">✅ Approval Workflow — '+esc(doc.number)+'</div>'
+      +'<div style="font-size:11px;color:var(--text-lt);margin-bottom:12px">'+esc(doc.title)+' · Rev. '+esc(doc.rev)+'</div>'
+      +'<div style="font-size:11px;font-weight:600;color:var(--navy);margin-bottom:6px">Approval History</div>'
+      +'<div class="apv-list">'+historyHtml+'</div>'
+      +actionHtml;
+
+    openOverlay(html);
+
+    if(document.getElementById('apv-modal-cancel'))
+      document.getElementById('apv-modal-cancel').addEventListener('click', closeOverlay);
+
+    function doDecision(status){
+      var idx = 0;
+      var selEl = document.getElementById('apv-which-approver');
+      if(selEl) idx = parseInt(selEl.value) || 0;
+      var rec = myRecords[idx];
+      var comments = (document.getElementById('apv-comments').value||'').trim();
+      toast(status==='Approved'?'Approving…':'Rejecting…','ok');
+      closeOverlay();
+      DMS_APPROVAL.recordDecision(rec.approvalId, doc.id, doc.rev, rec.approver, status, comments, function(res){
+        /* Reload approval records to check overall status */
+        DMS_APPROVAL.getForDoc(doc.id, doc.rev, function(updated){
+          var overall = DMS_APPROVAL.getOverallStatus(updated);
+          var newDocStatus = overall==='Approved' ? 'Active' : overall==='Rejected' ? 'Draft' : 'Pending Approval';
+          var upd = Object.assign({}, doc, { approvalStatus: overall==='Approved'?'Approved':overall, status: newDocStatus });
+          DMS_DATA.saveDoc(upd, function(){
+            logH(doc.id, status.toUpperCase(), rec.approver+(comments?' — '+comments:''));
+            DMS_DATA.loadAll(function(fresh){ sAll(fresh); renderTable(); refreshApprovalBanner(); });
+            toast(status==='Approved'?'Document approved ✓':'Document rejected','ok');
+          });
+        });
+      });
+    }
+
+    if(document.getElementById('apv-approve-btn'))
+      document.getElementById('apv-approve-btn').addEventListener('click', function(){ doDecision('Approved'); });
+    if(document.getElementById('apv-reject-btn'))
+      document.getElementById('apv-reject-btn').addEventListener('click', function(){ doDecision('Rejected'); });
+  });
+}
+
+/* ── Approval tab in view modal ──────────────────────────── */
+function renderApprovalTab(doc, container){
+  container.innerHTML = '<div style="padding:10px 0;font-size:11px;color:var(--text-lt)">Loading approval records…</div>';
+  DMS_APPROVAL.getForDoc(doc.id, doc.rev, function(records){
+    var overall = DMS_APPROVAL.getOverallStatus(records);
+    var html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
+      +'<strong style="font-size:11px">Overall Status:</strong>'
+      +DMS_APPROVAL.approvalBadge(overall)+'</div>';
+    if(records.length){
+      html += records.map(function(r){
+        var cls = r.status==='Approved'?'nb-apv-approved':r.status==='Rejected'?'nb-apv-rejected':'nb-apv-pending';
+        return '<div class="apv-row">'
+          +'<div><div class="apv-approver">'+esc(r.approver)+'</div><div class="apv-role">'+esc(r.approverRole)+'</div></div>'
+          +'<span class="'+cls+'">'+r.status+'</span>'
+          +'<div class="apv-date">'+esc(r.submittedAt||'—')+'</div>'
+          +'<div class="apv-date">'+esc(r.timestamp||'—')+'</div>'
+          +'<div class="apv-comment" style="grid-column:span 2">'+esc(r.comments||'—')+'</div>'
+          +'</div>';
+      }).join('');
+    } else {
+      html += '<div class="muted" style="font-size:11px;padding:10px;font-style:italic">No approval records for this revision.</div>';
+    }
+    container.innerHTML = html;
+  });
+}
+
+/* ── Init approval module ────────────────────────────────── */
+function initApprovalModule(){
+  var _url = (typeof SHEETS_URL !== 'undefined') ? SHEETS_URL : (DMS_DATA._url ? DMS_DATA._url() : null);
+  if(typeof DMS_APPROVAL !== 'undefined' && _url) DMS_APPROVAL.init(_url);
+  refreshApprovalBanner();
+}
+
+/* ── Pending tab filter ──────────────────────────────────── */
+/* injected into tab filter logic via activeTab === 'pending' */
 
 /* ── Soft delete / restore ──────────────────────────────────── */
 function softDel(id){
@@ -511,7 +795,8 @@ function openViewModal(doc){
     +'<table style="width:100%;border-collapse:collapse">'+tableHtml+'</table>'
     +'</div>'
     +'<div class="dms-modal-ftr">'
-    +(canEd()?'<button class="btn btn-navy" id="v-edit">✏️ Edit</button>':'')
+    +'<button class="btn btn-ghost" id="v-approval">📋 Approval</button>'
+  +(canEd()?'<button class="btn btn-navy" id="v-edit">✏️ Edit</button>':'')
     +'<button class="btn btn-ghost-dk" id="v-attach">📎 Attachments</button>'
     +'<button class="btn btn-ghost-dk" id="v-version">📋 Version History</button>'
     +'<button class="btn btn-gold" id="v-close">Close</button>'
@@ -521,6 +806,26 @@ function openViewModal(doc){
   document.getElementById('v-attach').addEventListener('click',function(){ closeOverlay(); openAttachModal(doc); });
   document.getElementById('v-version').addEventListener('click',function(){ closeOverlay(); openVersionModal(doc); });
   if(canEd()) document.getElementById('v-edit').addEventListener('click',function(){ closeOverlay(); openEditModal(doc); });
+  document.getElementById('v-approval').addEventListener('click',function(){
+    /* Replace modal content with approval view */
+    var m = document.getElementById('dms-modal');
+    m.innerHTML = '<div class="dms-modal-hdr">📋 Approval — '+esc(doc.number)+'</div>'
+      +'<div style="font-size:11px;color:var(--text-lt);margin-bottom:10px">'+esc(doc.title)+' · Rev. '+esc(doc.rev)+'</div>'
+      +'<div id="apv-tab-container"></div>'
+      +'<div style="margin-top:14px;text-align:right">'
+      +(canSubmitApproval()&&(doc.approvalStatus==='Draft'||doc.approvalStatus==='Rejected'||!doc.approvalStatus)
+        ?'<button class="btn btn-amb" id="v-apv-submit">📤 Submit for Approval</button> ':'' )
+      +(canApproveDoc()&&doc.approvalStatus==='Pending Approval'
+        ?'<button class="btn btn-grn" id="v-apv-decide">✅ Approve / Reject</button> ':'' )
+      +'<button class="btn btn-ghost" id="v-apv-back">← Back</button>'
+      +'</div>';
+    renderApprovalTab(doc, document.getElementById('apv-tab-container'));
+    document.getElementById('v-apv-back').addEventListener('click',function(){ closeOverlay(); openViewModal(doc); });
+    if(document.getElementById('v-apv-submit'))
+      document.getElementById('v-apv-submit').addEventListener('click',function(){ closeOverlay(); openSubmitApprovalModal(doc); });
+    if(document.getElementById('v-apv-decide'))
+      document.getElementById('v-apv-decide').addEventListener('click',function(){ closeOverlay(); openApproveModal(doc); });
+  });
   /* Fetch live attachment count from Drive */
   if(typeof DMS_DRIVE !== 'undefined'){
     DMS_DRIVE.listFiles(doc.id).then(function(result){
@@ -1237,6 +1542,7 @@ IMS_AUTH.init({
       return;
     }
     sessionStorage.setItem('dms_hard_reloaded','1');
+    initApprovalModule();
     initPage('document-management.html');
     document.getElementById('tb').innerHTML = renderTopbar(
       'Document & Evidence Management',

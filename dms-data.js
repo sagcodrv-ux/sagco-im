@@ -35,6 +35,7 @@ var DMS_DATA = (function() {
           issued: d.issued, reviewDue: d.reviewDue,
           owner: d.owner, pages: d.pages || [],
           deleted: d.deleted || false,
+          approvalStatus: d.approvalStatus || 'Draft',
           attachCount: d.attachCount || 0,
           verCount: d.verCount || 0,
         };
@@ -113,7 +114,8 @@ var DMS_DATA = (function() {
             owner:      col(row, ['Document Owner']),
             dept:       col(row, ['Department']) || '',
             pages:      [],
-            deleted:    col(row, ['Deleted']) === 'true',
+            deleted:        col(row, ['Deleted']) === 'true',
+            approvalStatus: col(row, ['Approval Status']) || 'Draft',
             files:      [],
             versions:   [],
             attachCount: 0,
@@ -149,8 +151,9 @@ var DMS_DATA = (function() {
       + '&issued='    + encodeURIComponent(doc.issued || '')
       + '&reviewDue=' + encodeURIComponent(doc.reviewDue || '')
       + '&owner='     + encodeURIComponent(doc.owner || '')
-      + '&deleted='    + encodeURIComponent(doc.deleted ? 'true' : 'false')
-      + '&deletedAt='  + encodeURIComponent(doc.deletedAt || '')
+      + '&deleted='        + encodeURIComponent(doc.deleted ? 'true' : 'false')
+      + '&deletedAt='      + encodeURIComponent(doc.deletedAt || '')
+      + '&approvalStatus=' + encodeURIComponent(doc.approvalStatus || 'Draft')
     )
     .then(function(r) { return r.json(); })
     .then(function(res) { if(cb) cb(res); })
