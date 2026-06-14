@@ -462,7 +462,7 @@ function renderTable(){
       /* Approval actions */
       if(canSubmitApproval() && (d.approvalStatus==='Draft'||!d.approvalStatus||d.approvalStatus==='Rejected'))
         acts+='<button class="btn btn-amb btn-xs" data-a="submit-approval" data-id="'+d.id+'" title="Submit for Approval">📤</button>';
-      if(canApproveDoc() && d.approvalStatus==='Pending Approval')
+      if(d.approvalStatus==='Pending Approval' && isAssignedApprover(d))
         acts+='<button class="btn btn-grn btn-xs" data-a="approve" data-id="'+d.id+'" title="Approve / Reject">✅</button>';
       if(isAdm()) acts+='<button class="btn btn-red btn-xs" data-a="del" data-id="'+d.id+'" title="Move to bin">🗑</button>';
     } else {
@@ -511,6 +511,18 @@ function handleAction(action, id){
 function canSubmitApproval(){ return typeof DMS_APPROVAL!=='undefined' && DMS_APPROVAL.canSubmit(gRole()); }
 function canApproveDoc()    { return typeof DMS_APPROVAL!=='undefined' && DMS_APPROVAL.canApprove(gRole()); }
 
+/* Check if current user is an assigned approver for this specific document */
+function isAssignedApprover(doc){
+  if(!doc || typeof DMS_APPROVAL === 'undefined') return false;
+  /* Admin can always approve */
+  if(isAdm()) return true;
+  var myName = currentUser().toLowerCase();
+  var recs = DMS_APPROVAL.cache().filter(function(r){
+    return r.docId === doc.id && r.rev === doc.rev && r.status === 'Pending';
+  });
+  return recs.some(function(r){ return r.approver.toLowerCase() === myName; });
+}
+
 /* ── Approval badge for table row ─────────────────────────── */
 function apvBadge(doc){
   var s = doc.approvalStatus || 'Draft';
@@ -546,7 +558,10 @@ function refreshApprovalBanner(){
   if(pending.length > 0){
     banner.style.display = 'flex';
     countEl.textContent  = pending.length;
-    if(canApproveDoc()){
+    var isAssigned = isAdm() || pendingApprovers.some(function(r){
+      return r.approver.toLowerCase() === myName.toLowerCase();
+    });
+    if(isAssigned){
       textEl.textContent = 'document'+(pending.length>1?'s are':' is')+' awaiting your approval.';
     } else {
       textEl.textContent = 'document'+(pending.length>1?'s are':' is')+' pending approval.';
@@ -556,58 +571,115 @@ function refreshApprovalBanner(){
   }
 }
 
+/* ── Predefined SAGCO approvers list ─────────────────────── */
+var SAGCO_APPROVERS = [
+  { name: 'CEO',                    role: 'CEO' },
+  { name: 'IMS Coordinator',        role: 'IMS Coordinator' },
+  { name: 'Furnace Manager',        role: 'Furnace Manager' },
+  { name: 'Furnace Consultant',     role: 'Furnace Consultant' },
+  { name: 'Service Coordinator',    role: 'Service Coordinator' },
+  { name: 'HSE Manager',            role: 'HSE Manager' },
+  { name: 'Quality Manager',        role: 'Quality Manager' },
+  { name: 'Production Manager',     role: 'Production Manager' },
+  { name: 'Maintenance Manager',    role: 'Maintenance Manager' },
+  { name: 'HR Manager',             role: 'HR Manager' },
+  { name: 'Finance Manager',        role: 'Finance Manager' },
+  { name: 'Procurement Manager',    role: 'Procurement Manager' },
+  { name: 'Environmental Officer',  role: 'Environmental Officer' },
+  { name: 'Energy Manager',         role: 'Energy Manager' },
+];
+
 /* ── Submit for Approval modal ───────────────────────────── */
 function openSubmitApprovalModal(doc){
+  var approverOptions = SAGCO_APPROVERS.map(function(a){
+    return '<option value="'+esc(a.name)+'|'+esc(a.role)+'">'+esc(a.name)+' — '+esc(a.role)+'</option>';
+  }).join('');
+
+  var approverOpts = '<option value="">— Select an approver —</option>'
+    + SAGCO_APPROVERS.map(function(a){
+        return '<option value="'+esc(a.name)+'|'+esc(a.role)+'">'+esc(a.name)+' — '+esc(a.role)+'</option>';
+      }).join('');
+
   var html = '<div class="dms-modal-hdr">📤 Submit for Approval — '+esc(doc.number)+'</div>'
-    +'<div style="font-size:11px;color:var(--text-lt);margin-bottom:12px">'
-    +esc(doc.title)+' · Rev. '+esc(doc.rev)+'</div>'
-    +'<div style="font-size:11px;color:var(--navy);font-weight:600;margin-bottom:6px">Approvers Required</div>'
-    +'<div style="font-size:10px;color:var(--text-lt);margin-bottom:10px">Add one or more approvers. All must approve before the document becomes Active.</div>'
-    +'<div id="apv-approvers-list" style="min-height:48px"></div>'
-    +'<button class="btn btn-ghost btn-sm" id="apv-add-approver" style="margin-top:8px">＋ Add Approver</button>'
-    +'<div style="margin-top:20px;padding:14px 0 4px;border-top:2px solid #edf0f5;display:flex;gap:8px;justify-content:flex-end;align-items:center">'
-    +'<span style="font-size:10px;color:var(--text-lt);flex:1">All listed approvers must approve before the document becomes <strong>Active</strong>.</span>'
+    +'<div style="font-size:11px;color:var(--text-lt);margin-bottom:14px">'+esc(doc.title)+' · Rev. '+esc(doc.rev)+'</div>'
+
+    /* Submitted by */
+    +'<div style="background:#f0f4ff;border:1px solid #c5cff0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:11px">'
+    +'<strong>Submitted by:</strong> '+esc(currentUser())
+    +' &nbsp;|&nbsp; <strong>Date:</strong> '+new Date().toISOString().split('T')[0]+'</div>'
+
+    /* Dropdown selector */
+    +'<div style="font-size:11px;font-weight:600;color:var(--navy);margin-bottom:6px">Add Approver(s)</div>'
+    +'<div style="font-size:10px;color:var(--text-lt);margin-bottom:10px">Select from the list — each selection is added to the assigned approvers below.</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">'
+    +'<select id="apv-dropdown" class="dms-sel" style="flex:1;font-size:11px">'+approverOpts+'</select>'
+    +'<button class="btn btn-navy btn-sm" id="apv-add-from-dropdown">＋ Add</button>'
+    +'</div>'
+
+    /* Assigned approvers list */
+    +'<div style="font-size:11px;font-weight:600;color:var(--navy);margin-bottom:6px">Assigned Approvers</div>'
+    +'<div id="apv-assigned-list" style="min-height:48px;border:1px dashed #c8d4e8;border-radius:6px;padding:8px;margin-bottom:16px">'
+    +'<div id="apv-empty-msg" style="font-size:10px;color:var(--text-lt);font-style:italic;padding:6px">No approvers assigned yet. Select from the list above.</div>'
+    +'</div>'
+
+    +'<div style="padding:14px 0 4px;border-top:2px solid #edf0f5;display:flex;gap:8px;justify-content:flex-end;align-items:center">'
+    +'<span style="font-size:10px;color:var(--text-lt);flex:1">All assigned approvers must sign off before document becomes <strong>Active</strong>.</span>'
     +'<button class="btn btn-ghost" id="apv-cancel">✕ Cancel</button>'
-    +'<button class="btn btn-gold" id="apv-submit-btn" style="min-width:180px;font-size:12px">📤 Confirm &amp; Submit for Approval</button>'
+    +'<button class="btn btn-gold" id="apv-submit-btn" style="min-width:200px;font-size:12px">📤 Confirm &amp; Submit for Approval</button>'
     +'</div>';
-  /* Set modal width and ensure no overflow hides footer */
-  document.getElementById('dms-modal').style.width  = '680px';
-  document.getElementById('dms-modal').style.maxHeight = '90vh';
-  document.getElementById('dms-modal').style.overflow  = 'visible';
+
+  document.getElementById('dms-modal').style.width     = '620px';
+  document.getElementById('dms-modal').style.maxHeight = '85vh';
+  document.getElementById('dms-modal').style.overflowY = 'auto';
   openOverlay(html);
 
-  var approversList = document.getElementById('apv-approvers-list');
-  var approverCount = 0;
+  var assignedApprovers = [];
 
-  function addApproverRow(name, role){
-    approverCount++;
-    var id = 'apvr-'+approverCount;
-    var row = document.createElement('div');
-    row.className = 'apv-approver-entry';
-    row.id = id;
-    row.innerHTML = '<input type="text" class="dms-inp" placeholder="Approver name (e.g. CEO)" value="'+(name||'')+'" style="flex:2">'
-      +'<input type="text" class="dms-inp" placeholder="Role (e.g. CEO, IMS Manager)" value="'+(role||'')+'" style="flex:1">'
-      +'<button class="btn btn-red btn-xs" onclick="document.getElementById(&quot;'+id+'&quot;).remove()">✕</button>';
-    approversList.appendChild(row);
+  function addToAssigned(name, role){
+    /* Prevent duplicates */
+    if(assignedApprovers.find(function(a){ return a.name===name; })){
+      toast(name+' is already assigned.','err'); return;
+    }
+    assignedApprovers.push({name:name, role:role});
+    document.getElementById('apv-empty-msg').style.display = 'none';
+    var list = document.getElementById('apv-assigned-list');
+    var idx  = assignedApprovers.length - 1;
+    var item = document.createElement('div');
+    item.id  = 'apv-asgn-'+idx;
+    item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 12px;'
+      +'border:1px solid #a5d6a7;border-radius:6px;background:#f1f8e9;margin-bottom:6px;font-size:11px';
+    item.innerHTML = '<div style="flex:1"><div style="font-weight:600;color:var(--navy)">'+esc(name)+'</div>'
+      +'<div style="font-size:9px;color:var(--text-lt)">'+esc(role)+'</div></div>'
+      +'<button class="btn btn-red btn-xs" title="Remove">✕</button>';
+    item.querySelector('button').addEventListener('click', function(){
+      assignedApprovers = assignedApprovers.filter(function(a){ return a.name !== name; });
+      item.remove();
+      if(!assignedApprovers.length) document.getElementById('apv-empty-msg').style.display='';
+    });
+    list.appendChild(item);
   }
 
-  /* Default: CEO approver */
-  addApproverRow('CEO', 'CEO');
-
-  document.getElementById('apv-add-approver').addEventListener('click', function(){
-    addApproverRow('','');
+  /* Add from dropdown */
+  document.getElementById('apv-add-from-dropdown').addEventListener('click', function(){
+    var sel = document.getElementById('apv-dropdown');
+    if(!sel.value){ toast('Select an approver first.','err'); return; }
+    var parts = sel.value.split('|');
+    addToAssigned(parts[0], parts[1]||'Approver');
+    sel.value = ''; /* Reset dropdown */
   });
+
+  /* Also add on dropdown change for quick single-click UX */
+  document.getElementById('apv-dropdown').addEventListener('change', function(){
+    if(!this.value) return;
+    var parts = this.value.split('|');
+    addToAssigned(parts[0], parts[1]||'Approver');
+    this.value = '';
+  });
+
   document.getElementById('apv-cancel').addEventListener('click', closeOverlay);
   document.getElementById('apv-submit-btn').addEventListener('click', function(){
-    var rows = approversList.querySelectorAll('.apv-approver-entry');
-    var approvers = [];
-    rows.forEach(function(row){
-      var inputs = row.querySelectorAll('input');
-      var name = inputs[0].value.trim();
-      var role = inputs[1].value.trim();
-      if(name) approvers.push({name:name, role:role||'Approver'});
-    });
-    if(!approvers.length){ toast('Add at least one approver.','err'); return; }
+    var approvers = assignedApprovers.slice();
+    if(!approvers.length){ toast('Assign at least one approver from the list.','err'); return; }
 
     /* Update doc status to Pending Approval */
     var docs = gAll();
@@ -661,7 +733,10 @@ function openApproveModal(doc){
     : '<div class="muted" style="font-size:11px;padding:10px">No approval records loaded — records may still be syncing from Sheets.</div>';
 
     var actionHtml = '';
-    if(canApproveDoc()){
+    var isAssigned = isAdm() || pendingApprovers.some(function(r){
+      return r.approver.toLowerCase() === myName.toLowerCase();
+    });
+    if(isAssigned){
       /* Show approver info panel */
       var approverInfo = '<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:10px">'
         +'<strong style="color:#2e7d32">Acting as:</strong> '+esc(myName)
@@ -897,7 +972,7 @@ function openViewModal(doc){
       +'<div style="margin-top:14px;text-align:right">'
       +(canSubmitApproval()&&(doc.approvalStatus==='Draft'||doc.approvalStatus==='Rejected'||!doc.approvalStatus)
         ?'<button class="btn btn-amb" id="v-apv-submit">📤 Submit for Approval</button> ':'' )
-      +(canApproveDoc()&&doc.approvalStatus==='Pending Approval'
+      +(doc.approvalStatus==='Pending Approval'&&isAssignedApprover(doc)
         ?'<button class="btn btn-grn" id="v-apv-decide">✅ Approve / Reject</button> ':'' )
       +'<button class="btn btn-ghost" id="v-apv-back">← Back</button>'
       +'</div>';
