@@ -516,7 +516,18 @@ function apvBadge(doc){
     'Approved':         'nb-apv-approved',
     'Rejected':         'nb-apv-rejected',
   }[s] || 'nb-apv-draft';
-  return '<span class="'+cls+'">'+s+'</span>';
+  /* Show approver name from cache if available */
+  var extra = '';
+  if(typeof DMS_APPROVAL !== 'undefined' && (s==='Approved'||s==='Rejected')){
+    var recs = DMS_APPROVAL.cache().filter(function(r){
+      return r.docId===doc.id && r.rev===doc.rev && r.status===s;
+    });
+    if(recs.length){
+      extra = '<br><span style="font-size:8px;color:var(--text-lt)">'+esc(recs[0].approver)
+        +' · '+esc(recs[0].timestamp||'')+'</span>';
+    }
+  }
+  return '<span class="'+cls+'">'+s+'</span>'+extra;
 }
 
 /* ── Pending approval notification banner ────────────────── */
@@ -699,17 +710,50 @@ function openApproveModal(doc){
             submittedBy: myName, submittedAt: nowFull, timestamp: nowFull };
       toast(status==='Approved'?'Approving…':'Rejecting…','ok');
       closeOverlay();
+
+      /* ── Immediately update local cache so UI reflects decision ── */
+      var nowTs = new Date().toISOString().replace('T',' ').substring(0,19);
+      var cached = DMS_APPROVAL.cache();
+      var existing = cached.find(function(r){ return r.approvalId === rec.approvalId; });
+      if(existing){
+        existing.status    = status;
+        existing.comments  = comments;
+        existing.timestamp = nowTs;
+        existing.approver  = myName;
+      } else {
+        cached.push({
+          approvalId:   rec.approvalId,
+          docId:        doc.id,
+          rev:          doc.rev,
+          approver:     myName,
+          approverRole: gRole(),
+          status:       status,
+          comments:     comments,
+          submittedBy:  myName,
+          submittedAt:  nowTs,
+          timestamp:    nowTs,
+        });
+      }
+      /* Update approvalStatus directly based on this decision */
+      var newApvStatus = status === 'Approved' ? 'Approved' : 'Rejected';
+      var newDocStatus = status === 'Approved' ? 'Active'   : 'Draft';
+      var upd = Object.assign({}, doc, { approvalStatus: newApvStatus, status: newDocStatus });
+
+      /* Update local DMS cache immediately */
+      var docs = DMS_DATA.cache();
+      var dIdx = docs.findIndex(function(d){ return d.id === doc.id; });
+      if(dIdx >= 0){ docs[dIdx].approvalStatus = newApvStatus; docs[dIdx].status = newDocStatus; }
+      renderTable();
+      refreshApprovalBanner();
+
+      /* Save to Sheets asynchronously */
       DMS_APPROVAL.recordDecision(rec.approvalId, doc.id, doc.rev, myName, status, comments, function(res){
-        /* Reload approval records to check overall status */
-        DMS_APPROVAL.getForDoc(doc.id, doc.rev, function(updated){
-          var overall = DMS_APPROVAL.getOverallStatus(updated);
-          var newDocStatus = overall==='Approved' ? 'Active' : overall==='Rejected' ? 'Draft' : 'Pending Approval';
-          var upd = Object.assign({}, doc, { approvalStatus: overall==='Approved'?'Approved':overall, status: newDocStatus });
-          DMS_DATA.saveDoc(upd, function(){
-            logH(doc.id, status.toUpperCase(), rec.approver+(comments?' — '+comments:''));
+        DMS_DATA.saveDoc(upd, function(){
+          logH(doc.id, status.toUpperCase(), myName+(comments?' — '+comments:''));
+          setTimeout(function(){
             DMS_DATA.loadAll(function(fresh){ sAll(fresh); renderTable(); refreshApprovalBanner(); });
-            toast(status==='Approved'?'Document approved ✓':'Document rejected','ok');
-          });
+          }, 1500);
+          toast(status==='Approved'?'✅ Document approved — now Active':'❌ Document rejected — returned to Draft','ok');
         });
       });
     }
