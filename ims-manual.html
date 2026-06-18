@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SAGCO IMS — Integrated Management System Manual</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="auth.js"></script>
+  <script src="data.js"></script>
+  <script src="nav.js"></script>
+  <style>
+    /* ── IMS Manual specific styles ─────────────────────────────── */
+    :root {
+      --navy:   #1a2340;
+      --gold:   #c8a84b;
+      --gold-lt:#f0d98a;
+      --teal:   #1a7a6e;
+      --red:    #c0392b;
+      --amb:    #e67e22;
+      --grn:    #1e8449;
+      --g100:   #f7f9fc;
+      --g200:   #edf0f5;
+      --g300:   #d0d8e8;
+      --text:   #2d3748;
+      --text-lt:#64748b;
+      --mono:   'Courier New', monospace;
+      --radius: 8px;
+    }
+
+    /* Cover */
+    .man-cover {
+      background: linear-gradient(145deg, #0d1520 0%, #1a2340 50%, #0d2235 100%);
+      border-radius: var(--radius);
+      padding: 48px 40px 40px;
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+      color: #fff;
+    }
+    .man-cover::before {
+      content:'';
+      position:absolute; top:-60px; right:-60px;
+      width:320px; height:320px;
+      background: radial-gradient(circle, rgba(200,168,75,.18) 0%, transparent 70%);
+      pointer-events:none;
+    }
+    .man-cover::after {
+      content:'';
+      position:absolute; bottom:0; left:0; right:0; height:3px;
+      background: linear-gradient(90deg, var(--gold), transparent);
+    }
+    .man-cover-logo {
+      display:flex; align-items:center; gap:14px; margin-bottom:32px;
+    }
+    .man-cover-logo img { width:52px; height:52px; border-radius:6px; }
+    .man-cover-logo-text { font-size:11px; color:rgba(255,255,255,.6); line-height:1.5; }
+    .man-cover-logo-text strong { color:#fff; font-size:13px; display:block; }
+    .man-cover-badge {
+      display:inline-flex; align-items:center; gap:6px;
+      background:rgba(200,168,75,.15); border:1px solid rgba(200,168,75,.4);
+      border-radius:20px; padding:4px 12px; font-size:10px; color:var(--gold-lt);
+      margin-bottom:16px; letter-spacing:.5px; text-transform:uppercase;
+    }
+    .man-cover h1 {
+      font-size:32px; font-weight:800; color:#fff; line-height:1.2;
+      margin-bottom:10px; letter-spacing:-.5px;
+    }
+    .man-cover h1 span { color:var(--gold); }
+    .man-cover-sub {
+      font-size:14px; color:rgba(255,255,255,.65); margin-bottom:28px; line-height:1.6;
+    }
+    .man-cover-meta {
+      display:flex; flex-wrap:wrap; gap:24px;
+    }
+    .man-cover-meta-item { font-size:10px; color:rgba(255,255,255,.5); line-height:1.8; }
+    .man-cover-meta-item strong { color:rgba(255,255,255,.9); display:block; font-size:12px; }
+    .man-cover-standards {
+      display:flex; flex-wrap:wrap; gap:6px; margin-top:24px;
+    }
+    .std-pill {
+      background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15);
+      border-radius:20px; padding:3px 10px; font-size:9px; color:rgba(255,255,255,.7);
+      white-space:nowrap;
+    }
+    .std-pill.primary {
+      background:rgba(200,168,75,.2); border-color:rgba(200,168,75,.5); color:var(--gold-lt);
+    }
+
+    /* Section headers */
+    .man-section {
+      background:#fff; border:1px solid var(--g300); border-radius:var(--radius);
+      margin-bottom:20px; overflow:hidden;
+    }
+    .man-section-hdr {
+      background:var(--navy); color:#fff; padding:14px 20px;
+      display:flex; align-items:center; gap:12px;
+    }
+    .man-section-hdr .sec-icon {
+      width:32px; height:32px; border-radius:6px;
+      background:rgba(200,168,75,.2); display:flex; align-items:center;
+      justify-content:center; font-size:16px; flex-shrink:0;
+    }
+    .man-section-hdr h2 { font-size:14px; font-weight:700; margin:0; }
+    .man-section-hdr .sec-sub { font-size:10px; color:rgba(255,255,255,.55); margin-top:2px; }
+    .man-section-body { padding:20px; }
+
+    /* Document control table */
+    .doc-ctrl-grid {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px;
+    }
+    .doc-ctrl-item {
+      background:var(--g100); border:1px solid var(--g200); border-radius:6px;
+      padding:10px 14px;
+    }
+    .doc-ctrl-item .dci-label { font-size:9px; color:var(--text-lt); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
+    .doc-ctrl-item .dci-val { font-size:12px; font-weight:600; color:var(--navy); }
+
+    /* Company profile */
+    .profile-grid {
+      display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;
+    }
+    .profile-stat {
+      background:linear-gradient(135deg, var(--navy), #1e3a5f);
+      border-radius:var(--radius); padding:16px 18px; color:#fff; text-align:center;
+    }
+    .profile-stat .ps-val { font-size:28px; font-weight:800; color:var(--gold); line-height:1; }
+    .profile-stat .ps-label { font-size:10px; color:rgba(255,255,255,.65); margin-top:4px; }
+    .profile-info-row {
+      display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:10px;
+    }
+    .profile-info-item {
+      background:var(--g100); border-left:3px solid var(--gold);
+      border-radius:0 6px 6px 0; padding:10px 14px;
+    }
+    .profile-info-item .pii-label { font-size:9px; color:var(--text-lt); text-transform:uppercase; margin-bottom:3px; }
+    .profile-info-item .pii-val { font-size:11px; font-weight:600; color:var(--navy); }
+
+    /* Document hierarchy pyramid */
+    .hierarchy-visual {
+      display:flex; flex-direction:column; align-items:center; gap:4px; margin:16px 0;
+    }
+    .hier-level {
+      display:flex; align-items:center; justify-content:center; gap:12px;
+      border-radius:6px; color:#fff; font-weight:600; font-size:11px;
+      transition:all .2s;
+    }
+    .hier-level:hover { opacity:.9; transform:scaleX(1.01); }
+    .hier-l1 { background:var(--navy); width:100%; padding:12px; }
+    .hier-l2 { background:#1e3a5f; width:90%; padding:11px; }
+    .hier-l3 { background:#1a5276; width:80%; padding:10px; }
+    .hier-l4 { background:#1a6b5e; width:70%; padding:9px; }
+    .hier-l5 { background:#616161; width:60%; padding:8px; }
+    .hier-pill {
+      background:rgba(255,255,255,.2); border-radius:10px; padding:1px 8px; font-size:9px;
+    }
+    .hier-desc { font-size:9px; opacity:.8; }
+
+    /* Scope box */
+    .scope-box {
+      background:linear-gradient(135deg, #e8f4fd, #f0f8ff);
+      border:2px solid #3498db; border-radius:var(--radius); padding:18px 20px;
+      margin-bottom:14px;
+    }
+    .scope-box h3 { color:#1a5276; font-size:12px; margin-bottom:8px; }
+    .scope-box p { font-size:11px; color:var(--text); line-height:1.7; margin-bottom:8px; }
+
+    /* Standards coverage */
+    .standards-matrix {
+      display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:10px;
+    }
+    .std-card {
+      border:1px solid var(--g300); border-radius:var(--radius); padding:14px;
+      border-top:3px solid var(--navy);
+    }
+    .std-card .stdc-code { font-size:10px; font-weight:700; color:var(--navy); margin-bottom:4px; }
+    .std-card .stdc-name { font-size:11px; color:var(--text); margin-bottom:8px; }
+    .std-card .stdc-clause { font-size:9px; color:var(--text-lt); }
+
+    /* Governance */
+    .gov-grid {
+      display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:12px;
+      margin-bottom:16px;
+    }
+    .gov-card {
+      border:1px solid var(--g300); border-radius:var(--radius); overflow:hidden;
+    }
+    .gov-card-hdr {
+      padding:10px 14px; font-size:10px; font-weight:700; color:#fff;
+    }
+    .gov-card-body { padding:12px 14px; font-size:10px; color:var(--text); }
+    .gov-card-body li { margin-bottom:4px; }
+
+    /* KPI tiles */
+    .kpi-tiles {
+      display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:10px;
+      margin-bottom:16px;
+    }
+    .kpi-tile {
+      background:var(--g100); border:1px solid var(--g300); border-radius:var(--radius);
+      padding:14px; position:relative; overflow:hidden;
+    }
+    .kpi-tile::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    }
+    .kpi-tile.kt-blue::before  { background:var(--navy); }
+    .kpi-tile.kt-green::before { background:var(--grn); }
+    .kpi-tile.kt-red::before   { background:var(--red); }
+    .kpi-tile.kt-amb::before   { background:var(--amb); }
+    .kpi-tile .kt-val {
+      font-size:26px; font-weight:800; color:var(--navy); line-height:1; margin-bottom:4px;
+    }
+    .kpi-tile .kt-label { font-size:10px; color:var(--text-lt); line-height:1.4; }
+    .kpi-tile .kt-status {
+      margin-top:8px; font-size:9px; font-weight:700; padding:2px 8px;
+      border-radius:10px; display:inline-block;
+    }
+    .kt-live { background:#e8f5e9; color:#2e7d32; }
+    .kt-pending { background:#fff3e0; color:#e65100; }
+
+    /* Process flow */
+    .process-flow {
+      display:flex; align-items:center; flex-wrap:wrap; gap:0; margin:16px 0;
+    }
+    .pf-step {
+      flex:1; min-width:100px; background:var(--navy); color:#fff;
+      padding:14px 10px; text-align:center; font-size:10px; font-weight:600;
+      position:relative;
+    }
+    .pf-step:not(:last-child)::after {
+      content:'▶'; position:absolute; right:-10px; top:50%; transform:translateY(-50%);
+      color:var(--gold); font-size:12px; z-index:1;
+    }
+    .pf-step:nth-child(even) { background:#1e3a5f; }
+    .pf-step .pfs-icon { font-size:18px; display:block; margin-bottom:4px; }
+    .pf-step .pfs-clause { font-size:8px; color:rgba(255,255,255,.5); margin-top:3px; }
+
+    /* Clause matrix */
+    .clause-matrix { width:100%; border-collapse:collapse; font-size:9.5px; }
+    .clause-matrix th {
+      background:var(--navy); color:#fff; padding:8px 10px;
+      text-align:left; white-space:nowrap; font-size:9px;
+    }
+    .clause-matrix td { padding:7px 10px; border-bottom:1px solid var(--g200); vertical-align:top; }
+    .clause-matrix tr:hover td { background:var(--g100); }
+    .clause-matrix .cm-clause { font-weight:700; color:var(--navy); white-space:nowrap; }
+    .clause-matrix .cm-doc {
+      display:inline-block; background:var(--g200); border-radius:4px;
+      padding:1px 6px; font-size:8px; color:var(--navy); margin:1px 2px;
+      text-decoration:none; white-space:nowrap;
+    }
+    .clause-matrix .cm-doc:hover { background:var(--navy); color:#fff; }
+
+    /* Policy index */
+    .policy-index { display:flex; flex-direction:column; gap:8px; }
+    .pi-row {
+      display:grid; grid-template-columns:100px 1fr 100px 80px 80px;
+      align-items:center; gap:10px; padding:10px 14px;
+      border:1px solid var(--g200); border-radius:6px; font-size:11px;
+      text-decoration:none; color:var(--text); transition:all .15s;
+    }
+    .pi-row:hover { background:var(--g100); border-color:var(--navy); }
+    .pi-row .pi-code { font-weight:700; color:var(--navy); font-size:10px; font-family:var(--mono); }
+    .pi-row .pi-title { font-weight:600; color:var(--navy); }
+    .pi-row .pi-std { font-size:9px; color:var(--text-lt); }
+    .pi-row .pi-status { font-size:9px; font-weight:700; }
+    .signed { color:var(--grn); }
+    .pending-sig { color:var(--amb); }
+
+    /* Procedure index */
+    .proc-index { display:flex; flex-direction:column; gap:6px; }
+    .pr-row {
+      display:grid; grid-template-columns:130px 1fr 80px 60px;
+      align-items:center; gap:10px; padding:9px 14px;
+      border:1px solid var(--g200); border-radius:6px; font-size:11px;
+      text-decoration:none; color:var(--text); transition:all .15s;
+    }
+    .pr-row:hover { background:var(--g100); border-color:var(--navy); }
+    .pr-row .pr-code { font-size:9px; font-family:var(--mono); color:var(--navy); font-weight:700; }
+    .pr-row .pr-clause { font-size:9px; color:var(--text-lt); }
+
+    /* Sign-off */
+    .signoff-block {
+      background:var(--g100); border:1px solid var(--g300); border-radius:var(--radius);
+      padding:20px; margin-top:16px;
+    }
+    .signoff-grid {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:14px;
+    }
+    .signoff-col {
+      border-top:2px solid var(--navy); padding-top:10px; text-align:center;
+    }
+    .signoff-col .sc-name { font-size:12px; font-weight:700; color:var(--navy); }
+    .signoff-col .sc-role { font-size:10px; color:var(--text-lt); margin-top:2px; }
+    .signoff-col .sc-date { font-size:10px; color:var(--text-lt); margin-top:6px; }
+    .signoff-col .sc-sig { 
+      font-size:18px; color:var(--navy); margin:8px 0 4px;
+      font-family:Georgia, serif; font-style:italic;
+    }
+
+    /* Certification roadmap */
+    .roadmap { display:flex; gap:0; margin:16px 0; overflow-x:auto; }
+    .rm-phase {
+      flex:1; min-width:110px; padding:12px 10px; text-align:center;
+      font-size:9px; border-right:1px solid rgba(255,255,255,.15); color:#fff;
+    }
+    .rm-phase:last-child { border-right:none; }
+    .rm-phase .rmp-num { font-size:18px; font-weight:800; color:var(--gold); }
+    .rm-phase .rmp-title { font-weight:700; margin:4px 0 2px; font-size:10px; }
+    .rm-phase.done { background:#1a3a2a; }
+    .rm-phase.active { background:#1a4060; border:2px solid var(--gold); border-radius:4px; }
+    .rm-phase.upcoming { background:rgba(26,35,64,.5); }
+    .rm-badge {
+      display:inline-block; margin-top:4px; padding:1px 6px;
+      border-radius:10px; font-size:8px; font-weight:700;
+    }
+    .rm-done { background:#1e5c3a; color:#81c784; }
+    .rm-active { background:rgba(200,168,75,.3); color:var(--gold); }
+    .rm-upcoming { background:rgba(255,255,255,.1); color:rgba(255,255,255,.5); }
+
+    /* Print */
+    @media print {
+      .sidebar, #tb .topbar-btn, .back-row { display:none !important; }
+      .man-cover { break-after:page; }
+      .man-section { break-inside:avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="main">
+  <div id="tb"></div>
+  <div class="content">
+
+    <div class="back-row">
+      <a href="index.html" class="back-link">← IMS Dashboard</a>
+      <a href="procedures.html" class="back-link">← Procedures Hub</a>
+    </div>
+
+    <!-- ══ COVER ══════════════════════════════════════════════════ -->
+    <div class="man-cover">
+      <div class="man-cover-logo">
+        <img src="sagco-logo.jpg" alt="SAGCO">
+        <div class="man-cover-logo-text">
+          <strong>Saudi Arabian Glass Company Ltd.</strong>
+          Jeddah Industrial City Phase 4 · Kingdom of Saudi Arabia
+        </div>
+      </div>
+      <div class="man-cover-badge">📋 IMS Controlled Document · L1-IMS-MAN-01</div>
+      <h1>Integrated Management<br>System <span>Manual</span></h1>
+      <div class="man-cover-sub">
+        A business excellence framework integrating Quality, Environmental, Occupational Health &amp; Safety,
+        and Energy Management — aligned with four ISO international standards and the EcoVadis ESG framework.
+      </div>
+      <div class="man-cover-meta">
+        <div class="man-cover-meta-item"><strong>Rev. 01</strong>Revision</div>
+        <div class="man-cover-meta-item"><strong>June 2026</strong>Effective Date</div>
+        <div class="man-cover-meta-item"><strong>June 2028</strong>Review Date</div>
+        <div class="man-cover-meta-item"><strong>Rami Al Dobi</strong>Approved by CEO</div>
+        <div class="man-cover-meta-item"><strong>TÜV Austria</strong>Certification Body</div>
+        <div class="man-cover-meta-item"><strong>Stage 2</strong>Certification Status</div>
+      </div>
+      <div class="man-cover-standards">
+        <span class="std-pill primary">ISO 9001:2015</span>
+        <span class="std-pill primary">ISO 14001:2026</span>
+        <span class="std-pill primary">ISO 45001:2018</span>
+        <span class="std-pill primary">ISO 50001:2018</span>
+        <span class="std-pill">ISO 37001:2016</span>
+        <span class="std-pill">ISO 26000</span>
+        <span class="std-pill">ISO 20400</span>
+        <span class="std-pill">GRI Standards 2021</span>
+        <span class="std-pill">EcoVadis Silver Target</span>
+      </div>
+    </div>
+
+    <!-- ══ DOCUMENT CONTROL ════════════════════════════════════════ -->
+    <div class="man-section">
+      <div class="man-section-hdr">
+        <div class="sec-icon">📋</div>
+        <div><h2>Document Control</h2><div class="sec-sub">L1-IMS-MAN-01 · Rev.01 · June 2026</div></div>
+      </div>
+      <div class="man-section-body">
+        <div class="doc-ctrl-grid">
+          <div class="doc-ctrl-item"><div class="dci-label">Document Code</div><div class="dci-val">L1-IMS-MAN-01</div></div>
+          <div class="doc-ctrl-item"><div class="dci-label">Revision</div><div class="dci-val">Rev. 01</div></div>
+          <div class="doc-ctrl-item"><div class="dci-label">Effective Date</div><div class="dci-val">June 2026</div></div>
+          <div class="doc-ctrl-item"><div class="dci-label">Review Date</div><div class="dci-val">June 2028</div></div>
+          <div class="doc-ctrl-item"><div class="dci-label">Prepared By</div><div class="dci-val">IMS Coordinator</div></div>
+          <div class="doc-ctrl-item"><div class="dci-label">Approved By</div><div class="dci-val">Rami Al Dobi — CEO</div></div>
+          <div class="doc-ctrl-item"><div class="dci-label">Facility ID</div><div class="dci-val">S-SAU-PK-0001049</div></div>
+          <div class="doc-ctrl-item"><div class="dci-label">Certification Body</div><div class="dci-val">TÜV Austria</div></div>
+          <div class="doc-ctrl-item"><div class="dci-label">Document Level</div><div class="dci-val">L1 — IMS Manual</div></div>
+        </div>
+        <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:10px 14px;font-size:10px;color:#6d4c00">
+          ⚠️ This is a controlled document. Printed or downloaded copies are uncontrolled. Always refer to the
+          <a href="document-management.html" style="color:#1a2340;font-weight:700">Document Management System</a> for the current approved version.
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ EXECUTIVE SUMMARY ══════════════════════════════════════ -->
+    <div class="man-section">
+      <div class="man-section-hdr">
+        <div class="sec-icon">⭐</div>
+        <div><h2>Executive Summary — CEO Message</h2><div class="sec-sub">Leadership Commitment · ISO §5.1 all standards</div></div>
+      </div>
+      <div class="man-section-body">
+        <div style="display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start">
+          <div>
+            <p style="font-size:13px;line-height:1.8;color:var(--text);font-style:italic;border-left:4px solid var(--gold);padding-left:16px;margin-bottom:16px">
+              "At SAGCO, we believe that operational excellence, environmental responsibility, and the safety and wellbeing
+              of our people are not competing priorities — they are inseparable foundations of our business. Our Integrated
+              Management System is the framework through which we translate this belief into measurable, auditable performance."
+            </p>
+            <p style="font-size:11px;line-height:1.7;color:var(--text);margin-bottom:12px">
+              Saudi Arabian Glass Company Ltd. operates five HFO-fired glass furnaces at Jeddah Industrial City Phase 4,
+              manufacturing food-grade glass containers for leading regional customers including Coca-Cola Arabia and Almarai Company.
+              With 884 direct employees and 152 contractors, we are committed to world-class manufacturing standards.
+            </p>
+            <p style="font-size:11px;line-height:1.7;color:var(--text)">
+              This IMS Manual describes our integrated approach to managing quality, environment, safety, and energy
+              across the full product lifecycle — from raw material receipt through manufacturing, inspection, warehousing,
+              and delivery — in full conformity with ISO 9001:2015, ISO 14001:2026, ISO 45001:2018, and ISO 50001:2018,
+              with TÜV Austria as our independent certification body.
+            </p>
+          </div>
+          <div style="background:linear-gradient(135deg,var(--navy),#1e3a5f);border-radius:var(--radius);padding:20px;color:#fff">
+            <div style="font-size:10px;color:rgba(255,255,255,.6);margin-bottom:16px;text-transform:uppercase;letter-spacing:.5px">At a Glance</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div><div style="font-size:22px;font-weight:800;color:var(--gold)">884</div><div style="font-size:9px;color:rgba(255,255,255,.6)">Direct Employees</div></div>
+              <div><div style="font-size:22px;font-weight:800;color:var(--gold)">5</div><div style="font-size:9px;color:rgba(255,255,255,.6)">HFO-Fired Furnaces</div></div>
+              <div><div style="font-size:22px;font-weight:800;color:var(--gold)">4</div><div style="font-size:9px;color:rgba(255,255,255,.6)">ISO Standards Integrated</div></div>
+              <div><div style="font-size:22px;font-weight:800;color:var(--gold)">26</div><div style="font-size:9px;color:rgba(255,255,255,.6)">IMS KPIs Monitored</div></div>
+              <div><div style="font-size:22px;font-weight:800;color:var(--gold)">Silver</div><div style="font-size:9px;color:rgba(255,255,255,.6)">EcoVadis Target</div></div>
+            </div>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.15)">
+              <div style="font-size:11px;font-weight:700;color:#fff">Rami Al Dobi</div>
+              <div style="font-size:9px;color:rgba(255,255,255,.6)">Chief Executive Officer · SAGCO</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SECTION 1 — COMPANY PROFILE ════════════════════════════ -->
+    <div class="man-section">
+      <div class="man-section-hdr">
+        <div class="sec-icon">🏭</div>
+        <div><h2>Section 1 — Company Profile &amp; Strategic Context</h2><div class="sec-sub">ISO §4.1 · §4.2 · Understanding SAGCO and its context</div></div>
+      </div>
+      <div class="man-section-body">
+
+        <div class="profile-grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="profile-stat"><div class="ps-val">884</div><div class="ps-label">Direct Employees</div></div>
+          <div class="profile-stat"><div class="ps-val">152</div><div class="ps-label">Contractors</div></div>
+          <div class="profile-stat"><div class="ps-val">5</div><div class="ps-label">Glass Furnaces</div></div>
+          <div class="profile-stat"><div class="ps-val">615</div><div class="ps-label">kgCO₂e/tonne<br><span style="font-size:11px">GHG Intensity Baseline</span></div></div>
+        </div>
+
+        <div class="profile-info-row" style="margin-bottom:16px">
+          <div class="profile-info-item"><div class="pii-label">Legal Name</div><div class="pii-val">Saudi Arabian Glass Company Ltd.</div></div>
+          <div class="profile-info-item"><div class="pii-label">Facility</div><div class="pii-val">Jeddah Industrial City Phase 4</div></div>
+          <div class="profile-info-item"><div class="pii-label">Facility ID</div><div class="pii-val">S-SAU-PK-0001049</div></div>
+          <div class="profile-info-item"><div class="pii-label">Products</div><div class="pii-val">Food-grade glass containers</div></div>
+          <div class="profile-info-item"><div class="pii-label">Key Customers</div><div class="pii-val">Coca-Cola Arabia · Almarai</div></div>
+          <div class="profile-info-item"><div class="pii-label">Certification Body</div><div class="pii-val">TÜV Austria</div></div>
+        </div>
+
+        <div style="background:var(--g100);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+          <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:10px">Vision · Mission · Core Values</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div style="background:#fff;border:1px solid var(--g300);border-radius:6px;padding:12px">
+              <div style="font-size:9px;color:var(--text-lt);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Our Vision</div>
+              <div style="font-size:11px;color:var(--text);line-height:1.6">To continuously strive to be a trusted and preferred supplier of glass packaging through building strategic partnerships.</div>
+            </div>
+            <div style="background:#fff;border:1px solid var(--g300);border-radius:6px;padding:12px">
+              <div style="font-size:9px;color:var(--text-lt);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Our Mission</div>
+              <div style="font-size:11px;color:var(--text);line-height:1.6">To manufacture and deliver high-quality glass packaging solutions through lean, safe, environmentally responsible manufacturing processes.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <span style="background:var(--navy);color:#fff;border-radius:20px;padding:4px 14px;font-size:10px;font-weight:600">Integrity</span>
+            <span style="background:var(--navy);color:#fff;border-radius:20px;padding:4px 14px;font-size:10px;font-weight:600">Respect</span>
+            <span style="background:var(--navy);color:#fff;border-radius:20px;padding:4px 14px;font-size:10px;font-weight:600">Accountability</span>
+            <span style="background:var(--navy);color:#fff;border-radius:20px;padding:4px 14px;font-size:10px;font-weight:600">Innovation</span>
+            <span style="background:var(--navy);color:#fff;border-radius:20px;padding:4px 14px;font-size:10px;font-weight:600">Customer Focus</span>
+          </div>
+        </div>
+
+        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">Furnace Rebuild Roadmap</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:10px 14px;font-size:10px;flex:1;min-width:100px">
+            <div style="font-weight:700;color:var(--navy)">F1</div><div style="color:var(--text-lt)">Rebuild 2025</div><div style="color:var(--grn);font-weight:700">✅ Complete</div>
+          </div>
+          <div style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:10px 14px;font-size:10px;flex:1;min-width:100px">
+            <div style="font-weight:700;color:var(--navy)">F2</div><div style="color:var(--text-lt)">Rebuild 2026</div><div style="color:var(--amb);font-weight:700">⏳ Planned</div>
+          </div>
+          <div style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:10px 14px;font-size:10px;flex:1;min-width:100px">
+            <div style="font-weight:700;color:var(--navy)">F3</div><div style="color:var(--text-lt)">Active</div><div style="color:var(--grn);font-weight:700">🟢 Operating</div>
+          </div>
+          <div style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:10px 14px;font-size:10px;flex:1;min-width:100px">
+            <div style="font-weight:700;color:var(--navy)">F4</div><div style="color:var(--text-lt)">Active</div><div style="color:var(--grn);font-weight:700">🟢 Operating</div>
+          </div>
+          <div style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:10px 14px;font-size:10px;flex:1;min-width:100px">
+            <div style="font-weight:700;color:var(--navy)">F5</div><div style="color:var(--text-lt)">Rebuild 2028</div><div style="color:var(--text-lt);font-weight:700">📅 Scheduled</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SECTION 2 — IMS SCOPE ══════════════════════════════════ -->
+    <div class="man-section">
+      <div class="man-section-hdr">
+        <div class="sec-icon">🎯</div>
+        <div><h2>Section 2 — IMS Scope &amp; Boundaries</h2><div class="sec-sub">ISO §4.3 all standards · Scope Statement L4-430-A-01</div></div>
+      </div>
+      <div class="man-section-body">
+        <div class="scope-box">
+          <h3>Official IMS Scope Statement</h3>
+          <p>The design, manufacture, decoration, warehousing, sale and distribution of food-grade glass containers,
+          operating five HFO-fired glass furnaces at Jeddah Industrial City Phase 4, Saudi Arabia — in conformity with
+          ISO 9001:2015, ISO 14001:2026, ISO 45001:2018, and ISO 50001:2018.</p>
+          <p style="margin:0"><a href="scope.html" style="color:#1a5276;font-weight:700;font-size:10px">→ View full Scope Statement (L4-430-A-01)</a></p>
+        </div>
+
+        <div class="standards-matrix">
+          <div class="std-card">
+            <div class="stdc-code">ISO 9001:2015</div>
+            <div class="stdc-name">Quality Management System</div>
+            <div class="stdc-clause">Customer focus · Process approach · Continual improvement · Product conformity</div>
+          </div>
+          <div class="std-card">
+            <div class="stdc-code">ISO 14001:2026</div>
+            <div class="stdc-name">Environmental Management System</div>
+            <div class="stdc-clause">Environmental aspects · GHG reduction · Legal compliance · Waste management</div>
+          </div>
+          <div class="std-card">
+            <div class="stdc-code">ISO 45001:2018</div>
+            <div class="stdc-name">OH&amp;S Management System</div>
+            <div class="stdc-clause">Hazard identification · HIRA · Worker participation · Incident prevention</div>
+          </div>
+          <div class="std-card">
+            <div class="stdc-code">ISO 50001:2018</div>
+            <div class="stdc-name">Energy Management System</div>
+            <div class="stdc-clause">SEUs · EnPIs · Energy baseline · ECM programme · ISO 50001 active certification</div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;background:var(--g100);border-radius:var(--radius);padding:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">Exclusions &amp; Boundaries</div>
+          <div style="font-size:10px;color:var(--text);line-height:1.7">
+            <strong>ISO 22000/FSSC 22000</strong> — explicitly outside IMS boundary; treated as standalone certification.<br>
+            <strong>ISO 37001</strong> — referenced as supporting framework; not included in TÜV Austria Stage 2 scope.<br>
+            <strong>Contractor activities</strong> — included within IMS scope for OH&amp;S (ISO 45001 §8.1.4); excluded from quality scope.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SECTION 3 — DOCUMENT HIERARCHY ═════════════════════════ -->
+    <div class="man-section">
+      <div class="man-section-hdr">
+        <div class="sec-icon">📐</div>
+        <div><h2>Section 3 — Document Hierarchy &amp; Coding System</h2><div class="sec-sub">ISO §7.5 all standards · 5-level document structure</div></div>
+      </div>
+      <div class="man-section-body">
+        <div class="hierarchy-visual">
+          <div class="hier-level hier-l1" style="width:100%">
+            <span class="hier-pill">L1</span>
+            <span>IMS Manual &amp; Policies</span>
+            <span class="hier-desc">L1-IMS-MAN-01 · L1-IMS-PO-01 to PO-09</span>
+          </div>
+          <div style="font-size:18px;color:var(--text-lt)">▼</div>
+          <div class="hier-level hier-l2" style="width:88%">
+            <span class="hier-pill">L2</span>
+            <span>Procedures &amp; Programmes</span>
+            <span class="hier-desc">L2-IMS-400-P-01 through L2-IMS-1000-P-07</span>
+          </div>
+          <div style="font-size:18px;color:var(--text-lt)">▼</div>
+          <div class="hier-level hier-l3" style="width:76%">
+            <span class="hier-pill">L3</span>
+            <span>Work Instructions &amp; Control Documents</span>
+            <span class="hier-desc">L3-IMS-xxx · L3-SHEE-PR-xx · OC Specifications</span>
+          </div>
+          <div style="font-size:18px;color:var(--text-lt)">▼</div>
+          <div class="hier-level hier-l4" style="width:64%">
+            <span class="hier-pill">L4</span>
+            <span>Records, Forms &amp; Registers</span>
+            <span class="hier-desc">L4-xxx — maintained and retained documented information</span>
+          </div>
+          <div style="font-size:18px;color:var(--text-lt)">▼</div>
+          <div class="hier-level hier-l5" style="width:52%">
+            <span class="hier-pill">L5</span>
+            <span>External Documents</span>
+            <span class="hier-desc">Standards · Regulations · Customer specifications</span>
+          </div>
+        </div>
+
+        <div style="overflow-x:auto;margin-top:16px">
+          <table style="width:100%;border-collapse:collapse;font-size:10px">
+            <thead><tr style="background:var(--navy);color:#fff">
+              <th style="padding:8px 10px;text-align:left">Level</th>
+              <th style="padding:8px 10px;text-align:left">Format</th>
+              <th style="padding:8px 10px;text-align:left">Example</th>
+              <th style="padding:8px 10px;text-align:left">Description</th>
+            </tr></thead>
+            <tbody>
+              <tr style="border-bottom:1px solid var(--g200)"><td style="padding:7px 10px;font-weight:700;color:var(--navy)">L1</td><td style="padding:7px 10px;font-family:var(--mono)">L1-IMS-PO-[NN]</td><td style="padding:7px 10px;font-family:var(--mono)">L1-IMS-PO-01</td><td style="padding:7px 10px">Policies — CEO-approved · ISO Clause 5 anchor</td></tr>
+              <tr style="border-bottom:1px solid var(--g200);background:var(--g100)"><td style="padding:7px 10px;font-weight:700;color:var(--navy)">L2</td><td style="padding:7px 10px;font-family:var(--mono)">L2-IMS-[Clause]-P-[NN]</td><td style="padding:7px 10px;font-family:var(--mono)">L2-IMS-700-P-04</td><td style="padding:7px 10px">Procedures · Clause-based coding</td></tr>
+              <tr style="border-bottom:1px solid var(--g200)"><td style="padding:7px 10px;font-weight:700;color:var(--navy)">L3</td><td style="padding:7px 10px;font-family:var(--mono)">L3-IMS-[Ref]-[Type]-[NN]</td><td style="padding:7px 10px;font-family:var(--mono)">L3-IMS-800-OC-01</td><td style="padding:7px 10px">Work Instructions · OC Specifications</td></tr>
+              <tr style="border-bottom:1px solid var(--g200);background:var(--g100)"><td style="padding:7px 10px;font-weight:700;color:var(--navy)">L4</td><td style="padding:7px 10px;font-family:var(--mono)">L4-[Ref]-[Type]-[NN]</td><td style="padding:7px 10px;font-family:var(--mono)">L4-IMS-621-R-02</td><td style="padding:7px 10px">Records · Registers · Forms</td></tr>
+              <tr><td style="padding:7px 10px;font-weight:700;color:var(--navy)">L5</td><td style="padding:7px 10px;font-family:var(--mono)">External reference</td><td style="padding:7px 10px;font-family:var(--mono)">ISO 9001:2015</td><td style="padding:7px 10px">External standards · Regulations</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SECTION 4 — LEADERSHIP & GOVERNANCE ════════════════════ -->
+    <div class="man-section">
+      <div class="man-section-hdr">
+        <div class="sec-icon">👥</div>
+        <div><h2>Section 4 — Leadership &amp; IMS Governance</h2><div class="sec-sub">ISO §5.1 all standards · 3-Working-Group Model</div></div>
+      </div>
+      <div class="man-section-body">
+        <div class="gov-grid">
+          <div class="gov-card">
+            <div class="gov-card-hdr" style="background:var(--navy)">
+              🏛 IMS Steering Committee
+            </div>
+            <div class="gov-card-body">
+              <div style="font-size:10px;color:var(--text-lt);margin-bottom:6px">Chair: IMS Manager · Monthly (impl.) / Quarterly (post-cert)</div>
+              <ul style="padding-left:14px;margin:0">
+                <li>Strategic IMS oversight across all standards</li>
+                <li>Policy, objectives and target approval</li>
+                <li>Resource allocation and budgets</li>
+                <li>Certification readiness — TÜV Austria</li>
+                <li>Management Review governance</li>
+              </ul>
+              <div style="margin-top:8px"><a href="steering-team-minutes.html" style="font-size:9px;color:var(--navy);font-weight:700">→ Steering Team Minutes</a></div>
+            </div>
+          </div>
+          <div class="gov-card">
+            <div class="gov-card-hdr" style="background:#1a4a2e">
+              🔧 WG1 — Plant &amp; Quality
+            </div>
+            <div class="gov-card-body">
+              <div style="font-size:10px;color:var(--text-lt);margin-bottom:6px">Chair: QA Manager · Embedded in Plant Manager weekly</div>
+              <ul style="padding-left:14px;margin:0">
+                <li>ISO 9001:2015 implementation</li>
+                <li>Pack-to-Melt · Customer Satisfaction</li>
+                <li>Supplier ASL management</li>
+                <li>Heldware KPI monitoring</li>
+              </ul>
+              <div style="margin-top:8px"><a href="kpi-wg1.html" style="font-size:9px;color:var(--navy);font-weight:700">→ WG1 KPIs (4)</a></div>
+            </div>
+          </div>
+          <div class="gov-card">
+            <div class="gov-card-hdr" style="background:#1a3a5e">
+              ⚡ WG2 — SHEE, Energy &amp; ENV
+            </div>
+            <div class="gov-card-body">
+              <div style="font-size:10px;color:var(--text-lt);margin-bottom:6px">Chair: Operations Manager · Embedded in HSSE monthly</div>
+              <ul style="padding-left:14px;margin:0">
+                <li>ISO 45001 · ISO 14001 · ISO 50001</li>
+                <li>HIRA · Legal compliance · HSE training</li>
+                <li>GHG · Waste · SHC · EnPI · ECM</li>
+                <li>11 KPIs monitored monthly</li>
+              </ul>
+              <div style="margin-top:8px"><a href="kpi-wg2.html" style="font-size:9px;color:var(--navy);font-weight:700">→ WG2 KPIs (11)</a></div>
+            </div>
+          </div>
+          <div class="gov-card">
+            <div class="gov-card-hdr" style="background:#4a1a2e">
+              🤝 WG3 — People, Ethics &amp; Procurement
+            </div>
+            <div class="gov-card-body">
+              <div style="font-size:10px;color:var(--text-lt);margin-bottom:6px">Chair: HR Manager · Embedded in HR monthly</div>
+              <ul style="padding-left:14px;margin:0">
+                <li>ISO 37001 · ISO 26000 · ISO 20400</li>
+                <li>Labour regulations compliance</li>
+                <li>CoI · Anti-corruption training</li>
+                <li>Supplier ESG · Grievances</li>
+              </ul>
+              <div style="margin-top:8px"><a href="kpi-wg3.html" style="font-size:9px;color:var(--navy);font-weight:700">→ WG3 KPIs (6)</a></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Policy index -->
+        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:10px">Policy Framework — 9 IMS Policies</div>
+        <div class="policy-index">
+          <div style="display:grid;grid-template-columns:100px 1fr 100px 80px 80px;gap:10px;padding:6px 14px;font-size:9px;font-weight:700;color:var(--text-lt);text-transform:uppercase">
+            <span>Code</span><span>Title</span><span>Standard</span><span>Rev</span><span>Status</span>
+          </div>
+          <a href="policy-po-01.html" class="pi-row"><span class="pi-code">L1-IMS-PO-01</span><span class="pi-title">IMS Integrated Policy</span><span class="pi-std">All 4 standards</span><span>Rev.01</span><span class="pi-status pending-sig">⏳ Pending CEO</span></a>
+          <a href="policy-po-02.html" class="pi-row"><span class="pi-code">L1-IMS-PO-02</span><span class="pi-title">Environmental Policy</span><span class="pi-std">ISO 14001:2026</span><span>Rev.01</span><span class="pi-status pending-sig">⏳ Pending CEO</span></a>
+          <a href="policy-po-03.html" class="pi-row"><span class="pi-code">L1-IMS-PO-03</span><span class="pi-title">OH&amp;S Policy</span><span class="pi-std">ISO 45001:2018</span><span>Rev.01</span><span class="pi-status pending-sig">⏳ Pending CEO</span></a>
+          <a href="policy-po-04.html" class="pi-row"><span class="pi-code">L1-IMS-PO-04</span><span class="pi-title">Energy Policy</span><span class="pi-std">ISO 50001:2018</span><span>Rev.01</span><span class="pi-status pending-sig">⏳ Pending CEO</span></a>
+          <a href="policy-po-05.html" class="pi-row"><span class="pi-code">L1-IMS-PO-05</span><span class="pi-title">Quality &amp; Food Safety Policy</span><span class="pi-std">ISO 9001:2015</span><span>Rev.06</span><span class="pi-status signed">✅ CEO-Signed</span></a>
+          <a href="policy-po-06.html" class="pi-row"><span class="pi-code">L1-IMS-PO-06</span><span class="pi-title">Sustainability Policy</span><span class="pi-std">ISO 26000 · GRI</span><span>Rev.01</span><span class="pi-status pending-sig">⏳ Pending CEO</span></a>
+          <a href="policy-po-07.html" class="pi-row"><span class="pi-code">L1-IMS-PO-07</span><span class="pi-title">Anti-Corruption Policy</span><span class="pi-std">ISO 37001:2016</span><span>Rev.01</span><span class="pi-status pending-sig">⏳ Pending CEO</span></a>
+          <a href="policy-po-08.html" class="pi-row"><span class="pi-code">L1-IMS-PO-08</span><span class="pi-title">Information Security Policy</span><span class="pi-std">ISO 27001 ref.</span><span>Rev.01</span><span class="pi-status pending-sig">⏳ Pending CEO</span></a>
+          <a href="policy-po-09.html" class="pi-row"><span class="pi-code">L1-IMS-PO-09</span><span class="pi-title">Human Rights &amp; Labour Policy</span><span class="pi-std">ISO 26000 · M/51</span><span>Rev.01</span><span class="pi-status pending-sig">⏳ Pending CEO</span></a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SECTION 5 — BUSINESS PROCESS FLOW ══════════════════════ -->
+    <div class="man-section">
+      <div class="man-section-hdr">
+        <div class="sec-icon">⚙️</div>
+        <div><h2>Section 5 — Key Business Processes &amp; IMS Integration</h2><div class="sec-sub">ISO §4.4 · Process approach · Turtle diagram reference</div></div>
+      </div>
+      <div class="man-section-body">
+        <div style="background:var(--navy);border-radius:var(--radius);padding:4px;margin-bottom:16px">
+          <div class="process-flow" style="gap:2px">
+            <div class="pf-step"><span class="pfs-icon">📦</span>Raw Material Receipt<span class="pfs-clause">§8.4</span></div>
+            <div class="pf-step"><span class="pfs-icon">🔥</span>Batch &amp; Melting<span class="pfs-clause">§8.1</span></div>
+            <div class="pf-step"><span class="pfs-icon">🏺</span>Forming &amp; Annealing<span class="pfs-clause">§8.1</span></div>
+            <div class="pf-step"><span class="pfs-icon">🔍</span>Inspection &amp; QC<span class="pfs-clause">§8.6</span></div>
+            <div class="pf-step"><span class="pfs-icon">🎨</span>Decoration<span class="pfs-clause">§8.1</span></div>
+            <div class="pf-step"><span class="pfs-icon">🏭</span>Warehousing<span class="pfs-clause">§8.5.4</span></div>
+            <div class="pf-step"><span class="pfs-icon">🚚</span>Delivery<span class="pfs-clause">§8.5.5</span></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+          <div style="background:var(--g100);border:1px solid var(--g200);border-radius:6px;padding:12px">
+            <div style="font-size:10px;font-weight:700;color:var(--navy);margin-bottom:6px">🔍 Monitoring &amp; Measurement</div>
+            <div style="font-size:10px;color:var(--text);line-height:1.6">Pack-to-Melt ratio · Heldware · Customer satisfaction · LTIFR · GHG intensity · SHC per furnace</div>
+          </div>
+          <div style="background:var(--g100);border:1px solid var(--g200);border-radius:6px;padding:12px">
+            <div style="font-size:10px;font-weight:700;color:var(--navy);margin-bottom:6px">⚠️ Risk &amp; Opportunity</div>
+            <div style="font-size:10px;color:var(--text);line-height:1.6">5×5 risk matrix · HIRA (12 hazard categories) · Environmental aspects · Legal compliance register</div>
+          </div>
+          <div style="background:var(--g100);border:1px solid var(--g200);border-radius:6px;padding:12px">
+            <div style="font-size:10px;font-weight:700;color:var(--navy);margin-bottom:6px">🔧 Corrective Action</div>
+            <div style="font-size:10px;color:var(--text);line-height:1.6">CAPA register · Critical: 5WD · Major: 30D · Minor: 60D · ≥95% closure rate target</div>
+          </div>
+          <div style="background:var(--g100);border:1px solid var(--g200);border-radius:6px;padding:12px">
+            <div style="font-size:10px;font-weight:700;color:var(--navy);margin-bottom:6px">📊 Management Review</div>
+            <div style="font-size:10px;color:var(--text);line-height:1.6">Annual management review · CEO-chaired · All 4 standards · KPI dashboard · CAPA status</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SECTION 6 — KPI DASHBOARD ══════════════════════════════ -->
+    <div class="man-section">
+      <div class="man-section-hdr">
+        <div class="sec-icon">📊</div>
+        <div><h2>Section 6 — KPI Framework &amp; Performance Dashboard</h2><div class="sec-sub">L3-IMS-621-R-02 · 26 KPIs · ISO §9.1 all standards</div></div>
+      </div>
+      <div class="man-section-body">
+
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+          <div style="background:linear-gradient(135deg,var(--navy),#1e3a5f);border-radius:var(--radius);padding:14px;color:#fff;text-align:center">
+            <div style="font-size:24px;font-weight:800;color:var(--gold)">5</div>
+            <div style="font-size:9px;color:rgba(255,255,255,.65)">IMS Steering Committee KPIs</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#1a4a2e,#1e6b3a);border-radius:var(--radius);padding:14px;color:#fff;text-align:center">
+            <div style="font-size:24px;font-weight:800;color:#a5d6a7">4</div>
+            <div style="font-size:9px;color:rgba(255,255,255,.65)">WG1 Plant &amp; Quality KPIs</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#1a3a5e,#1a5276);border-radius:var(--radius);padding:14px;color:#fff;text-align:center">
+            <div style="font-size:24px;font-weight:800;color:#90caf9">11</div>
+            <div style="font-size:9px;color:rgba(255,255,255,.65)">WG2 SHEE, Energy &amp; ENV KPIs</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#4a1a2e,#6a1b3e);border-radius:var(--radius);padding:14px;color:#fff;text-align:center">
+            <div style="font-size:24px;font-weight:800;color:#f48fb1">6</div>
+            <div style="font-size:9px;color:rgba(255,255,255,.65)">WG3 People, Ethics &amp; Procurement KPIs</div>
+          </div>
+        </div>
+
+        <!-- Live Steering Committee KPIs -->
+        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">
+          IMS Steering Committee KPIs — Live Status
+          <span style="font-size:9px;font-weight:400;color:var(--text-lt);margin-left:8px">Loaded from Google Sheets</span>
+        </div>
+        <div class="kpi-tiles" id="kpi-live-tiles">
+          <div class="kpi-tile kt-blue"><div class="kt-val" id="kpi-capa">—</div><div class="kt-label">CAPA Closure Rate<br><span style="font-size:8px">Target: ≥95%</span></div><span class="kt-status kt-pending">Loading…</span></div>
+          <div class="kpi-tile kt-blue"><div class="kt-val" id="kpi-audit">—</div><div class="kt-label">Audit Programme Completion<br><span style="font-size:8px">Target: ≥95%</span></div><span class="kt-status kt-pending">Loading…</span></div>
+          <div class="kpi-tile kt-green"><div class="kt-val" id="kpi-legal">—</div><div class="kt-label">Legal Compliance Status<br><span style="font-size:8px">Target: 100%</span></div><span class="kt-status kt-pending">Loading…</span></div>
+          <div class="kpi-tile kt-amb"><div class="kt-val" id="kpi-mr">—</div><div class="kt-label">Management Review Completion<br><span style="font-size:8px">Target: Annual</span></div><span class="kt-status kt-pending">Loading…</span></div>
+          <div class="kpi-tile kt-red"><div class="kt-val" id="kpi-hrcapa">—</div><div class="kt-label">High-Risk CAPA Closure<br><span style="font-size:8px">Target: 100% on time</span></div><span class="kt-status kt-pending">Loading…</span></div>
+        </div>
+
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <a href="kpi-hub.html" class="btn btn-navy btn-sm">📊 Full KPI Register (26 KPIs)</a>
+          <a href="objectives.html" class="btn btn-ghost btn-sm">🎯 Objectives Register</a>
+          <a href="ecovadis-actions.html" class="btn btn-ghost btn-sm">🌿 EcoVadis Actions</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SECTION 7 — PROCEDURES INDEX ═══════════════════════════ -->
+    <div class="man-section">
+      <div class="man-section-hdr">
+        <div class="sec-icon">📑</div>
+        <div><h2>Section 7 — IMS Procedures Index</h2><div class="sec-sub">L2 Procedures · Clauses 4–10 · All four ISO standards</div></div>
+      </div>
+      <div class="man-section-body">
+        <div class="proc-index">
+          <div style="display:grid;grid-template-columns:130px 1fr 80px 60px;gap:10px;padding:6px 14px;font-size:9px;font-weight:700;color:var(--text-lt);text-transform:uppercase">
+            <span>Code</span><span>Title</span><span>Rev</span><span>Clause</span>
+          </div>
+          <a href="proc-c4.html" class="pr-row"><span class="pr-code">L2-IMS-400-P-01</span><span><strong>Organisational Context</strong><div class="pr-clause">Context · PESTLE · Scope · Interested Parties</div></span><span>Rev.02</span><span>§4</span></a>
+          <a href="proc-c5.html" class="pr-row"><span class="pr-code">L2-IMS-500-P-02</span><span><strong>Leadership &amp; Commitment</strong><div class="pr-clause">Governance · Policies · Roles · Worker Participation</div></span><span>Rev.02</span><span>§5</span></a>
+          <a href="proc-c6.html" class="pr-row"><span class="pr-code">L2-IMS-600-P-03</span><span><strong>Planning &amp; Risk Management</strong><div class="pr-clause">HIRA · Environmental Aspects · Energy Review · Legal</div></span><span>Rev.02</span><span>§6</span></a>
+          <a href="proc-c7.html" class="pr-row"><span class="pr-code">L2-IMS-700-P-04</span><span><strong>Support</strong><div class="pr-clause">Competence · Awareness · Communication · Document Control</div></span><span>Rev.01</span><span>§7</span></a>
+          <a href="proc-c8.html" class="pr-row"><span class="pr-code">L2-IMS-800-P-05</span><span><strong>Operational Control</strong><div class="pr-clause">PTW · LOTO · Emergency · Chemical Safety · OC Specs</div></span><span>Rev.01</span><span>§8</span></a>
+          <a href="proc-c9.html" class="pr-row"><span class="pr-code">L2-IMS-900-P-06</span><span><strong>Performance Evaluation</strong><div class="pr-clause">Monitoring · Internal Audit · Management Review</div></span><span>Rev.02</span><span>§9</span></a>
+          <a href="proc-c10.html" class="pr-row"><span class="pr-code">L2-IMS-1000-P-07</span><span><strong>Improvement &amp; Corrective Action</strong><div class="pr-clause">CAPA · Incident Response · Continual Improvement</div></span><span>Rev.02</span><span>§10</span></a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SECTION 8 — ISO CLAUSE CROSS-REFERENCE ═════════════════ -->
+    <div class="man-section">
+      <div class="man-section-hdr">
+        <div class="sec-icon">🗺️</div>
+        <div><h2>Section 8 — ISO Clause Cross-Reference Matrix</h2><div class="sec-sub">Unique to IMS Manual · Audit navigation tool · All 4 standards mapped</div></div>
+      </div>
+      <div class="man-section-body">
+        <div style="overflow-x:auto">
+          <table class="clause-matrix">
+            <thead><tr>
+              <th>Clause</th><th>Topic</th>
+              <th>ISO 9001</th><th>ISO 14001</th><th>ISO 45001</th><th>ISO 50001</th>
+              <th>SAGCO Document</th>
+            </tr></thead>
+            <tbody>
+              <tr><td class="cm-clause">§4.1</td><td>Context of Organisation</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="context.html" class="cm-doc">Context Register</a><a href="proc-c4.html" class="cm-doc">L2-400-P-01</a></td></tr>
+              <tr><td class="cm-clause">§4.2</td><td>Interested Parties</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="context.html" class="cm-doc">Context Register</a></td></tr>
+              <tr><td class="cm-clause">§4.3</td><td>Scope</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="scope.html" class="cm-doc">L4-430-A-01</a></td></tr>
+              <tr><td class="cm-clause">§4.4</td><td>IMS Processes</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="proc-c4.html" class="cm-doc">L2-400-P-01</a></td></tr>
+              <tr><td class="cm-clause">§5.1</td><td>Leadership Commitment</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="proc-c5.html" class="cm-doc">L2-500-P-02</a><a href="gemba-walk-log.html" class="cm-doc">Gemba Walks</a></td></tr>
+              <tr><td class="cm-clause">§5.2</td><td>Policy</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="policy-po-01.html" class="cm-doc">PO-01 to PO-09</a></td></tr>
+              <tr><td class="cm-clause">§5.3</td><td>Roles &amp; Responsibilities</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="proc-c5.html" class="cm-doc">L2-500-P-02</a></td></tr>
+              <tr><td class="cm-clause">§5.4</td><td>Worker Participation</td><td>—</td><td>—</td><td>✅</td><td>—</td><td><a href="worker-participation.html" class="cm-doc">Worker Participation</a></td></tr>
+              <tr><td class="cm-clause">§6.1</td><td>Risks &amp; Opportunities</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="risk-register.html" class="cm-doc">Risk Register</a><a href="proc-c6.html" class="cm-doc">L2-600-P-03</a></td></tr>
+              <tr><td class="cm-clause">§6.1.2</td><td>HIRA / Aspects</td><td>—</td><td>✅</td><td>✅</td><td>—</td><td><a href="risk-register.html" class="cm-doc">HIRA Register</a></td></tr>
+              <tr><td class="cm-clause">§6.2</td><td>Objectives &amp; KPIs</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="objectives.html" class="cm-doc">KPI Register</a><a href="kpi-hub.html" class="cm-doc">KPI Hub</a></td></tr>
+              <tr><td class="cm-clause">§7.1</td><td>Resources</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="proc-c7.html" class="cm-doc">L2-700-P-04</a></td></tr>
+              <tr><td class="cm-clause">§7.2</td><td>Competence</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="training.html" class="cm-doc">Training Register</a></td></tr>
+              <tr><td class="cm-clause">§7.5</td><td>Documented Information</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="document-management.html" class="cm-doc">DMS</a><a href="proc-c7.html" class="cm-doc">L2-700-P-04</a></td></tr>
+              <tr><td class="cm-clause">§8.1</td><td>Operational Control</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="proc-c8.html" class="cm-doc">L2-800-P-05</a><a href="oc-safety.html" class="cm-doc">OC-01</a></td></tr>
+              <tr><td class="cm-clause">§9.1</td><td>Monitoring &amp; Measurement</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="kpi-hub.html" class="cm-doc">KPI Hub</a><a href="proc-c9.html" class="cm-doc">L2-900-P-06</a></td></tr>
+              <tr><td class="cm-clause">§9.2</td><td>Internal Audit</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="audit-programme.html" class="cm-doc">Audit Programme</a></td></tr>
+              <tr><td class="cm-clause">§9.3</td><td>Management Review</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="management-review.html" class="cm-doc">MR Register</a></td></tr>
+              <tr><td class="cm-clause">§10.2</td><td>Nonconformity &amp; CAPA</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><a href="capa-register.html" class="cm-doc">CAPA Register</a><a href="proc-c10.html" class="cm-doc">L2-1000-P-07</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SECTION 9 — ESG & CERTIFICATION ROADMAP ════════════════ -->
+    <div class="man-section">
+      <div class="man-section-hdr">
+        <div class="sec-icon">🌿</div>
+        <div><h2>Section 9 — ESG Commitments &amp; Certification Roadmap</h2><div class="sec-sub">EcoVadis Silver Target · TÜV Austria Stage 2 · GHG 2035 Target</div></div>
+      </div>
+      <div class="man-section-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">GHG Decarbonisation Targets</div>
+            <div style="background:var(--g100);border-radius:var(--radius);padding:14px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                <div style="font-size:10px;color:var(--text-lt)">2025/2026 Baseline</div>
+                <div style="font-size:12px;font-weight:700;color:var(--navy)">615.27 kgCO₂e/t</div>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                <div style="font-size:10px;color:var(--text-lt)">2035 Target</div>
+                <div style="font-size:12px;font-weight:700;color:var(--grn)">480 kgCO₂e/t</div>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                <div style="font-size:10px;color:var(--text-lt)">Cullet Ratio — Current</div>
+                <div style="font-size:12px;font-weight:700;color:var(--amb)">~20%</div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div style="font-size:10px;color:var(--text-lt)">Cullet Target — Industry</div>
+                <div style="font-size:12px;font-weight:700;color:var(--grn)">50–70%</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">EcoVadis Silver — 4 Non-KPI Actions</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="background:var(--g100);border:1px solid var(--g200);border-radius:6px;padding:8px 12px;font-size:10px"><strong>1.</strong> Supplier CoC signed acknowledgments — Procurement Manager</div>
+              <div style="background:var(--g100);border:1px solid var(--g200);border-radius:6px;padding:8px 12px;font-size:10px"><strong>2.</strong> Annual GRI-aligned ESG Report by end of July — IMS Coordinator</div>
+              <div style="background:var(--g100);border:1px solid var(--g200);border-radius:6px;padding:8px 12px;font-size:10px"><strong>3.</strong> Water consumption Tier 2 disclosure — Deputy Plant Manager</div>
+              <div style="background:var(--g100);border:1px solid var(--g200);border-radius:6px;padding:8px 12px;font-size:10px"><strong>4.</strong> Gender diversity baseline 2026 — HR Manager</div>
+            </div>
+            <div style="margin-top:8px;font-size:10px;color:var(--grn);font-weight:700">Estimated Score: ~66–68 → Silver ✓</div>
+          </div>
+        </div>
+
+        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">TÜV Austria Certification Roadmap</div>
+        <div style="background:var(--navy);border-radius:var(--radius);overflow:hidden">
+          <div class="roadmap">
+            <div class="rm-phase done"><div class="rmp-num">1</div><div class="rmp-title">Foundation</div><div style="font-size:8px;opacity:.7">Context · Scope · Governance</div><span class="rm-badge rm-done">✅ Done</span></div>
+            <div class="rm-phase done"><div class="rmp-num">2</div><div class="rmp-title">Documentation</div><div style="font-size:8px;opacity:.7">Procedures · Policies · Registers</div><span class="rm-badge rm-done">✅ Done</span></div>
+            <div class="rm-phase done"><div class="rmp-num">3</div><div class="rmp-title">Stage 1 Audit</div><div style="font-size:8px;opacity:.7">TÜV Austria review</div><span class="rm-badge rm-done">✅ Passed</span></div>
+            <div class="rm-phase active"><div class="rmp-num">4</div><div class="rmp-title">Stage 2 Prep</div><div style="font-size:8px;opacity:.7">CAPA · HIRA · Evidence</div><span class="rm-badge rm-active">🔄 Active</span></div>
+            <div class="rm-phase upcoming"><div class="rmp-num">5</div><div class="rmp-title">Stage 2 Audit</div><div style="font-size:8px;opacity:.7">TÜV Austria on-site</div><span class="rm-badge rm-upcoming">📅 Upcoming</span></div>
+            <div class="rm-phase upcoming"><div class="rmp-num">6</div><div class="rmp-title">Certification</div><div style="font-size:8px;opacity:.7">ISO 9001·14001·45001·50001</div><span class="rm-badge rm-upcoming">🎯 Target</span></div>
+            <div class="rm-phase upcoming"><div class="rmp-num">7</div><div class="rmp-title">Surveillance</div><div style="font-size:8px;opacity:.7">Annual surveillance audits</div><span class="rm-badge rm-upcoming">📋 Planned</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SECTION 10 — CONTINUAL IMPROVEMENT ═════════════════════ -->
+    <div class="man-section">
+      <div class="man-section-hdr">
+        <div class="sec-icon">🔄</div>
+        <div><h2>Section 10 — Continual Improvement Framework</h2><div class="sec-sub">ISO §10 all standards · PDCA cycle · Management Review</div></div>
+      </div>
+      <div class="man-section-body">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+          <div style="background:var(--g100);border-radius:var(--radius);padding:14px;border-top:3px solid #1a5276;text-align:center">
+            <div style="font-size:22px;margin-bottom:6px">📋</div>
+            <div style="font-size:11px;font-weight:700;color:var(--navy)">PLAN</div>
+            <div style="font-size:9px;color:var(--text-lt);margin-top:4px">Risk assessment · Objectives · KPI targets · Legal review</div>
+          </div>
+          <div style="background:var(--g100);border-radius:var(--radius);padding:14px;border-top:3px solid var(--grn);text-align:center">
+            <div style="font-size:22px;margin-bottom:6px">⚙️</div>
+            <div style="font-size:11px;font-weight:700;color:var(--navy)">DO</div>
+            <div style="font-size:9px;color:var(--text-lt);margin-top:4px">Operational controls · Training · PTW · LOTO · Monitoring</div>
+          </div>
+          <div style="background:var(--g100);border-radius:var(--radius);padding:14px;border-top:3px solid var(--gold);text-align:center">
+            <div style="font-size:22px;margin-bottom:6px">🔍</div>
+            <div style="font-size:11px;font-weight:700;color:var(--navy)">CHECK</div>
+            <div style="font-size:9px;color:var(--text-lt);margin-top:4px">Internal audits · KPI review · Compliance evaluation · Incidents</div>
+          </div>
+          <div style="background:var(--g100);border-radius:var(--radius);padding:14px;border-top:3px solid var(--red);text-align:center">
+            <div style="font-size:22px;margin-bottom:6px">🔧</div>
+            <div style="font-size:11px;font-weight:700;color:var(--navy)">ACT</div>
+            <div style="font-size:9px;color:var(--text-lt);margin-top:4px">CAPA · Management Review · Lessons learned · Policy update</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a href="capa-register.html" class="btn btn-navy btn-sm">🔧 CAPA Register</a>
+          <a href="audit-programme.html" class="btn btn-ghost btn-sm">🔍 Audit Programme</a>
+          <a href="management-review.html" class="btn btn-ghost btn-sm">📋 Management Review</a>
+          <a href="incident-register.html" class="btn btn-ghost btn-sm">🚨 Incident Register</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SIGN-OFF ════════════════════════════════════════════════ -->
+    <div class="signoff-block">
+      <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:4px">Document Authorisation</div>
+      <div style="font-size:10px;color:var(--text-lt);margin-bottom:14px">
+        This IMS Manual has been reviewed, approved and authorised by SAGCO senior management in accordance with
+        the document control requirements of ISO 9001:2015 §7.5, ISO 14001:2026 §7.5, ISO 45001:2018 §7.5, and ISO 50001:2018 §7.5.
+      </div>
+      <div class="signoff-grid">
+        <div class="signoff-col">
+          <div class="sc-sig">Rami Al Dobi</div>
+          <div class="sc-name">Rami Al Dobi</div>
+          <div class="sc-role">Chief Executive Officer</div>
+          <div class="sc-date">Date: ________________</div>
+        </div>
+        <div class="signoff-col">
+          <div class="sc-sig">IMS Manager</div>
+          <div class="sc-name">IMS Manager</div>
+          <div class="sc-role">IMS Steering Committee Chair</div>
+          <div class="sc-date">Date: ________________</div>
+        </div>
+        <div class="signoff-col">
+          <div class="sc-sig">IMS Coordinator</div>
+          <div class="sc-name">IMS Coordinator</div>
+          <div class="sc-role">Prepared &amp; Maintained By</div>
+          <div class="sc-date">Date: June 2026</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- .content -->
+</div><!-- .main -->
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  initPage('ims-manual.html');
+  document.getElementById('tb').innerHTML = renderTopbar(
+    'IMS Manual',
+    'L1-IMS-MAN-01  ·  Rev.01  ·  ISO 9001 · 14001 · 45001 · 50001  ·  CEO-Approved'
+  );
+  IMS_AUTH.injectUserBar();
+
+  /* Load live Steering Committee KPIs */
+  setTimeout(function(){
+    if(typeof SHEETS_URL !== 'undefined' && SHEETS_URL){
+      fetch(SHEETS_URL + '?action=read&tab=objectives')
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if(!data || !data.rows) return;
+          /* Map first 5 rows to KPI tiles — adjust tab/column as needed */
+          var ids = ['kpi-capa','kpi-audit','kpi-legal','kpi-mr','kpi-hrcapa'];
+          var hdr = data.headers || [];
+          var valCol = hdr.findIndex(function(h){ return /value|actual|result/i.test(h); });
+          data.rows.slice(0,5).forEach(function(row, i){
+            var el = document.getElementById(ids[i]);
+            if(el){
+              var val = valCol >= 0 ? String(row[valCol]||'—') : '—';
+              el.textContent = val;
+              el.nextElementSibling && (el.nextElementSibling.className = 'kt-status kt-live');
+              el.nextElementSibling && (el.nextElementSibling.textContent = 'Live');
+            }
+          });
+        })
+        .catch(function(){});
+    }
+  }, 1000);
+});
+</script>
+</body>
+</html>
