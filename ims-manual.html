@@ -485,23 +485,13 @@
           </div>
         </div>
 
-        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">Furnace Rebuild Roadmap</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <div style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:10px 14px;font-size:10px;flex:1;min-width:100px">
-            <div style="font-weight:700;color:var(--navy)">F1</div><div style="color:var(--text-lt)">Rebuild 2025</div><div style="color:var(--grn);font-weight:700">✅ Complete</div>
-          </div>
-          <div style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:10px 14px;font-size:10px;flex:1;min-width:100px">
-            <div style="font-weight:700;color:var(--navy)">F2</div><div style="color:var(--text-lt)">Rebuild 2026</div><div style="color:var(--amb);font-weight:700">⏳ Planned</div>
-          </div>
-          <div style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:10px 14px;font-size:10px;flex:1;min-width:100px">
-            <div style="font-weight:700;color:var(--navy)">F3</div><div style="color:var(--text-lt)">Active</div><div style="color:var(--grn);font-weight:700">🟢 Operating</div>
-          </div>
-          <div style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:10px 14px;font-size:10px;flex:1;min-width:100px">
-            <div style="font-weight:700;color:var(--navy)">F4</div><div style="color:var(--text-lt)">Active</div><div style="color:var(--grn);font-weight:700">🟢 Operating</div>
-          </div>
-          <div style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:10px 14px;font-size:10px;flex:1;min-width:100px">
-            <div style="font-weight:700;color:var(--navy)">F5</div><div style="color:var(--text-lt)">Rebuild 2028</div><div style="color:var(--text-lt);font-weight:700">📅 Scheduled</div>
-          </div>
+        <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">
+          Furnace Rebuild Roadmap
+          <span style="font-size:9px;font-weight:400;color:var(--text-lt);margin-left:8px">Live from Google Sheets</span>
+        </div>
+        <div id="furnace-roadmap" style="display:flex;gap:8px;flex-wrap:wrap">
+          <!-- Loaded dynamically from Sheets furnaces tab -->
+          <div style="font-size:10px;color:var(--text-lt);padding:10px">⏳ Loading furnace status…</div>
         </div>
       </div>
     </div>
@@ -770,17 +760,14 @@
           </div>
         </div>
 
-        <!-- Live Steering Committee KPIs -->
+        <!-- Live Steering Committee KPIs — Full definition cards -->
         <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px">
           IMS Steering Committee KPIs — Live Status
-          <span style="font-size:9px;font-weight:400;color:var(--text-lt);margin-left:8px">Loaded from Google Sheets</span>
+          <span style="font-size:9px;font-weight:400;color:var(--text-lt);margin-left:8px">Values loaded from Google Sheets · kpi_register tab</span>
         </div>
-        <div class="kpi-tiles" id="kpi-live-tiles">
-          <div class="kpi-tile kt-blue"><div class="kt-val" id="kpi-capa">—</div><div class="kt-label">CAPA Closure Rate<br><span style="font-size:8px">Target: ≥95%</span></div><span class="kt-status kt-pending">Loading…</span></div>
-          <div class="kpi-tile kt-blue"><div class="kt-val" id="kpi-audit">—</div><div class="kt-label">Audit Programme Completion<br><span style="font-size:8px">Target: ≥95%</span></div><span class="kt-status kt-pending">Loading…</span></div>
-          <div class="kpi-tile kt-green"><div class="kt-val" id="kpi-legal">—</div><div class="kt-label">Legal Compliance Status<br><span style="font-size:8px">Target: 100%</span></div><span class="kt-status kt-pending">Loading…</span></div>
-          <div class="kpi-tile kt-amb"><div class="kt-val" id="kpi-mr">—</div><div class="kt-label">Management Review Completion<br><span style="font-size:8px">Target: Annual</span></div><span class="kt-status kt-pending">Loading…</span></div>
-          <div class="kpi-tile kt-red"><div class="kt-val" id="kpi-hrcapa">—</div><div class="kt-label">High-Risk CAPA Closure<br><span style="font-size:8px">Target: 100% on time</span></div><span class="kt-status kt-pending">Loading…</span></div>
+        <div id="kpi-steering-cards">
+          <!-- Rendered by JS -->
+          <div style="font-size:10px;color:var(--text-lt);padding:10px">⏳ Loading KPI data…</div>
         </div>
 
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
@@ -988,30 +975,117 @@ document.addEventListener('DOMContentLoaded', function() {
   );
   IMS_AUTH.injectUserBar();
 
-  /* Load live Steering Committee KPIs */
+  /* ── Load furnace roadmap from Sheets ── */
   setTimeout(function(){
-    if(typeof SHEETS_URL !== 'undefined' && SHEETS_URL){
-      fetch(SHEETS_URL + '?action=read&tab=objectives')
+    var _url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
+    var furnaceEl = document.getElementById('furnace-roadmap');
+
+    /* Default static data — used if Sheets unavailable */
+    var defaultFurnaces = [
+      {id:'F1', year:'2025', plan:'Rebuild', status:'Complete',  color:'#1e8449'},
+      {id:'F2', year:'2026', plan:'Rebuild', status:'Planned',   color:'#e67e22'},
+      {id:'F3', year:'—',    plan:'Active',  status:'Operating', color:'#1e8449'},
+      {id:'F4', year:'—',    plan:'Active',  status:'Operating', color:'#1e8449'},
+      {id:'F5', year:'2028', plan:'Rebuild', status:'Scheduled', color:'#64748b'},
+    ];
+
+    function renderFurnaces(list){
+      if(!furnaceEl) return;
+      furnaceEl.innerHTML = list.map(function(f){
+        var icon = f.status==='Complete'?'✅':f.status==='Operating'?'🟢':f.status==='Planned'?'⏳':'📅';
+        return '<div style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:10px 14px;font-size:10px;flex:1;min-width:100px">'
+          +'<div style="font-weight:700;color:var(--navy)">'+(f.id||'')+'</div>'
+          +'<div style="color:var(--text-lt)">'+(f.plan||'')+(f.year&&f.year!=='—'?' '+f.year:'')+'</div>'
+          +'<div style="color:'+f.color+';font-weight:700;margin-top:4px">'+icon+' '+(f.status||'')+'</div>'
+          +'</div>';
+      }).join('');
+    }
+
+    if(_url){
+      fetch(_url + '?action=read&tab=furnaces')
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if(!data || !data.rows || !data.rows.length){ renderFurnaces(defaultFurnaces); return; }
+          var hdr = data.headers || [];
+          function col(row,name){ var i=hdr.findIndex(function(h){ return h.toLowerCase()===name.toLowerCase(); }); return i>=0?String(row[i]||''):''; }
+          var list = data.rows.map(function(row){
+            var st = col(row,'Status')||col(row,'status');
+            var color = /complete|done/i.test(st)?'#1e8449':/operat|active/i.test(st)?'#1e8449':/plan/i.test(st)?'#e67e22':'#64748b';
+            return { id: col(row,'Furnace')||col(row,'ID'), plan: col(row,'Plan')||col(row,'Type'), year: col(row,'Year'), status: st, color: color };
+          });
+          renderFurnaces(list.length ? list : defaultFurnaces);
+        })
+        .catch(function(){ renderFurnaces(defaultFurnaces); });
+    } else {
+      renderFurnaces(defaultFurnaces);
+    }
+  }, 600);
+
+  /* ── Load Steering KPIs with full definitions ── */
+  setTimeout(function(){
+    var _url = typeof SHEETS_URL !== 'undefined' ? SHEETS_URL : null;
+    var container = document.getElementById('kpi-steering-cards');
+    if(!container) return;
+
+    var staticKPIs = [
+      {name:'IMS CAPA Closure Rate',              target:'≥ 95%',     owner:'IMS Manager', freq:'Monthly',        method:'CAPA Register — % closed within agreed timescale across all standards', clause:'All standards §10.2'},
+      {name:'Internal Audit Programme Completion',target:'≥ 95%',     owner:'IMS Manager', freq:'Monthly/Annual', method:'Audit schedule vs. completed audits — % on schedule', clause:'All standards §9.2'},
+      {name:'Legal Compliance Status',            target:'100%',      owner:'IMS Manager', freq:'Quarterly',      method:'Legal Compliance Register — % obligations met across all standards', clause:'All standards §9.1.2'},
+      {name:'Management Review Completion',       target:'100% annual',owner:'IMS Manager', freq:'Annual',        method:'Management Review minutes — completed vs. scheduled', clause:'All standards §9.3'},
+      {name:'High-Risk CAPA Closure Rate',        target:'100%',      owner:'IMS Manager', freq:'Monthly',        method:'Risk Register — % high-risk actions closed within timescale', clause:'All standards §6.1'},
+    ];
+
+    function renderKPICards(kpis, liveValues){
+      var colors = ['#1a2340','#1a2340','#1e8449','#e67e22','#c0392b'];
+      container.innerHTML = kpis.map(function(k,i){
+        var lv = liveValues && liveValues[i] ? liveValues[i] : {val:'—', status:'load'};
+        var badgeCls = lv.status==='green'?'background:#e8f5e9;color:#2e7d32':lv.status==='red'?'background:#fce4ec;color:#c62828':lv.status==='amber'?'background:#fff3e0;color:#e65100':'background:#f0f4ff;color:#1a2340';
+        var badgeTxt = lv.status==='green'?'✅ On Track':lv.status==='red'?'❌ Off Target':lv.status==='amber'?'⚠️ At Risk':'📊 Live';
+        return '<div style="background:#fff;border:1px solid var(--g300);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;border-top:3px solid '+colors[i]+'">'
+          +'<div style="display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px 16px;background:var(--g100);border-bottom:1px solid var(--g200)">'
+          +'<div><div style="font-size:12px;font-weight:700;color:var(--navy)">'+(k.name||'')+'</div>'
+          +'<div style="font-size:9px;color:var(--text-lt);font-family:monospace;margin-top:2px">'+(k.clause||'')+'</div></div>'
+          +'<div style="text-align:right"><div style="font-size:15px;font-weight:800;color:var(--navy)">'+(k.target||'')+'</div>'
+          +'<div style="font-size:8px;color:var(--text-lt);text-transform:uppercase">Target</div></div>'
+          +'</div>'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr 2fr;border-bottom:1px solid var(--g200)">'
+          +'<div style="padding:8px 14px;border-right:1px solid var(--g200)"><div style="font-size:8px;color:var(--text-lt);text-transform:uppercase;margin-bottom:2px">Owner</div><div style="font-size:11px;color:var(--text)">'+(k.owner||'')+'</div></div>'
+          +'<div style="padding:8px 14px;border-right:1px solid var(--g200)"><div style="font-size:8px;color:var(--text-lt);text-transform:uppercase;margin-bottom:2px">Frequency</div><div style="font-size:11px;color:var(--text)">'+(k.freq||'')+'</div></div>'
+          +'<div style="padding:8px 14px"><div style="font-size:8px;color:var(--text-lt);text-transform:uppercase;margin-bottom:2px">Measurement Method</div><div style="font-size:10px;color:var(--text);line-height:1.5">'+(k.method||'')+'</div></div>'
+          +'</div>'
+          +'<div style="display:flex;align-items:center;gap:12px;padding:8px 16px;background:#f0f9ff">'
+          +'<div><div style="font-size:8px;color:var(--text-lt)">Current Value</div>'
+          +'<div style="font-size:18px;font-weight:800;color:var(--navy)">'+lv.val+'</div></div>'
+          +'<span style="font-size:8px;font-weight:700;padding:2px 8px;border-radius:10px;'+badgeCls+'">'+badgeTxt+'</span>'
+          +'<div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">↗ <a href="kpi-steering.html" style="color:var(--navy)">View full KPI register</a></div>'
+          +'</div></div>';
+      }).join('');
+    }
+
+    /* Render static first */
+    renderKPICards(staticKPIs, null);
+
+    /* Then try to load live values */
+    if(_url){
+      fetch(_url + '?action=read&tab=kpi_register')
         .then(function(r){ return r.json(); })
         .then(function(data){
           if(!data || !data.rows) return;
-          /* Map first 5 rows to KPI tiles — adjust tab/column as needed */
-          var ids = ['kpi-capa','kpi-audit','kpi-legal','kpi-mr','kpi-hrcapa'];
           var hdr = data.headers || [];
-          var valCol = hdr.findIndex(function(h){ return /value|actual|result/i.test(h); });
-          data.rows.slice(0,5).forEach(function(row, i){
-            var el = document.getElementById(ids[i]);
-            if(el){
-              var val = valCol >= 0 ? String(row[valCol]||'—') : '—';
-              el.textContent = val;
-              el.nextElementSibling && (el.nextElementSibling.className = 'kt-status kt-live');
-              el.nextElementSibling && (el.nextElementSibling.textContent = 'Live');
-            }
+          var valCol  = hdr.findIndex(function(h){ return /value|actual|result|current/i.test(h); });
+          var statCol = hdr.findIndex(function(h){ return /status|rag/i.test(h); });
+          var liveVals = data.rows.slice(0,5).map(function(row){
+            var st = statCol>=0 ? String(row[statCol]||'').toLowerCase() : '';
+            return {
+              val: valCol>=0 ? String(row[valCol]||'—') : '—',
+              status: /green|track/i.test(st)?'green':/red|off/i.test(st)?'red':/amber|risk/i.test(st)?'amber':'live'
+            };
           });
+          renderKPICards(staticKPIs, liveVals);
         })
         .catch(function(){});
     }
-  }, 1000);
+  }, 800);
 });
 </script>
 </body>
