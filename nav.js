@@ -25,6 +25,13 @@ var TREE = [
     /* ── IMS Manual ─────────────────────────────────────────── */
     { id:'ims-manual', label:'IMS Manual', file:'ims-manual.html', level:'L0', badge:'L1', tag:'MAN-01' },
 
+    /* ── IMS Framework ─────────────────────────────────────── */
+    { id:'ims-framework', label:'IMS Framework', level:'clause', children:[
+      { id:'fw-gov', label:'Governance',          file:'ims-framework.html', level:'L0', badge:'§5.1' },
+      { id:'fw-pol', label:'Policies (PO-01→09)', file:'ims-framework.html', level:'L0', badge:'9 Policies' },
+      { id:'fw-kpi', label:'KPIs & Objectives',   file:'ims-framework.html', level:'L0', badge:'26 KPIs' },
+    ]},
+
 
     /* ── Clause 4 ─────────────────────────────────── */
     { id:'c4', label:'Clause 4 — Organisational Context', level:'clause', children:[
