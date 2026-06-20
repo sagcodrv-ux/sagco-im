@@ -35,7 +35,6 @@ var TREE = [
 
     { id:'procs', label:'Procedures Hub', file:'procedures.html', level:'L0' },
 
-
     /* ── Clause 4 ─────────────────────────────────── */
     { id:'c4', label:'Clause 4 — Organisational Context', level:'clause', children:[
       { id:'c4p', label:'L2-P-01  Organisational Context', file:'proc-c4.html', level:'L2', badge:'Rev.02',
@@ -194,10 +193,7 @@ var TREE = [
       { id:'adm-usr', label:'User Management', file:'user-management.html', level:'L2' },
     ]},
 
-  ]} /* end IMS Dashboard */,
-
-];
-
+    ]}, /* end IMS Dashboard */
 
 ];
 
