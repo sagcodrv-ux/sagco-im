@@ -25,38 +25,11 @@ var TREE = [
     /* ── IMS Manual ─────────────────────────────────────────── */
     { id:'ims-manual', label:'IMS Manual', file:'ims-manual.html', level:'L0', badge:'L1', tag:'MAN-01' },
 
-    /* ── Governance ─────────────────────────────────────────── */
-    { id:'gov', label:'Governance & Leadership', level:'clause', children:[
-      { id:'gov-overview',  label:'IMS Governance Overview',    file:'governance.html',              level:'L3' },
-      { id:'gov-wg',        label:'3-Working-Group Model',      file:'working-groups.html',          level:'L3' },
-      { id:'gov-sc',        label:'IMS Steering Committee',     file:'steering-team-minutes.html',   level:'L3', tag:'Sh.63' },
-      { id:'gov-roadmap',   label:'Implementation Roadmap',     file:'implementation-roadmap.html',  level:'L3' },
-    ]},
-
-    /* ── Policies ───────────────────────────────────────────── */
-    { id:'policies-grp', label:'Policies', level:'clause', children:[
-      { id:'pol-hub',  label:'Policies Hub',                      file:'policies-hub.html',     level:'L0' },
-      { id:'pol-po01', label:'PO-01  IMS Integrated Policy',      file:'policy-po-01.html',     level:'L3', badge:'Rev.01' },
-      { id:'pol-po02', label:'PO-02  Environmental Policy',       file:'policy-po-02.html',     level:'L3', badge:'Rev.01' },
-      { id:'pol-po03', label:'PO-03  OH&S Policy',                file:'policy-po-03.html',     level:'L3', badge:'Rev.01' },
-      { id:'pol-po04', label:'PO-04  Energy Policy',              file:'policy-po-04.html',     level:'L3', badge:'Rev.01' },
-      { id:'pol-po05', label:'PO-05  Quality & Food Safety',      file:'policy-po-05.html',     level:'L3', badge:'CEO ✓' },
-      { id:'pol-po06', label:'PO-06  Sustainability Policy',      file:'policy-po-06.html',     level:'L3', badge:'Rev.01' },
-      { id:'pol-po07', label:'PO-07  Anti-Corruption Policy',     file:'policy-po-07.html',     level:'L3', badge:'Rev.01' },
-      { id:'pol-po08', label:'PO-08  Information Security',       file:'policy-po-08.html',     level:'L3', badge:'Rev.01' },
-      { id:'pol-po09', label:'PO-09  Human Rights & Labour',      file:'policy-po-09.html',     level:'L3', badge:'Rev.01' },
-      { id:'pol-hr',   label:'HR Policy Suite (CoC + POL-HR)',    file:'hr-policy-suite.html',  level:'L3', badge:'CEO ✓' },
-    ]},
-
-    /* ── KPIs & Objectives ──────────────────────────────────── */
-    { id:'kpis-grp', label:'KPIs & Objectives', level:'clause', children:[
-      { id:'kpi-hub-pg',      label:'KPI Hub — 26 KPIs',                    file:'kpi-hub.html',          level:'L0' },
-      { id:'kpi-steering-pg', label:'IMS Steering Committee KPIs (5)',       file:'kpi-steering.html',     level:'L3', tag:'Sh.6' },
-      { id:'kpi-wg1-pg',      label:'WG1: Plant & Quality KPIs (4)',         file:'kpi-wg1.html',          level:'L3', tag:'Sh.6' },
-      { id:'kpi-wg2-pg',      label:'WG2: SHEE, Energy & ENV KPIs (11)',     file:'kpi-wg2.html',          level:'L3', tag:'Sh.6' },
-      { id:'kpi-wg3-pg',      label:'WG3: People, Ethics & Proc. KPIs (6)', file:'kpi-wg3.html',          level:'L3', tag:'Sh.6' },
-      { id:'kpi-cons-pg',     label:'Consolidated IMS Dashboard (26)',       file:'kpi-consolidated.html', level:'L3', tag:'Sh.6' },
-      { id:'kpi-eco-pg',      label:'EcoVadis Actions (4)',                  file:'ecovadis-actions.html', level:'L3' },
+    /* ── IMS Framework (Governance · KPIs · Policies — single page) ── */
+    { id:'ims-framework', label:'IMS Framework', level:'clause', children:[
+      { id:'fw-gov',  label:'Governance',            file:'ims-framework.html', level:'L0', badge:'§5.1' },
+      { id:'fw-kpi',  label:'KPIs & Objectives',     file:'ims-framework.html', level:'L0', badge:'26 KPIs' },
+      { id:'fw-pol',  label:'Policies (PO-01→09)',   file:'ims-framework.html', level:'L0', badge:'9 Policies' },
     ]},
 
     /* ── Clause 4 ─────────────────────────────────── */
