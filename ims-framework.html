@@ -1324,19 +1324,41 @@ document.addEventListener('DOMContentLoaded', function() {
 /* Patch showGroup to toggle tab-bar and activate first page */
 var _origShowGroup = showGroup;
 showGroup = function(g) {
-  /* Explicitly hide ALL group sections first */
-  ['grp-gov','grp-kpi','grp-pol'].forEach(function(id){
-    var el = document.getElementById(id);
-    if(el) el.style.display = 'none';
-  });
-  /* Show only selected group */
-  var grpEl = document.getElementById('grp-' + g);
-  if(grpEl) grpEl.style.display = 'block';
-  /* Update button states */
-  document.querySelectorAll('.fw-wrap .group-btn').forEach(function(b){ b.classList.remove('active'); });
-  var activeBtn = document.querySelector('.fw-wrap .group-btn[onclick*="showGroup(\''+g+'\')"]');
-  if(activeBtn) activeBtn.classList.add('active');
+  /* Run original first — it handles show/hide of group sections */
   _origShowGroup(g);
+
+  /* Toggle tab bars */
+  document.querySelectorAll('.fw-wrap .tab-bar').forEach(function(tb){
+    tb.classList.remove('visible');
+    tb.style.display = 'none';
+  });
+  if (g !== 'kpi') {
+    var tb = document.getElementById('tab-' + g);
+    if (tb) { tb.style.display = 'flex'; tb.classList.add('visible'); }
+  }
+
+  /* KPI group: show steering by default */
+  if (g === 'kpi') {
+    var firstBtn = document.querySelector('.fw-wrap .kpi-grp-btn');
+    showKpiGroup('steering', firstBtn);
+  }
+
+  /* Policies group: activate PO-01 by default — use setTimeout to run after _origShowGroup completes */
+  if (g === 'pol') {
+    setTimeout(function(){
+      /* Hide all policy pages */
+      document.querySelectorAll('#grp-pol .page-section').forEach(function(p){
+        p.style.display = 'none';
+      });
+      /* Show PO-01 */
+      var po01 = document.getElementById('pol-po01');
+      if (po01) po01.style.display = 'block';
+      /* Set first tab active */
+      document.querySelectorAll('#tab-pol .nav-tab').forEach(function(t){ t.classList.remove('active'); });
+      var firstTab = document.querySelector('#tab-pol .nav-tab');
+      if (firstTab) firstTab.classList.add('active');
+    }, 50);
+  }
   /* Toggle tab bars — skip kpi (uses own nav) */
   document.querySelectorAll('.fw-wrap .tab-bar').forEach(function(tb) {
     tb.classList.remove('visible');
