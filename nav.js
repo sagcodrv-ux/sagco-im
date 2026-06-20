@@ -28,7 +28,7 @@ var TREE = [
     { id:'fw-pol', label:'Policies (PO-01→09)',   file:'ims-framework.html',  level:'L0', badge:'9 Policies' },
     { id:'fw-prf', label:'Performance Framework', file:'ims-framework.html',  level:'L0', badge:'26 KPIs' },
     { id:'fw-obj', label:'IMS Objectives',        file:'ims-objectives.html', level:'L0', badge:'ISO §6.2' },
-  ]},,
+  ]},
 
   /* ══ MODULE 3 — IMS DASHBOARD ═════════════════════════════ */
   { id:'root', label:'IMS Dashboard', file:'index.html', level:'L0', children:[
