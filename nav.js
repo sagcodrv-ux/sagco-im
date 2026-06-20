@@ -28,8 +28,8 @@ var TREE = [
     /* ── IMS Framework (Governance · KPIs · Policies — single page) ── */
     { id:'ims-framework', label:'IMS Framework', level:'clause', children:[
       { id:'fw-gov',  label:'Governance',            file:'ims-framework.html', level:'L0', badge:'§5.1' },
-      { id:'fw-kpi',  label:'KPIs & Objectives',     file:'ims-framework.html', level:'L0', badge:'26 KPIs' },
       { id:'fw-pol',  label:'Policies (PO-01→09)',   file:'ims-framework.html', level:'L0', badge:'9 Policies' },
+      { id:'fw-kpi',  label:'KPIs & Objectives',     file:'ims-framework.html', level:'L0', badge:'26 KPIs' },
     ]},
 
     /* ── Clause 4 ─────────────────────────────────── */
