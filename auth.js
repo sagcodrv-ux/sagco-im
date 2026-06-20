@@ -229,7 +229,7 @@
       if (s) auditLog('LOGOUT','User signed out', s.userId);
       clearSession();
       sessionStorage.removeItem('sagco_dms_role');
-      window.location.href = 'index.html';
+      window.location.href = 'dashboard.html';
     },
 
     /* requireRole: if current role is below required, show login */
