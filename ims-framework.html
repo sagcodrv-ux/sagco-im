@@ -210,6 +210,8 @@
     .kpi-clause{ font-size: 10.5px; color: #2E75B6; font-family: monospace; white-space: nowrap; }
     .kpi-view  { background: #fff; border: 1px solid #dce3ed; border-radius: 0 0 8px 8px; }
 
+  /* KPI group uses kpi-group-nav — always hide original tab-bar */
+  .fw-wrap #tab-kpi { display: none !important; }
   </style>
 </head>
 <body>
@@ -233,7 +235,7 @@
   <div class="nav-tab" onclick="showPage('kpi','kpi-consolidated',this)">Consolidated IMS</div>
   <div class="nav-tab" onclick="showPage('kpi','kpi-ecovadis',this)">EcoVadis Actions</div>
 </div>
-<div class="tab-bar" id="tab-pol" style="display:none">
+<div class="tab-bar" id="tab-pol" class="tab-bar" style="display:none">
   <div class="nav-tab active" onclick="showPage('pol','pol-po01',this)">PO-01 Integrated</div>
   <div class="nav-tab" onclick="showPage('pol','pol-po02',this)">PO-02 Environmental</div>
   <div class="nav-tab" onclick="showPage('pol','pol-po03',this)">PO-03 OH&amp;S</div>
@@ -676,7 +678,7 @@
   </div>
 </div>
 
-id="grp-pol" class="group-section">
+<div id="grp-pol" class="group-section" style="display:none">
 
 <!-- PO-01: IMS INTEGRATED POLICY -->
 <div id="pol-po01" class="page-section">
@@ -1319,16 +1321,51 @@ document.addEventListener('DOMContentLoaded', function() {
   showKpiGroup('steering', document.querySelector('.kpi-grp-btn'));
 });
 
-/* Patch showGroup to also toggle tab-bar visibility */
+/* Patch showGroup to toggle tab-bar and activate first page */
 var _origShowGroup = showGroup;
 showGroup = function(g) {
+  /* Explicitly hide ALL group sections first */
+  ['grp-gov','grp-kpi','grp-pol'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+  /* Show only selected group */
+  var grpEl = document.getElementById('grp-' + g);
+  if(grpEl) grpEl.style.display = 'block';
+  /* Update button states */
+  document.querySelectorAll('.fw-wrap .group-btn').forEach(function(b){ b.classList.remove('active'); });
+  var activeBtn = document.querySelector('.fw-wrap .group-btn[onclick*="showGroup(\''+g+'\')"]');
+  if(activeBtn) activeBtn.classList.add('active');
   _origShowGroup(g);
-  /* Toggle tab bars */
+  /* Toggle tab bars — skip kpi (uses own nav) */
   document.querySelectorAll('.fw-wrap .tab-bar').forEach(function(tb) {
     tb.classList.remove('visible');
   });
-  var tb = document.getElementById('tab-' + g);
-  if (tb) tb.classList.add('visible');
+  if (g !== 'kpi') {
+    var tb = document.getElementById('tab-' + g);
+    if (tb) tb.classList.add('visible');
+  }
+  /* For KPI group — activate steering by default */
+  if (g === 'kpi') {
+    var firstBtn = document.querySelector('.fw-wrap .kpi-grp-btn');
+    showKpiGroup('steering', firstBtn);
+  }
+  /* For Policies group — activate first tab */
+  if (g === 'pol') {
+    var firstTab = document.querySelector('#tab-pol .nav-tab');
+    if (firstTab) {
+      var onclick = firstTab.getAttribute('onclick');
+      if (onclick) {
+        var match = onclick.match(/showPage\('pol','([^']+)'/);
+        if (match) showPage('pol', match[1], firstTab);
+      }
+    } else {
+      /* Fallback — directly activate po01 */
+      document.querySelectorAll('.fw-wrap #grp-pol .page-section').forEach(function(s){ s.classList.remove('active'); });
+      var po01 = document.getElementById('pol-po01');
+      if (po01) po01.classList.add('active');
+    }
+  }
 };
 </script>
 
