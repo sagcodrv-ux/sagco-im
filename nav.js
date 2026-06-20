@@ -6,17 +6,6 @@
 ═══════════════════════════════════════════════════════════════ */
 
 /* ── Navigation Tree ───────────────────────────────────────── */
-/* Structure:
-   IMS Dashboard (root — collapsible)
-     └─ Procedures Hub
-     └─ Clause 4 (collapsible)
-          └─ L2 Procedure (collapsible)
-               └─ L4 Registers / Records
-     └─ Clause 5 … etc.
-     └─ ESG / Sustainability
-     └─ Document Management
-     └─ Administration
-*/
 var TREE = [
 
   /* ══ MODULE 1 — IMS MANUAL ════════════════════════════════ */
@@ -193,9 +182,10 @@ var TREE = [
       { id:'adm-usr', label:'User Management', file:'user-management.html', level:'L2' },
     ]},
 
-    ]}, /* end IMS Dashboard */
+  ]}, /* end IMS Dashboard */
 
 ];
+
 
 /* ══════════════════════════════════════════════════════════════
    SESSION STORAGE
