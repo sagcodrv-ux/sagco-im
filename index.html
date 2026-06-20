@@ -127,8 +127,7 @@
 <body>
 
 <script>
-/* Clear session — always require login on landing page */
-try { sessionStorage.removeItem('sagco_ims_session'); } catch(e) {}
+/* Do NOT clear session here - user may have already logged in */
 /* Seed users into localStorage for auth.js */
 try {
   if(!localStorage.getItem('sagco_ims_users')) {
@@ -268,7 +267,7 @@ try {
 <script>
 (function() {
 
-  var loginDest = 'dashboard.html';
+  var loginDest = 'procedures.html';
   var modal     = document.getElementById('login-modal');
   var userInput = document.getElementById('lm-user');
   var passInput = document.getElementById('lm-pass');
@@ -278,12 +277,20 @@ try {
 
   var DEST_LABELS = {
     'ims-manual.html': 'Destination: IMS Manual — Presentation Mode',
-    'dashboard.html':      'Destination: IMS Portal — Full Platform',
+    'procedures.html': 'Destination: IMS Portal — Full Platform',
   };
 
   /* ── Open modal ──────────────────────────────────────────── */
   function openModal(dest) {
-    loginDest = dest || 'dashboard.html';
+    loginDest = dest || 'procedures.html';
+    /* If already logged in, go directly without showing modal */
+    try {
+      var existing = JSON.parse(sessionStorage.getItem('sagco_ims_session') || 'null');
+      if (existing && existing.userId) {
+        window.location.replace(loginDest);
+        return;
+      }
+    } catch(e) {}
     destLabel.textContent = DEST_LABELS[loginDest] || '';
     errEl.style.display   = 'none';
     errEl.textContent     = '';
@@ -360,13 +367,18 @@ try {
       localStorage.setItem('sagco_ims_users', JSON.stringify(users));
     } catch(e) {}
 
-    window.location.href = loginDest;
+    /* Set flag so landing page doesn't clear session if browser returns here */
+    try { sessionStorage.setItem('landing_just_logged_in', '1'); } catch(e) {}
+    /* Small delay then redirect — use replace() to remove landing from history */
+    setTimeout(function() {
+      window.location.replace(loginDest);
+    }, 150);
   }
 
   /* ── Wire up card buttons ────────────────────────────────── */
   document.getElementById('btn-manual').addEventListener('click', function(){ openModal('ims-manual.html'); });
-  document.getElementById('btn-portal').addEventListener('click', function(){ openModal('dashboard.html'); });
-  document.getElementById('btn-skip').addEventListener('click',   function(){ openModal('dashboard.html'); });
+  document.getElementById('btn-portal').addEventListener('click', function(){ openModal('procedures.html'); });
+  document.getElementById('btn-skip').addEventListener('click',   function(){ openModal('procedures.html'); });
 
   /* ── Modal controls ──────────────────────────────────────── */
   document.getElementById('login-close').addEventListener('click', closeModal);
