@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SAGCO — Integrated Management System</title>
+  <!-- Tell auth.js this is the public landing page — no auth check -->
+  <meta name="sagco-auth" content="public-landing">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -294,6 +296,35 @@
 </head>
 <body>
 
+  <!-- Clear any existing session so login modal always fires -->
+  <script>
+    try { sessionStorage.removeItem('sagco_ims_session'); } catch(e) {}
+    /* Seed auth.js user store if not already seeded */
+    try {
+      if(!localStorage.getItem('sagco_ims_users')){
+        var today=new Date().toISOString().split('T')[0];
+        var _u=[
+          {id:'USR-001',username:'admin',        password:'Admin@2026',  role:'superadmin', name:'Issam Al-Rashidi',    title:'IMS Coordinator',        department:'IMS',          email:'ims@sagco.com.sa',        status:'Active', lastLogin:null,created:today,createdBy:'system'},
+          {id:'USR-002',username:'ceo',           password:'CEO@SAGCO26', role:'admin',      name:'Abdullah Al-Qahtani',title:'Chief Executive Officer',department:'Executive',    email:'ceo@sagco.com.sa',        status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-003',username:'shee.head',     password:'SHEE@2026!',  role:'editor',     name:'Mohammed Al-Harbi',  title:'SHEE Head',              department:'SHEE',         email:'shee@sagco.com.sa',       status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-004',username:'ims.manager',   password:'IMS@Mgr2026', role:'editor',     name:'Sara Al-Otaibi',     title:'IMS Manager',            department:'IMS',          email:'imsmanager@sagco.com.sa', status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-005',username:'qa.manager',    password:'QA@SAGCO26',  role:'editor',     name:'Khalid Al-Dosari',   title:'QA Manager',             department:'Quality',      email:'qa@sagco.com.sa',         status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-006',username:'energy.mgr',    password:'Energy@26!',  role:'editor',     name:'Faisal Al-Mutairi',  title:'Energy Manager',         department:'Operations',   email:'energy@sagco.com.sa',     status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-007',username:'procurement',   password:'Proc@2026!',  role:'contributor',name:'Nour Al-Zahrawi',    title:'Procurement Manager',    department:'Procurement',  email:'proc@sagco.com.sa',       status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-008',username:'hr.manager',    password:'HR@SAGCO26',  role:'contributor',name:'Tariq Al-Shehri',    title:'HR Manager',             department:'Human Resources',email:'hr@sagco.com.sa',       status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-009',username:'legal',         password:'Legal@2026',  role:'contributor',name:'Reem Al-Ghamdi',     title:'Legal Officer',          department:'Legal',        email:'legal@sagco.com.sa',      status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-010',username:'auditor.tuv',   password:'TUV@Audit26', role:'viewer',     name:'Hans Weber',         title:'Lead Auditor',           department:'TÜV Austria',  email:'h.weber@tuv-austria.at',  status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-011',username:'auditor.sgs',   password:'SGS@Audit26', role:'viewer',     name:'Ahmed Mansour',      title:'Certification Auditor',  department:'SGS International',email:'a.mansour@sgs.com', status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-012',username:'public',        password:'Public@IMS',  role:'viewer',     name:'Public Access',      title:'Read-Only User',         department:'External',     email:'',                        status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-013',username:'furnace.mgr',   password:'Furnace@26',  role:'contributor',name:'Ibrahim Al-Anazi',   title:'Furnaces Manager',       department:'Operations',   email:'furnaces@sagco.com.sa',   status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-014',username:'finance.mgr',   password:'Finance@26',  role:'contributor',name:'Walid Al-Rasheed',   title:'Finance Manager',        department:'Finance',      email:'finance@sagco.com.sa',    status:'Active', lastLogin:null,created:today,createdBy:'USR-001'},
+          {id:'USR-015',username:'contractor.ext',password:'Ext@SAGCO26', role:'viewer',     name:'External Contractor',title:'Contractor',             department:'External',     email:'',                        status:'Inactive',lastLogin:null,created:today,createdBy:'USR-001'},
+        ];
+        localStorage.setItem('sagco_ims_users',JSON.stringify(_u));
+      }
+    } catch(e){}
+  </script>
+
   <!-- Mobile fallback background -->
   <div class="mobile-bg"></div>
 
@@ -528,9 +559,27 @@
         document.getElementById('login-pass').focus();
         return;
       }
-      try{ sessionStorage.setItem('sagco_ims_session',JSON.stringify(
-        {username:user.u,name:user.name,role:user.role,ts:Date.now()}
-      )); }catch(e){}
+      /* Get full user data from auth.js localStorage store */
+      var authUsers = [];
+      try { authUsers = JSON.parse(localStorage.getItem('sagco_ims_users')||'[]'); } catch(e){}
+      var fullUser = authUsers.find(function(x){ return x.username.toLowerCase()===u; });
+
+      /* Build session in exact auth.js format */
+      var session = {
+        userId:   fullUser ? fullUser.id : 'USR-001',
+        username: user.u,
+        name:     fullUser ? fullUser.name : user.name,
+        role:     user.role,
+        loginTs:  new Date().toISOString()
+      };
+      try {
+        sessionStorage.setItem('sagco_ims_session', JSON.stringify(session));
+        /* Also set DMS role pill — same as auth.js does */
+        var dmsRoleMap = {superadmin:'admin',admin:'admin',editor:'editor',contributor:'contributor',viewer:'viewer'};
+        sessionStorage.setItem('sagco_dms_role', dmsRoleMap[user.role]||'viewer');
+        /* Update lastLogin in localStorage user store */
+        if(fullUser){ fullUser.lastLogin=new Date().toISOString(); localStorage.setItem('sagco_ims_users',JSON.stringify(authUsers)); }
+      } catch(e){}
       window.location.href=_loginDest;
     },600);
   }
