@@ -212,29 +212,24 @@
 
   /* ── Mark editable elements ─────────────────────────────── */
   function markEditables() {
-    var selectors = [
-      'h1, h2, h3, h4',
-      'p',
-      '.policy-text',
-      '.ci-title, .ci-text',
-      '.kpi-name, .kpi-target, .kpi-method, .kpi-owner',
-      '.sc-name, .sc-role',
-      '.man-section h2, .man-section p',
-      'td, th',
-      '.commitment-item .ci-title, .commitment-item .ci-text',
-      '.info-block p, .info-block li',
-      '.member-item',
-      '.stat-val, .stat-label',
-      '.roadmap-item .ri-title, .roadmap-item .ri-text',
-      '.topbar-title, .topbar-sub',
-      '.section-title',
-      '.metric-card .mc-val, .metric-card .mc-lbl',
-    ];
-
-    var els = document.querySelectorAll(selectors.join(','));
-    els.forEach(function(el, i) {
-      /* Skip navigation, toolbars, scripts */
-      if (el.closest('#sidebar, #sagco-edit-bar, #sagco-inline-toolbar, script, style, .topbar')) return;
+    /* Mark ALL elements that directly contain visible text */
+    var all = document.querySelectorAll('*');
+    all.forEach(function(el) {
+      /* Skip non-content elements */
+      var tag = el.tagName.toLowerCase();
+      if (['script','style','meta','link','br','hr','input','textarea',
+           'button','select','option','iframe','svg','path','img'].indexOf(tag) >= 0) return;
+      /* Skip structural/nav wrappers */
+      if (el.id && ['sidebar','tb','sagco-edit-bar','sagco-inline-toolbar',
+          'sagco-edit-toggle','sagco-save-toast','login-modal','nav-tree'].indexOf(el.id) >= 0) return;
+      if (el.closest('#sidebar, #sagco-edit-bar, #sagco-inline-toolbar, #login-modal, script, style')) return;
+      /* Skip elements that only contain child elements (no direct text) */
+      var hasDirectText = Array.from(el.childNodes).some(function(n){
+        return n.nodeType === 3 && n.textContent.trim().length > 2;
+      });
+      /* Also include leaf elements with text content */
+      var isLeaf = el.children.length === 0 && el.textContent.trim().length > 2;
+      if (!hasDirectText && !isLeaf) return;
       if (el.hasAttribute('data-editable')) return;
 
       /* Generate unique selector */
