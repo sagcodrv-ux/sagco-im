@@ -490,6 +490,13 @@ function bindHoverCollapse() {
    initPage  — called once per page
 ══════════════════════════════════════════════════════════════ */
 function initPage(filename) {
+  /* Inject edit-mode.js dynamically if not already loaded */
+  if (!document.getElementById('sagco-edit-mode-script')) {
+    var s = document.createElement('script');
+    s.id  = 'sagco-edit-mode-script';
+    s.src = 'edit-mode.js';
+    document.head.appendChild(s);
+  }
   /* Inject sidebar HTML */
   var placeholder = document.getElementById('sidebar');
   if (placeholder) {
