@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SAGCO IMS — Objectives Planning Register</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="auth.js"></script>
+  <script src="data.js"></script>
+  <script src="nav.js"></script>
+  <style>
+    .op-wrap { padding: 20px; background: #f4f6f9; min-height: 80vh; font-family: -apple-system, sans-serif; }
+
+    /* Page header */
+    .op-header { background: #1F3864; color: #fff; border-radius: 8px; padding: 20px 24px; margin-bottom: 20px; }
+    .op-header h1 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .op-header p  { font-size: 12px; color: #B0C4DE; margin: 0; }
+    .op-meta { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px; }
+    .op-meta span { font-size: 11px; color: #B0C4DE; }
+    .op-meta strong { color: #fff; }
+
+    /* Filters */
+    .op-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+    .op-filter-btn {
+      padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 600;
+      cursor: pointer; border: 1px solid #dce3ed; background: #fff; color: #1F3864;
+      transition: all .2s;
+    }
+    .op-filter-btn:hover, .op-filter-btn.active { background: #1F3864; color: #fff; border-color: #1F3864; }
+    .op-filter-btn.wg1.active { background: #1a4a2e; border-color: #1a4a2e; }
+    .op-filter-btn.wg2.active { background: #1a3a5e; border-color: #1a3a5e; }
+    .op-filter-btn.wg3.active { background: #4a1a2e; border-color: #4a1a2e; }
+    .op-filter-btn.sc.active  { background: #1a2340; border-color: #1a2340; }
+    .op-search { flex: 1; min-width: 200px; max-width: 320px; }
+    .op-search input {
+      width: 100%; padding: 6px 12px; border: 1px solid #dce3ed; border-radius: 20px;
+      font-size: 12px; outline: none; font-family: inherit;
+    }
+    .op-search input:focus { border-color: #1F3864; }
+
+    /* Section divider */
+    .op-section-hdr {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px; border-radius: 6px 6px 0 0; margin-top: 24px; margin-bottom: 0;
+    }
+    .op-section-hdr .osh-title { font-size: 13px; font-weight: 700; color: #fff; }
+    .op-section-hdr .osh-count { font-size: 11px; color: rgba(255,255,255,.7); background: rgba(255,255,255,.15); padding: 2px 10px; border-radius: 20px; }
+    .op-section-hdr .osh-std   { font-size: 10.5px; color: rgba(255,255,255,.6); margin-left: auto; }
+
+    /* Table */
+    .op-table-wrap { overflow-x: auto; border-radius: 0 0 8px 8px; border: 1px solid #dce3ed; border-top: none; margin-bottom: 0; }
+    .op-table {
+      width: 100%; border-collapse: collapse; font-size: 11.5px;
+      background: #fff; min-width: 900px;
+    }
+    .op-table thead tr { background: #374151; }
+    .op-table thead th {
+      color: #fff; padding: 9px 12px; text-align: left;
+      font-weight: 600; font-size: 10.5px; text-transform: uppercase;
+      letter-spacing: .4px; white-space: nowrap;
+    }
+    .op-table tbody tr:nth-child(even) { background: #f8fafc; }
+    .op-table tbody tr:hover { background: #EBF3FB; }
+    .op-table tbody tr.hidden { display: none; }
+    .op-table td { padding: 9px 12px; border-bottom: 1px solid #e8edf3; vertical-align: top; color: #374151; line-height: 1.5; }
+    .op-table td:first-child { font-weight: 700; color: #1F3864; white-space: nowrap; width: 50px; }
+    .op-table td:nth-child(2) { font-weight: 600; color: #1F3864; min-width: 180px; }
+    .op-table td:nth-child(3) { color: #4B5563; min-width: 180px; }
+    .op-table td:nth-child(4) { min-width: 140px; }
+    .op-table td:nth-child(5) { color: #6b7280; min-width: 80px; white-space: nowrap; }
+    .op-table td:nth-child(6) { color: #4B5563; min-width: 160px; }
+    .op-table .target-badge {
+      display: inline-block; background: #EBF3FB; color: #1F3864;
+      border: 1px solid #B5D4F4; border-radius: 4px;
+      padding: 2px 8px; font-size: 10.5px; font-weight: 700; white-space: nowrap;
+    }
+
+    /* Back link */
+    .op-back { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .op-back a {
+      font-size: 11px; color: #1F3864; text-decoration: none;
+      padding: 4px 12px; border: 1px solid #dce3ed; border-radius: 4px;
+      background: #fff; transition: all .2s;
+    }
+    .op-back a:hover { background: #1F3864; color: #fff; }
+
+    /* No results */
+    .op-no-results { text-align: center; padding: 40px; color: #9ca3af; font-size: 13px; display: none; }
+
+    /* Print */
+    @media print {
+      .op-filters, .op-back, #tb, #sidebar, #se-toggle, #se-bar { display: none !important; }
+      .op-wrap { padding: 0; }
+      .op-table { font-size: 10px; }
+    }
+  </style>
+</head>
+<body>
+<div id="sidebar"></div>
+<div class="main">
+  <div id="tb"></div>
+  <div class="content">
+    <div class="op-wrap">
+
+      <div class="op-back">
+        <a href="ims-objectives.html">← IMS Objectives Register</a>
+        <a href="ims-framework.html">← IMS Framework</a>
+        <a onclick="window.print()" style="cursor:pointer">🖨 Print</a>
+      </div>
+
+      <!-- Page header -->
+      <div class="op-header">
+        <h1>IMS Objectives — Planning Register</h1>
+        <p>Objectives of the Integrated Management System and planning to achieve them — ISO §6.2 all standards</p>
+        <div class="op-meta">
+          <span><strong>Ref:</strong> QA-FRM-65 (Rev.05) &amp; IMS L3-IMS-621-R-02</span>
+          <span><strong>Effective:</strong> 14 April 2026</span>
+          <span><strong>Standards:</strong> ISO 9001 · ISO 14001:2026 · ISO 45001:2018 · ISO 50001:2018 · ISO 37001:2016</span>
+          <span><strong>Review:</strong> Annual — Management Review</span>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="op-filters">
+        <button class="op-filter-btn active" onclick="filterGroup('all',this)">All Objectives</button>
+        <button class="op-filter-btn sc"  onclick="filterGroup('sc',this)">IMS Steering</button>
+        <button class="op-filter-btn wg1" onclick="filterGroup('wg1',this)">WG1 — Plant &amp; Quality</button>
+        <button class="op-filter-btn wg2" onclick="filterGroup('wg2',this)">WG2 — SHEE, Energy &amp; ENV</button>
+        <button class="op-filter-btn wg3" onclick="filterGroup('wg3',this)">WG3 — People, Ethics &amp; Procurement</button>
+        <div class="op-search"><input type="text" id="op-search" placeholder="🔍  Search objectives..." oninput="searchObjectives(this.value)"></div>
+      </div>
+
+      <!-- ══ IMS STEERING COMMITTEE ══════════════════════════════ -->
+      <div class="op-section-hdr" style="background:#1a2340" data-group="sc">
+        <span class="osh-title">IMS Steering Committee — Strategic Objectives</span>
+        <span class="osh-count">7 Objectives</span>
+        <span class="osh-std">Chair: IMS Manager · Quarterly Review</span>
+      </div>
+      <div class="op-table-wrap">
+        <table class="op-table">
+          <thead><tr>
+            <th>#</th><th>Objective</th><th>Resources Required</th>
+            <th>Who is Responsible</th><th>When</th><th>How Results are Evaluated</th>
+          </tr></thead>
+          <tbody>
+            <tr data-group="sc"><td>S-01</td><td>Achieve ≥95% CAPA closure rate across all standards</td><td>CAPA Register (L4); IMS Coordinator time; departmental cooperation for root cause analysis</td><td>IMS Manager</td><td>Monthly review; Annual MR</td><td>CAPA Register — % of CAPAs closed within class timescale (Critical: 5WD; Major: 30D; Minor: 60D)</td></tr>
+            <tr data-group="sc"><td>S-02</td><td>Complete 100% of planned internal audit programme on schedule</td><td>Qualified internal auditors; audit schedule (L4); time allocation per department</td><td>IMS Manager</td><td>Monthly tracking; Annual</td><td>Audit programme schedule vs completed audits — % on schedule</td></tr>
+            <tr data-group="sc"><td>S-03</td><td>Achieve 100% legal compliance across all applicable standards</td><td>Legal Compliance Register (L4); legal &amp; regulatory monitoring subscription; departmental compliance owners</td><td>IMS Manager</td><td>Quarterly evaluation</td><td>Legal Compliance Register — % of obligations met; zero exceedances reported</td></tr>
+            <tr data-group="sc"><td>S-04</td><td>Conduct Annual Management Review with CEO</td><td>IMS Coordinator preparation time; all WG performance data; management review agenda template</td><td>IMS Manager</td><td>Annual (Q4)</td><td>Management Review minutes completed and signed — 1 review per year</td></tr>
+            <tr data-group="sc"><td>S-05</td><td>Close all high-risk CAPAs within agreed timescales</td><td>CAPA Register; departmental heads accountability; resources for corrective action implementation</td><td>IMS Manager</td><td>Monthly</td><td>Risk Register — % of high-risk actions closed on time; escalation log reviewed</td></tr>
+            <tr data-group="sc"><td>S-06</td><td>Achieve TÜV Austria Stage 2 IMS certification across all 4 standards</td><td>Full IMS documentation package; internal audit evidence; Stage 2 audit fee; all WG readiness</td><td>IMS Coordinator</td><td>Q3–Q4 2026</td><td>TÜV Austria Stage 2 audit result — certification granted without major NCs</td></tr>
+            <tr data-group="sc"><td>S-07</td><td>Achieve EcoVadis score ≥65 (Silver)</td><td>GRI-aligned ESG Report; Supplier CoC acknowledgments; water data; gender diversity data; IMS Coordinator time</td><td>IMS Coordinator</td><td>Annual submission</td><td>EcoVadis platform score ≥65 confirmed after annual assessment</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ══ WG1: PLANT & QUALITY ════════════════════════════════ -->
+      <div class="op-section-hdr" style="background:#1a4a2e;margin-top:24px" data-group="wg1">
+        <span class="osh-title">WG1: Plant &amp; Quality — Objectives</span>
+        <span class="osh-count">6 Objectives</span>
+        <span class="osh-std">Chair: QA Manager · ISO 9001:2015 · FSSC 22000 · Ref: QA-FRM-65 Rev.05</span>
+      </div>
+      <div class="op-table-wrap">
+        <table class="op-table">
+          <thead><tr>
+            <th>#</th><th>Objective</th><th>Resources Required</th>
+            <th>Who is Responsible</th><th>When</th><th>How Results are Evaluated</th>
+          </tr></thead>
+          <tbody>
+            <tr data-group="wg1"><td>Q-01</td><td>Customer Satisfaction — maintain score not less than <span class="target-badge">4.0 / 5.0</span></td><td>Continue reviewing the QFS system, policy and standards. Allocate the resources required to achieve this objective.</td><td>Plant Manager · QA Manager · Regional Account Managers</td><td>Annual survey</td><td>Results evaluated by yearly customer satisfaction survey</td></tr>
+            <tr data-group="wg1"><td>Q-02</td><td>Traceability &amp; Mock Recall Exercise — completed in less than <span class="target-badge">&lt; 3 hours</span></td><td>Updated and readily available documented information</td><td>HODs · SHEQFS Engineer</td><td>Twice per year</td><td>The time taken to complete the exercise must be less than 3 hours</td></tr>
+            <tr data-group="wg1"><td>Q-03</td><td>Customer Complaints Rating — maintain at <span class="target-badge">≤ 15</span> per unit per month</td><td>Process stability · Effective inspection detection technology · Trained and competent personnel · Adherence to specifications and AQLs</td><td>Plant Manager · QA Manager · Unit Manager</td><td>Monthly review</td><td>Each complaint rated according to SAGCO TQI Customer Complaint rating. Sum of ratings per unit ≤15</td></tr>
+            <tr data-group="wg1"><td>Q-04</td><td>Total Heldware — maintain at or below <span class="target-badge">≤ 3%</span> of total packed tons</td><td>Full adherence to measuring and monitoring plan · Process stability · Effective inspection detection technology · Trained personnel</td><td>Operations Manager · QA Manager · Electronics Manager · Unit Manager</td><td>Monthly review</td><td>Heldware % = Held tons ÷ (Held tons + Good tons) × 100. Target ≤3%</td></tr>
+            <tr data-group="wg1"><td>Q-05</td><td>Inspection Equipment Losses — maintain at or below <span class="target-badge">≤ 7%</span> of total tons drawn</td><td>Process stability · Effective inspection detection technology · Effective challenge samples and routines · Trained and competent personnel</td><td>Plant Manager · QA Manager · Electronics Manager</td><td>Monthly review</td><td>Total tons rejected by inspection equipment ÷ total tons drawn per unit. Target ≤7%</td></tr>
+            <tr data-group="wg1"><td>Q-06</td><td>Pack-to-Melt ratio — maintain at or above <span class="target-badge">≥ 80%</span></td><td>Production daily records system · Plant Manager oversight · QA monitoring plan</td><td>Plant Manager · QA Manager</td><td>Daily monitoring; Monthly report</td><td>Production daily records → monthly KPI report. Pack-to-Melt % = packed tons ÷ melted tons × 100</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ══ WG2: SHEE, ENERGY & ENV ═════════════════════════════ -->
+      <div class="op-section-hdr" style="background:#1a3a5e;margin-top:24px" data-group="wg2">
+        <span class="osh-title">WG2: SHEE, Energy &amp; Environment — Objectives</span>
+        <span class="osh-count">7 Objectives</span>
+        <span class="osh-std">Chair: Operations Manager &amp; Deputy Plant Manager · ISO 45001 · ISO 14001:2026 · ISO 50001</span>
+      </div>
+      <div class="op-table-wrap">
+        <table class="op-table">
+          <thead><tr>
+            <th>#</th><th>Objective</th><th>Resources Required</th>
+            <th>Who is Responsible</th><th>When</th><th>How Results are Evaluated</th>
+          </tr></thead>
+          <tbody>
+            <tr data-group="wg2"><td>E-01</td><td>Zero fatalities across all operations and contractors</td><td>HIRA programme · PTW system · Safety controls implementation · Contractor management programme · Incident investigation resources</td><td>Operations Manager · HSSE Manager</td><td>Continuous monitoring</td><td>Incident register — fatality count = 0. Any fatality triggers immediate escalation to CEO and IMS Steering Committee</td></tr>
+            <tr data-group="wg2"><td>E-02</td><td>Maintain downward trend in LTIFR from 2025 baseline</td><td>Incident recording system · SHEE Representatives at each unit · Root cause analysis capability · Preventive action tracking</td><td>Operations Manager</td><td>Monthly</td><td>LTIFR = (No. LTIs × 1,000,000) ÷ hours worked. Monthly trend chart vs 2025 baseline</td></tr>
+            <tr data-group="wg2"><td>E-03</td><td>Complete HIRA for all 12 hazard categories — <span class="target-badge" style="background:#fce4ec;color:#c62828;border-color:#f48fb1">⚠ Open — Overdue</span></td><td>HIRA methodology (L3-WI) · SHEE Head and unit HSSE Reps · Operations Manager oversight · IMS Coordinator review time</td><td>Operations Manager · HSSE Head</td><td>Jun 2026 (overdue)</td><td>HIRA Register — 100% of 12 hazard categories documented, assessed and approved. TÜV Stage 2 audit requirement</td></tr>
+            <tr data-group="wg2"><td>E-04</td><td>Achieve ≥95% HSE training completion rate against annual plan</td><td>Annual HSE training plan · Training budget allocation · Training attendance records (L4) · Competency matrix</td><td>Operations Manager · HSSE Manager</td><td>Monthly tracking; Annual plan</td><td>Training attendance records — % of planned HSE training sessions completed on schedule per department</td></tr>
+            <tr data-group="wg2"><td>E-05</td><td>Reduce GHG intensity (Scope 1+2) — downward trend vs 2025 baseline toward ≥20% reduction by July 2030</td><td>Monthly fuel consumption records per furnace · Grid electricity data · GHG calculation methodology · Energy Review document (L4-IMS-630-R-01)</td><td>Deputy Plant Manager</td><td>Monthly</td><td>(Fuel × emission factors + Grid kWh × SEC factor) ÷ monthly production = kgCO₂e/tonne packed. Monthly trend vs 2025 baseline</td></tr>
+            <tr data-group="wg2"><td>E-06</td><td>Achieve 20% energy efficiency improvement per unit of production by July 2030 — establish 2026 baseline</td><td>Energy meters and fuel flow data per furnace · EnMS documentation · ECM programme milestones · Deputy Plant Manager oversight</td><td>Furnace Manager · Deputy Plant Manager</td><td>Monthly SHC monitoring; Annual EnPI review</td><td>SHC (kcal/kg packed glass) per furnace monthly. Baseline set 2026. EnPI trend chart vs baseline</td></tr>
+            <tr data-group="wg2"><td>E-07</td><td>Implement ≥90% of ECM programme milestones on schedule per approved EnMS schedule</td><td>ECM milestone tracker (L4-IMS-630-R-01) · Capital investment approvals · Furnace Manager and technical team · Utility Services Manager</td><td>Deputy Plant Manager · Furnace Manager</td><td>Quarterly; Annual MR</td><td>ECM milestone tracker — % of planned milestones completed on schedule per quarter</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ══ WG3: PEOPLE, ETHICS & PROCUREMENT ══════════════════ -->
+      <div class="op-section-hdr" style="background:#4a1a2e;margin-top:24px" data-group="wg3">
+        <span class="osh-title">WG3: People, Ethics &amp; Procurement — Objectives</span>
+        <span class="osh-count">7 Objectives</span>
+        <span class="osh-std">Chair: HR Manager · ISO 37001:2016 · ISO 26000 · ISO 20400</span>
+      </div>
+      <div class="op-table-wrap">
+        <table class="op-table">
+          <thead><tr>
+            <th>#</th><th>Objective</th><th>Resources Required</th>
+            <th>Who is Responsible</th><th>When</th><th>How Results are Evaluated</th>
+          </tr></thead>
+          <tbody>
+            <tr data-group="wg3"><td>P-01</td><td>Zero confirmed corruption or bribery cases</td><td>Anti-Bribery Risk Register (BRA-001–008) · Whistleblowing channel · CoI declaration forms (L4-IMS-520-F-01) · Annual ABMS controls review</td><td>HR Manager</td><td>Continuous monitoring; Quarterly review</td><td>Anti-Bribery Risk Register — confirmed case count = 0. Any confirmed case triggers immediate escalation and investigation</td></tr>
+            <tr data-group="wg3"><td>P-02</td><td>Achieve 100% CoI declaration completion for all designated personnel</td><td>CoI declaration forms (L4-IMS-520-F-01) · HR tracking register · Designated personnel list approved by IMS Manager</td><td>HR Manager</td><td>Annual (January)</td><td>CoI Register — % of designated personnel with signed and filed declarations. Target: 100%</td></tr>
+            <tr data-group="wg3"><td>P-03</td><td>Complete ≥90% anti-corruption training for all key personnel</td><td>Annual anti-corruption training content · Training schedule · HR tracking system · IMS Manager sign-off on training plan</td><td>HR Manager · Training Manager</td><td>Annual</td><td>Training attendance records — % of key personnel who completed anti-corruption and ethics training</td></tr>
+            <tr data-group="wg3"><td>P-04</td><td>Resolve 100% of formal grievances within agreed timescales</td><td>Formal grievance mechanism · HR Manager dedicated time · Grievance register · Non-retaliation policy (POL-HR-04)</td><td>HR Manager</td><td>Monthly monitoring</td><td>Grievance register — 100% acknowledged within 3 WD; 100% resolved within 30 days. Tiered resolution compliance rate</td></tr>
+            <tr data-group="wg3"><td>P-05</td><td>Achieve 100% ESG screening for all new strategic suppliers at onboarding</td><td>ESG screening criteria checklist · Supplier register (L4) · Procurement Coordinator time · Supplier Code of Conduct acknowledgment form</td><td>Procurement Manager</td><td>At onboarding; Annual review</td><td>Supplier register — % of new strategic suppliers with completed ESG screening prior to approval</td></tr>
+            <tr data-group="wg3"><td>P-06</td><td>Publish annual GRI-aligned ESG Report by end of July each year</td><td>ESG data from all WGs · IMS Coordinator compilation time · CEO approval · GRI Standards 2021 framework · EcoVadis submission platform</td><td>IMS Coordinator</td><td>Annual — by end of July</td><td>ESG Report published and submitted to EcoVadis by 31 July. CEO signature on final report confirmed</td></tr>
+            <tr data-group="wg3"><td>P-07</td><td>Establish gender diversity baseline for 2026 workforce and report in ESG Report</td><td>HR payroll data · GOSI records for gender classification · HR Manager analysis time · ESG Report section</td><td>HR Manager</td><td>Annual (ESG Report)</td><td>% female employees in total workforce and in management positions — documented in 2026 ESG Report as baseline year</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="op-no-results" id="op-no-results">No objectives match your search.</div>
+
+      <div style="margin-top:20px;font-size:11px;color:#9ca3af;font-style:italic">
+        IMS Objectives Planning Register · L3-IMS-621-R-02 · ISO §6.2 · June 2026 · TÜV Austria Stage 2 target
+      </div>
+
+    </div><!-- op-wrap -->
+  </div>
+</div>
+
+<script>
+  var currentGroup = 'all';
+
+  function filterGroup(group, btn) {
+    currentGroup = group;
+    document.querySelectorAll('.op-filter-btn').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    applyFilters();
+  }
+
+  function searchObjectives(q) {
+    applyFilters(q);
+  }
+
+  function applyFilters(q) {
+    q = (q || document.getElementById('op-search').value || '').toLowerCase().trim();
+    var rows = document.querySelectorAll('.op-table tbody tr');
+    var visible = 0;
+    rows.forEach(function(row) {
+      var grpMatch = currentGroup === 'all' || row.getAttribute('data-group') === currentGroup;
+      var txtMatch = !q || row.textContent.toLowerCase().includes(q);
+      var show = grpMatch && txtMatch;
+      row.classList.toggle('hidden', !show);
+      if (show) visible++;
+    });
+    /* Show/hide section headers */
+    document.querySelectorAll('.op-section-hdr').forEach(function(hdr) {
+      var grp = hdr.getAttribute('data-group');
+      var grpVisible = currentGroup === 'all' || currentGroup === grp;
+      var hasVisible = grpVisible && (!q || Array.from(
+        hdr.nextElementSibling.querySelectorAll('tbody tr')
+      ).some(function(r){ return !r.classList.contains('hidden'); }));
+      hdr.style.display = hasVisible ? '' : 'none';
+      hdr.nextElementSibling.style.display = hasVisible ? '' : 'none';
+    });
+    document.getElementById('op-no-results').style.display = visible === 0 ? 'block' : 'none';
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    initPage('ims-objectives-plan.html');
+    document.getElementById('tb').innerHTML = renderTopbar(
+      'IMS Objectives — Planning Register',
+      'How we will achieve each objective · ISO §6.2 · All Standards · 2026'
+    );
+    IMS_AUTH.injectUserBar();
+  });
+</script>
+</body>
+</html>
