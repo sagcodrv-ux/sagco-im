@@ -1,91 +1,645 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SAGCO IMS — L2-IMS-400-P-01 — Organisational Context</title>
 <link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
+<script src="auth.js"></script>
+<script src="data.js"></script>
+<script src="nav.js"></script>
+<style>
+:root {
+  --navy:#1a2340; --gold:#c8a84b; --gold-lt:#f0d98a;
+  --teal:#1a7a6e; --red:#c0392b; --amb:#e67e22; --grn:#1e8449;
+  --g100:#f7f9fc; --g200:#edf0f5; --g300:#d0d8e8;
+  --text:#2d3748; --text-lt:#64748b;
+  --mono:'Courier New',monospace; --radius:8px;
+}
+
+/* ── Back row ─────────────────────────────────────────────── */
+.back-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.back-link{
+  font-size:11px;color:var(--navy);text-decoration:none;
+  padding:5px 12px;border:1px solid var(--g300);border-radius:20px;
+  background:#fff;transition:all .15s;display:inline-flex;align-items:center;gap:4px;
+}
+.back-link:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+/* ── Procedure cover ─────────────────────────────────────── */
+.proc-cover{
+  background:linear-gradient(145deg,#0d1520 0%,#1a2340 55%,#0d2235 100%);
+  border-radius:12px;padding:28px 32px;margin-bottom:20px;
+  position:relative;overflow:hidden;color:#fff;
+}
+.proc-cover::before{
+  content:'';position:absolute;top:-80px;right:-80px;
+  width:360px;height:360px;
+  background:radial-gradient(circle,rgba(200,168,75,.12) 0%,transparent 70%);
+  pointer-events:none;
+}
+.proc-cover::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--gold),transparent);
+}
+.pc-top{display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;position:relative;z-index:1}
+.pc-badge{
+  background:var(--gold);color:var(--navy);border-radius:8px;
+  padding:10px 16px;font-family:var(--mono);font-size:12px;font-weight:800;
+  white-space:nowrap;flex-shrink:0;letter-spacing:.03em;
+}
+.pc-info{flex:1;min-width:200px}
+.pc-title{font-size:20px;font-weight:800;color:#fff;margin-bottom:6px;letter-spacing:-.3px}
+.pc-sub{font-size:12px;color:rgba(255,255,255,.65);line-height:1.6;margin-bottom:4px}
+.pc-meta{
+  display:grid;grid-template-columns:repeat(4,auto);gap:0;
+  margin-top:20px;position:relative;z-index:1;
+  border-top:1px solid rgba(255,255,255,.1);padding-top:16px;
+}
+.pc-meta-item{padding:8px 16px;border-right:1px solid rgba(255,255,255,.1)}
+.pc-meta-item:first-child{padding-left:0}
+.pc-meta-item:last-child{border-right:none}
+.pc-meta-lbl{font-size:9px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
+.pc-meta-val{font-size:12px;font-weight:700;color:var(--gold-lt)}
+
+/* ── Standards pills ─────────────────────────────────────── */
+.std-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;position:relative;z-index:1}
+.std-pill{
+  padding:3px 12px;border-radius:20px;font-size:10px;font-weight:600;
+  background:rgba(200,168,75,.15);border:1px solid rgba(200,168,75,.35);
+  color:var(--gold-lt);letter-spacing:.3px;
+}
+
+/* ── Scope statement ─────────────────────────────────────── */
+.scope-stmt{
+  font-size:11.5px;line-height:1.7;padding:12px 16px;background:var(--g100);
+  border-radius:var(--radius);border-left:3px solid var(--gold);
+  margin-bottom:20px;color:var(--text-lt);
+}
+
+/* ── Section header ──────────────────────────────────────── */
+.s-hdr{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 16px;border-radius:8px 8px 0 0;
+  margin-top:24px;margin-bottom:0;
+}
+.s-hdr .sh-num{
+  background:var(--gold);color:var(--navy);border-radius:6px;
+  padding:3px 10px;font-family:var(--mono);font-size:10px;font-weight:800;
+  white-space:nowrap;flex-shrink:0;
+}
+.s-hdr .sh-title{font-size:13px;font-weight:700;color:#fff;flex:1}
+.s-hdr .sh-badge{font-size:10px;color:rgba(255,255,255,.6);background:rgba(255,255,255,.1);
+  padding:2px 10px;border-radius:20px;white-space:nowrap}
+.s-body{
+  background:#fff;border:1px solid var(--g300);border-top:none;
+  border-radius:0 0 8px 8px;padding:16px 20px;
+}
+
+/* ── Section index ───────────────────────────────────────── */
+.sec-idx{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:8px;padding:14px;background:var(--g100);
+  border:1px solid var(--g300);border-top:none;border-radius:0 0 8px 8px;
+}
+.si-item{
+  background:#fff;border:1px solid var(--g200);border-radius:6px;
+  padding:9px 12px;border-left:3px solid var(--navy);
+}
+.si-num{font-family:var(--mono);font-size:10px;color:var(--gold);font-weight:700}
+.si-title{font-size:11.5px;color:var(--text);margin-top:2px;font-weight:500}
+
+/* ── Responsibilities ────────────────────────────────────── */
+.resp-grid{display:flex;flex-direction:column;gap:0}
+.resp-row{
+  display:grid;grid-template-columns:220px 1fr;
+  border-bottom:1px solid var(--g200);padding:10px 0;
+}
+.resp-row:last-child{border-bottom:none}
+.resp-role{font-size:12px;font-weight:700;color:var(--navy);padding-right:16px;display:flex;align-items:flex-start;gap:8px}
+.resp-role .rr-icon{font-size:16px;flex-shrink:0}
+.resp-duty{font-size:11.5px;color:var(--text);line-height:1.7}
+
+/* ── ISO requirement table ───────────────────────────────── */
+.iso-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+.iso-tbl thead tr{background:var(--navy)}
+.iso-tbl thead th{color:#fff;padding:9px 12px;text-align:left;font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.iso-tbl tbody tr:nth-child(even){background:var(--g100)}
+.iso-tbl tbody tr:hover{background:#EBF3FB}
+.iso-tbl td{padding:9px 12px;border-bottom:1px solid var(--g200);vertical-align:top;color:var(--text);line-height:1.6}
+.iso-tbl td:first-child{font-weight:700;color:var(--navy);white-space:nowrap;font-family:var(--mono);font-size:10.5px;width:180px}
+.std-tag{display:inline-block;background:#EBF3FB;color:#1565C0;border:1px solid #B5D4F4;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;font-family:var(--mono);margin-right:4px;white-space:nowrap}
+
+/* ── VMV cards ───────────────────────────────────────────── */
+.vmv-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.vmv-card{background:var(--g100);border:1px solid var(--g300);border-radius:8px;padding:14px 16px;border-top:3px solid var(--gold)}
+.vmv-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gold);margin-bottom:6px}
+.vmv-text{font-size:12px;color:var(--text);line-height:1.7}
+.values-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.val-pill{background:var(--navy);color:var(--gold-lt);padding:4px 14px;border-radius:20px;font-size:11px;font-weight:600}
+
+/* ── BPM grid ────────────────────────────────────────────── */
+.bpm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.bpm-card{background:var(--g100);border:1px solid var(--g300);border-radius:8px;padding:12px 14px}
+.bpm-type{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gold);margin-bottom:6px;border-bottom:1px solid var(--g300);padding-bottom:5px}
+.bpm-items{font-size:11px;color:var(--text);line-height:1.9}
+
+/* ── PESTLE grid ─────────────────────────────────────────── */
+.pestle-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.p-card{background:#fff;border:1px solid var(--g300);border-radius:8px;padding:12px 14px;border-top:3px solid var(--navy)}
+.p-hdr{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.p-letter{width:28px;height:28px;border-radius:50%;background:var(--navy);color:var(--gold-lt);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.p-name{font-size:12px;font-weight:700;color:var(--navy)}
+.p-items{font-size:11px;color:var(--text-lt);line-height:1.9}
+.p-items li{list-style:none;padding-left:12px;position:relative}
+.p-items li::before{content:'›';position:absolute;left:0;color:var(--gold);font-weight:700}
+
+/* ── Trigger cards ───────────────────────────────────────── */
+.trigger-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+.t-card{background:#FFF9E6;border:1px solid #FFE082;border-radius:8px;padding:12px 14px;border-left:4px solid #F9A825}
+.t-icon{font-size:18px;margin-bottom:6px}
+.t-title{font-size:11.5px;font-weight:700;color:#7a5800;margin-bottom:4px}
+.t-desc{font-size:11px;color:var(--text-lt);line-height:1.6}
+
+/* ── Interested parties ──────────────────────────────────── */
+.ip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-top:12px}
+.ip-card{background:#fff;border:1px solid var(--g300);border-radius:8px;padding:10px 14px;border-left:4px solid #2E75B6}
+.ip-title{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:3px}
+.ip-sub{font-size:10.5px;color:var(--text-lt);line-height:1.5}
+
+/* ── HR context box ──────────────────────────────────────── */
+.hr-box{background:#EBF3FB;border:1px solid #B5D4F4;border-radius:8px;padding:16px 18px;margin-top:14px}
+.hr-box-hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.hr-box-hdr .hb-icon{font-size:18px}
+.hr-box-hdr h4{font-size:12px;font-weight:700;color:#1565C0;text-transform:uppercase;letter-spacing:.04em;margin:0}
+.hr-stats{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px}
+.hr-stat{text-align:center}
+.hr-stat .hs-val{font-size:22px;font-weight:800;color:#1565C0;line-height:1}
+.hr-stat .hs-lbl{font-size:9px;color:var(--text-lt);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+.hr-list{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.hr-list li{font-size:11px;color:var(--text);padding:3px 0 3px 16px;position:relative}
+.hr-list li::before{content:'✓';position:absolute;left:0;color:#1565C0;font-weight:700;font-size:10px}
+.hr-policy{font-size:10.5px;color:#1565C0;margin-top:10px;padding-top:8px;border-top:1px solid #B5D4F4;font-weight:600}
+
+/* ── Retained docs table ─────────────────────────────────── */
+.ret-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+.ret-tbl thead tr{background:#2E4A1E}
+.ret-tbl thead th{color:#fff;padding:9px 12px;text-align:left;font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
+.ret-tbl tbody tr:nth-child(even){background:var(--g100)}
+.ret-tbl tbody tr:hover{background:#F0FFF4}
+.ret-tbl td{padding:9px 12px;border-bottom:1px solid var(--g200);vertical-align:top;color:var(--text);line-height:1.6}
+.ret-tbl td:first-child{font-family:var(--mono);font-size:10.5px;font-weight:700;color:#2E4A1E;white-space:nowrap;width:165px}
+.ret-tbl td:last-child{color:var(--text-lt);width:130px;font-size:11px}
+
+/* ── Risk / opportunity ──────────────────────────────────── */
+.ro-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px}
+.ro-card{border-radius:8px;padding:14px 16px}
+.ro-card.risks{background:#FFF5F5;border:1px solid #FFCDD2}
+.ro-card.opps{background:#F0FFF4;border:1px solid #C8E6C9}
+.ro-card h4{font-size:11px;font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:6px}
+.ro-card.risks h4{color:#B71C1C}
+.ro-card.opps h4{color:#1B5E20}
+.ro-list{list-style:none;padding:0;margin:0}
+.ro-list li{font-size:11px;color:var(--text);line-height:1.7;padding:3px 0 3px 14px;position:relative;border-bottom:1px solid rgba(0,0,0,.04)}
+.ro-list li:last-child{border-bottom:none}
+.ro-card.risks .ro-list li::before{content:'▸';position:absolute;left:0;color:#B71C1C}
+.ro-card.opps  .ro-list li::before{content:'▸';position:absolute;left:0;color:#1B5E20}
+
+/* ── Related procedures / registers ─────────────────────── */
+.rel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:8px}
+.rel-card{
+  border-radius:8px;padding:11px 14px;text-decoration:none;display:block;
+  transition:transform .12s,box-shadow .12s;border:1px solid var(--g300);background:#fff;
+}
+.rel-card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.1)}
+.rc-type{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.rc-title{font-size:11.5px;font-weight:600;color:var(--text);margin-bottom:3px}
+.rc-code{font-family:var(--mono);font-size:9px;color:var(--text-lt)}
+
+/* ── Footer strip ────────────────────────────────────────── */
+.proc-footer{
+  margin-top:20px;padding:10px 16px;background:var(--g100);
+  border:1px solid var(--g300);border-radius:8px;
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;
+  font-size:10px;color:var(--text-lt);
+}
+.proc-footer .pf-controlled{color:var(--red);font-weight:600}
+
+@media(max-width:700px){
+  .vmv-row,.bpm-grid,.pestle-grid,.trigger-grid,.ro-grid{grid-template-columns:1fr}
+  .pc-meta{grid-template-columns:repeat(2,auto)}
+  .resp-row{grid-template-columns:1fr}
+  .hr-list{grid-template-columns:1fr}
+}
+</style>
 </head>
 <body>
-<div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-gold{background:#FFF3CD;color:#7a5800}
-.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--g100);
-  border-radius:var(--radius);border-left:3px solid var(--gold);margin:10px 0;color:var(--text-lt)}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-/* Procedure card */
-.proc-hero{background:var(--navy);border-radius:var(--radius-lg);padding:20px 24px;
-  margin-bottom:14px;display:flex;gap:24px;align-items:flex-start}
-.proc-hero .ph-badge{background:var(--gold);color:var(--navy);border-radius:8px;
-  padding:8px 14px;font-family:var(--mono);font-size:11px;font-weight:800;white-space:nowrap}
-.proc-hero .ph-info .ph-title{color:var(--white);font-size:16px;font-weight:700;margin-bottom:4px}
-.proc-hero .ph-info .ph-sub{color:rgba(255,255,255,.7);font-size:11px}
-.proc-hero .ph-meta{margin-left:auto;display:flex;flex-direction:column;gap:6px;text-align:right}
-.proc-hero .ph-meta span{color:rgba(255,255,255,.6);font-size:10px}
-.proc-hero .ph-meta strong{color:var(--gold-lt);font-size:11px}
-/* Section index */
-.sec-idx{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin:12px 0}
-.sec-idx-item{background:var(--g100);border-radius:var(--radius);padding:8px 12px;
-  border-left:3px solid var(--navy)}
-.sec-idx-item .si-num{font-family:var(--mono);font-size:10px;color:var(--gold);font-weight:700}
-.sec-idx-item .si-title{font-size:11px;color:var(--text);margin-top:2px}
-/* Related docs grid */
-.rel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin:12px 0}
-.rel-card{border-radius:var(--radius);padding:10px 12px;text-decoration:none;display:block;
-  transition:transform .12s;border:1px solid #e0e0e0}
-.rel-card:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.1)}
-.rel-card .rc-type{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
-  margin-bottom:3px}
-.rel-card .rc-title{font-size:11px;font-weight:600;color:var(--text)}
-.rel-card .rc-code{font-family:var(--mono);font-size:9px;color:var(--g400);margin-top:2px}
-</style><div class="proc-hero">
-  <div class="ph-badge">L2-IMS-400-P-01</div>
-  <div class="ph-info">
-    <div class="ph-title">Organisational Context</div>
-    <div class="ph-sub">ISO 9001:2015 §4 · ISO 14001:2015 §4 · ISO 45001:2018 §4 · ISO 50001:2018 §4</div>
-    <div class="ph-sub" style="margin-top:4px;color:rgba(255,255,255,.5)">All SAGCO activities within the IMS scope boundary — Jeddah Industrial City Phase 4</div>
+<div id="sidebar"></div>
+<div class="main">
+<div id="tb"></div>
+<div class="content">
+
+<!-- Back navigation -->
+<div class="back-row">
+  <a href="procedures.html" class="back-link">← Procedures Hub</a>
+  <a href="context.html"    class="back-link">Context Register</a>
+  <a href="pestle-swot.html"class="back-link">PESTLE &amp; SWOT</a>
+  <a href="scope.html"      class="back-link">Scope &amp; Process Map</a>
+</div>
+
+<!-- ═══ PROCEDURE COVER ══════════════════════════════════════ -->
+<div class="proc-cover">
+  <div class="pc-top">
+    <div class="pc-badge">L2-IMS-400-P-01</div>
+    <div class="pc-info">
+      <div class="pc-title">Organisational Context</div>
+      <div class="pc-sub">Defines how SAGCO establishes, maintains, and reviews its organisational context — covering strategic foundation, external &amp; internal issues, interested party requirements, IMS scope, and business process architecture.</div>
+      <div class="pc-sub" style="margin-top:4px;color:rgba(255,255,255,.4)">Jeddah Industrial City Phase 4 · All functions within IMS scope · No exclusions</div>
+      <div class="std-pills">
+        <span class="std-pill">ISO 9001:2015 §4</span>
+        <span class="std-pill">ISO 14001:2026 §4</span>
+        <span class="std-pill">ISO 45001:2018 §4</span>
+        <span class="std-pill">ISO 50001:2018 §4</span>
+      </div>
+    </div>
   </div>
-  <div class="ph-meta">
-    <span>Revision</span><strong>Rev.02</strong>
-    <span>Pages</span><strong>5</strong>
-    <span>Sections</span><strong>12</strong>
-    <span>Approved By</span><strong>CEO</strong>
+  <div class="pc-meta">
+    <div class="pc-meta-item"><div class="pc-meta-lbl">Revision</div><div class="pc-meta-val">Rev.01</div></div>
+    <div class="pc-meta-item"><div class="pc-meta-lbl">Effective Date</div><div class="pc-meta-val">June 2026</div></div>
+    <div class="pc-meta-item"><div class="pc-meta-lbl">Review Date</div><div class="pc-meta-val">June 2028</div></div>
+    <div class="pc-meta-item"><div class="pc-meta-lbl">Sections</div><div class="pc-meta-val">11</div></div>
+    <div class="pc-meta-item"><div class="pc-meta-lbl">Prepared By</div><div class="pc-meta-val">IMS Coordinator</div></div>
+    <div class="pc-meta-item"><div class="pc-meta-lbl">Checked By</div><div class="pc-meta-val">IMS Manager</div></div>
+    <div class="pc-meta-item"><div class="pc-meta-lbl">Approved By</div><div class="pc-meta-val">CEO ✓</div></div>
+    <div class="pc-meta-item"><div class="pc-meta-lbl">Status</div><div class="pc-meta-val">CEO Approved</div></div>
   </div>
 </div>
-<div class="req-text">This procedure defines how SAGCO determines its external and internal context, identifies interested parties, defines the IMS scope, and maps all IMS processes. All step-by-step instructions are fully incorporated — no additional L3 work instructions are required for Clause 4. The procedure absorbed all former standalone work instructions for PESTLE/SWOT review, interested parties assessment, scope control, and process mapping.</div>
 
-<div class="sec-banner">SECTION INDEX — 12 Sections</div><div class="sec-idx"><div class="sec-idx-item"><div class="si-num">§1</div><div class="si-title">Purpose and Scope</div></div><div class="sec-idx-item"><div class="si-num">§2</div><div class="si-title">Responsibilities</div></div><div class="sec-idx-item"><div class="si-num">§3</div><div class="si-title">References</div></div><div class="sec-idx-item"><div class="si-num">§4</div><div class="si-title">External and Internal Context (§4.1)</div></div><div class="sec-idx-item"><div class="si-num">§5</div><div class="si-title">Interested Parties (§4.2)</div></div><div class="sec-idx-item"><div class="si-num">§6</div><div class="si-title">IMS Scope (§4.3)</div></div><div class="sec-idx-item"><div class="si-num">§7</div><div class="si-title">IMS Processes (§4.4)</div></div><div class="sec-idx-item"><div class="si-num">§7.3</div><div class="si-title">Human Rights and Labour Context</div></div><div class="sec-idx-item"><div class="si-num">§8</div><div class="si-title">Risks and Opportunities Linkage</div></div><div class="sec-idx-item"><div class="si-num">§9</div><div class="si-title">Management of Change Trigger</div></div><div class="sec-idx-item"><div class="si-num">§10</div><div class="si-title">Retained Documented Information</div></div><div class="sec-idx-item"><div class="si-num">§11</div><div class="si-title">Related Procedures</div></div></div>
-<div class="sec-banner">ISO CLAUSE COVERAGE</div>
-<div class="tbl-wrap"><table class="tbl-stripe"><thead><tr><th>Standard</th><th>Clause</th><th>Requirement</th><th>How Addressed</th></tr></thead><tbody><tr><td>All §4</td><td>§4.1</td><td>External and internal issues</td><td>Annual PESTLE (38 factors) + SWOT (51 items) — Sheet 2</td></tr><tr><td>All §4</td><td>§4.2</td><td>Needs and expectations of interested parties</td><td>16 parties identified — Sheet 1 IP section</td></tr><tr><td>All §4</td><td>§4.3</td><td>Scope of the IMS</td><td>CEO-signed scope statement — Sheet 9</td></tr><tr><td>All §4</td><td>§4.4</td><td>IMS processes</td><td>16-process PDCA map — Sheet 9</td></tr><tr><td>ISO 14001</td><td>§4.1</td><td>Climate change as context issue</td><td>PESTLE Environmental category — Sheet 2</td></tr><tr><td>ISO 45001</td><td>§4.1</td><td>Worker and contractor context</td><td>Social PESTLE: NITAQAT, migrant worker welfare — Sheet 1</td></tr><tr><td>ISO 50001</td><td>§4.1</td><td>Energy context — Saudi energy regulation</td><td>Political PESTLE: SEEC/SEEP, carbon pricing — Sheet 2</td></tr></tbody></table></div>
+<!-- Scope statement -->
+<div class="scope-stmt">
+  <strong>Purpose:</strong> This procedure defines how SAGCO establishes, maintains, and reviews its understanding of the organisational context. It covers the strategic foundation, external and internal issues, interested party requirements, IMS scope, and business process architecture. It applies to all functions within the IMS scope at Jeddah Industrial City Phase 4 under all four ISO management systems. All step-by-step instructions are fully incorporated — no additional L3 work instructions are required for Clause 4.
+</div>
 
-<div class="sec-banner">RELATED REGISTERS, RECORDS & DOCUMENTATION</div><div class="rel-grid"><a href="context.html" class="rel-card" style="background:#E3F0FA">
-  <div class="rc-type" style="color:#1565C0">Register</div>
-  <div class="rc-title">Context Register</div>
-  <div class="rc-code">Sheet 1 — L4-410-R-01</div>
-</a><a href="pestle-swot.html" class="rel-card" style="background:#E3F0FA">
-  <div class="rc-type" style="color:#1565C0">Register</div>
-  <div class="rc-title">PESTLE & SWOT</div>
-  <div class="rc-code">Sheet 2 — L4-410-R-01</div>
-</a><a href="scope.html" class="rel-card" style="background:#E3F0FA">
-  <div class="rc-type" style="color:#1565C0">Register</div>
-  <div class="rc-title">Scope & Process Map</div>
-  <div class="rc-code">Sheet 9 — L4-430-R-01</div>
-</a><a href="risk-register.html" class="rel-card" style="background:#FFF9E6">
-  <div class="rc-type" style="color:#A05000">Register</div>
-  <div class="rc-title">Risk Register</div>
-  <div class="rc-code">Sheet 3 — L4-IMS-610-R-01</div>
-</a><a href="checklist.html" class="rel-card" style="background:#E8F5E9">
-  <div class="rc-type" style="color:#2E7D32">Checklist</div>
-  <div class="rc-title">Annual Review Checklist</div>
-  <div class="rc-code">Sheet 10 — L4-440-CL-01</div>
-</a><a href="moc.html" class="rel-card" style="background:#FFF9E6">
-  <div class="rc-type" style="color:#A05000">Register</div>
-  <div class="rc-title">MOC Register</div>
-  <div class="rc-code">Sheet 7 — L4-IMS-630-F-01</div>
-</a></div></div></div>
-<script>initPage("proc-c4.html");document.getElementById("tb").innerHTML=renderTopbar("L2-IMS-400-P-01 — Organisational Context","Rev.02 · 5 pages · 12 sections · Clause 4 All Standards");</script>
-</body></html>
+<!-- ═══ SECTION INDEX ═════════════════════════════════════════ -->
+<div class="s-hdr" style="background:var(--navy)">
+  <span class="sh-num">INDEX</span>
+  <span class="sh-title">Section Index</span>
+  <span class="sh-badge">11 Sections</span>
+</div>
+<div class="sec-idx">
+  <div class="si-item"><div class="si-num">§1</div><div class="si-title">Purpose and Scope</div></div>
+  <div class="si-item"><div class="si-num">§2</div><div class="si-title">Responsibilities</div></div>
+  <div class="si-item"><div class="si-num">§3</div><div class="si-title">References and Definitions</div></div>
+  <div class="si-item"><div class="si-num">§4</div><div class="si-title">ISO Requirement Overview</div></div>
+  <div class="si-item"><div class="si-num">§5</div><div class="si-title">Strategic &amp; Cultural Foundation</div></div>
+  <div class="si-item"><div class="si-num">§6</div><div class="si-title">External &amp; Internal Context (§4.1)</div></div>
+  <div class="si-item"><div class="si-num">§7</div><div class="si-title">Interested Parties (§4.2)</div></div>
+  <div class="si-item"><div class="si-num">§8</div><div class="si-title">IMS Scope (§4.3)</div></div>
+  <div class="si-item"><div class="si-num">§9</div><div class="si-title">Retained Documented Information</div></div>
+  <div class="si-item"><div class="si-num">§10</div><div class="si-title">Risks and Opportunities</div></div>
+  <div class="si-item"><div class="si-num">§11</div><div class="si-title">Related Procedures</div></div>
+</div>
+
+<!-- ═══ §2 RESPONSIBILITIES ══════════════════════════════════ -->
+<div class="s-hdr" style="background:#1a3a5e">
+  <span class="sh-num">§2</span>
+  <span class="sh-title">Responsibilities</span>
+  <span class="sh-badge">4 Roles</span>
+</div>
+<div class="s-body">
+  <div class="resp-grid">
+    <div class="resp-row">
+      <div class="resp-role"><span class="rr-icon">👔</span>CEO</div>
+      <div class="resp-duty">Approves and signs the L1 IMS Framework Manual. Reviews context findings at Management Review. Accountable for SAGCO's strategic direction.</div>
+    </div>
+    <div class="resp-row">
+      <div class="resp-role"><span class="rr-icon">📊</span>IMS Manager<br><small style="font-weight:400;font-size:10px;color:var(--text-lt)">(Steering Committee Chair)</small></div>
+      <div class="resp-duty">Facilitates the annual PESTLE/SWOT and interested parties review. Approves Business Process Map updates. Ensures strategic objectives cascade into IMS objectives.</div>
+    </div>
+    <div class="resp-row">
+      <div class="resp-role"><span class="rr-icon">🗂</span>IMS Coordinator</div>
+      <div class="resp-duty">Maintains the Context Register (WS1), PESTLE &amp; SWOT Summary (WS2), and Scope Register (WS9). Initiates mid-cycle reviews on trigger events. Coordinates NITAQAT monitoring with HR Manager.</div>
+    </div>
+    <div class="resp-row">
+      <div class="resp-role"><span class="rr-icon">👥</span>HR Manager</div>
+      <div class="resp-duty">Maintains workforce composition data. Tracks NITAQAT compliance. Monitors migrant worker welfare obligations. Reports human rights context changes to IMS Coordinator.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ §4 ISO REQUIREMENT OVERVIEW ══════════════════════════ -->
+<div class="s-hdr" style="background:#1a3a5e">
+  <span class="sh-num">§4</span>
+  <span class="sh-title">ISO Requirement Overview</span>
+  <span class="sh-badge">5 Standards</span>
+</div>
+<div class="s-body" style="padding:0">
+  <table class="iso-tbl">
+    <thead><tr><th>Standard / Clause</th><th>How This Procedure Addresses the Requirement</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="std-tag">ISO 9001</span>§4.1–§4.4</td>
+        <td>SAGCO integrates quality context into the IMS. Documented information is created, updated, and controlled per L2-IMS-700-P-04. Records covering the full quality evidence chain are retained per the IMS Documentation Register (WS17).</td>
+      </tr>
+      <tr>
+        <td><span class="std-tag">ISO 14001</span>§4.1–§4.4</td>
+        <td>Environmental PESTLE factors captured: NCEC permit requirements, climate risk, water scarcity, GHG baseline, and Saudi NDC commitments.</td>
+      </tr>
+      <tr>
+        <td><span class="std-tag">ISO 45001</span>§4.1–§4.4</td>
+        <td>OH&amp;S context captured: hazardous furnace environment, workforce composition (~800 direct, 152 contractors, 627 migrant workers), NITAQAT obligations, and heat stress risk.</td>
+      </tr>
+      <tr>
+        <td><span class="std-tag">ISO 50001</span>§4.1–§4.4</td>
+        <td>Energy management scope covers all five furnaces, packaging lines, compressed air systems, and lighting. Significant Energy Use (SEU) boundaries are maintained in the Energy Planning Register (WS8).</td>
+      </tr>
+      <tr>
+        <td><span class="std-tag">GRI 2021</span>UNGPs · Vision 2030</td>
+        <td>PESTLE captures TCFD climate risks, Saudi Vision 2030 requirements, and UN SDG alignment. Human rights context is governed by the Human Rights Policy (L1-IMS-PO-09).</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══ §5 STRATEGIC & CULTURAL FOUNDATION ════════════════════ -->
+<div class="s-hdr" style="background:#1a4a2e">
+  <span class="sh-num">§5</span>
+  <span class="sh-title">Strategic &amp; Cultural Foundation</span>
+  <span class="sh-badge">Vision · Mission · Values · BPM</span>
+</div>
+<div class="s-body">
+  <p style="font-size:11.5px;color:var(--text-lt);line-height:1.7;margin-bottom:14px">SAGCO's Vision, Mission, and Values are the strategic and cultural foundation of the IMS — formally defined, maintained, and CEO-approved in the L1 IMS Framework Manual (the single controlled source). The IMS follows a PDCA cascade: <strong>strategic foundation → context analysis → risk assessment → objectives &amp; targets → operational controls → monitoring &amp; review → continual improvement.</strong></p>
+  <div class="vmv-row">
+    <div class="vmv-card">
+      <div class="vmv-lbl">🎯 Vision</div>
+      <div class="vmv-text">To continuously strive to be a trusted and preferred supplier of glass packaging through building strategic partnerships, harnessing talented people, and committing to sustainability.</div>
+    </div>
+    <div class="vmv-card">
+      <div class="vmv-lbl">🏭 Mission</div>
+      <div class="vmv-text">To manufacture and deliver high-quality glass packaging solutions that enhance customers' operational performance while consistently meeting international quality, safety, and food-grade standards through lean, safe, and environmentally responsible processes.</div>
+    </div>
+  </div>
+  <div class="vmv-card" style="margin-bottom:16px">
+    <div class="vmv-lbl">⭐ Core Values</div>
+    <div class="values-row">
+      <span class="val-pill">Integrity</span>
+      <span class="val-pill">Respect</span>
+      <span class="val-pill">Accountability</span>
+      <span class="val-pill">Innovation</span>
+      <span class="val-pill">Customer Focus</span>
+    </div>
+    <div style="font-size:10.5px;color:var(--text-lt);margin-top:8px">Source: HR-signed Code of Conduct, CoC §3, May 2025</div>
+  </div>
+
+  <div style="font-size:11.5px;font-weight:700;color:var(--navy);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">📋 Business Process Map — FD-510-001</div>
+  <div class="bpm-grid">
+    <div class="bpm-card">
+      <div class="bpm-type">Core Business Processes</div>
+      <div class="bpm-items">Customer Account Management · New Product Development · Order Management · Production Management · Materials Management · Delivery Management · Invoicing Management</div>
+    </div>
+    <div class="bpm-card">
+      <div class="bpm-type">Management &amp; Support Processes</div>
+      <div class="bpm-items">Infrastructure · Human Resources · Finance · Document &amp; Data Management · Performance Management</div>
+    </div>
+    <div class="bpm-card">
+      <div class="bpm-type">Business System Management</div>
+      <div class="bpm-items">Responsibility · Planning · Review · Improvement — across all IMS Clauses 4–10</div>
+    </div>
+  </div>
+  <p style="font-size:10.5px;color:var(--text-lt);margin-top:10px">The Business Process Map is reviewed at each Management Review. Any update requires IMS Manager approval and CEO sign-off.</p>
+</div>
+
+<!-- ═══ §6 EXTERNAL & INTERNAL CONTEXT ════════════════════════ -->
+<div class="s-hdr" style="background:#4a2a10">
+  <span class="sh-num">§6</span>
+  <span class="sh-title">External &amp; Internal Context</span>
+  <span class="sh-badge">ISO §4.1 · PESTLE · SWOT</span>
+</div>
+<div class="s-body">
+  <p style="font-size:11.5px;color:var(--text-lt);line-height:1.7;margin-bottom:14px">SAGCO reviews its organisational context <strong>at least once per year</strong> and whenever a significant trigger event occurs. The review follows a structured sequence: Vision, Mission, and Values define strategic intent → PESTLE identifies external issues → internal context inputs (KPIs, audit results, Management Review outputs) identify internal issues → combined outputs feed risk assessment and objective planning in <strong>L2-IMS-600-P-03</strong>.</p>
+
+  <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">⚡ Mandatory Mid-Cycle Review Triggers</div>
+  <div class="trigger-grid">
+    <div class="t-card"><div class="t-icon">📋</div><div class="t-title">Regulatory Change</div><div class="t-desc">Significant change to NCEC, MEWA, or MHRSD requirements</div></div>
+    <div class="t-card"><div class="t-icon">📦</div><div class="t-title">Customer Requirements</div><div class="t-desc">Material change to customer requirements or specifications</div></div>
+    <div class="t-card"><div class="t-icon">⚙️</div><div class="t-title">Operational Change</div><div class="t-desc">New process, new product line, or significant equipment change</div></div>
+    <div class="t-card"><div class="t-icon">⚠️</div><div class="t-title">Systemic Incident</div><div class="t-desc">Incident with systemic IMS implications requiring context re-evaluation</div></div>
+  </div>
+
+  <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;margin:16px 0 10px">🌐 Key PESTLE Factors Currently Tracked</div>
+  <div class="pestle-grid">
+    <div class="p-card">
+      <div class="p-hdr"><div class="p-letter">P</div><div class="p-name">Political</div></div>
+      <ul class="p-items"><li>Saudi Vision 2030 targets</li><li>NAZAHA anti-corruption requirements</li><li>MODON industrial regulations</li><li>NITAQAT Saudisation obligations</li></ul>
+    </div>
+    <div class="p-card">
+      <div class="p-hdr"><div class="p-letter">E</div><div class="p-name">Economic</div></div>
+      <ul class="p-items"><li>HFO price volatility</li><li>ECM investment cycle</li><li>Foreign exchange exposure</li></ul>
+    </div>
+    <div class="p-card">
+      <div class="p-hdr"><div class="p-letter">S</div><div class="p-name">Social</div></div>
+      <ul class="p-items"><li>Migrant worker welfare</li><li>Gender diversity targets</li><li>Community relations</li></ul>
+    </div>
+    <div class="p-card">
+      <div class="p-hdr"><div class="p-letter">T</div><div class="p-name">Technological</div></div>
+      <ul class="p-items"><li>Furnace regeneration conversion</li><li>CEMS installation</li><li>ERP and IMS platform development</li></ul>
+    </div>
+    <div class="p-card">
+      <div class="p-hdr"><div class="p-letter">L</div><div class="p-name">Legal</div></div>
+      <ul class="p-items"><li>NCEC air quality permits</li><li>MEWA water and waste regulations</li><li>MHRSD labour requirements</li><li>SEEC Energy Efficiency Law</li><li>Saudi MO 3337 heat stress</li></ul>
+    </div>
+    <div class="p-card">
+      <div class="p-hdr"><div class="p-letter">E</div><div class="p-name">Environmental</div></div>
+      <ul class="p-items"><li>GHG emissions baseline</li><li>Water scarcity</li><li>Extreme heat risk</li><li>Saudi NDC commitments</li></ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ §7 INTERESTED PARTIES ════════════════════════════════ -->
+<div class="s-hdr" style="background:#1a3a5e">
+  <span class="sh-num">§7</span>
+  <span class="sh-title">Interested Parties</span>
+  <span class="sh-badge">ISO §4.2 · Annual Review · CEO Approval</span>
+</div>
+<div class="s-body">
+  <p style="font-size:11.5px;color:var(--text-lt);line-height:1.7;margin-bottom:14px">The IMS Coordinator and HR Manager identify and review interested parties annually. Their needs and expectations are recorded in <strong>Workbook Sheet 1</strong> (Context and Interested Parties Register), which requires CEO approval.</p>
+  <div class="ip-grid">
+    <div class="ip-card"><div class="ip-title">👷 Employees</div><div class="ip-sub">Saudi and non-Saudi nationals, and their worker representatives</div></div>
+    <div class="ip-card"><div class="ip-title">🔧 Contractors &amp; Subcontractors</div><div class="ip-sub">All on-site contractors and service providers</div></div>
+    <div class="ip-card"><div class="ip-title">📦 Customers</div><div class="ip-sub">Key customers in the food and beverage sector</div></div>
+    <div class="ip-card"><div class="ip-title">🏭 Suppliers</div><div class="ip-sub">Raw material and packaging suppliers</div></div>
+    <div class="ip-card"><div class="ip-title">⚖️ Regulators</div><div class="ip-sub">NCEC · MEWA · MHRSD · Civil Defense · SASO</div></div>
+    <div class="ip-card"><div class="ip-title">🏅 Certification Bodies</div><div class="ip-sub">TÜV Austria · SGS International</div></div>
+    <div class="ip-card"><div class="ip-title">🌍 Shareholders &amp; Community</div><div class="ip-sub">Shareholders, local community, and trade associations</div></div>
+  </div>
+
+  <div class="hr-box">
+    <div class="hr-box-hdr">
+      <span class="hb-icon">🤝</span>
+      <h4>Human Rights &amp; Labour Context</h4>
+    </div>
+    <div class="hr-stats">
+      <div class="hr-stat"><div class="hs-val">~800</div><div class="hs-lbl">Direct Employees</div></div>
+      <div class="hr-stat"><div class="hs-val">152</div><div class="hs-lbl">Contractors</div></div>
+      <div class="hr-stat"><div class="hs-val">627</div><div class="hs-lbl">Migrant Workers</div></div>
+    </div>
+    <ul class="hr-list">
+      <li>Migrant worker rights and welfare under Saudi Labour Law M/51</li>
+      <li>NITAQAT Saudisation compliance</li>
+      <li>Prohibition of forced labour, child labour, and debt bondage</li>
+      <li>Freedom of association within the Saudi regulatory framework</li>
+      <li>Non-discrimination, equal opportunity, and gender diversity targets</li>
+    </ul>
+    <div class="hr-policy">Controlling document: Human Rights Policy — L1-IMS-PO-09</div>
+  </div>
+</div>
+
+<!-- ═══ §8 IMS SCOPE ══════════════════════════════════════════ -->
+<div class="s-hdr" style="background:#1a2340">
+  <span class="sh-num">§8</span>
+  <span class="sh-title">IMS Scope</span>
+  <span class="sh-badge">ISO §4.3 · CEO-Signed · No Exclusions</span>
+</div>
+<div class="s-body">
+  <p style="font-size:12px;color:var(--text);line-height:1.8;margin-bottom:10px">The IMS covers <strong>glass container and bottle manufacturing at Jeddah Industrial City, Phase 4</strong> — including all furnaces, forming, annealing, inspection, packaging, warehouse operations, and all associated management and support processes — under ISO 9001:2015, ISO 14001:2026, ISO 45001:2018, and ISO 50001:2018. The certified QMS (ISO 9001:2015) and Food Safety MS (ISO 22000:2018) are integrated within this scope. <strong>No exclusions apply.</strong></p>
+  <p style="font-size:11.5px;color:var(--text-lt);line-height:1.7">The authoritative IMS Scope Statement is maintained in the <strong>L1 IMS Framework Manual</strong>. Any proposed change to scope requires a Management of Change (MoC) assessment per <strong>L2-IMS-600-P-03</strong> before CEO approval.</p>
+  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+    <a href="scope.html" class="rel-card" style="background:#EBF3FB;border-color:#B5D4F4;max-width:200px">
+      <div class="rc-type" style="color:#1565C0">📄 Register</div>
+      <div class="rc-title">Scope &amp; Process Map</div>
+      <div class="rc-code">WS9 — L4-430-RC-01</div>
+    </a>
+  </div>
+</div>
+
+<!-- ═══ §9 RETAINED DOCUMENTED INFORMATION ════════════════════ -->
+<div class="s-hdr" style="background:#2E4A1E">
+  <span class="sh-num">§9</span>
+  <span class="sh-title">Retained Documented Information</span>
+  <span class="sh-badge">7 Documents</span>
+</div>
+<div class="s-body" style="padding:0">
+  <table class="ret-tbl">
+    <thead><tr><th>Document Code</th><th>Description</th><th>Owner</th></tr></thead>
+    <tbody>
+      <tr><td>L1 IMS Framework Manual</td><td>Vision, Mission, Values, IMS Scope, Nine Policies (PO-01 to PO-09), Business Process Map FD-510-001</td><td>CEO</td></tr>
+      <tr><td>L4-410-RC-01</td><td>Context and Interested Parties Register — Workbook Sheet 1</td><td>IMS Coordinator</td></tr>
+      <tr><td>L4-410-FRM-01</td><td>IMS Organisational Context Worksheet</td><td>IMS Coordinator</td></tr>
+      <tr><td>L4-410-FRM-02</td><td>SWOT Analysis Worksheet</td><td>IMS Manager</td></tr>
+      <tr><td>L4-410-CL-01</td><td>Annual Context Review Completion Checklist</td><td>IMS Coordinator / CEO</td></tr>
+      <tr><td>L4-430-RC-01</td><td>IMS Scope Statement (within L1 IMS Framework Manual)</td><td>CEO</td></tr>
+      <tr><td>L1-IMS-PO-09</td><td>Human Rights Policy</td><td>CEO</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══ §10 RISKS AND OPPORTUNITIES ══════════════════════════ -->
+<div class="s-hdr" style="background:#4a1a1a">
+  <span class="sh-num">§10</span>
+  <span class="sh-title">Risks and Opportunities</span>
+  <span class="sh-badge">Detailed treatment → L2-IMS-600-P-03</span>
+</div>
+<div class="s-body">
+  <p style="font-size:11px;color:var(--text-lt);margin-bottom:12px">Detailed risk treatment is managed through <strong>L2-IMS-600-P-03</strong> and the IMS Consolidated Risk Register (Workbook Sheet 3). Key context-specific risks and opportunities are noted below.</p>
+  <div class="ro-grid">
+    <div class="ro-card risks">
+      <h4>🔴 Risks</h4>
+      <ul class="ro-list">
+        <li>Incomplete PESTLE or SWOT analysis leading to unidentified strategic risks</li>
+        <li>Failure to update context register following significant trigger events</li>
+        <li>Regulatory changes not captured before their effective date</li>
+        <li>Human rights issues in workforce or supply chain not identified in time</li>
+        <li>NITAQAT non-compliance resulting in operational restrictions</li>
+        <li>Strategic objectives not translated into measurable IMS objectives</li>
+      </ul>
+    </div>
+    <div class="ro-card opps">
+      <h4>🟢 Opportunities</h4>
+      <ul class="ro-list">
+        <li>Proactive context analysis identifying early signals of regulatory or market change</li>
+        <li>Stakeholder engagement revealing customer ESG and sustainability requirements</li>
+        <li>Alignment with Saudi Vision 2030 providing competitive differentiation</li>
+        <li>Human rights due diligence improving SAGCO's position in customer ESG assessments</li>
+        <li>Rigorous context traceability demonstrating strategic planning maturity to TÜV Austria</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ §11 RELATED PROCEDURES & REGISTERS ════════════════════ -->
+<div class="s-hdr" style="background:#1a2340">
+  <span class="sh-num">§11</span>
+  <span class="sh-title">Related Procedures &amp; Registers</span>
+</div>
+<div class="s-body">
+  <div class="rel-grid">
+    <a href="context.html" class="rel-card" style="background:#EBF3FB;border-color:#B5D4F4">
+      <div class="rc-type" style="color:#1565C0">📋 Register</div>
+      <div class="rc-title">Context Register</div>
+      <div class="rc-code">WS1 — L4-410-RC-01</div>
+    </a>
+    <a href="pestle-swot.html" class="rel-card" style="background:#EBF3FB;border-color:#B5D4F4">
+      <div class="rc-type" style="color:#1565C0">📊 Register</div>
+      <div class="rc-title">PESTLE &amp; SWOT</div>
+      <div class="rc-code">WS2 — L4-410-FRM-02</div>
+    </a>
+    <a href="scope.html" class="rel-card" style="background:#EBF3FB;border-color:#B5D4F4">
+      <div class="rc-type" style="color:#1565C0">📄 Register</div>
+      <div class="rc-title">Scope &amp; Process Map</div>
+      <div class="rc-code">WS9 — L4-430-RC-01</div>
+    </a>
+    <a href="risk-register.html" class="rel-card" style="background:#FFF9E6;border-color:#FFE082">
+      <div class="rc-type" style="color:#A05000">⚠️ Register</div>
+      <div class="rc-title">Risk Register</div>
+      <div class="rc-code">WS3 — L4-IMS-610-R-01</div>
+    </a>
+    <a href="checklist.html" class="rel-card" style="background:#F0FFF4;border-color:#C8E6C9">
+      <div class="rc-type" style="color:#2E7D32">✅ Checklist</div>
+      <div class="rc-title">Annual Review Checklist</div>
+      <div class="rc-code">WS10 — L4-410-CL-01</div>
+    </a>
+    <a href="moc.html" class="rel-card" style="background:#FFF9E6;border-color:#FFE082">
+      <div class="rc-type" style="color:#A05000">🔄 Register</div>
+      <div class="rc-title">MOC Register</div>
+      <div class="rc-code">WS7 — L4-IMS-630-F-01</div>
+    </a>
+    <a href="proc-c5.html" class="rel-card" style="background:#F3E5F5;border-color:#CE93D8">
+      <div class="rc-type" style="color:#6A1B9A">📘 Procedure</div>
+      <div class="rc-title">Leadership &amp; Commitment</div>
+      <div class="rc-code">L2-IMS-500-P-02</div>
+    </a>
+    <a href="proc-c6.html" class="rel-card" style="background:#F3E5F5;border-color:#CE93D8">
+      <div class="rc-type" style="color:#6A1B9A">📘 Procedure</div>
+      <div class="rc-title">Planning &amp; Risk Management</div>
+      <div class="rc-code">L2-IMS-600-P-03</div>
+    </a>
+    <a href="proc-c7.html" class="rel-card" style="background:#F3E5F5;border-color:#CE93D8">
+      <div class="rc-type" style="color:#6A1B9A">📘 Procedure</div>
+      <div class="rc-title">Support</div>
+      <div class="rc-code">L2-IMS-700-P-04</div>
+    </a>
+  </div>
+</div>
+
+<!-- Document footer -->
+<div class="proc-footer">
+  <span>L2-IMS-400-P-01 · Organisational Context · Rev.01 · June 2026 · Review: June 2028</span>
+  <span>Prepared: IMS Coordinator · Checked: IMS Manager · Approved: CEO</span>
+  <span class="pf-controlled">⚠ This document is stored on a secure electronic database and becomes uncontrolled once printed</span>
+</div>
+
+</div><!-- .content -->
+</div><!-- .main -->
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  initPage('proc-c4.html');
+  document.getElementById('tb').innerHTML = renderTopbar(
+    'L2-IMS-400-P-01 — Organisational Context',
+    'Rev.01 · June 2026 · 11 Sections · ISO §4 All Standards · CEO Approved'
+  );
+  IMS_AUTH.injectUserBar();
+});
+</script>
+</body>
+</html>
