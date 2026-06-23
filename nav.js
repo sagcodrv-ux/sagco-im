@@ -458,11 +458,36 @@ function filterTree(q) {
    TOPBAR
 ══════════════════════════════════════════════════════════════ */
 function printCurrentPage() {
+  /* Expand collapsed nav nodes */
   document.querySelectorAll('.nkids').forEach(function(el) {
     el._wc = (el.style.display === 'none');
     el.style.display = 'block';
   });
+
+  /* Inject override CSS that removes all layout/overflow constraints for print */
+  var styleId = 'sagco-print-override';
+  if (!document.getElementById(styleId)) {
+    var s = document.createElement('style');
+    s.id  = styleId;
+    s.setAttribute('media', 'print');
+    s.textContent = [
+      '@page { size:A4 portrait; margin:12mm 12mm 15mm 12mm; }',
+      'html,body { width:100%!important; height:auto!important; overflow:visible!important; background:#fff!important; }',
+      '.main { display:block!important; margin-left:0!important; padding-left:0!important; width:100%!important; height:auto!important; overflow:visible!important; }',
+      '.content { display:block!important; width:100%!important; max-width:100%!important; height:auto!important; overflow:visible!important; padding:0!important; }',
+      '#sidebar,#tb,.back-row,.pp-back,.pp-print-btn,.topbar-btn,.no-print,button { display:none!important; }',
+      '* { overflow:visible!important; max-height:none!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; box-shadow:none!important; }',
+      'table { page-break-inside:auto!important; width:100%!important; }',
+      'tr { page-break-inside:avoid!important; }',
+      'thead { display:table-header-group!important; }',
+      'a::after { content:none!important; }'
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
   window.print();
+
+  /* Restore collapsed state */
   setTimeout(function() {
     document.querySelectorAll('.nkids').forEach(function(el) {
       if (el._wc) el.style.display = 'none';
