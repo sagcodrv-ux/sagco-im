@@ -1,103 +1,664 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SAGCO IMS — L2-IMS-900-P-06 — Performance Evaluation</title>
 <link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
+<script src="auth.js"></script>
+<script src="data.js"></script>
+<script src="nav.js"></script>
+<style>
+*{box-sizing:border-box;min-width:0}
+:root{
+  --navy:#1a2340;--gold:#c8a84b;--gold-lt:#f0d98a;
+  --g100:#f7f9fc;--g200:#edf0f5;--g300:#d0d8e8;
+  --text:#2d3748;--text-lt:#64748b;--mono:'Courier New',monospace;
+}
+.pp-cover,.pp-scope,.pp-s-hdr,.pp-s-body,.pp-sec-idx,.pp-footer,.pp-back{width:100%;box-sizing:border-box;}
+.pp-back{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.pp-back a{font-size:11px;color:var(--navy);text-decoration:none;padding:5px 12px;
+  border:1px solid var(--g300);border-radius:20px;background:#fff;transition:all .15s;}
+.pp-back a:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
+/* Cover */
+.pp-cover{background:linear-gradient(145deg,#0d1520 0%,#1a2340 55%,#0d2235 100%);
+  border-radius:12px;padding:28px 32px;margin-bottom:20px;position:relative;overflow:hidden;color:#fff;}
+.pp-cover::before{content:'';position:absolute;top:-80px;right:-80px;width:360px;height:360px;
+  background:radial-gradient(circle,rgba(200,168,75,.12) 0%,transparent 70%);pointer-events:none;}
+.pp-cover::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--gold),transparent);}
+.pp-ct{display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;position:relative;z-index:1}
+.pp-badge{background:var(--gold);color:var(--navy);border-radius:8px;padding:10px 16px;
+  font-family:var(--mono);font-size:12px;font-weight:800;white-space:nowrap;flex-shrink:0;}
+.pp-info{flex:1;min-width:200px}
+.pp-title{font-size:20px;font-weight:800;color:#fff;margin-bottom:6px;letter-spacing:-.3px}
+.pp-sub{font-size:12px;color:rgba(255,255,255,.65);line-height:1.6;margin-bottom:3px}
+.pp-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;position:relative;z-index:1}
+.pp-pill{padding:3px 12px;border-radius:20px;font-size:10px;font-weight:600;
+  background:rgba(200,168,75,.15);border:1px solid rgba(200,168,75,.35);color:var(--gold-lt);}
+.pp-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:20px;
+  position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.1);padding-top:16px;width:100%;}
+.pp-mi{padding:8px 16px;border-right:1px solid rgba(255,255,255,.1)}
+.pp-mi:first-child{padding-left:0}.pp-mi:last-child{border-right:none}
+.pp-ml{font-size:9px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
+.pp-mv{font-size:12px;font-weight:700;color:var(--gold-lt)}
+.pp-scope{font-size:11.5px;line-height:1.7;padding:12px 16px;background:var(--g100);
+  border-radius:8px;border-left:3px solid var(--gold);margin-bottom:20px;color:var(--text-lt);}
+.pp-s-hdr{display:flex;align-items:center;gap:10px;padding:11px 18px;
+  border-radius:8px 8px 0 0;margin-top:24px;margin-bottom:0;}
+.pp-snum{background:var(--gold);color:var(--navy);border-radius:6px;
+  padding:3px 10px;font-family:var(--mono);font-size:10px;font-weight:800;white-space:nowrap;}
+.pp-stitle{font-size:13px;font-weight:700;color:#fff;flex:1}
+.pp-sbadge{font-size:10px;color:rgba(255,255,255,.6);background:rgba(255,255,255,.1);
+  padding:2px 10px;border-radius:20px;white-space:nowrap}
+.pp-s-body{background:#fff;border:1px solid var(--g300);border-top:none;
+  border-radius:0 0 8px 8px;padding:16px 20px;}
+/* Section index */
+.pp-sec-idx{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px;
+  background:linear-gradient(160deg,#f0f4fa 0%,#e8edf5 100%);
+  border:1px solid #d4dbe8;border-top:none;border-radius:0 0 8px 8px;}
+.pp-si{background:rgba(255,255,255,.85);border:1px solid rgba(26,35,64,.12);border-radius:6px;
+  padding:10px 14px;border-left:3px solid var(--gold);box-sizing:border-box;min-width:0;
+  text-decoration:none;display:block;transition:all .18s;}
+.pp-si:hover{background:var(--navy);border-color:var(--navy);transform:translateY(-1px);}
+.pp-si:hover .pp-sin{color:var(--gold-lt)}.pp-si:hover .pp-sit{color:#fff}
+.pp-sin{font-family:var(--mono);font-size:10px;color:var(--gold);font-weight:700}
+.pp-sit{font-size:11.5px;color:var(--navy);margin-top:3px;font-weight:600}
+/* Tables */
+.pp-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+.pp-tbl thead tr{background:var(--navy)}
+.pp-tbl thead th{color:#fff;padding:9px 12px;text-align:left;font-weight:600;
+  font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.pp-tbl tbody tr:nth-child(even){background:var(--g100)}
+.pp-tbl tbody tr:hover{background:#EBF3FB}
+.pp-tbl td{padding:9px 12px;border-bottom:1px solid var(--g200);vertical-align:top;color:var(--text);line-height:1.6}
+.pp-tbl td:first-child{font-weight:700;color:var(--navy);white-space:nowrap}
+.pp-tag{display:inline-block;background:#EBF3FB;color:#1565C0;border:1px solid #B5D4F4;
+  border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;font-family:var(--mono);margin-right:4px;white-space:nowrap}
+/* Responsibilities */
+.pp-resp{display:flex;flex-direction:column;gap:0}
+.pp-rrow{display:grid;grid-template-columns:200px 1fr;gap:12px;border-bottom:1px solid var(--g200);padding:10px 0}
+.pp-rrow:last-child{border-bottom:none}
+.pp-rrole{font-size:12px;font-weight:700;color:var(--navy)}
+.pp-rduty{font-size:11.5px;color:var(--text);line-height:1.7}
+/* Defs */
+.pp-def-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%;box-sizing:border-box;}
+.pp-def{background:var(--g100);border:1px solid var(--g300);border-radius:6px;
+  padding:10px 14px;border-left:3px solid var(--gold);min-width:0;}
+.pp-def-term{font-size:11.5px;font-weight:700;color:var(--navy);margin-bottom:4px}
+.pp-def-body{font-size:11px;color:var(--text-lt);line-height:1.6}
+.pp-abbr-wrap{display:flex;flex-wrap:wrap;gap:6px;width:100%;box-sizing:border-box;}
+.pp-abbr{background:var(--navy);color:var(--gold-lt);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600}
+/* 4-layer workflow */
+.pp-layers{display:flex;flex-direction:column;gap:8px;margin-top:12px;width:100%;}
+.pp-layer{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-radius:8px;border:1px solid var(--g300)}
+.pp-layer.l1{background:#f0fdf4;border-color:#bbf7d0}
+.pp-layer.l2{background:#eff6ff;border-color:#bfdbfe}
+.pp-layer.l3{background:#faf5ff;border-color:#e9d5ff}
+.pp-layer.l4{background:#fffbeb;border-color:#fde68a}
+.pp-layer .ly-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:800;flex-shrink:0}
+.pp-layer.l1 .ly-num{background:#16a34a;color:#fff}
+.pp-layer.l2 .ly-num{background:#2563eb;color:#fff}
+.pp-layer.l3 .ly-num{background:#7c3aed;color:#fff}
+.pp-layer.l4 .ly-num{background:#d97706;color:#fff}
+.pp-layer .ly-title{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:3px}
+.pp-layer .ly-desc{font-size:11px;color:var(--text-lt);line-height:1.6}
+/* 5 discipline reports */
+.pp-disc-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px;width:100%;}
+.pp-disc{border-radius:8px;padding:11px 13px;min-width:0;border:1px solid}
+.pp-disc.dq{background:#EBF3FB;border-color:#B5D4F4}
+.pp-disc.de{background:#F0FFF4;border-color:#bbf7d0}
+.pp-disc.do{background:#FFF5F5;border-color:#fecdd3}
+.pp-disc.dn{background:#fffbeb;border-color:#fde68a}
+.pp-disc.ds{background:#faf5ff;border-color:#e9d5ff}
+.pp-disc .dc-title{font-size:10.5px;font-weight:800;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.pp-disc.dq .dc-title{color:#1565C0}.pp-disc.de .dc-title{color:#16a34a}
+.pp-disc.do .dc-title{color:#dc2626}.pp-disc.dn .dc-title{color:#d97706}
+.pp-disc.ds .dc-title{color:#7c3aed}
+.pp-disc .dc-owner{font-size:9.5px;color:var(--text-lt);margin-bottom:6px}
+.pp-disc ul{list-style:none;padding:0;margin:0}
+.pp-disc ul li{font-size:10px;color:var(--text);padding:2px 0 2px 10px;position:relative;line-height:1.4}
+.pp-disc ul li::before{content:'·';position:absolute;left:0;font-weight:700}
+/* RAG cards */
+.pp-rag{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px;width:100%;}
+.pp-rag-card{border-radius:8px;padding:12px 14px;min-width:0}
+.pp-rag-card.green{background:#f0fdf4;border:1px solid #bbf7d0}
+.pp-rag-card.amber{background:#fffbeb;border:1px solid #fde68a}
+.pp-rag-card.red{background:#fff1f2;border:1px solid #fecdd3}
+.pp-rag-card .rg-dot{width:14px;height:14px;border-radius:50%;margin-bottom:6px}
+.pp-rag-card.green .rg-dot{background:#16a34a}
+.pp-rag-card.amber .rg-dot{background:#d97706}
+.pp-rag-card.red .rg-dot{background:#dc2626}
+.pp-rag-card .rg-label{font-size:11px;font-weight:700;color:var(--navy)}
+.pp-rag-card .rg-desc{font-size:10.5px;color:var(--text-lt);margin-top:3px;line-height:1.5}
+/* Audit 7-step cycle */
+.pp-audit-cycle{display:flex;align-items:center;flex-wrap:wrap;gap:0;margin-top:10px;width:100%;}
+.pp-ac-step{background:var(--navy);color:#fff;border-radius:6px;padding:7px 12px;
+  font-size:10.5px;font-weight:600;white-space:nowrap;flex-shrink:0}
+.pp-ac-arr{color:var(--gold);font-size:14px;margin:0 3px;flex-shrink:0}
+/* MR inputs list */
+.pp-mr-list{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:10px;width:100%;}
+.pp-mr-item{display:flex;align-items:center;gap:8px;padding:7px 12px;
+  background:var(--g100);border-radius:6px;border-left:3px solid var(--gold);
+  font-size:11px;color:var(--text)}
+.pp-mr-item .mi-ws{font-family:var(--mono);font-size:9.5px;color:var(--gold);font-weight:700;flex-shrink:0}
+/* Retained */
+.pp-ret-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+.pp-ret-tbl thead tr{background:#2E4A1E}
+.pp-ret-tbl thead th{color:#fff;padding:9px 12px;text-align:left;font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
+.pp-ret-tbl td{padding:9px 12px;border-bottom:1px solid var(--g200);vertical-align:top;color:var(--text);line-height:1.5}
+.pp-ret-tbl td:first-child{font-family:var(--mono);font-size:10.5px;font-weight:700;color:#2E4A1E;white-space:nowrap;width:175px}
+.pp-ret-tbl tbody tr:nth-child(even){background:var(--g100)}
+/* R&O */
+.pp-ro-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px;width:100%;}
+.pp-ro-card{border-radius:8px;padding:14px 16px}
+.pp-ro-card.risks{background:#FFF5F5;border:1px solid #FFCDD2}
+.pp-ro-card.opps{background:#F0FFF4;border:1px solid #C8E6C9}
+.pp-ro-card h4{font-size:11px;font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em}
+.pp-ro-card.risks h4{color:#B71C1C}.pp-ro-card.opps h4{color:#1B5E20}
+.pp-ro-list{list-style:none;padding:0;margin:0}
+.pp-ro-list li{font-size:11px;color:var(--text);line-height:1.7;
+  padding:3px 0 3px 14px;position:relative;border-bottom:1px solid rgba(0,0,0,.04)}
+.pp-ro-list li:last-child{border-bottom:none}
+.pp-ro-card.risks .pp-ro-list li::before{content:'▸';position:absolute;left:0;color:#B71C1C}
+.pp-ro-card.opps  .pp-ro-list li::before{content:'▸';position:absolute;left:0;color:#1B5E20}
+/* Related */
+.pp-rel-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;}
+.pp-rel{border-radius:8px;padding:11px 14px;text-decoration:none;display:block;
+  transition:transform .12s,box-shadow .12s;border:1px solid var(--g300);background:#fff;min-width:0}
+.pp-rel:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.1)}
+.pp-rel .rt{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.pp-rel .rn{font-size:11.5px;font-weight:600;color:var(--text);margin-bottom:3px}
+.pp-rel .rc{font-family:var(--mono);font-size:9px;color:var(--text-lt)}
+/* Footer */
+.pp-footer{margin-top:20px;padding:10px 16px;background:var(--g100);border:1px solid var(--g300);
+  border-radius:8px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;
+  font-size:10px;color:var(--text-lt);}
+.pp-footer .pfc{color:#dc2626;font-weight:600}
+.pp-tbl-wrap{overflow-x:auto;width:100%;box-sizing:border-box;}
+@media(max-width:900px){
+  .pp-disc-grid{grid-template-columns:repeat(3,1fr)}
+  .pp-sec-idx{grid-template-columns:repeat(2,1fr)}
+  .pp-rel-grid{grid-template-columns:repeat(2,1fr)}
+  .pp-mr-list{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  .pp-disc-grid{grid-template-columns:repeat(2,1fr)}
+  .pp-sec-idx,.pp-rel-grid,.pp-ro-grid,.pp-def-grid,.pp-rag{grid-template-columns:1fr}
+  .pp-rrow{grid-template-columns:1fr}
+  .pp-meta{grid-template-columns:repeat(2,1fr)}
+}
+.pp-sec-idx *,.pp-disc-grid *,.pp-rag *,.pp-ro-grid *,.pp-rel-grid *,.pp-def-grid *,.pp-mr-list *{min-width:0;word-break:break-word;}
+</style>
 </head>
 <body>
-<div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-gold{background:#FFF3CD;color:#7a5800}
-.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--g100);
-  border-radius:var(--radius);border-left:3px solid var(--gold);margin:10px 0;color:var(--text-lt)}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-/* Procedure card */
-.proc-hero{background:var(--navy);border-radius:var(--radius-lg);padding:20px 24px;
-  margin-bottom:14px;display:flex;gap:24px;align-items:flex-start}
-.proc-hero .ph-badge{background:var(--gold);color:var(--navy);border-radius:8px;
-  padding:8px 14px;font-family:var(--mono);font-size:11px;font-weight:800;white-space:nowrap}
-.proc-hero .ph-info .ph-title{color:var(--white);font-size:16px;font-weight:700;margin-bottom:4px}
-.proc-hero .ph-info .ph-sub{color:rgba(255,255,255,.7);font-size:11px}
-.proc-hero .ph-meta{margin-left:auto;display:flex;flex-direction:column;gap:6px;text-align:right}
-.proc-hero .ph-meta span{color:rgba(255,255,255,.6);font-size:10px}
-.proc-hero .ph-meta strong{color:var(--gold-lt);font-size:11px}
-/* Section index */
-.sec-idx{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin:12px 0}
-.sec-idx-item{background:var(--g100);border-radius:var(--radius);padding:8px 12px;
-  border-left:3px solid var(--navy)}
-.sec-idx-item .si-num{font-family:var(--mono);font-size:10px;color:var(--gold);font-weight:700}
-.sec-idx-item .si-title{font-size:11px;color:var(--text);margin-top:2px}
-/* Related docs grid */
-.rel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin:12px 0}
-.rel-card{border-radius:var(--radius);padding:10px 12px;text-decoration:none;display:block;
-  transition:transform .12s;border:1px solid #e0e0e0}
-.rel-card:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.1)}
-.rel-card .rc-type{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
-  margin-bottom:3px}
-.rel-card .rc-title{font-size:11px;font-weight:600;color:var(--text)}
-.rel-card .rc-code{font-family:var(--mono);font-size:9px;color:var(--g400);margin-top:2px}
-</style><div class="proc-hero">
-  <div class="ph-badge">L2-IMS-900-P-06</div>
-  <div class="ph-info">
-    <div class="ph-title">Performance Evaluation</div>
-    <div class="ph-sub">ISO 9001:2015 §9 · ISO 14001:2015 §9 · ISO 45001:2018 §9 · ISO 50001:2018 §9</div>
-    <div class="ph-sub" style="margin-top:4px;color:rgba(255,255,255,.5)">All IMS monitoring, measurement, internal audit, and management review activities</div>
+<div id="sidebar"></div>
+<div class="main">
+<div id="tb"></div>
+<div class="content" style="width:100%;box-sizing:border-box">
+
+<div class="pp-back">
+  <a href="procedures.html">← Procedures Hub</a>
+  <a href="kpi-dashboard.html">KPI Dashboard</a>
+  <a href="audit-programme.html">Internal Audit Programme</a>
+  <a href="management-review.html">Management Review</a>
+  <a href="compliance-eval.html">Compliance Evaluation</a>
+</div>
+
+<!-- ═══ COVER ════════════════════════════════════════════ -->
+<div class="pp-cover">
+  <div class="pp-ct">
+    <div class="pp-badge">L2-IMS-900-P-06</div>
+    <div class="pp-info">
+      <div class="pp-title">Performance Evaluation</div>
+      <div class="pp-sub">Defines requirements for monitoring, measuring, analysing, and evaluating SAGCO's IMS performance — quality, environmental (GHG Scope 1/2/3), OH&amp;S, energy, human rights, supplier ESG, and sustainability — including internal audits, compliance evaluations, management reviews, and the ESG reporting workflow.</div>
+      <div class="pp-sub" style="color:rgba(255,255,255,.4)">4-layer ESG reporting workflow · 5 discipline review reports · CEO-chaired Management Review</div>
+      <div class="pp-pills">
+        <span class="pp-pill">ISO 9001:2015 §9</span>
+        <span class="pp-pill">ISO 14001:2026 §9</span>
+        <span class="pp-pill">ISO 45001:2018 §9</span>
+        <span class="pp-pill">ISO 50001:2018 §9</span>
+        <span class="pp-pill">GRI 2021 · SASB · ISO 14064</span>
+      </div>
+    </div>
   </div>
-  <div class="ph-meta">
-    <span>Revision</span><strong>Rev.02</strong>
-    <span>Pages</span><strong>7</strong>
-    <span>Sections</span><strong>13</strong>
-    <span>Approved By</span><strong>CEO</strong>
+  <div class="pp-meta">
+    <div class="pp-mi"><div class="pp-ml">Revision</div><div class="pp-mv">Rev.01</div></div>
+    <div class="pp-mi"><div class="pp-ml">Effective Date</div><div class="pp-mv">June 2026</div></div>
+    <div class="pp-mi"><div class="pp-ml">Review Date</div><div class="pp-mv">June 2028</div></div>
+    <div class="pp-mi"><div class="pp-ml">Sections</div><div class="pp-mv">13</div></div>
+    <div class="pp-mi"><div class="pp-ml">Prepared By</div><div class="pp-mv">IMS Coordinator</div></div>
+    <div class="pp-mi"><div class="pp-ml">Checked By</div><div class="pp-mv">IMS Manager</div></div>
+    <div class="pp-mi"><div class="pp-ml">Approved By</div><div class="pp-mv">CEO ✓</div></div>
+    <div class="pp-mi"><div class="pp-ml">Status</div><div class="pp-mv">CEO Approved</div></div>
   </div>
 </div>
-<div class="req-text">This procedure defines the complete performance evaluation framework: KPI monitoring (§9.1), compliance evaluation (§9.1.2), internal audit programme (§9.2), and management review (§9.3). Section 5 contains the 4-layer ESG reporting workflow (IMS Records → 5 Discipline Reports → Integrated ESG Report → Management Review). Section 6 covers 12 ESG data sets mapped to GRI disclosures.</div>
 
-<div class="sec-banner">SECTION INDEX — 13 Sections</div><div class="sec-idx"><div class="sec-idx-item"><div class="si-num">§1</div><div class="si-title">Purpose and Scope</div></div><div class="sec-idx-item"><div class="si-num">§2</div><div class="si-title">Responsibilities</div></div><div class="sec-idx-item"><div class="si-num">§3</div><div class="si-title">References</div></div><div class="sec-idx-item"><div class="si-num">§4</div><div class="si-title">Monitoring Measurement Analysis and Evaluation (§9.1)</div></div><div class="sec-idx-item"><div class="si-num">§5</div><div class="si-title">4-Layer ESG Reporting Workflow</div></div><div class="sec-idx-item"><div class="si-num">§6</div><div class="si-title">ESG Monitoring — 12 Data Sets mapped to GRI</div></div><div class="sec-idx-item"><div class="si-num">§7</div><div class="si-title">Compliance Evaluation (§9.1.2)</div></div><div class="sec-idx-item"><div class="si-num">§8</div><div class="si-title">Internal Audit (§9.2)</div></div><div class="sec-idx-item"><div class="si-num">§9</div><div class="si-title">Management Review (§9.3) — 15 Mandatory Inputs</div></div><div class="sec-idx-item"><div class="si-num">§10</div><div class="si-title">Management Review Outputs — 7 Categories</div></div><div class="sec-idx-item"><div class="si-num">§11</div><div class="si-title">KPI Dashboard Reference</div></div><div class="sec-idx-item"><div class="si-num">§12</div><div class="si-title">Retained Documented Information</div></div><div class="sec-idx-item"><div class="si-num">§13</div><div class="si-title">Related Procedures</div></div></div>
-<div class="sec-banner">ISO CLAUSE COVERAGE</div>
-<div class="tbl-wrap"><table class="tbl-stripe"><thead><tr><th>Standard</th><th>Clause</th><th>Requirement</th><th>How Addressed</th></tr></thead><tbody><tr><td>All §9</td><td>§9.1</td><td>Monitoring, measurement, analysis and evaluation</td><td>10 Phase 1 KPIs; monthly data — Sheet 18</td></tr><tr><td>ISO 14001/45001/50001</td><td>§9.1.2</td><td>Compliance evaluation</td><td>Quarterly evaluation; annual CEO sign-off — Sheet 19</td></tr><tr><td>All §9</td><td>§9.2</td><td>Internal audit</td><td>10 planned 2026 audits; NCR classes — Sheet 20</td></tr><tr><td>All §9</td><td>§9.3</td><td>Management review — 15 mandatory inputs</td><td>15-input checklist; CEO-chaired — Sheet 22</td></tr><tr><td>GRI 2021</td><td>§9</td><td>ESG reporting workflow</td><td>4-layer workflow: records → 5 reports → ESG report → MR</td></tr><tr><td>ISO 50001</td><td>§9.1</td><td>Energy performance monitoring</td><td>Monthly SHC per furnace vs EnB — Sheet 8</td></tr></tbody></table></div>
+<div class="pp-scope">
+  <strong>Purpose:</strong> This procedure defines requirements for monitoring, measuring, analysing, and evaluating SAGCO's IMS performance, covering all four management standards §9. It governs internal audits, compliance evaluations, management reviews, and the IMS performance review and ESG reporting workflow. Clauses addressed: Monitoring and Measurement (9.1) · Compliance Evaluation (9.1.2) · Internal Audit (9.2) · Management Review (9.3).
+</div>
 
-<div class="sec-banner">RELATED REGISTERS, RECORDS & DOCUMENTATION</div><div class="rel-grid"><a href="kpi-dashboard.html" class="rel-card" style="background:#E3F0FA">
-  <div class="rc-type" style="color:#1565C0">Dashboard</div>
-  <div class="rc-title">KPI Dashboard</div>
-  <div class="rc-code">Sheet 18 — L3-910-R-01</div>
-</a><a href="compliance-eval.html" class="rel-card" style="background:#E3F0FA">
-  <div class="rc-type" style="color:#1565C0">Register</div>
-  <div class="rc-title">Compliance Evaluation</div>
-  <div class="rc-code">Sheet 19 — L4-912-R-01</div>
-</a><a href="audit-programme.html" class="rel-card" style="background:#E3F0FA">
-  <div class="rc-type" style="color:#1565C0">Register</div>
-  <div class="rc-title">Internal Audit Programme</div>
-  <div class="rc-code">Sheet 20 — L3-920-R-01</div>
-</a><a href="checklist.html" class="rel-card" style="background:#E8F5E9">
-  <div class="rc-type" style="color:#2E7D32">Checklist</div>
-  <div class="rc-title">Annual MR Checklist</div>
-  <div class="rc-code">Sheet 10 — L4-440-CL-01</div>
-</a><a href="management-review.html" class="rel-card" style="background:#E3F0FA">
-  <div class="rc-type" style="color:#1565C0">Register</div>
-  <div class="rc-title">Management Review</div>
-  <div class="rc-code">Sheet 22 — L4-930-R-01</div>
-</a><a href="capa-register.html" class="rel-card" style="background:#FFCDD2">
-  <div class="rc-type" style="color:#B71C1C">Register</div>
-  <div class="rc-title">CAPA Register</div>
-  <div class="rc-code">Sheet 21 — NCRs from audits</div>
-</a><a href="water-waste.html" class="rel-card" style="background:#E8F5E9">
-  <div class="rc-type" style="color:#2E7D32">Register</div>
-  <div class="rc-title">Water & Waste Data</div>
-  <div class="rc-code">Sheet 30 — GRI 303/306</div>
-</a><a href="scope3-emissions.html" class="rel-card" style="background:#E8F5E9">
-  <div class="rc-type" style="color:#2E7D32">Register</div>
-  <div class="rc-title">Scope 3 Emissions</div>
-  <div class="rc-code">Sheet 27 — GRI 305</div>
-</a><a href="workforce-diversity.html" class="rel-card" style="background:#FFF8E1">
-  <div class="rc-type" style="color:#7a5800">Register</div>
-  <div class="rc-title">Workforce Diversity</div>
-  <div class="rc-code">Sheet 28 — GRI 405</div>
-</a></div></div></div>
-<script>initPage("proc-c9.html");document.getElementById("tb").innerHTML=renderTopbar("L2-IMS-900-P-06 — Performance Evaluation","Rev.02 · 7 pages · 13 sections · Clause 9 All Standards · 4-Layer ESG Workflow");</script>
-</body></html>
+<!-- ═══ SECTION INDEX ═════════════════════════════════════ -->
+<div class="pp-s-hdr" style="background:var(--navy)">
+  <span class="pp-snum">INDEX</span><span class="pp-stitle">Section Index — 13 Sections</span>
+</div>
+<div class="pp-sec-idx">
+  <div class="pp-si"><div class="pp-sin">§1</div><div class="pp-sit">Purpose and Scope</div></div>
+  <a href="#sec-2"  class="pp-si"><div class="pp-sin">§2</div><div class="pp-sit">Responsibilities</div></a>
+  <a href="#sec-3"  class="pp-si"><div class="pp-sin">§3</div><div class="pp-sit">References, Definitions &amp; Abbreviations</div></a>
+  <a href="#sec-4"  class="pp-si"><div class="pp-sin">§4</div><div class="pp-sit">ISO Requirement Overview</div></a>
+  <a href="#sec-5"  class="pp-si"><div class="pp-sin">§5</div><div class="pp-sit">IMS Performance Review &amp; ESG Reporting Workflow</div></a>
+  <a href="#sec-6"  class="pp-si"><div class="pp-sin">§6</div><div class="pp-sit">The Five Discipline-Specific Review Reports</div></a>
+  <a href="#sec-7"  class="pp-si"><div class="pp-sin">§7</div><div class="pp-sit">KPI Dashboard</div></a>
+  <a href="#sec-8"  class="pp-si"><div class="pp-sin">§8</div><div class="pp-sit">Compliance Evaluation</div></a>
+  <a href="#sec-9"  class="pp-si"><div class="pp-sin">§9</div><div class="pp-sit">Internal Audit Programme</div></a>
+  <a href="#sec-10" class="pp-si"><div class="pp-sin">§10</div><div class="pp-sit">Management Review</div></a>
+  <a href="#sec-11" class="pp-si"><div class="pp-sin">§11</div><div class="pp-sit">Retained Documented Information</div></a>
+  <a href="#sec-12" class="pp-si"><div class="pp-sin">§12</div><div class="pp-sit">Risks and Opportunities</div></a>
+  <a href="#sec-13" class="pp-si"><div class="pp-sin">§13</div><div class="pp-sit">Related Procedures</div></a>
+</div>
+
+<!-- ═══ §2 RESPONSIBILITIES ══════════════════════════════ -->
+<div id="sec-2" style="scroll-margin-top:60px"></div>
+<div class="pp-s-hdr" style="background:#1a3a5e">
+  <span class="pp-snum">§2</span><span class="pp-stitle">Responsibilities</span>
+  <span class="pp-sbadge">8 Roles</span>
+</div>
+<div class="pp-s-body">
+  <div class="pp-resp">
+    <div class="pp-rrow"><div class="pp-rrole">👔 CEO</div><div class="pp-rduty">Chairs annual Management Review. Approves the Internal Audit Programme. Reviews all performance review reports. Approves and signs the annual ESG Report.</div></div>
+    <div class="pp-rrow"><div class="pp-rrole">📊 IMS Manager<br><small style="font-weight:400;font-size:10px;color:var(--text-lt)">(Steering Committee Chair)</small></div><div class="pp-rduty">Reviews KPI performance. Escalates adverse trends to CEO. Facilitates the Management Review agenda. Chairs the Scope 3 data review.</div></div>
+    <div class="pp-rrow"><div class="pp-rrole">🗂 IMS Coordinator</div><div class="pp-rduty">Maintains KPI Dashboard. Coordinates audit programme. Conducts compliance evaluations. Prepares Management Review agenda, minutes, and action tracker. Compiles the annual ESG Report from the five discipline-specific reports.</div></div>
+    <div class="pp-rrow"><div class="pp-rrole">⚠️ SHEE Head</div><div class="pp-rduty">Coordinates OH&amp;S and environmental performance monitoring and GHG inventory compilation. Prepares the Environmental and OH&amp;S Performance Review Reports.</div></div>
+    <div class="pp-rrow"><div class="pp-rrole">📋 QA Manager</div><div class="pp-rduty">Prepares the Quality Performance Review Report. Coordinates customer satisfaction and product conformity data collection.</div></div>
+    <div class="pp-rrow"><div class="pp-rrole">⚡ Energy Coordinator</div><div class="pp-rduty">Maintains energy performance data and EnPI reports. Tracks ECM programme effectiveness. Prepares the Energy Performance Review Report.</div></div>
+    <div class="pp-rrow"><div class="pp-rrole">🏭 Procurement Manager</div><div class="pp-rduty">Reports supplier ESG assessment completion rates and TPDD outcomes for inclusion in the Sustainability Performance Review Report.</div></div>
+    <div class="pp-rrow"><div class="pp-rrole">👥 HR Manager</div><div class="pp-rduty">Reports NITAQAT compliance status, workforce diversity data, and migrant worker welfare audit outcomes for the Sustainability Performance Review Report.</div></div>
+  </div>
+</div>
+
+<!-- ═══ §3 REFERENCES, DEFINITIONS & ABBREVIATIONS ═══════ -->
+<div id="sec-3" style="scroll-margin-top:60px"></div>
+<div class="pp-s-hdr" style="background:#374151">
+  <span class="pp-snum">§3</span><span class="pp-stitle">References, Definitions &amp; Abbreviations</span>
+  <span class="pp-sbadge">§3.1 · §3.2 · §3.3</span>
+</div>
+<div class="pp-s-body">
+  <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--g200)">§3.1 — References</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
+    <span style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:4px 10px;font-size:10.5px;font-family:var(--mono);color:var(--navy);font-weight:600">ISO 9001:2015 §9</span>
+    <span style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:4px 10px;font-size:10.5px;font-family:var(--mono);color:var(--navy);font-weight:600">ISO 14001:2026 §9</span>
+    <span style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:4px 10px;font-size:10.5px;font-family:var(--mono);color:var(--navy);font-weight:600">ISO 45001:2018 §9</span>
+    <span style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:4px 10px;font-size:10.5px;font-family:var(--mono);color:var(--navy);font-weight:600">ISO 50001:2018 §9</span>
+    <span style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:4px 10px;font-size:10.5px;font-family:var(--mono);color:var(--navy);font-weight:600">ISO 14064-1:2018</span>
+    <span style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:4px 10px;font-size:10.5px;font-family:var(--mono);color:var(--navy);font-weight:600">GRI Standards 2021</span>
+    <span style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:4px 10px;font-size:10.5px;font-family:var(--mono);color:var(--navy);font-weight:600">SASB Containers &amp; Packaging</span>
+    <span style="background:var(--g100);border:1px solid var(--g300);border-radius:6px;padding:4px 10px;font-size:10.5px;font-family:var(--mono);color:var(--navy);font-weight:600">IMS Workbook Sheets 4, 6, 18–22, 24, 27–30</span>
+  </div>
+
+  <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--g200)">§3.2 — Key Definitions</div>
+  <div class="pp-def-grid" style="margin-bottom:16px">
+    <div class="pp-def"><div class="pp-def-term">KPI</div><div class="pp-def-body">A measurable value demonstrating how effectively SAGCO achieves IMS objectives. Leading KPIs are predictive; lagging KPIs are outcome-based.</div></div>
+    <div class="pp-def"><div class="pp-def-term">Compliance Evaluation</div><div class="pp-def-body">A systematic process to evaluate the extent to which SAGCO complies with applicable legal and other requirements.</div></div>
+    <div class="pp-def"><div class="pp-def-term">Internal Audit</div><div class="pp-def-body">A systematic, independent, and documented process for obtaining and evaluating evidence to determine the extent to which audit criteria are fulfilled.</div></div>
+    <div class="pp-def"><div class="pp-def-term">Management Review</div><div class="pp-def-body">A formal top management review ensuring the IMS remains suitable, adequate, effective, and aligned with SAGCO's strategic direction.</div></div>
+    <div class="pp-def"><div class="pp-def-term">ESG Report</div><div class="pp-def-body">The consolidated annual management-level report integrating all five discipline-specific performance review reports, for use in management review, strategic planning, and external disclosure.</div></div>
+  </div>
+
+  <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--g200)">§3.3 — Abbreviations</div>
+  <div class="pp-abbr-wrap">
+    <span class="pp-abbr">KPI — Key Performance Indicator</span>
+    <span class="pp-abbr">TRIR — Total Recordable Incident Rate</span>
+    <span class="pp-abbr">LTIFR — Lost Time Injury Frequency Rate</span>
+    <span class="pp-abbr">SHC — Specific Heat Consumption</span>
+    <span class="pp-abbr">SPC — Specific Power Consumption</span>
+    <span class="pp-abbr">EnPI — Energy Performance Indicator</span>
+    <span class="pp-abbr">NCR — Nonconformity Report</span>
+    <span class="pp-abbr">CAPA — Corrective Action and Preventive Action</span>
+    <span class="pp-abbr">GHG — Greenhouse Gas</span>
+    <span class="pp-abbr">ESG — Environmental, Social and Governance</span>
+    <span class="pp-abbr">GRI — Global Reporting Initiative</span>
+    <span class="pp-abbr">SASB — Sustainability Accounting Standards Board</span>
+    <span class="pp-abbr">RAG — Red / Amber / Green</span>
+    <span class="pp-abbr">NITAQAT — Saudi Saudisation Program</span>
+    <span class="pp-abbr">TPDD — Third-Party Due Diligence</span>
+    <span class="pp-abbr">SEU — Significant Energy Use</span>
+  </div>
+</div>
+
+<!-- ═══ §4 ISO REQUIREMENT OVERVIEW ══════════════════════ -->
+<div id="sec-4" style="scroll-margin-top:60px"></div>
+<div class="pp-s-hdr" style="background:#1a3a5e">
+  <span class="pp-snum">§4</span><span class="pp-stitle">ISO Requirement Overview</span>
+  <span class="pp-sbadge">5 Standards</span>
+</div>
+<div class="pp-s-body" style="padding:0;overflow-x:auto">
+  <table class="pp-tbl">
+    <thead><tr><th>Standard</th><th>Clause</th><th>How This Procedure Addresses the Requirement</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pp-tag">ISO 9001</span>§9.1–§9.3</td><td>§9.1–§9.3</td><td>KPI Dashboard (WS18) tracks QMS performance with RAG status monthly. Quality Performance Review Report produced by QA Manager. Internal Audit Programme covers QMS clauses. CEO-chaired Management Review with structured inputs including customer satisfaction data.</td></tr>
+      <tr><td><span class="pp-tag">ISO 14001</span>§9.1–§9.3</td><td>§9.1–§9.3</td><td>Environmental Performance Review Report: SEA status, Scope 1/2/3 emissions, permit compliance, waste diversion, and water intensity. GHG intensity (kgCO₂e/tonne) monitored monthly as the primary environmental KPI. Legal compliance evaluation using Checklist L4-IMS-912-F-01 (WS19).</td></tr>
+      <tr><td><span class="pp-tag">ISO 45001</span>§9.1–§9.3</td><td>§9.1–§9.3</td><td>Leading indicators: near-miss frequency, PTW compliance, training completion, safety observation rate. Lagging indicators: TRIR, LTIFR. Human rights KPIs: NITAQAT compliance rate and migrant worker welfare audit outcomes. Worker participation in audit planning and Management Review input required.</td></tr>
+      <tr><td><span class="pp-tag">ISO 50001</span>§9.1–§9.3</td><td>§9.1–§9.3</td><td>Monthly SHC monitoring for all five furnaces against per-furnace targets. Site SPC tracked against established energy baseline. Energy Performance Review Report provides TÜV Austria EnMS evaluation evidence. ECM programme effectiveness tracked as a monitoring output.</td></tr>
+      <tr><td><span class="pp-tag">ESG</span>GRI 2021 · SASB · ISO 14064</td><td>—</td><td>Four-layer ESG reporting workflow: IMS Records → 5 Discipline Review Reports → Integrated ESG Report → Management Review. Material GRI topics monitored: GRI 302, 303, 305, 306, 403, 404, 405, 408/409, 414, 205. Annual ESG materiality assessment per GRI 3:2021.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══ §5 IMS PERFORMANCE REVIEW & ESG WORKFLOW ═════════ -->
+<div id="sec-5" style="scroll-margin-top:60px"></div>
+<div class="pp-s-hdr" style="background:#4a2a10">
+  <span class="pp-snum">§5</span><span class="pp-stitle">IMS Performance Review &amp; ESG Reporting Workflow</span>
+  <span class="pp-sbadge">4-Layer Workflow · Lean Reporting Principle</span>
+</div>
+<div class="pp-s-body">
+  <p style="font-size:11.5px;color:var(--text-lt);line-height:1.7;margin-bottom:14px">SAGCO's performance evaluation operates through a four-layer reporting workflow. Existing IMS registers and records are the primary source of all performance data. <strong>No additional standalone databases or reporting tools shall be created unless operationally justified.</strong> Discipline-specific reports shall be concise (typically 2–4 pages) drawing exclusively from existing IMS registers.</p>
+  <div class="pp-layers">
+    <div class="pp-layer l1">
+      <div class="ly-num">1</div>
+      <div><div class="ly-title">IMS Records and Data Sources</div>
+      <div class="ly-desc">Operational records · internal audits · compliance evaluations · incident reports · near-miss logs · objectives tracking · monitoring activities</div></div>
+    </div>
+    <div class="pp-layer l2">
+      <div class="ly-num">2</div>
+      <div><div class="ly-title">Five Discipline-Specific Review Reports</div>
+      <div class="ly-desc">Quality · Environmental · OH&amp;S · Energy · Sustainability — each produced by the relevant discipline owner (see §6)</div></div>
+    </div>
+    <div class="pp-layer l3">
+      <div class="ly-num">3</div>
+      <div><div class="ly-title">Integrated ESG Report</div>
+      <div class="ly-desc">Compiled by IMS Coordinator — integrates all five Layer 2 reports · covers all material GRI topics · Scope 1/2/3 GHG · human rights · supplier ESG · overall IMS performance · <strong>approved and signed by the CEO</strong></div></div>
+    </div>
+    <div class="pp-layer l4">
+      <div class="ly-num">4</div>
+      <div><div class="ly-title">Outputs and Actions</div>
+      <div class="ly-desc">Management Review inputs · CAPA Register entries · external GRI/SASB/EcoVadis disclosure · Saudi Vision 2030 reporting obligations</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ §6 FIVE DISCIPLINE REVIEW REPORTS ════════════════ -->
+<div id="sec-6" style="scroll-margin-top:60px"></div>
+<div class="pp-s-hdr" style="background:#1a4a2e">
+  <span class="pp-snum">§6</span><span class="pp-stitle">The Five Discipline-Specific Review Reports</span>
+  <span class="pp-sbadge">Layer 2 · Each 2–4 Pages · From Existing Registers</span>
+</div>
+<div class="pp-s-body">
+  <div class="pp-disc-grid">
+    <div class="pp-disc dq">
+      <div class="dc-title">Quality</div>
+      <div class="dc-owner">Owner: QA Manager</div>
+      <ul>
+        <li>NCR trends</li>
+        <li>Customer complaints</li>
+        <li>Product conformity KPIs</li>
+        <li>Supplier quality</li>
+        <li>Audit findings</li>
+        <li>Quality objectives status</li>
+      </ul>
+    </div>
+    <div class="pp-disc de">
+      <div class="dc-title">Environmental</div>
+      <div class="dc-owner">Owner: SHEE Head</div>
+      <ul>
+        <li>Scope 1/2 GHG intensity vs target</li>
+        <li>Emissions vs permit limits</li>
+        <li>SEA status</li>
+        <li>Waste diversion rate</li>
+        <li>Water intensity</li>
+        <li>Environmental objectives</li>
+      </ul>
+    </div>
+    <div class="pp-disc do">
+      <div class="dc-title">OH&amp;S</div>
+      <div class="dc-owner">Owner: SHEE Head</div>
+      <ul>
+        <li>TRIR &amp; LTIFR (lagging)</li>
+        <li>Near-miss rate (leading)</li>
+        <li>PTW compliance</li>
+        <li>Training completion</li>
+        <li>Human rights outcomes</li>
+        <li>NITAQAT compliance</li>
+        <li>Open safety CAPAs</li>
+      </ul>
+    </div>
+    <div class="pp-disc dn">
+      <div class="dc-title">Energy</div>
+      <div class="dc-owner">Owner: Energy Coordinator</div>
+      <ul>
+        <li>Furnace SHC vs targets</li>
+        <li>Site SPC vs baseline</li>
+        <li>Energy cost vs budget</li>
+        <li>SEU status</li>
+        <li>ECM programme delivery</li>
+        <li>Energy objectives</li>
+      </ul>
+    </div>
+    <div class="pp-disc ds">
+      <div class="dc-title">Sustainability</div>
+      <div class="dc-owner">Owner: IMS Coordinator</div>
+      <ul>
+        <li>Supplier ESG assessments</li>
+        <li>TPDD outcomes</li>
+        <li>Scope 3 emissions</li>
+        <li>Workforce diversity</li>
+        <li>Anti-bribery training</li>
+        <li>HR grievances</li>
+        <li>Sustainability objectives</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ §7 KPI DASHBOARD ══════════════════════════════════ -->
+<div id="sec-7" style="scroll-margin-top:60px"></div>
+<div class="pp-s-hdr" style="background:#1a2340">
+  <span class="pp-snum">§7</span><span class="pp-stitle">KPI Dashboard</span>
+  <span class="pp-sbadge">Monthly RAG · WS18 · L3-910-ML-01</span>
+</div>
+<div class="pp-s-body">
+  <p style="font-size:11.5px;color:var(--text-lt);line-height:1.7;margin-bottom:12px">The KPI Dashboard (L3-910-ML-01 / WS18) provides a concise monthly performance snapshot. Updated by respective owners, reviewed by the IMS Coordinator, and published to Senior Management using RAG status. The KPI Dashboard feeds the discipline-specific review reports but is not a substitute for them.</p>
+  <div class="pp-rag">
+    <div class="pp-rag-card green"><div class="rg-dot"></div><div class="rg-label">🟢 Green — On Track</div><div class="rg-desc">Performance meets or exceeds target. Routine monitoring continues.</div></div>
+    <div class="pp-rag-card amber"><div class="rg-dot"></div><div class="rg-label">🟡 Amber — ≤10% Below Target</div><div class="rg-desc">Corrective action plan required within <strong>14 days</strong>. IMS Steering Committee notified.</div></div>
+    <div class="pp-rag-card red"><div class="rg-dot"></div><div class="rg-label">🔴 Red — &gt;10% Below Target</div><div class="rg-desc">Steering Committee escalation. CAPA raised per L2-IMS-1000-P-07.</div></div>
+  </div>
+</div>
+
+<!-- ═══ §8 COMPLIANCE EVALUATION ══════════════════════════ -->
+<div id="sec-8" style="scroll-margin-top:60px"></div>
+<div class="pp-s-hdr" style="background:#374151">
+  <span class="pp-snum">§8</span><span class="pp-stitle">Compliance Evaluation</span>
+  <span class="pp-sbadge">WS19 · L4-IMS-912-F-01 · 3 Status Categories</span>
+</div>
+<div class="pp-s-body">
+  <p style="font-size:11.5px;color:var(--text-lt);line-height:1.7;margin-bottom:12px">Compliance against all legal and other requirements in the Legal Compliance Register (WS4 / L4-IMS-613-R-01) is evaluated using the Compliance Evaluation Checklist (L4-IMS-912-F-01 / WS19). Results reviewed by the IMS Steering Committee and reported at Management Review. Non-compliances with statutory reporting timeframes notified to the relevant authority within the specified period.</p>
+  <div class="pp-rag">
+    <div class="pp-rag-card green"><div class="rg-dot"></div><div class="rg-label">Compliant</div><div class="rg-desc">All requirements met. No actions required.</div></div>
+    <div class="pp-rag-card amber"><div class="rg-dot"></div><div class="rg-label">Compliant with Minor Observations</div><div class="rg-desc">Corrective action plan required. Documented and tracked to closure.</div></div>
+    <div class="pp-rag-card red"><div class="rg-dot"></div><div class="rg-label">Non-Compliant</div><div class="rg-desc">CAPA raised <strong>immediately</strong> per L2-IMS-1000-P-07. Regulatory notification within statutory period.</div></div>
+  </div>
+</div>
+
+<!-- ═══ §9 INTERNAL AUDIT PROGRAMME ══════════════════════ -->
+<div id="sec-9" style="scroll-margin-top:60px"></div>
+<div class="pp-s-hdr" style="background:#1a4a2e">
+  <span class="pp-snum">§9</span><span class="pp-stitle">Internal Audit Programme</span>
+  <span class="pp-sbadge">7-Step Process · Risk-Based Frequency · WS20</span>
+</div>
+<div class="pp-s-body">
+  <p style="font-size:11.5px;color:var(--text-lt);line-height:1.7;margin-bottom:12px">SAGCO maintains an annual Internal Audit Programme (WS20) covering all IMS clauses and all operational departments. Audit frequency is risk-based. <strong>Auditors must not audit their own work.</strong></p>
+  <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">7-Step Audit Process</div>
+  <div class="pp-audit-cycle">
+    <div class="pp-ac-step">Programme Planning</div><div class="pp-ac-arr">→</div>
+    <div class="pp-ac-step">Preparation</div><div class="pp-ac-arr">→</div>
+    <div class="pp-ac-step">Opening Meeting</div><div class="pp-ac-arr">→</div>
+    <div class="pp-ac-step">Evidence Collection</div><div class="pp-ac-arr">→</div>
+    <div class="pp-ac-step">Findings Classification</div><div class="pp-ac-arr">→</div>
+    <div class="pp-ac-step">Closing Meeting</div><div class="pp-ac-arr">→</div>
+    <div class="pp-ac-step">Follow-up &amp; CAPA</div>
+  </div>
+  <div style="margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%">
+    <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:8px;padding:10px 13px">
+      <div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:4px">🔴 Major NCR</div>
+      <div style="font-size:10.5px;color:var(--text)">Immediate CAPA required. Raised in CAPA Register per L2-IMS-1000-P-07.</div>
+    </div>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 13px">
+      <div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:4px">🟡 Minor NCR</div>
+      <div style="font-size:10.5px;color:var(--text)">CAPA within <strong>30 days</strong>. Raised in CAPA Register per L2-IMS-1000-P-07.</div>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 13px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-lt);margin-bottom:4px">ℹ Observation</div>
+      <div style="font-size:10.5px;color:var(--text)">No CAPA required. Noted for continuous improvement consideration.</div>
+    </div>
+  </div>
+  <div style="margin-top:12px;padding:10px 14px;background:#EBF3FB;border:1px solid #B5D4F4;border-radius:8px;font-size:11px;color:var(--text);line-height:1.6">
+    <strong>Audit scope covers:</strong> ISO 9001:2015 QMS clauses · ISO 14001:2026 EMS including GHG data quality · ISO 45001:2018 OHSMS including human rights and HIRA · ISO 50001:2018 EnMS including SEU controls and ECM programme · ESG governance including supplier ESG and TPDD processes
+  </div>
+</div>
+
+<!-- ═══ §10 MANAGEMENT REVIEW ════════════════════════════ -->
+<div id="sec-10" style="scroll-margin-top:60px"></div>
+<div class="pp-s-hdr" style="background:#4a1a2e">
+  <span class="pp-snum">§10</span><span class="pp-stitle">Management Review</span>
+  <span class="pp-sbadge">CEO-Chaired · Annual · 12 Required Inputs · WS22 · 5 Days Minutes</span>
+</div>
+<div class="pp-s-body">
+  <p style="font-size:11.5px;color:var(--text-lt);line-height:1.7;margin-bottom:12px">The CEO chairs the annual IMS Management Review with the full IMS Steering Committee. The five discipline-specific review reports and the annual ESG Report are the primary structured inputs. Minutes (L4-930-FRM-01) distributed to all Department Heads within <strong>5 working days</strong>. Action items tracked in Management Review Register (WS22) until closure.</p>
+  <div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Required Inputs — 12 Items</div>
+  <div class="pp-mr-list">
+    <div class="pp-mr-item"><span class="mi-ws">WS1</span>Changes in external and internal context</div>
+    <div class="pp-mr-item"><span class="mi-ws">WS6</span>IMS objectives achievement status</div>
+    <div class="pp-mr-item"><span class="mi-ws">WS8</span>Energy performance versus baseline</div>
+    <div class="pp-mr-item"><span class="mi-ws">WS12</span>Worker participation outcomes</div>
+    <div class="pp-mr-item"><span class="mi-ws">WS18</span>KPI Dashboard performance (RAG status)</div>
+    <div class="pp-mr-item"><span class="mi-ws">WS19</span>Legal compliance evaluation results</div>
+    <div class="pp-mr-item"><span class="mi-ws">WS21</span>Internal audit results and CAPA status</div>
+    <div class="pp-mr-item"><span class="mi-ws">WS22</span>Status of previous MR action items</div>
+    <div class="pp-mr-item"><span class="mi-ws">WS24,29</span>Supplier ESG assessment and TPDD outcomes</div>
+    <div class="pp-mr-item"><span class="mi-ws">WS27,30</span>GHG performance (Scope 1, 2, and 3 vs targets)</div>
+    <div class="pp-mr-item"><span class="mi-ws">WS28</span>Human rights and labour compliance</div>
+    <div class="pp-mr-item"><span class="mi-ws">NCR log</span>Customer satisfaction data</div>
+  </div>
+  <div style="margin-top:12px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:11px;color:var(--text);line-height:1.6">
+    <strong>Required MR Outputs:</strong> Conclusions on IMS suitability, adequacy, and effectiveness · Decisions on continual improvement opportunities · Resource decisions · IMS revisions where needed · Updated ESG targets and sustainability commitments
+  </div>
+</div>
+
+<!-- ═══ §11 RETAINED DOCUMENTED INFORMATION ══════════════ -->
+<div id="sec-11" style="scroll-margin-top:60px"></div>
+<div class="pp-s-hdr" style="background:#2E4A1E">
+  <span class="pp-snum">§11</span><span class="pp-stitle">Retained Documented Information</span>
+  <span class="pp-sbadge">6 Documents</span>
+</div>
+<div class="pp-s-body" style="padding:0;overflow-x:auto">
+  <table class="pp-ret-tbl">
+    <thead><tr><th>Document Code</th><th>Description</th><th>Owner</th></tr></thead>
+    <tbody>
+      <tr><td>L3-910-ML-01</td><td>KPI Dashboard (Workbook Sheet 18)</td><td>IMS Coordinator</td></tr>
+      <tr><td>L4-IMS-912-F-01</td><td>Compliance Evaluation Checklist (Workbook Sheet 19)</td><td>IMS Coordinator</td></tr>
+      <tr><td>L4-920-RC-01 / WS20</td><td>Internal Audit Programme and Reports</td><td>IMS Coordinator</td></tr>
+      <tr><td>L4-930-FRM-01</td><td>Management Review Minutes and Actions (Workbook Sheet 22)</td><td>IMS Coordinator</td></tr>
+      <tr><td>Five Discipline Reports</td><td>Quality / Environmental / OH&amp;S / Energy / Sustainability Review Reports</td><td>Respective Owners</td></tr>
+      <tr><td>Annual ESG Report</td><td>CEO-approved integrated report — supporting data in WS24, 27, 28, 29, 30</td><td>IMS Coordinator / CEO</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══ §12 RISKS AND OPPORTUNITIES ══════════════════════ -->
+<div id="sec-12" style="scroll-margin-top:60px"></div>
+<div class="pp-s-hdr" style="background:#4a1a1a">
+  <span class="pp-snum">§12</span><span class="pp-stitle">Risks and Opportunities</span>
+  <span class="pp-sbadge">Detailed treatment → L2-IMS-600-P-03</span>
+</div>
+<div class="pp-s-body">
+  <p style="font-size:11px;color:var(--text-lt);margin-bottom:12px">Detailed risk treatment managed through L2-IMS-600-P-03 and the IMS Consolidated Risk Register (WS3).</p>
+  <div class="pp-ro-grid">
+    <div class="pp-ro-card risks">
+      <h4>🔴 Performance Evaluation Risks</h4>
+      <ul class="pp-ro-list">
+        <li>Discipline-specific reports not completed on schedule, preventing timely ESG Report compilation</li>
+        <li>Layer 1 records incomplete or inaccurate, undermining all downstream reports</li>
+        <li>ESG Report not CEO-approved before Management Review</li>
+        <li>Internal audit programme not covering all four standard clauses within the annual cycle</li>
+        <li>ESG materiality assessment not updated following significant stakeholder or business changes</li>
+      </ul>
+    </div>
+    <div class="pp-ro-card opps">
+      <h4>🟢 Performance Evaluation Opportunities</h4>
+      <ul class="pp-ro-list">
+        <li>Four-layer reporting workflow providing a clear auditable evidence chain from operational records to external ESG disclosure</li>
+        <li>Annual ESG Report enabling effective EcoVadis assessment responses and customer ESG due diligence</li>
+        <li>Management Review informed by integrated performance evidence across all four standards simultaneously</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ §13 RELATED PROCEDURES ════════════════════════════ -->
+<div id="sec-13" style="scroll-margin-top:60px"></div>
+<div class="pp-s-hdr" style="background:#1a2340">
+  <span class="pp-snum">§13</span><span class="pp-stitle">Related Procedures &amp; Registers</span>
+</div>
+<div class="pp-s-body">
+  <div class="pp-rel-grid">
+    <a href="proc-c4.html" class="pp-rel" style="background:#F3E5F5;border-color:#CE93D8">
+      <div class="rt" style="color:#6A1B9A">📘 Procedure</div>
+      <div class="rn">Organisational Context</div><div class="rc">L2-IMS-400-P-01</div>
+    </a>
+    <a href="proc-c6.html" class="pp-rel" style="background:#F3E5F5;border-color:#CE93D8">
+      <div class="rt" style="color:#6A1B9A">📘 Procedure</div>
+      <div class="rn">Planning and Risk Management</div><div class="rc">L2-IMS-600-P-03</div>
+    </a>
+    <a href="proc-c8.html" class="pp-rel" style="background:#F3E5F5;border-color:#CE93D8">
+      <div class="rt" style="color:#6A1B9A">📘 Procedure</div>
+      <div class="rn">Operational Control</div><div class="rc">L2-IMS-800-P-05</div>
+    </a>
+    <a href="proc-c10.html" class="pp-rel" style="background:#F3E5F5;border-color:#CE93D8">
+      <div class="rt" style="color:#6A1B9A">📘 Procedure</div>
+      <div class="rn">Improvement &amp; Corrective Action</div><div class="rc">L2-IMS-1000-P-07</div>
+    </a>
+    <a href="kpi-dashboard.html" class="pp-rel" style="background:#E8F5E9;border-color:#A5D6A7">
+      <div class="rt" style="color:#2E7D32">📋 Register</div>
+      <div class="rn">KPI Dashboard</div><div class="rc">WS18 — L3-910-ML-01</div>
+    </a>
+    <a href="compliance-eval.html" class="pp-rel" style="background:#E8F5E9;border-color:#A5D6A7">
+      <div class="rt" style="color:#2E7D32">📋 Register</div>
+      <div class="rn">Compliance Evaluation</div><div class="rc">WS19 — L4-IMS-912-F-01</div>
+    </a>
+    <a href="audit-programme.html" class="pp-rel" style="background:#EBF3FB;border-color:#B5D4F4">
+      <div class="rt" style="color:#1565C0">📋 Register</div>
+      <div class="rn">Internal Audit Programme</div><div class="rc">WS20 — L4-920-RC-01</div>
+    </a>
+    <a href="management-review.html" class="pp-rel" style="background:#EBF3FB;border-color:#B5D4F4">
+      <div class="rt" style="color:#1565C0">📋 Register</div>
+      <div class="rn">Management Review Register</div><div class="rc">WS22 — L4-930-FRM-01</div>
+    </a>
+    <a href="kpi-dashboard.html" class="pp-rel" style="background:#FFF9E6;border-color:#FFE082">
+      <div class="rt" style="color:#A05000">📊 Dashboard</div>
+      <div class="rn">Executive KPI Dashboard</div><div class="rc">WS18 · All Standards</div>
+    </a>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="pp-footer">
+  <span>L2-IMS-900-P-06 · Performance Evaluation · Rev.01 · June 2026 · Review: June 2028</span>
+  <span>Prepared: IMS Coordinator · Checked: IMS Manager · Approved: CEO</span>
+  <span class="pfc">⚠ This document is stored on a secure electronic database and becomes uncontrolled once printed</span>
+</div>
+
+</div></div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  initPage('proc-c9.html');
+  document.getElementById('tb').innerHTML = renderTopbar(
+    'L2-IMS-900-P-06 — Performance Evaluation',
+    'Rev.01 · June 2026 · 13 Sections · ISO §9 All Standards · CEO Approved'
+  );
+  IMS_AUTH.injectUserBar();
+});
+</script>
+</body>
+</html>
