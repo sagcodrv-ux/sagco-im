@@ -457,6 +457,19 @@ function filterTree(q) {
 /* ══════════════════════════════════════════════════════════════
    TOPBAR
 ══════════════════════════════════════════════════════════════ */
+function printCurrentPage() {
+  document.querySelectorAll('.nkids').forEach(function(el) {
+    el._wc = (el.style.display === 'none');
+    el.style.display = 'block';
+  });
+  window.print();
+  setTimeout(function() {
+    document.querySelectorAll('.nkids').forEach(function(el) {
+      if (el._wc) el.style.display = 'none';
+    });
+  }, 1500);
+}
+
 function renderTopbar(title, subtitle) {
   return '<div class="topbar">'
     + '<div class="topbar-left">'
@@ -464,12 +477,8 @@ function renderTopbar(title, subtitle) {
     + '<div class="topbar-sub">'   + (subtitle || '') + '</div>'
     + '</div>'
     + '<div class="topbar-right">'
-    + '<button class="btn btn-ghost" style="display:flex;align-items:center;gap:5px" onclick="(function(){'
-    +   'document.querySelectorAll(\'.nkids\').forEach(function(el){el._wc=el.style.display===\'none\';el.style.display=\'block\';});'
-    +   'window.print();'
-    +   'setTimeout(function(){document.querySelectorAll(\'.nkids\').forEach(function(el){if(el._wc)el.style.display=\'none\';});},1000);'
-    + '})()">🖨 Print</button>'
-    + '<button class="btn btn-ghost" onclick="localStorage.clear();var u=location.href.split(&quot;?&quot;)[0]+&quot;?_cb=&quot;+Date.now();location.replace(u)">↻ Refresh</button>'
+    + '<button class="btn btn-ghost" onclick="printCurrentPage()" title="Print this page">&#128424; Print</button>'
+    + '<button class="btn btn-ghost" onclick="localStorage.clear();var u=location.href.split(&quot;?&quot;)[0]+&quot;?_cb=&quot;+Date.now();location.replace(u)">&#8635; Refresh</button>'
     + '</div>'
     + '</div>';
 }
