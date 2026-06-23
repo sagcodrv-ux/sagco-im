@@ -188,7 +188,9 @@ var TREE = [
 
   /* ══ CERTIFICATION ROADMAP ══════════════════════════════ */
   { id:'roadmap', label:'IMS Certification Roadmap', file:'ims-roadmap.html',
-    level:'root', badge:'2026', icon:'🏆' },
+    level:'L0', badge:'2026' },
+  { id:'project-roadmap', label:'Project Roadmap', file:'project-roadmap.html',
+    level:'L0', badge:'Actions' },
 
 ];
 
