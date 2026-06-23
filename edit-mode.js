@@ -179,6 +179,14 @@
         border:1px solid rgba(255,255,255,.15);
       }
       #se-restore-btn:hover { background:rgba(200,168,75,.15);color:#c8a84b;border-color:rgba(200,168,75,.4); }
+      @media print {
+        #se-bar, #se-toggle, #se-dismiss, #se-fmt,
+        #se-toast, #se-restore-btn, .se-img-ov {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+        }
+      }
       #se-toggle:hover,#se-toggle.on { background:#c8a84b;color:#1a2340; }
 
       body.se-on [data-editable]:hover {
