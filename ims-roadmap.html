@@ -85,7 +85,7 @@ body{overflow-x:hidden}
 #gantt-root{position:relative;user-select:none}
 .g-header-row{display:flex;background:#f8fafc;border-bottom:2px solid #d0d8e8;
   position:sticky;top:0;z-index:20}
-.g-lbl-hdr{width:260px;min-width:260px;flex-shrink:0;border-right:2px solid #d0d8e8;
+.g-lbl-hdr{width:220px;min-width:220px;flex-shrink:0;border-right:2px solid #d0d8e8;
   padding:6px 12px;font-size:9px;font-weight:700;color:#64748b;
   text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:flex-end}
 .g-chart-hdr{flex:1;position:relative;overflow:hidden}
@@ -106,7 +106,7 @@ body{overflow-x:hidden}
   width:3px;background:#dc2626}
 .g-row.hidden{display:none}
 
-.g-lbl-cell{width:260px;min-width:260px;flex-shrink:0;padding:0 8px 0 12px;
+.g-lbl-cell{width:220px;min-width:220px;flex-shrink:0;padding:0 8px 0 12px;
   display:flex;align-items:center;gap:5px;border-right:2px solid #d0d8e8;
   position:relative;cursor:pointer;background:#fff}
 .g-lbl-cell:hover .row-btns{opacity:1}
@@ -308,6 +308,9 @@ body{overflow-x:hidden}
   </button>
   <button class="btn btn-gh btn-sm" id="bl-btn" onclick="toggleBaseline()">Baseline</button>
   <button class="btn btn-gh btn-sm" onclick="exportCSV()">⬇ CSV</button>
+  <button class="btn btn-sm" onclick="resetTasks()"
+    style="background:#fff0f0;color:#dc2626;border:1px solid #fecaca;font-size:10.5px"
+    title="Reset schedule to default values">↺ Reset</button>
 </div>
 
 <!-- GANTT -->
@@ -456,10 +459,77 @@ let TASKS = [
   {id:'T10',name:'Stage 2 Audit & Certification',phase:'s2',    start:'2026-09-24',end:'2026-09-30',dur:7, pct:0,  owner:'IMS Coord + TÜV Austria',  critical:true, status:'planned',deps:[{id:'T09',type:'FS',lag:0}]},
 ];
 let BASELINE = JSON.parse(JSON.stringify(TASKS));
+
+/* ── Persist to localStorage ─────────────────────────── */
+const STORE_KEY = 'sagco_ims_roadmap_tasks';
+
+function saveTasks(){
+  try{
+    localStorage.setItem(STORE_KEY, JSON.stringify(TASKS));
+    showSaveBadge('✅ Schedule saved');
+  } catch(e){ showSaveBadge('⚠ Save failed: '+e.message,'#dc2626'); }
+}
+
+function loadTasks(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(Array.isArray(parsed) && parsed.length > 0){
+        TASKS.length = 0;
+        parsed.forEach(t => TASKS.push(t));
+        return true;
+      }
+    }
+  } catch(e){ console.warn('Could not load saved tasks:', e); }
+  return false;
+}
+
+function resetTasks(){
+  if(!confirm('Reset schedule to default? All your changes will be lost.')) return;
+  localStorage.removeItem(STORE_KEY);
+  location.reload();
+}
+
+/* ── Save badge notification ─────────────────────────── */
+function showSaveBadge(msg, color){
+  let el = document.getElementById('save-badge');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'save-badge';
+    el.style.cssText = `position:fixed;bottom:20px;right:20px;z-index:99999;
+      border-radius:8px;padding:10px 18px;font-size:12px;font-weight:700;
+      color:#fff;box-shadow:0 4px 20px rgba(0,0,0,.25);transition:all .3s;
+      font-family:-apple-system,sans-serif;display:flex;align-items:center;gap:8px`;
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.background = color || '#1e8449';
+  el.style.opacity = '1';
+  el.style.transform = 'translateY(0)';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>{
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(10px)';
+  }, 3000);
+}
 let showBaseline=false, depMode=false, currentView='week', currentPhase='all';
 let selectedDep=null, editDepsArr=[], drawingFrom=null;
 const TARGET='2026-09-30', S1_DATE='2026-09-01';
-const COL_W_WEEK=60, COL_W_DAY=18, LABEL_W=260, ROW_H=38;
+const COL_W_DAY=18, LABEL_W=220, ROW_H=38;
+
+/* Dynamic column width — fits all weeks to container */
+function getColW(){
+  const scroll=document.getElementById('gantt-scroll');
+  const available=scroll ? scroll.clientWidth - LABEL_W - 4 : 640;
+  const b=chartBounds();
+  const days=(new Date(b.end) - new Date(b.start))/86400000 + 1;
+  const weeks=Math.ceil(days/7);
+  const w=Math.max(28, Math.floor(available/weeks));
+  return w;
+}
+/* Alias used throughout */
+function COL_W_WEEK(){ return getColW(); }
 const PHASE_LBL={pre:'Pre-Holiday',ready:'Readiness',prep:'Stage 2 Prep',s1:'Stage 1',s2:'Stage 2'};
 const STAT_LBL={done:'Completed',inprog:'In Progress',planned:'Planned',delayed:'Delayed'};
 const STAT_COL={done:'#1e8449',inprog:'#c8a84b',planned:'#2563eb',delayed:'#dc2626'};
@@ -486,7 +556,7 @@ function xPx(dateStr){
 }
 function chartWidth(){
   const td=totalDays();
-  return currentView==='week' ? Math.ceil(td/7)*COL_W_WEEK : td*COL_W_DAY;
+  return currentView==='week' ? Math.ceil(td/7)*getColW() : td*COL_W_DAY;
 }
 
 /* ── Cascade scheduler ──────────────────────────────── */
@@ -595,7 +665,7 @@ function buildGantt(){
   });
   Object.entries(months).forEach(([lbl,{count}])=>{
     const c=document.createElement('div');c.className='g-month-cell';
-    c.style.width=(count*COL_W_WEEK)+'px';c.style.minWidth=(count*COL_W_WEEK)+'px';
+    c.style.width=(count*getColW())+'px';c.style.minWidth=(count*getColW())+'px';
     c.textContent=lbl;mrow.appendChild(c);
   });
   chdr.appendChild(mrow);
@@ -604,7 +674,7 @@ function buildGantt(){
   const wrow=document.createElement('div');wrow.className='g-week-hdr';
   weeks.forEach(w=>{
     const c=document.createElement('div');c.className='g-week-cell';
-    c.style.width=COL_W_WEEK+'px';c.style.minWidth=COL_W_WEEK+'px';
+    c.style.width=getColW()+'px';c.style.minWidth=getColW()+'px';
     c.textContent=w.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
     wrow.appendChild(c);
   });
@@ -659,7 +729,7 @@ function buildGantt(){
     // Column backgrounds
     weeks.forEach((w,i)=>{
       const col=document.createElement('div');
-      col.style.cssText=`position:absolute;left:${i*COL_W_WEEK}px;top:0;bottom:0;width:${COL_W_WEEK}px;border-right:1px solid #f5f7fa`;
+      col.style.cssText=`position:absolute;left:${i*getColW()}px;top:0;bottom:0;width:${getColW()}px;border-right:1px solid #f5f7fa`;
       cc.appendChild(col);
     });
 
@@ -818,7 +888,7 @@ function makeDraggable(bar,task,chartCell,b){
     }
     function onUp(){
       bar.classList.remove('dragging');
-      cascade(task.id);refresh();
+      cascade(task.id);refresh();saveTasks();
       document.removeEventListener('mousemove',onMove);
       document.removeEventListener('mouseup',onUp);
     }
@@ -853,7 +923,7 @@ function makeResizable(handle,task,chartCell,b,side){
       }
     }
     function onUp(){
-      cascade(task.id);refresh();
+      cascade(task.id);refresh();saveTasks();
       document.removeEventListener('mousemove',onMove);
       document.removeEventListener('mouseup',onUp);
     }
@@ -932,7 +1002,7 @@ function makePortDrag(port,task,rowIdx){
               toTask.deps=toTask.deps||[];
               toTask.deps.push({id:task.id,type:'FS',lag:0});
               cascade(toId);
-              refresh();
+              refresh();saveTasks();
             } else {
               showFlash('Dependency already exists between these tasks','#f59e0b');
             }
@@ -1019,7 +1089,7 @@ function deleteSelectedDep(){
   if(!selectedDep) return;
   const {pred,succ,dep}=selectedDep;
   succ.deps=succ.deps.filter(d=>!(d.id===pred.id&&d.type===dep.type));
-  selectedDep=null;hideDepTT();cascadeAll();refresh();
+  selectedDep=null;hideDepTT();cascadeAll();refresh();saveTasks();
 }
 
 function editSelectedDep(){
@@ -1027,7 +1097,7 @@ function editSelectedDep(){
   const lag=prompt(`Edit lag days for ${selectedDep.pred.id} → ${selectedDep.succ.id} (${selectedDep.dep.type}):`,selectedDep.dep.lag||0);
   if(lag===null) return;
   selectedDep.dep.lag=parseInt(lag)||0;
-  cascadeAll();refresh();hideDepTT();
+  cascadeAll();refresh();saveTasks();hideDepTT();
 }
 
 /* ════════ TOOLTIP ════════════════════════════════════ */
@@ -1157,7 +1227,7 @@ function saveTask(){
     data.id='T'+String(Date.now()).slice(-4);
     TASKS.push(data);cascade(data.id);
   }
-  closeMo();refresh();
+  closeMo();refresh();saveTasks();
 }
 
 function deleteTask(){
@@ -1166,13 +1236,13 @@ function deleteTask(){
   if(!confirm('Delete this task?')) return;
   TASKS=TASKS.filter(t=>t.id!==id);
   TASKS.forEach(t=>{t.deps=(t.deps||[]).filter(d=>d.id!==id);});
-  closeMo();cascadeAll();refresh();
+  closeMo();cascadeAll();refresh();saveTasks();
 }
 function deleteTaskById(id){
   if(!confirm('Delete this task?')) return;
   TASKS=TASKS.filter(t=>t.id!==id);
   TASKS.forEach(t=>{t.deps=(t.deps||[]).filter(d=>d.id!==id);});
-  cascadeAll();refresh();
+  cascadeAll();refresh();saveTasks();
 }
 
 /* ════════ CONTROLS ═══════════════════════════════════ */
@@ -1283,7 +1353,7 @@ function recalcSchedule(){
   });
 
   // ── Step 7: Refresh UI ────────────────────────────────
-  refresh();
+  refresh();saveTasks();
 
   // ── Step 8: Highlight affected tasks ─────────────────
   affected.forEach(id=>{
@@ -1359,9 +1429,20 @@ document.addEventListener('DOMContentLoaded',function(){
     'TÜV Austria Stage 2 Target: 30 September 2026 · Interactive Project Schedule'
   );
   IMS_AUTH.injectUserBar();
+  // Load saved schedule from localStorage (survives page reload)
+  const loaded = loadTasks();
+  if(loaded){
+    showSaveBadge('📂 Schedule restored from last save','#1a2340');
+  }
   cascadeAll();refresh();
   setView('week');
   window.addEventListener('resize',()=>{clearTimeout(window._rt);window._rt=setTimeout(buildGantt,150);});
+  // Also observe gantt scroll container for size changes
+  try{
+    const ro=new ResizeObserver(()=>{clearTimeout(window._ro);window._ro=setTimeout(buildGantt,100);});
+    const sc=document.getElementById('gantt-scroll');
+    if(sc) ro.observe(sc);
+  }catch(e){}
 });
 </script>
 </body>
