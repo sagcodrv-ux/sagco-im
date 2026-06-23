@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Project Roadmap</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script>
+<script src="data.js"></script>
+<script src="nav.js"></script>
+<style>
+*{box-sizing:border-box;min-width:0}
+.pr{font-family:-apple-system,'Segoe UI',sans-serif;background:#f0f4f8;
+  width:100%;padding:16px;color:#2d3748}
+
+/* ─── Header ─────────────────────────────── */
+.pr-hdr{background:linear-gradient(135deg,#0d1520 0%,#1a2340 60%,#0d2235 100%);
+  border-radius:12px;padding:20px 26px;margin-bottom:16px;position:relative;overflow:hidden}
+.pr-hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,#c8a84b,transparent)}
+.pr-hdr-row{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px}
+.pr-ey{font-size:9px;font-weight:700;letter-spacing:.12em;color:#c8a84b;
+  text-transform:uppercase;margin-bottom:5px}
+.pr-ti{font-size:20px;font-weight:800;color:#fff;letter-spacing:-.3px;margin-bottom:4px}
+.pr-su{font-size:11px;color:rgba(255,255,255,.45);line-height:1.5}
+.pr-meta{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+.pr-meta-item{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  border-radius:7px;padding:7px 14px;text-align:center}
+.pr-meta-item .mi-val{font-size:18px;font-weight:800;color:#c8a84b;line-height:1}
+.pr-meta-item .mi-lbl{font-size:9px;color:rgba(255,255,255,.45);text-transform:uppercase;
+  letter-spacing:.06em;margin-top:2px}
+.pr-badge{background:rgba(200,168,75,.12);border:1px solid rgba(200,168,75,.35);
+  border-radius:8px;padding:12px 18px;text-align:center;flex-shrink:0}
+.pr-badge .pb-lbl{font-size:9px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
+.pr-badge .pb-date{font-size:16px;font-weight:800;color:#c8a84b}
+.pr-badge .pb-note{font-size:9px;color:rgba(255,255,255,.45);margin-top:3px}
+
+/* ─── Section header ─────────────────────── */
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.sec-hdr h2{font-size:13px;font-weight:700;color:#1a2340;display:flex;
+  align-items:center;gap:7px}
+.sec-hdr h2 .ic{font-size:16px}
+.sec-cnt{background:#1a2340;color:#c8a84b;border-radius:20px;
+  padding:2px 10px;font-size:10px;font-weight:700}
+
+/* ─── Summary cards ──────────────────────── */
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;
+  width:100%;box-sizing:border-box}
+.s-card{background:#fff;border-radius:10px;padding:14px 16px;
+  border:1px solid #dde3ed;border-top:3px solid #dde3ed}
+.s-card.sc-open{border-top-color:#dc2626}
+.s-card.sc-inprog{border-top-color:#c8a84b}
+.s-card.sc-critical{border-top-color:#7c3aed}
+.s-card.sc-complete{border-top-color:#1e8449}
+.s-card .sv{font-size:28px;font-weight:800;color:#1a2340;line-height:1}
+.s-card .sl{font-size:10px;color:#64748b;margin-top:4px;text-transform:uppercase;letter-spacing:.04em}
+.s-card.sc-open .sv{color:#dc2626}
+.s-card.sc-inprog .sv{color:#c8a84b}
+.s-card.sc-critical .sv{color:#7c3aed}
+.s-card.sc-complete .sv{color:#1e8449}
+
+/* ─── Progress workstreams ───────────────── */
+.ws-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;
+  width:100%;box-sizing:border-box}
+.ws-card{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #dde3ed}
+.ws-card .wc-name{font-size:12px;font-weight:700;color:#1a2340;margin-bottom:6px;
+  display:flex;align-items:center;justify-content:space-between}
+.ws-card .wc-pct{font-size:11px;font-weight:700;color:#64748b}
+.ws-bar-bg{height:8px;background:#f0f4f8;border-radius:4px;overflow:hidden}
+.ws-bar-fill{height:100%;border-radius:4px;transition:width .6s ease}
+.ws-bar-fill.wf-pre{background:#f59e0b}
+.ws-bar-fill.wf-ready{background:#38bdf8}
+.ws-bar-fill.wf-prep{background:#a78bfa}
+.ws-bar-fill.wf-s1{background:#f87171}
+.ws-bar-fill.wf-s2{background:#22c55e}
+.ws-card .wc-meta{font-size:10px;color:#64748b;margin-top:5px;
+  display:flex;justify-content:space-between}
+
+/* ─── Filter bar ─────────────────────────── */
+.filter-bar{background:#fff;border:1px solid #dde3ed;border-radius:10px;
+  padding:10px 14px;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  width:100%;box-sizing:border-box}
+.filter-bar input[type=text]{padding:6px 12px;border:1.5px solid #dde3ed;border-radius:7px;
+  font-size:11.5px;font-family:inherit;color:#374151;flex:1;min-width:180px;max-width:280px}
+.filter-bar input:focus{outline:none;border-color:#1a2340}
+.fb-select{padding:5px 10px;border:1px solid #dde3ed;border-radius:20px;
+  font-size:10.5px;font-family:inherit;color:#374151;background:#fff;cursor:pointer}
+.fb-select:focus{outline:none}
+.fb-sep{width:1px;background:#dde3ed;margin:0 4px;align-self:stretch}
+.fb-sp{flex:1}
+.fb-btn{padding:5px 13px;border-radius:7px;font-size:11px;font-weight:600;
+  cursor:pointer;border:none;font-family:inherit;transition:all .15s;
+  display:inline-flex;align-items:center;gap:5px}
+.fb-btn-nvy{background:#1a2340;color:#fff}.fb-btn-nvy:hover{background:#0d1520}
+.fb-btn-gh{background:#f7f9fc;color:#374151;border:1px solid #dde3ed}
+.fb-btn-gh:hover{background:#edf0f5}
+.fb-btn-grn{background:#1e8449;color:#fff}.fb-btn-grn:hover{background:#166438}
+
+/* ─── Main table ─────────────────────────── */
+.pr-table-wrap{background:#fff;border-radius:12px;border:1px solid #dde3ed;
+  overflow:hidden;margin-bottom:16px;width:100%;box-sizing:border-box}
+.pr-table-hdr{background:#1a2340;padding:10px 16px;display:flex;align-items:center;justify-content:space-between}
+.pr-table-hdr h3{font-size:13px;font-weight:700;color:#fff;margin:0}
+.pr-table-hdr .th-sub{font-size:10px;color:rgba(255,255,255,.4)}
+.tbl-scroll{overflow-x:auto;width:100%}
+table.pr-tbl{width:100%;border-collapse:collapse;font-size:11.5px;min-width:900px}
+table.pr-tbl thead tr{background:#f8fafc}
+table.pr-tbl thead th{padding:9px 12px;text-align:left;font-weight:700;font-size:10px;
+  color:#64748b;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #dde3ed;
+  cursor:pointer;white-space:nowrap;user-select:none}
+table.pr-tbl thead th:hover{color:#1a2340}
+table.pr-tbl thead th .sort-ic{margin-left:4px;font-size:9px;opacity:.5}
+table.pr-tbl tbody tr{border-bottom:1px solid #f0f4f8;transition:background .1s}
+table.pr-tbl tbody tr:hover{background:#f8fafc}
+table.pr-tbl tbody tr.tr-hidden{display:none}
+table.pr-tbl td{padding:10px 12px;vertical-align:middle;color:#374151}
+table.pr-tbl td:first-child{font-family:monospace;font-size:10px;color:#94a3b8;font-weight:600}
+table.pr-tbl td.td-name{font-weight:600;color:#1a2340;max-width:220px}
+table.pr-tbl td.td-date{white-space:nowrap;font-size:11px;color:#64748b}
+table.pr-tbl td.td-dur{text-align:center;font-family:monospace;font-size:11px}
+
+/* ─── Status badges ──────────────────────── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;
+  border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap}
+.b-not-started{background:#f1f5f9;color:#475569}
+.b-in-progress{background:#fef3c7;color:#92400e}
+.b-completed{background:#d1fae5;color:#065f46}
+.b-at-risk{background:#fee2e2;color:#991b1b}
+.b-critical{background:#ede9fe;color:#5b21b6}
+.b-overdue{background:#ffedd5;color:#9a3412}
+
+/* ─── Priority badges ────────────────────── */
+.pri{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
+.pri-high{background:#fee2e2;color:#dc2626}
+.pri-critical{background:#dc2626;color:#fff}
+.pri-medium{background:#fef3c7;color:#d97706}
+.pri-low{background:#f0fdf4;color:#16a34a}
+
+/* Progress bar in table */
+.tbl-prog-wrap{display:flex;align-items:center;gap:7px}
+.tbl-prog-bg{flex:1;height:6px;background:#f0f4f8;border-radius:3px;overflow:hidden;min-width:50px}
+.tbl-prog-fill{height:100%;border-radius:3px}
+.tbl-prog-lbl{font-size:10px;font-weight:600;color:#374151;white-space:nowrap;min-width:28px}
+
+/* ─── Critical actions ───────────────────── */
+.crit-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;
+  width:100%;box-sizing:border-box}
+.crit-card{background:#fff;border-radius:10px;border:1px solid #dde3ed;overflow:hidden}
+.crit-card-hdr{padding:10px 14px;font-size:11.5px;font-weight:700;
+  display:flex;align-items:center;gap:7px}
+.crit-card-hdr.red{background:#fef2f2;color:#991b1b;border-bottom:1px solid #fecaca}
+.crit-card-hdr.amber{background:#fffbeb;color:#92400e;border-bottom:1px solid #fde68a}
+.crit-card-hdr.purple{background:#faf5ff;color:#6b21a8;border-bottom:1px solid #e9d5ff}
+.crit-card-hdr.blue{background:#eff6ff;color:#1e40af;border-bottom:1px solid #bfdbfe}
+.crit-card-body{padding:10px 14px}
+.crit-item{display:flex;align-items:flex-start;gap:8px;padding:6px 0;
+  border-bottom:1px solid #f8fafc;font-size:11px;color:#374151;line-height:1.5}
+.crit-item:last-child{border-bottom:none}
+.crit-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.cd-red{background:#dc2626}.cd-amber{background:#f59e0b}
+.cd-purple{background:#7c3aed}.cd-blue{background:#2563eb}.cd-grn{background:#1e8449}
+
+/* ─── Risks & blockers ───────────────────── */
+.risk-table-wrap{background:#fff;border-radius:12px;border:1px solid #dde3ed;
+  overflow:hidden;margin-bottom:16px;width:100%;box-sizing:border-box}
+table.risk-tbl{width:100%;border-collapse:collapse;font-size:11.5px;min-width:700px}
+table.risk-tbl thead tr{background:#4a1a1a}
+table.risk-tbl thead th{padding:9px 12px;text-align:left;font-weight:700;font-size:10px;
+  color:rgba(255,255,255,.9);text-transform:uppercase;letter-spacing:.05em}
+table.risk-tbl tbody tr{border-bottom:1px solid #f0f4f8}
+table.risk-tbl tbody tr:hover{background:#fef8f8}
+table.risk-tbl td{padding:9px 12px;vertical-align:middle;color:#374151}
+.risk-sev{display:inline-block;padding:2px 8px;border-radius:4px;
+  font-size:10px;font-weight:700;white-space:nowrap}
+.rs-critical{background:#dc2626;color:#fff}
+.rs-high{background:#fee2e2;color:#dc2626}
+.rs-medium{background:#fef3c7;color:#d97706}
+.rs-low{background:#f0fdf4;color:#16a34a}
+
+/* ─── Milestones ─────────────────────────── */
+.ms-timeline{display:flex;flex-direction:column;gap:0;
+  background:#fff;border-radius:12px;border:1px solid #dde3ed;
+  overflow:hidden;margin-bottom:16px;width:100%;box-sizing:border-box}
+.ms-row{display:grid;grid-template-columns:120px 1fr 160px 140px 140px;
+  align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #f0f4f8;
+  transition:background .1s}
+.ms-row:hover{background:#f8fafc}
+.ms-row-hdr{background:#f8fafc;font-size:9.5px;font-weight:700;color:#64748b;
+  text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #dde3ed}
+.ms-date{font-size:12px;font-weight:700;color:#1a2340}
+.ms-name{font-size:12px;font-weight:600;color:#1a2340}
+.ms-name .ms-type{font-size:10px;font-weight:400;color:#64748b;margin-top:2px}
+.ms-owner{font-size:11px;color:#64748b}
+.ms-dep{font-size:10.5px;color:#94a3b8}
+
+/* ─── Print styles ───────────────────────── */
+@media print{
+  .filter-bar,.fb-btn,.pr-table-hdr .th-sub,#sidebar,#tb,.no-print{display:none!important}
+  .pr{background:#fff;padding:0}
+  .pr-hdr,.pr-table-wrap,.risk-table-wrap,.ms-timeline,
+  .crit-grid,.summary-grid,.ws-grid{break-inside:avoid}
+  * {-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+
+/* ─── Responsive ─────────────────────────── */
+@media(max-width:800px){
+  .summary-grid,.ws-grid,.crit-grid{grid-template-columns:1fr 1fr}
+  .ms-row{grid-template-columns:90px 1fr 100px}
+  .ms-owner,.ms-dep{display:none}
+}
+@media(max-width:500px){
+  .summary-grid{grid-template-columns:1fr 1fr}
+  .crit-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="sidebar"></div>
+<div class="main">
+<div id="tb"></div>
+<div class="content" style="width:100%;box-sizing:border-box;padding:0">
+<div class="pr">
+
+<!-- ═══ HEADER ════════════════════════════════════════════ -->
+<div class="pr-hdr">
+  <div class="pr-hdr-row">
+    <div>
+      <div class="pr-ey">Saudi Arabian Glass Company · IMS Certification Project</div>
+      <div class="pr-ti">Project Roadmap — Remaining Work &amp; Actions</div>
+      <div class="pr-su">Management action-tracking view · Responsibilities · Risks · Blockers · Milestones<br>
+        This page complements the Schedule page — it does not duplicate the Gantt Chart</div>
+      <div class="pr-meta">
+        <div class="pr-meta-item"><div class="mi-val">13</div><div class="mi-lbl">Total Activities</div></div>
+        <div class="pr-meta-item"><div class="mi-val" id="hdr-rem">13</div><div class="mi-lbl">Remaining</div></div>
+        <div class="pr-meta-item"><div class="mi-val" id="hdr-days">—</div><div class="mi-lbl">Days to Target</div></div>
+        <div class="pr-meta-item"><div class="mi-val">100</div><div class="mi-lbl">Days Net Plan</div></div>
+      </div>
+    </div>
+    <div class="pr-badge">
+      <div class="pb-lbl">Mandatory Target</div>
+      <div class="pb-date">01 Oct 2026</div>
+      <div class="pb-note">IMS Certification</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SUMMARY CARDS ════════════════════════════════════ -->
+<div class="summary-grid">
+  <div class="s-card sc-open"><div class="sv" id="sc-notstarted">11</div><div class="sl">Not Started</div></div>
+  <div class="s-card sc-inprog"><div class="sv" id="sc-inprog">2</div><div class="sl">In Progress</div></div>
+  <div class="s-card sc-critical"><div class="sv">5</div><div class="sl">Critical Path</div></div>
+  <div class="s-card sc-complete"><div class="sv" id="sc-done">0</div><div class="sl">Completed</div></div>
+</div>
+
+<!-- ═══ WORKSTREAM PROGRESS ══════════════════════════════ -->
+<div style="margin-bottom:10px"><div class="sec-hdr"><h2><span class="ic">📊</span>Workstream Progress</h2></div></div>
+<div class="ws-grid">
+  <div class="ws-card">
+    <div class="wc-name">Pre-Holiday Phase<span class="wc-pct">0%</span></div>
+    <div class="ws-bar-bg"><div class="ws-bar-fill wf-pre" style="width:0%"></div></div>
+    <div class="wc-meta"><span>Website Key Pages</span><span>23 Jun → 02 Jul 2026</span></div>
+  </div>
+  <div class="ws-card">
+    <div class="wc-name">Readiness Phase (July)<span class="wc-pct">0%</span></div>
+    <div class="ws-bar-bg"><div class="ws-bar-fill wf-ready" style="width:0%"></div></div>
+    <div class="wc-meta"><span>Documentation · HIRA · Awareness Training</span><span>05 Jul → 10 Aug 2026</span></div>
+  </div>
+  <div class="ws-card">
+    <div class="wc-name">Stage 2 Prep (August)<span class="wc-pct">0%</span></div>
+    <div class="ws-bar-bg"><div class="ws-bar-fill wf-prep" style="width:0%"></div></div>
+    <div class="wc-meta"><span>ESG · Auditor Training · Internal Audit · Mgmt Review</span><span>11 Aug → 02 Sep 2026</span></div>
+  </div>
+  <div class="ws-card">
+    <div class="wc-name">Certification Phase (Sep–Oct)<span class="wc-pct">0%</span></div>
+    <div class="ws-bar-bg"><div class="ws-bar-fill wf-s2" style="width:0%"></div></div>
+    <div class="wc-meta"><span>Stage 1 · Findings · Stage 2 · Certification</span><span>27 Aug → 01 Oct 2026</span></div>
+  </div>
+</div>
+
+<!-- ═══ PRIMAVERA SCHEDULE PDF VIEWER ══════════════════ -->
+<div class="pr-table-wrap" style="margin-bottom:16px">
+  <div class="pr-table-hdr" style="background:#1a3a5e">
+    <div>
+      <h3>📋 Official Schedule Printout — Primavera P6</h3>
+      <div class="th-sub">IMS Roadmap · Classic Schedule Layout · 23 Jun 2026 · Oracle Primavera · All Activities</div>
+    </div>
+    <div style="display:flex;gap:7px;align-items:center">
+      <button onclick="pdfZoomOut()" class="fb-btn fb-btn-gh no-print" style="padding:4px 10px;font-size:13px" title="Zoom out">－</button>
+      <span id="pdf-zoom-lbl" style="font-size:11px;color:rgba(255,255,255,.6);min-width:40px;text-align:center">100%</span>
+      <button onclick="pdfZoomIn()" class="fb-btn fb-btn-gh no-print" style="padding:4px 10px;font-size:13px" title="Zoom in">＋</button>
+      <button onclick="pdfFullscreen()" class="fb-btn fb-btn-gh no-print" title="Full screen">⛶ Fullscreen</button>
+      <a href="IMS_road_map.pdf" download class="fb-btn fb-btn-gh no-print" title="Download PDF">⬇ Download</a>
+      <button onclick="pdfPrint()" class="fb-btn fb-btn-gh no-print" title="Print PDF">🖨 Print</button>
+    </div>
+  </div>
+
+  <!-- PDF.js viewer container -->
+  <div id="pdf-viewer-wrap" style="background:#525659;width:100%;position:relative;min-height:500px;border-radius:0 0 8px 8px;overflow:hidden">
+
+    <!-- Loading state -->
+    <div id="pdf-loading" style="position:absolute;inset:0;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;background:#525659;z-index:5;color:#fff">
+      <div style="font-size:36px;margin-bottom:12px">📄</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px">Loading Schedule…</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.5)">Primavera P6 IMS Roadmap</div>
+    </div>
+
+    <!-- Fallback iframe for browsers with native PDF support -->
+    <iframe id="pdf-iframe"
+      src="IMS_road_map.pdf#view=FitH&toolbar=1&navpanes=0&scrollbar=1"
+      style="width:100%;height:700px;border:none;display:none"
+      title="IMS Roadmap Primavera Schedule">
+    </iframe>
+
+    <!-- PDF.js canvas viewport -->
+    <div id="pdf-canvas-wrap" style="width:100%;overflow:auto;display:none;
+      max-height:700px;padding:20px;box-sizing:border-box">
+      <div id="pdf-pages" style="display:flex;flex-direction:column;align-items:center;gap:16px"></div>
+    </div>
+
+    <!-- Page navigation bar -->
+    <div id="pdf-nav" style="display:none;position:sticky;bottom:0;left:0;right:0;
+      background:rgba(40,40,40,.95);padding:8px 16px;
+      display:none;flex-direction:row;align-items:center;justify-content:center;gap:12px;
+      backdrop-filter:blur(4px);border-top:1px solid rgba(255,255,255,.1)">
+      <button onclick="pdfPrevPage()" id="pdf-prev"
+        style="background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:5px;
+        padding:5px 14px;font-size:12px;cursor:pointer">◀ Prev</button>
+      <span id="pdf-page-info" style="font-size:12px;color:rgba(255,255,255,.7)">Page 1 of 1</span>
+      <button onclick="pdfNextPage()" id="pdf-next"
+        style="background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:5px;
+        padding:5px 14px;font-size:12px;cursor:pointer">Next ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- PDF Fullscreen overlay -->
+<div id="pdf-fullscreen" style="display:none;position:fixed;inset:0;background:#525659;
+  z-index:99999;flex-direction:column">
+  <div style="background:#1a2340;padding:10px 16px;display:flex;align-items:center;
+    justify-content:space-between;flex-shrink:0">
+    <div style="font-size:13px;font-weight:700;color:#fff">IMS Roadmap — Primavera P6 Schedule</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onclick="fsZoomOut()" style="background:rgba(255,255,255,.1);border:none;
+        color:#fff;border-radius:5px;padding:4px 12px;font-size:13px;cursor:pointer">－</button>
+      <span id="fs-zoom-lbl" style="font-size:11px;color:rgba(255,255,255,.6)">100%</span>
+      <button onclick="fsZoomIn()" style="background:rgba(255,255,255,.1);border:none;
+        color:#fff;border-radius:5px;padding:4px 12px;font-size:13px;cursor:pointer">＋</button>
+      <a href="IMS_road_map.pdf" download style="background:rgba(255,255,255,.1);border:none;
+        color:#fff;border-radius:5px;padding:5px 12px;font-size:11px;cursor:pointer;
+        text-decoration:none">⬇ Download</a>
+      <button onclick="closeFullscreen()" style="background:rgba(200,168,75,.2);border:1px solid rgba(200,168,75,.4);
+        color:#c8a84b;border-radius:5px;padding:5px 14px;font-size:11px;cursor:pointer">✕ Close</button>
+    </div>
+  </div>
+  <iframe id="pdf-fs-iframe" src="" style="flex:1;border:none;width:100%"
+    title="IMS Roadmap Fullscreen"></iframe>
+</div>
+
+<!-- ═══ FILTER BAR ════════════════════════════════════════ -->
+<div class="filter-bar no-print">
+  <input type="text" id="srch" placeholder="🔍  Search activities…" oninput="applyFilters()">
+  <div class="fb-sep"></div>
+  <select class="fb-select" id="f-status" onchange="applyFilters()">
+    <option value="">All Statuses</option>
+    <option value="Not Started">Not Started</option>
+    <option value="In Progress">In Progress</option>
+    <option value="Completed">Completed</option>
+    <option value="At Risk">At Risk</option>
+  </select>
+  <select class="fb-select" id="f-dept" onchange="applyFilters()">
+    <option value="">All Departments</option>
+    <option value="IMS">IMS</option>
+    <option value="Operations">Operations</option>
+    <option value="Quality">Quality</option>
+    <option value="SHEE">SHEE</option>
+    <option value="HR">HR</option>
+    <option value="TÜV Austria">TÜV Austria</option>
+  </select>
+  <select class="fb-select" id="f-pri" onchange="applyFilters()">
+    <option value="">All Priorities</option>
+    <option value="Critical">Critical</option>
+    <option value="High">High</option>
+    <option value="Medium">Medium</option>
+  </select>
+  <div class="fb-sep"></div>
+  <button class="fb-btn fb-btn-gh" onclick="clearFilters()">✕ Clear</button>
+  <div class="fb-sp"></div>
+  <button class="fb-btn fb-btn-gh no-print" onclick="window.print()">🖨 Print</button>
+  <button class="fb-btn fb-btn-grn no-print" onclick="exportExcel()">⬇ Excel</button>
+  <button class="fb-btn fb-btn-nvy no-print" onclick="exportPDF()">⬇ PDF</button>
+</div>
+
+<!-- ═══ REMAINING TASKS REGISTER ════════════════════════ -->
+<div class="pr-table-wrap">
+  <div class="pr-table-hdr">
+    <div>
+      <h3>Remaining Tasks Register</h3>
+      <div class="th-sub">Source: IMS Roadmap — Primavera P6 Export · All activities 0% complete · Target: 01 October 2026</div>
+    </div>
+    <div id="tbl-count" style="font-size:10.5px;color:rgba(255,255,255,.5)"></div>
+  </div>
+  <div class="tbl-scroll">
+  <table class="pr-tbl" id="main-tbl">
+    <thead>
+      <tr>
+        <th onclick="sortTable(0)">ID <span class="sort-ic">↕</span></th>
+        <th onclick="sortTable(1)">Activity Name <span class="sort-ic">↕</span></th>
+        <th onclick="sortTable(2)">Dept <span class="sort-ic">↕</span></th>
+        <th onclick="sortTable(3)">Owner <span class="sort-ic">↕</span></th>
+        <th onclick="sortTable(4)">Priority <span class="sort-ic">↕</span></th>
+        <th onclick="sortTable(5)">Start <span class="sort-ic">↕</span></th>
+        <th onclick="sortTable(6)">Finish <span class="sort-ic">↕</span></th>
+        <th>Dur</th>
+        <th onclick="sortTable(8)">Status <span class="sort-ic">↕</span></th>
+        <th>Progress</th>
+        <th>Required Actions / Comments</th>
+      </tr>
+    </thead>
+    <tbody id="tbl-body">
+      <!-- rows injected by JS -->
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- ═══ CRITICAL ACTIONS DASHBOARD ══════════════════════ -->
+<div class="sec-hdr" style="margin-bottom:10px">
+  <h2><span class="ic">🚨</span>Critical Actions Dashboard</h2>
+</div>
+<div class="crit-grid">
+  <div class="crit-card">
+    <div class="crit-card-hdr red">🔴 High-Priority Open Actions</div>
+    <div class="crit-card-body">
+      <div class="crit-item"><div class="crit-dot cd-red"></div><div>Complete Website Key Pages by 02 Jul — prerequisite for all downstream activities. <b>Owner: IMS Coordinator</b></div></div>
+      <div class="crit-item"><div class="crit-dot cd-red"></div><div>CEO signatures required on all 9 IMS Policies before documentation phase closes. <b>Owner: CEO + IMS Coordinator</b></div></div>
+      <div class="crit-item"><div class="crit-dot cd-red"></div><div>HIRA documentation for all 12 hazard categories — Major NC risk if not closed before Stage 1. <b>Owner: Operations Manager</b></div></div>
+      <div class="crit-item"><div class="crit-dot cd-red"></div><div>Close all 4 open CAPAs (CAPA-2026-001 to 004) before Stage 1 audit. <b>Owner: SHEE Head</b></div></div>
+    </div>
+  </div>
+  <div class="crit-card">
+    <div class="crit-card-hdr amber">⚠ Tasks Requiring Management Decisions</div>
+    <div class="crit-card-body">
+      <div class="crit-item"><div class="crit-dot cd-amber"></div><div>Tanfusiya Programme loan release decision — prerequisite for E-06 and E-07 energy efficiency objectives. <b>Escalation: CEO</b></div></div>
+      <div class="crit-item"><div class="crit-dot cd-amber"></div><div>Emergency drill scheduling (CAPA-2026-002) — must be conducted before Stage 1 audit. <b>Owner: SHEE Head</b></div></div>
+      <div class="crit-item"><div class="crit-dot cd-amber"></div><div>Group A OH Programmes approval — pending senior management sign-off. <b>Owner: Operations Manager</b></div></div>
+      <div class="crit-item"><div class="crit-dot cd-amber"></div><div>ESG Report sign-off by CEO before submission. <b>Owner: CEO + IMS Coordinator</b></div></div>
+    </div>
+  </div>
+  <div class="crit-card">
+    <div class="crit-card-hdr purple">📋 Tasks Requiring External Support</div>
+    <div class="crit-card-body">
+      <div class="crit-item"><div class="crit-dot cd-purple"></div><div>TÜV Austria — confirm Stage 1 audit dates (25–26 Aug 2026). Booking confirmation required. <b>Owner: IMS Coordinator</b></div></div>
+      <div class="crit-item"><div class="crit-dot cd-purple"></div><div>TÜV Austria — confirm Stage 2 audit team and dates (27 Sep – 01 Oct 2026). <b>Owner: IMS Coordinator</b></div></div>
+      <div class="crit-item"><div class="crit-dot cd-purple"></div><div>Supplier Code of Conduct — signed acknowledgments required from all Tier-1 suppliers before EcoVadis submission. <b>Owner: Procurement Manager</b></div></div>
+    </div>
+  </div>
+  <div class="crit-card">
+    <div class="crit-card-hdr blue">📌 Escalated Issues</div>
+    <div class="crit-card-body">
+      <div class="crit-item"><div class="crit-dot cd-blue"></div><div>PTW programme discrepancy (CAPA-2026-001) — 130 registered vs 84 physical. Root cause investigation required. <b>Escalated to: Operations Manager + CEO</b></div></div>
+      <div class="crit-item"><div class="crit-dot cd-blue"></div><div>Workforce headcount reconciliation — 2025 ASR figure vs IMS system. Discrepancy not yet resolved. <b>Owner: IMS Coordinator + HR Manager</b></div></div>
+      <div class="crit-item"><div class="crit-dot cd-blue"></div><div>Gender diversity baseline data — required for 2026 ESG Report. Not yet extracted. <b>Owner: HR Manager</b></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ RISKS & BLOCKERS ══════════════════════════════════ -->
+<div class="sec-hdr" style="margin-bottom:10px">
+  <h2><span class="ic">⛔</span>Risks &amp; Blockers</h2>
+  <div style="display:flex;gap:6px">
+    <select class="fb-select" id="risk-filter" onchange="filterRisks(this.value)">
+      <option value="">All Risks</option>
+      <option value="Blocker">Blockers Only</option>
+      <option value="Schedule">Schedule Threats</option>
+      <option value="Resource">Resource Constraints</option>
+      <option value="External">External Dependencies</option>
+    </select>
+  </div>
+</div>
+<div class="risk-table-wrap">
+  <div class="pr-table-hdr" style="background:#4a1a1a">
+    <div><h3>Risks, Blockers &amp; Dependencies Register</h3></div>
+  </div>
+  <div class="tbl-scroll">
+  <table class="risk-tbl" id="risk-tbl">
+    <thead><tr>
+      <th>Risk ID</th><th>Description</th><th>Category</th>
+      <th>Severity</th><th>Impact</th><th>Owner</th><th>Mitigation</th>
+    </tr></thead>
+    <tbody>
+      <tr data-cat="Blocker"><td>R-01</td><td>HIRA documentation incomplete — Major NC under ISO 45001 §6.1.2</td><td>Blocker</td><td><span class="risk-sev rs-critical">CRITICAL</span></td><td>Stage 2 certification refusal</td><td>Operations Manager</td><td>Complete HIRA for all 12 hazard categories by end of July</td></tr>
+      <tr data-cat="Blocker"><td>R-02</td><td>CAPA-2026-001: PTW discrepancy (130 vs 84 physical) unresolved</td><td>Blocker</td><td><span class="risk-sev rs-critical">CRITICAL</span></td><td>Major NC at Stage 1</td><td>SHEE Head</td><td>Root cause investigation and reconciliation before Stage 1</td></tr>
+      <tr data-cat="Blocker"><td>R-03</td><td>No emergency drill conducted in 2026 (CAPA-2026-002)</td><td>Blocker</td><td><span class="risk-sev rs-high">HIGH</span></td><td>OH&amp;S nonconformity at Stage 1</td><td>SHEE Head</td><td>Schedule and conduct drill before 26 Aug 2026</td></tr>
+      <tr data-cat="Schedule"><td>R-04</td><td>Stage 1 Findings Closure overlaps with Stage 2 start — insufficient buffer</td><td>Schedule</td><td><span class="risk-sev rs-high">HIGH</span></td><td>Stage 2 delay or cancellation</td><td>IMS Coordinator</td><td>Accelerate findings closure; escalate blockers to CEO immediately</td></tr>
+      <tr data-cat="Schedule"><td>R-05</td><td>IMS documentation incomplete by 10 Aug deadline</td><td>Schedule</td><td><span class="risk-sev rs-high">HIGH</span></td><td>Downstream activities delayed — Stage 1 missed</td><td>IMS Coordinator</td><td>Daily progress tracking; mobilise additional IMS support if needed</td></tr>
+      <tr data-cat="External"><td>R-06</td><td>TÜV Austria audit dates not yet confirmed</td><td>External</td><td><span class="risk-sev rs-high">HIGH</span></td><td>Schedule collapse if dates unavailable</td><td>IMS Coordinator</td><td>Confirm Stage 1 and Stage 2 bookings immediately</td></tr>
+      <tr data-cat="Resource"><td>R-07</td><td>Tanfusiya Programme loan release delayed — blocks E-06 and E-07</td><td>Resource</td><td><span class="risk-sev rs-medium">MEDIUM</span></td><td>Energy objectives cannot be implemented</td><td>Deputy Plant Manager</td><td>CEO escalation; document as external dependency in IMS</td></tr>
+      <tr data-cat="Resource"><td>R-08</td><td>CEO availability for signatures, Management Review, and audit participation</td><td>Resource</td><td><span class="risk-sev rs-medium">MEDIUM</span></td><td>Delays to policy approval and MR milestone</td><td>IMS Manager</td><td>Block CEO calendar dates immediately for all IMS milestones</td></tr>
+      <tr data-cat="External"><td>R-09</td><td>Supplier CoC acknowledgments outstanding — EcoVadis Silver at risk</td><td>External</td><td><span class="risk-sev rs-medium">MEDIUM</span></td><td>EcoVadis score below 65 (Silver threshold)</td><td>Procurement Manager</td><td>Issue CoC to all Tier-1 suppliers with signed-by deadline</td></tr>
+      <tr data-cat="Schedule"><td>R-10</td><td>ESG Report not completed before holiday period — July gap risk</td><td>Schedule</td><td><span class="risk-sev rs-medium">MEDIUM</span></td><td>EcoVadis submission delayed to 2027</td><td>IMS Coordinator</td><td>Complete ESG Report by 13 Aug 2026 per revised schedule</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- ═══ UPCOMING MILESTONES ══════════════════════════════ -->
+<div class="sec-hdr" style="margin-bottom:10px">
+  <h2><span class="ic">🏁</span>Upcoming Milestones</h2>
+</div>
+<div class="ms-timeline">
+  <div class="ms-row ms-row-hdr">
+    <div>Target Date</div><div>Milestone</div><div>Responsible</div>
+    <div>Status</div><div>Key Dependencies</div>
+  </div>
+  <div class="ms-row">
+    <div class="ms-date" style="color:#f59e0b">02 Jul 2026</div>
+    <div class="ms-name">Website Key Pages Completion<div class="ms-type">Activity A1000 · 8 days</div></div>
+    <div class="ms-owner">IMS Coordinator</div>
+    <div><span class="badge b-in-progress">🟡 In Progress</span></div>
+    <div class="ms-dep">Project anchor — start phase</div>
+  </div>
+  <div class="ms-row">
+    <div class="ms-date" style="color:#f59e0b">23 Jun 2026</div>
+    <div class="ms-name">Road Map Project Start Phase<div class="ms-type">Milestone A1110 · 0 days</div></div>
+    <div class="ms-owner">IMS Coordinator</div>
+    <div><span class="badge b-in-progress">🟡 In Progress</span></div>
+    <div class="ms-dep">Start of project</div>
+  </div>
+  <div class="ms-row">
+    <div class="ms-date">10 Aug 2026</div>
+    <div class="ms-name">IMS Documentation Completion<div class="ms-type">Activity A1010 · 27 days</div></div>
+    <div class="ms-owner">IMS Coordinator</div>
+    <div><span class="badge b-not-started">⚪ Not Started</span></div>
+    <div class="ms-dep">After A1000 Website</div>
+  </div>
+  <div class="ms-row">
+    <div class="ms-date">10 Aug 2026</div>
+    <div class="ms-name">IMS Committees Activation &amp; Awareness Training<div class="ms-type">Activity A1020 · 27 days</div></div>
+    <div class="ms-owner">IMS Manager + WG Chairs</div>
+    <div><span class="badge b-not-started">⚪ Not Started</span></div>
+    <div class="ms-dep">Parallel with A1010</div>
+  </div>
+  <div class="ms-row">
+    <div class="ms-date">10 Aug 2026</div>
+    <div class="ms-name">HIRA Risk Assessment Completion<div class="ms-type">Activity A1030 · 17 days</div></div>
+    <div class="ms-owner">Operations Manager</div>
+    <div><span class="badge b-at-risk">🔴 At Risk</span></div>
+    <div class="ms-dep">Major NC risk — ISO 45001 §6.1.2</div>
+  </div>
+  <div class="ms-row">
+    <div class="ms-date">13 Aug 2026</div>
+    <div class="ms-name">ESG Reports &amp; Reviews Completion<div class="ms-type">Activity A1040 · 3 days</div></div>
+    <div class="ms-owner">IMS Coordinator</div>
+    <div><span class="badge b-not-started">⚪ Not Started</span></div>
+    <div class="ms-dep">After A1020 Awareness Training</div>
+  </div>
+  <div class="ms-row">
+    <div class="ms-date">20 Aug 2026</div>
+    <div class="ms-name">Internal Audit Training<div class="ms-type">Activity A1050 · 5 days</div></div>
+    <div class="ms-owner">IMS Coordinator</div>
+    <div><span class="badge b-not-started">⚪ Not Started</span></div>
+    <div class="ms-dep">After A1040 ESG</div>
+  </div>
+  <div class="ms-row">
+    <div class="ms-date">24 Aug 2026</div>
+    <div class="ms-name">Internal Audit<div class="ms-type">Activity A1060 · 2 days</div></div>
+    <div class="ms-owner">WG Leads + IMS Coord</div>
+    <div><span class="badge b-not-started">⚪ Not Started</span></div>
+    <div class="ms-dep">After A1050 Auditor Training</div>
+  </div>
+  <div class="ms-row">
+    <div class="ms-date">26 Aug 2026</div>
+    <div class="ms-name" style="color:#dc2626">★ Stage 1 Audit — TÜV Austria<div class="ms-type">Activity A1080 · 2 days · CRITICAL</div></div>
+    <div class="ms-owner">IMS Coord + TÜV Austria</div>
+    <div><span class="badge b-not-started">⚪ Not Started</span></div>
+    <div class="ms-dep">After Internal Audit A1060</div>
+  </div>
+  <div class="ms-row">
+    <div class="ms-date">02 Sep 2026</div>
+    <div class="ms-name">Management Review<div class="ms-type">Activity A1070 · 5 days</div></div>
+    <div class="ms-owner">IMS Manager + CEO</div>
+    <div><span class="badge b-not-started">⚪ Not Started</span></div>
+    <div class="ms-dep">Parallel with Stage 1 Findings</div>
+  </div>
+  <div class="ms-row">
+    <div class="ms-date">24 Sep 2026</div>
+    <div class="ms-name">Stage 1 Findings Closure<div class="ms-type">Activity A1090 · 21 days · CRITICAL</div></div>
+    <div class="ms-owner">IMS Coord + WG Chairs</div>
+    <div><span class="badge b-not-started">⚪ Not Started</span></div>
+    <div class="ms-dep">After Stage 1 Audit A1080</div>
+  </div>
+  <div class="ms-row">
+    <div class="ms-date" style="color:#dc2626;font-size:14px;font-weight:800">01 Oct 2026</div>
+    <div class="ms-name" style="color:#dc2626">★★ Stage 2 Audit &amp; Certification<div class="ms-type">Activity A1100 · 5 days · CRITICAL — MANDATORY TARGET</div></div>
+    <div class="ms-owner">IMS Coord + TÜV Austria</div>
+    <div><span class="badge b-not-started">⚪ Not Started</span></div>
+    <div class="ms-dep">After Stage 1 Findings Closure A1090</div>
+  </div>
+  <div class="ms-row" style="background:#f0fdf4">
+    <div class="ms-date" style="color:#1e8449;font-size:14px;font-weight:800">01 Oct 2026</div>
+    <div class="ms-name" style="color:#1e8449;font-weight:800">🏆 IMS Certification<div class="ms-type">Final Milestone A1120 · Certification granted — ISO 9001 · ISO 14001 · ISO 45001 · ISO 50001</div></div>
+    <div class="ms-owner">SAGCO + TÜV Austria</div>
+    <div><span class="badge b-not-started">⚪ Pending</span></div>
+    <div class="ms-dep">After Stage 2 Certification A1100</div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div style="text-align:center;font-size:10px;color:#94a3b8;padding:8px 0">
+  SAGCO IMS Project Roadmap · Source: IMS Roadmap Primavera P6 Export · Updated: <span id="upd-date"></span>
+</div>
+
+</div><!-- pr -->
+</div><!-- content -->
+</div><!-- main -->
+
+<script>
+/* ═══════════════════════════════════════════════════
+   PROJECT ROADMAP — Interactive Management Dashboard
+   Source: Primavera P6 Export (IMS Roadmap)
+═══════════════════════════════════════════════════ */
+
+const TASKS_DATA = [
+  {id:'A1000',name:'Website Key Pages Completion',           dept:'IMS',       owner:'IMS Coordinator',          pri:'Critical',start:'23 Jun 2026',finish:'02 Jul 2026',dur:'8d', status:'In Progress',pct:60,
+   actions:'Complete all 9 remaining procedure pages (proc-c5 through proc-c10). Upload to GitHub. Test all navigation links. Prerequisite for all downstream activities.',
+   milestone:false, critical:true},
+  {id:'A1110',name:'Road Map Project Completion (Start Phase)',dept:'IMS',     owner:'IMS Coordinator',          pri:'High',   start:'23 Jun 2026',finish:'23 Jun 2026',dur:'0d', status:'In Progress',pct:100,
+   actions:'Project formally started 23 Jun 2026. IMS Steering Committee notified.',
+   milestone:true, critical:false},
+  {id:'A1010',name:'IMS Documentation Completion',           dept:'IMS',       owner:'IMS Coordinator',          pri:'Critical',start:'05 Jul 2026',finish:'10 Aug 2026',dur:'27d',status:'Not Started',pct:0,
+   actions:'Complete all L2 procedure pages, L3 work instructions, and L4 registers. CEO must sign all 9 policies. Upload all documents to IMS web platform.',
+   milestone:false, critical:true},
+  {id:'A1020',name:'IMS Committees Activation & Awareness Training',dept:'IMS',owner:'IMS Manager + WG Chairs',pri:'High',   start:'05 Jul 2026',finish:'10 Aug 2026',dur:'27d',status:'Not Started',pct:0,
+   actions:'Activate all 3 Working Groups. Conduct IMS awareness sessions for all WG leads. Record attendance in L4-IMS-540-RC-01. IMS Manager to chair first Steering Committee meeting.',
+   milestone:false, critical:false},
+  {id:'A1030',name:'HIRA Risk Assessment Completion',         dept:'Operations',owner:'Operations Manager',       pri:'Critical',start:'19 Jul 2026',finish:'10 Aug 2026',dur:'17d',status:'At Risk',  pct:20,
+   actions:'Complete HIRA for all 12 hazard categories. SHEE Representatives must participate per ISO 45001 §5.4. Absence = Major NC at Stage 1. Escalate to CEO if resources insufficient.',
+   milestone:false, critical:true},
+  {id:'A1040',name:'ESG Reports & Reviews Completion',        dept:'IMS',       owner:'IMS Coordinator',          pri:'High',   start:'11 Aug 2026',finish:'13 Aug 2026',dur:'3d', status:'Not Started',pct:0,
+   actions:'Complete GRI-aligned ESG Report. Collect water consumption data from Deputy Plant Manager. Collect gender diversity data from HR Manager. CEO sign-off required before submission.',
+   milestone:false, critical:false},
+  {id:'A1050',name:'Internal Audit Training',                 dept:'IMS',       owner:'IMS Coordinator',          pri:'High',   start:'16 Aug 2026',finish:'20 Aug 2026',dur:'5d', status:'Not Started',pct:0,
+   actions:'Train all WG leads as internal auditors. Use IMS audit methodology. Record completion in training register. Must complete BEFORE Internal Audit (A1060).',
+   milestone:false, critical:false},
+  {id:'A1060',name:'Internal Audit',                          dept:'IMS',       owner:'WG Leads + IMS Coordinator',pri:'Critical',start:'23 Aug 2026',finish:'24 Aug 2026',dur:'2d', status:'Not Started',pct:0,
+   actions:'Conduct full IMS internal audit across all 4 standards. WG leads audit each other\'s areas. Issue Audit Findings Report. Close minor findings before Stage 1.',
+   milestone:false, critical:true},
+  {id:'A1080',name:'Stage 1 Audit — TÜV Austria',            dept:'TÜV Austria',owner:'IMS Coordinator + TÜV',  pri:'Critical',start:'25 Aug 2026',finish:'26 Aug 2026',dur:'2d', status:'Not Started',pct:0,
+   actions:'Confirm Stage 1 audit dates with TÜV Austria immediately. Prepare Stage 1 evidence package (documented information, scope, context register, HIRA). All CAPAs must be closed.',
+   milestone:false, critical:true},
+  {id:'A1070',name:'Management Review',                       dept:'IMS',       owner:'IMS Manager + CEO',        pri:'Critical',start:'27 Aug 2026',finish:'02 Sep 2026',dur:'5d', status:'Not Started',pct:0,
+   actions:'CEO to chair Management Review. Review all KPIs, CAPA status, audit findings, and objectives. Issue signed Management Review Minutes. Block CEO calendar immediately.',
+   milestone:false, critical:true},
+  {id:'A1090',name:'Stage 1 Findings Closure',                dept:'IMS',       owner:'IMS Coord + WG Chairs',   pri:'Critical',start:'27 Aug 2026',finish:'24 Sep 2026',dur:'21d',status:'Not Started',pct:0,
+   actions:'Close all Stage 1 findings within TÜV Austria agreed timescales. Major NCs: 5 working days. Minor NCs: 30 days. Submit evidence to TÜV Austria. Critical path — must complete before Stage 2.',
+   milestone:false, critical:true},
+  {id:'A1100',name:'Stage 2 Audit & Certification',           dept:'TÜV Austria',owner:'IMS Coord + TÜV Austria',pri:'Critical',start:'27 Sep 2026',finish:'01 Oct 2026',dur:'5d', status:'Not Started',pct:0,
+   actions:'Confirm Stage 2 audit team and dates with TÜV Austria. Prepare full Stage 2 evidence package. All findings from Stage 1 must be closed. Mandatory target: certification by 01 Oct 2026.',
+   milestone:false, critical:true},
+  {id:'A1120',name:'IMS Certification',                       dept:'TÜV Austria',owner:'SAGCO + TÜV Austria',   pri:'Critical',start:'01 Oct 2026',finish:'01 Oct 2026',dur:'0d', status:'Not Started',pct:0,
+   actions:'Certification granted upon successful Stage 2 audit. Certificates issued for ISO 9001, ISO 14001, ISO 45001, and ISO 50001. Mandatory project completion milestone.',
+   milestone:true, critical:true},
+];
+
+const STAT_MAP={
+  'Not Started':'<span class="badge b-not-started">⚪ Not Started</span>',
+  'In Progress':'<span class="badge b-in-progress">🟡 In Progress</span>',
+  'Completed':'<span class="badge b-completed">✅ Completed</span>',
+  'At Risk':'<span class="badge b-at-risk">🔴 At Risk</span>',
+};
+const PRI_MAP={
+  'Critical':'<span class="pri pri-critical">CRITICAL</span>',
+  'High':'<span class="pri pri-high">HIGH</span>',
+  'Medium':'<span class="pri pri-medium">MEDIUM</span>',
+  'Low':'<span class="pri pri-low">LOW</span>',
+};
+const PROG_COL={'Not Started':'#94a3b8','In Progress':'#c8a84b','Completed':'#1e8449','At Risk':'#dc2626'};
+
+/* ─── Render table ──────────────────────────────────── */
+function renderTable(data){
+  const tbody=document.getElementById('tbl-body');
+  tbody.innerHTML=data.map(t=>`
+    <tr data-id="${t.id}" data-dept="${t.dept}" data-status="${t.status}" data-pri="${t.pri}">
+      <td>${t.id}</td>
+      <td class="td-name">${t.critical?'<span style="color:#dc2626;font-size:9px;font-weight:800">★ </span>':''}${t.name}${t.milestone?'<br><span style="font-size:9px;font-weight:400;color:#64748b">◆ Milestone</span>':''}</td>
+      <td><span style="font-size:10px;background:#f1f5f9;border-radius:4px;padding:2px 7px;font-weight:600;color:#475569">${t.dept}</span></td>
+      <td style="font-size:11px;color:#374151">${t.owner}</td>
+      <td>${PRI_MAP[t.pri]||t.pri}</td>
+      <td class="td-date">${t.start}</td>
+      <td class="td-date">${t.finish}</td>
+      <td class="td-dur">${t.dur}</td>
+      <td>${STAT_MAP[t.status]||t.status}</td>
+      <td style="min-width:100px">
+        <div class="tbl-prog-wrap">
+          <div class="tbl-prog-bg"><div class="tbl-prog-fill" style="width:${t.pct}%;background:${PROG_COL[t.status]}"></div></div>
+          <span class="tbl-prog-lbl">${t.pct}%</span>
+        </div>
+      </td>
+      <td style="font-size:10.5px;color:#374151;min-width:180px;line-height:1.5">${t.actions}</td>
+    </tr>`).join('');
+  document.getElementById('tbl-count').textContent=data.length+' activities shown';
+}
+
+/* ─── Filters ───────────────────────────────────────── */
+function applyFilters(){
+  const q=(document.getElementById('srch').value||'').toLowerCase();
+  const st=document.getElementById('f-status').value;
+  const dept=document.getElementById('f-dept').value;
+  const pri=document.getElementById('f-pri').value;
+  const filtered=TASKS_DATA.filter(t=>{
+    const txt=(t.id+' '+t.name+' '+t.owner+' '+t.dept+' '+t.actions).toLowerCase();
+    return(!q||txt.includes(q))&&(!st||t.status===st)&&(!dept||t.dept.includes(dept))&&(!pri||t.pri===pri);
+  });
+  renderTable(filtered);
+}
+function clearFilters(){
+  document.getElementById('srch').value='';
+  document.getElementById('f-status').value='';
+  document.getElementById('f-dept').value='';
+  document.getElementById('f-pri').value='';
+  renderTable(TASKS_DATA);
+}
+
+/* ─── Sort table ────────────────────────────────────── */
+let sortDir={};
+function sortTable(col){
+  const cols=['id','name','dept','owner','pri','start','finish','dur','status'];
+  const key=cols[col];
+  sortDir[key]=(sortDir[key]||1)*-1;
+  const sorted=[...TASKS_DATA].sort((a,b)=>
+    String(a[key]).localeCompare(String(b[key]))*sortDir[key]
+  );
+  renderTable(sorted);
+}
+
+/* ─── Risk filter ───────────────────────────────────── */
+function filterRisks(cat){
+  document.querySelectorAll('#risk-tbl tbody tr').forEach(tr=>{
+    tr.style.display=(!cat||tr.dataset.cat===cat)?'':'none';
+  });
+}
+
+/* ─── Export Excel (CSV) ────────────────────────────── */
+function exportExcel(){
+  const rows=[['ID','Activity Name','Department','Owner','Priority','Start','Finish','Duration','Status','% Complete','Required Actions']];
+  TASKS_DATA.forEach(t=>rows.push([t.id,t.name,t.dept,t.owner,t.pri,t.start,t.finish,t.dur,t.status,t.pct+'%',t.actions]));
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download='SAGCO_IMS_Roadmap_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+/* ─── Export PDF (print) ────────────────────────────── */
+function exportPDF(){ window.print(); }
+
+/* ─── PDF Viewer ─────────────────────────────────────── */
+const PDF_URL = 'IMS_road_map.pdf';
+let pdfZoom = 1.0;
+let fsZoom = 1.0;
+let pdfDoc = null, pdfCurrentPage = 1;
+
+function initPdfViewer(){
+  // Try iframe first (fastest for Chrome/Firefox/Edge)
+  const iframe = document.getElementById('pdf-iframe');
+  const loading = document.getElementById('pdf-loading');
+  const canvasWrap = document.getElementById('pdf-canvas-wrap');
+
+  iframe.onload = function(){
+    loading.style.display = 'none';
+    iframe.style.display = 'block';
+  };
+
+  // If iframe fails or takes too long, try PDF.js
+  iframe.onerror = function(){ tryPdfJs(); };
+  setTimeout(function(){
+    if(loading.style.display !== 'none') tryPdfJs();
+  }, 3000);
+
+  // Set iframe src (triggers load)
+  iframe.src = PDF_URL + '#view=FitH&toolbar=1';
+}
+
+function tryPdfJs(){
+  const loading = document.getElementById('pdf-loading');
+  const iframe  = document.getElementById('pdf-iframe');
+  const cw      = document.getElementById('pdf-canvas-wrap');
+  const nav     = document.getElementById('pdf-nav');
+
+  // Load PDF.js from CDN
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  script.onload = function(){
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    pdfjsLib.getDocument(PDF_URL).promise.then(function(doc){
+      pdfDoc = doc;
+      iframe.style.display = 'none';
+      loading.style.display = 'none';
+      cw.style.display = 'block';
+      nav.style.display = 'flex';
+      renderAllPages(doc);
+    }).catch(function(){
+      loading.innerHTML = '<div style="font-size:13px;color:#fff;text-align:center">'+
+        '<div style="font-size:28px;margin-bottom:10px">📄</div>'+
+        'PDF preview unavailable in this environment.<br>'+
+        '<a href="IMS_road_map.pdf" download style="color:#c8a84b;margin-top:8px;display:inline-block">'+
+        '⬇ Download Schedule PDF</a></div>';
+      loading.style.display = 'flex';
+    });
+  };
+  document.head.appendChild(script);
+}
+
+function renderAllPages(doc){
+  const container = document.getElementById('pdf-pages');
+  container.innerHTML = '';
+  for(let i=1; i<=doc.numPages; i++){
+    doc.getPage(i).then(function(page){
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.3);border-radius:4px;overflow:hidden';
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const vp = page.getViewport({scale: pdfZoom * 1.5});
+      canvas.width = vp.width; canvas.height = vp.height;
+      canvas.style.cssText = 'display:block;max-width:100%';
+      wrap.appendChild(canvas);
+      container.appendChild(wrap);
+      page.render({canvasContext:ctx, viewport:vp});
+    });
+  }
+  document.getElementById('pdf-page-info').textContent = 'All pages · ' + doc.numPages + ' page(s)';
+}
+
+function pdfZoomIn(){
+  pdfZoom = Math.min(pdfZoom + 0.2, 3.0);
+  updateZoomLabel();
+  if(pdfDoc) renderAllPages(pdfDoc);
+}
+function pdfZoomOut(){
+  pdfZoom = Math.max(pdfZoom - 0.2, 0.4);
+  updateZoomLabel();
+  if(pdfDoc) renderAllPages(pdfDoc);
+}
+function updateZoomLabel(){
+  document.getElementById('pdf-zoom-lbl').textContent = Math.round(pdfZoom*100)+'%';
+}
+function pdfPrevPage(){ /* nav handled by scroll */ }
+function pdfNextPage(){ /* nav handled by scroll */ }
+function pdfPrint(){
+  const w = window.open(PDF_URL);
+  if(w) setTimeout(function(){ w.print(); }, 800);
+}
+
+function pdfFullscreen(){
+  const fs = document.getElementById('pdf-fullscreen');
+  const fsiframe = document.getElementById('pdf-fs-iframe');
+  fs.style.display = 'flex';
+  fsiframe.src = PDF_URL + '#view=FitH&toolbar=1';
+}
+function closeFullscreen(){
+  document.getElementById('pdf-fullscreen').style.display = 'none';
+  document.getElementById('pdf-fs-iframe').src = '';
+}
+function fsZoomIn(){
+  fsZoom = Math.min(fsZoom + 0.2, 3.0);
+  document.getElementById('fs-zoom-lbl').textContent = Math.round(fsZoom*100)+'%';
+}
+function fsZoomOut(){
+  fsZoom = Math.max(fsZoom - 0.2, 0.4);
+  document.getElementById('fs-zoom-lbl').textContent = Math.round(fsZoom*100)+'%';
+}
+
+/* ─── Days remaining ─────────────────────────────────── */
+function updateDays(){
+  const target=new Date('2026-10-01T00:00:00');
+  const today=new Date();today.setHours(0,0,0,0);
+  const diff=Math.ceil((target-today)/86400000);
+  document.getElementById('hdr-days').textContent=diff>0?diff:'🏆';
+  document.getElementById('upd-date').textContent=
+    today.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+}
+
+/* ─── Init ──────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded',function(){
+  initPage('project-roadmap.html');
+  document.getElementById('tb').innerHTML=renderTopbar(
+    'Project Roadmap',
+    'Remaining Work · Actions · Risks · Milestones · IMS Certification Target: 01 Oct 2026'
+  );
+  IMS_AUTH.injectUserBar();
+  renderTable(TASKS_DATA);
+  updateDays();
+  initPdfViewer();
+});
+</script>
+</body>
+</html>
