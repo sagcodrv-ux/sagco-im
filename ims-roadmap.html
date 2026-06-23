@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Certification Roadmap 2026</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script>
+<script src="data.js"></script>
+<script src="nav.js"></script>
+<style>
+/* ── Reset & base ─────────────────────────────────────── */
+*{box-sizing:border-box;min-width:0}
+.rm-wrap{
+  font-family:-apple-system,'Segoe UI',sans-serif;
+  background:#f0f4f8;min-height:100vh;
+  padding:20px;width:100%;
+}
+
+/* ── Command header ───────────────────────────────────── */
+.rm-header{
+  background:linear-gradient(135deg,#0d1520 0%,#1a2340 60%,#0d2235 100%);
+  border-radius:12px;padding:24px 28px;margin-bottom:20px;
+  position:relative;overflow:hidden;
+}
+.rm-header::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,#c8a84b,transparent);
+}
+.rm-h-top{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.rm-h-left .rm-eyebrow{
+  font-size:10px;font-weight:700;letter-spacing:.12em;
+  color:#c8a84b;text-transform:uppercase;margin-bottom:6px;
+}
+.rm-h-left .rm-h-title{
+  font-size:22px;font-weight:800;color:#fff;
+  letter-spacing:-.4px;line-height:1.2;margin-bottom:4px;
+}
+.rm-h-left .rm-h-sub{font-size:12px;color:rgba(255,255,255,.55);line-height:1.6}
+.rm-target-badge{
+  background:rgba(200,168,75,.15);border:1px solid rgba(200,168,75,.4);
+  border-radius:8px;padding:10px 16px;text-align:center;flex-shrink:0;
+}
+.rm-target-badge .tb-label{font-size:9px;color:rgba(255,255,255,.5);
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.rm-target-badge .tb-date{font-size:16px;font-weight:800;color:#c8a84b}
+.rm-target-badge .tb-tag{font-size:9px;color:rgba(255,255,255,.6);margin-top:2px}
+
+/* ── KPI cards ────────────────────────────────────────── */
+.rm-kpis{
+  display:grid;grid-template-columns:repeat(6,1fr);
+  gap:10px;margin-bottom:20px;
+}
+.rm-kpi{
+  background:#fff;border-radius:10px;padding:14px 16px;
+  border:1px solid #e2e8f0;
+  border-top:3px solid #e2e8f0;
+  transition:transform .15s,box-shadow .15s;
+}
+.rm-kpi:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.08)}
+.rm-kpi.kpi-prog{border-top-color:#c8a84b}
+.rm-kpi.kpi-done{border-top-color:#1e8449}
+.rm-kpi.kpi-open{border-top-color:#2563eb}
+.rm-kpi.kpi-delay{border-top-color:#dc2626}
+.rm-kpi.kpi-s1{border-top-color:#7c3aed}
+.rm-kpi.kpi-s2{border-top-color:#c8a84b}
+.rm-kpi .kv{font-size:28px;font-weight:800;color:#1a2340;line-height:1}
+.rm-kpi .kl{font-size:10px;color:#64748b;margin-top:4px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+.rm-kpi .ks{font-size:11px;font-weight:600;margin-top:4px}
+.kpi-prog .kv{color:#c8a84b}
+.kpi-done .ks{color:#1e8449}
+.kpi-delay .ks{color:#dc2626}
+.kpi-s1 .kv,.kpi-s2 .kv{color:#c8a84b}
+
+/* ── Progress ring ────────────────────────────────────── */
+.rm-prog-ring{
+  display:flex;align-items:center;gap:12px;
+  background:#fff;border-radius:10px;padding:14px 16px;
+  border:1px solid #e2e8f0;border-top:3px solid #c8a84b;
+  grid-column:span 2;
+}
+.ring-svg{flex-shrink:0}
+.ring-info .ri-pct{font-size:28px;font-weight:800;color:#1a2340}
+.ring-info .ri-label{font-size:10px;color:#64748b;text-transform:uppercase;
+  letter-spacing:.04em;font-weight:500;margin-top:2px}
+
+/* ── Filter bar ───────────────────────────────────────── */
+.rm-filters{
+  display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  margin-bottom:16px;
+}
+.rm-filter-btn{
+  padding:5px 14px;border-radius:20px;font-size:11px;font-weight:600;
+  cursor:pointer;border:1px solid #d1d5db;background:#fff;color:#374151;
+  transition:all .15s;
+}
+.rm-filter-btn:hover,.rm-filter-btn.active{
+  background:#1a2340;color:#fff;border-color:#1a2340;
+}
+.rm-filter-btn.f-pre.active{background:#f59e0b;border-color:#f59e0b;color:#fff}
+.rm-filter-btn.f-ready.active{background:#0ea5e9;border-color:#0ea5e9;color:#fff}
+.rm-filter-btn.f-prep.active{background:#8b5cf6;border-color:#8b5cf6;color:#fff}
+.rm-filter-btn.f-s1.active{background:#dc2626;border-color:#dc2626;color:#fff}
+.rm-filter-btn.f-s2.active{background:#1e8449;border-color:#1e8449;color:#fff}
+
+/* ── Gantt chart ──────────────────────────────────────── */
+.rm-gantt-wrap{
+  background:#fff;border-radius:12px;
+  border:1px solid #e2e8f0;overflow:hidden;
+  margin-bottom:20px;
+}
+.rm-gantt-header{
+  background:#1a2340;padding:14px 20px;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+}
+.rm-gantt-header h3{font-size:13px;font-weight:700;color:#fff;margin:0}
+.rm-gantt-header .gh-sub{font-size:11px;color:rgba(255,255,255,.5)}
+
+/* View toggle */
+.view-toggle{display:flex;gap:4px}
+.vt-btn{
+  padding:4px 12px;border-radius:6px;font-size:10px;font-weight:600;
+  cursor:pointer;border:1px solid rgba(255,255,255,.2);
+  background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);
+  transition:all .15s;
+}
+.vt-btn.active,.vt-btn:hover{background:#c8a84b;color:#1a2340;border-color:#c8a84b}
+
+/* Gantt grid */
+.rm-gantt{overflow-x:auto;width:100%}
+.gantt-inner{min-width:900px;padding:0}
+
+/* Month header */
+.gantt-months{
+  display:grid;background:#f8fafc;
+  border-bottom:1px solid #e2e8f0;
+  padding-left:220px;
+}
+.gm-cell{
+  padding:8px 0;text-align:center;font-size:10px;font-weight:700;
+  color:#64748b;text-transform:uppercase;letter-spacing:.06em;
+  border-right:1px solid #e2e8f0;
+}
+
+/* Week header */
+.gantt-weeks{
+  display:grid;background:#f8fafc;
+  border-bottom:2px solid #e2e8f0;
+  padding-left:220px;
+}
+.gw-cell{
+  padding:5px 0;text-align:center;font-size:9px;color:#94a3b8;
+  border-right:1px solid #f0f4f8;font-weight:600;
+}
+
+/* Task rows */
+.gantt-row{
+  display:grid;border-bottom:1px solid #f0f4f8;
+  transition:background .15s;min-height:44px;
+}
+.gantt-row:hover{background:#f8fafc}
+.gantt-row.gr-hidden{display:none}
+
+.gr-label{
+  padding:0 12px;display:flex;align-items:center;gap:8px;
+  background:#fff;border-right:2px solid #e2e8f0;
+  position:sticky;left:0;z-index:2;min-width:220px;width:220px;
+}
+.gr-label-inner{flex:1;min-width:0}
+.gr-id{font-family:monospace;font-size:9px;color:#94a3b8;margin-bottom:1px}
+.gr-name{font-size:11.5px;font-weight:600;color:#1a2340;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.gr-owner{font-size:9.5px;color:#64748b;margin-top:1px}
+
+.gr-status-dot{
+  width:8px;height:8px;border-radius:50%;flex-shrink:0;
+}
+.gr-status-dot.done{background:#1e8449}
+.gr-status-dot.inprog{background:#c8a84b;animation:pulse 2s infinite}
+.gr-status-dot.planned{background:#2563eb}
+.gr-status-dot.delayed{background:#dc2626;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.gr-cells{display:flex;flex:1;position:relative;align-items:center}
+
+/* Bar */
+.gr-bar-wrap{
+  position:absolute;height:26px;border-radius:6px;
+  display:flex;align-items:center;overflow:hidden;
+  cursor:pointer;transition:filter .15s,transform .15s;box-shadow:0 2px 8px rgba(0,0,0,.12);
+}
+.gr-bar-wrap:hover{filter:brightness(1.1);transform:scaleY(1.05);z-index:5}
+.gr-bar-fill{height:100%;border-radius:6px;transition:width .6s ease}
+.gr-bar-label{
+  position:absolute;left:8px;right:4px;
+  font-size:9.5px;font-weight:700;color:#fff;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.3);
+}
+.gr-bar-pct{
+  position:absolute;right:6px;font-size:9px;
+  font-weight:700;color:rgba(255,255,255,.8);
+}
+
+/* Phase colors */
+.phase-pre    .gr-bar-wrap{background:linear-gradient(90deg,#d97706,#f59e0b)}
+.phase-ready  .gr-bar-wrap{background:linear-gradient(90deg,#0284c7,#38bdf8)}
+.phase-prep   .gr-bar-wrap{background:linear-gradient(90deg,#7c3aed,#a78bfa)}
+.phase-s1     .gr-bar-wrap{background:linear-gradient(90deg,#dc2626,#ef4444)}
+.phase-s2     .gr-bar-wrap{background:linear-gradient(90deg,#1e8449,#22c55e)}
+
+/* Today line */
+.today-line{
+  position:absolute;top:0;bottom:0;width:2px;
+  background:#ff4444;z-index:10;pointer-events:none;
+}
+.today-line::before{
+  content:'TODAY';position:absolute;top:-18px;left:50%;transform:translateX(-50%);
+  font-size:8px;font-weight:800;color:#ff4444;white-space:nowrap;letter-spacing:.05em;
+}
+
+/* Deadline line */
+.deadline-line{
+  position:absolute;top:0;bottom:0;width:2px;
+  background:#c8a84b;z-index:10;pointer-events:none;
+  border-style:dashed;border-width:0 0 0 2px;
+  background:repeating-linear-gradient(to bottom,#c8a84b 0,#c8a84b 6px,transparent 6px,transparent 10px);
+}
+.deadline-line::before{
+  content:'30 SEP';position:absolute;top:-18px;left:50%;transform:translateX(-50%);
+  font-size:8px;font-weight:800;color:#c8a84b;white-space:nowrap;letter-spacing:.05em;
+}
+
+/* Dependency lines */
+.dep-svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:3}
+
+/* ── Tooltip ──────────────────────────────────────────── */
+#rm-tooltip{
+  position:fixed;z-index:9999;
+  background:#1a2340;color:#fff;border-radius:8px;
+  padding:10px 14px;font-size:11.5px;
+  box-shadow:0 8px 24px rgba(0,0,0,.3);
+  pointer-events:none;opacity:0;transition:opacity .15s;
+  max-width:260px;border:1px solid rgba(200,168,75,.3);
+}
+#rm-tooltip.visible{opacity:1}
+#rm-tooltip .tt-title{font-weight:700;color:#c8a84b;margin-bottom:6px}
+#rm-tooltip .tt-row{display:flex;justify-content:space-between;gap:12px;
+  font-size:11px;color:rgba(255,255,255,.8);margin-bottom:3px}
+#rm-tooltip .tt-row span:last-child{color:#fff;font-weight:600}
+
+/* ── Legend ───────────────────────────────────────────── */
+.rm-legend{
+  display:flex;gap:16px;flex-wrap:wrap;align-items:center;
+  padding:12px 20px;background:#f8fafc;
+  border-top:1px solid #e2e8f0;
+}
+.leg-item{display:flex;align-items:center;gap:6px;font-size:10.5px;color:#374151}
+.leg-dot{width:10px;height:10px;border-radius:2px}
+
+/* ── Milestone tracker ────────────────────────────────── */
+.rm-milestones{
+  background:#fff;border-radius:12px;border:1px solid #e2e8f0;
+  overflow:hidden;margin-bottom:20px;
+}
+.rm-ms-header{
+  background:#1a2340;padding:12px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.rm-ms-header h3{font-size:13px;font-weight:700;color:#fff;margin:0}
+.rm-ms-list{padding:0}
+.ms-row{
+  display:grid;grid-template-columns:36px 1fr 160px 120px 90px;
+  align-items:center;gap:0;
+  border-bottom:1px solid #f0f4f8;padding:10px 16px;
+  transition:background .12s;
+}
+.ms-row:last-child{border-bottom:none}
+.ms-row:hover{background:#f8fafc}
+.ms-num{
+  width:28px;height:28px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:800;flex-shrink:0;
+}
+.ms-name{font-size:12px;font-weight:600;color:#1a2340;padding-left:8px}
+.ms-name .ms-dep{font-size:10px;color:#64748b;margin-top:2px}
+.ms-dates{font-size:11px;color:#64748b}
+.ms-dates strong{color:#1a2340;font-size:11.5px}
+.ms-owner{font-size:10.5px;color:#64748b}
+.ms-status-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;
+}
+
+/* ── Critical path banner ─────────────────────────────── */
+.rm-crit-banner{
+  background:linear-gradient(135deg,#0d1520,#1a2340);
+  border-radius:10px;padding:16px 20px;margin-bottom:20px;
+  border:1px solid rgba(200,168,75,.2);
+}
+.rm-crit-banner h4{
+  font-size:11px;font-weight:700;color:#c8a84b;text-transform:uppercase;
+  letter-spacing:.08em;margin-bottom:10px;
+}
+.crit-path{display:flex;align-items:center;flex-wrap:wrap;gap:0}
+.cp-node{
+  background:rgba(200,168,75,.12);border:1px solid rgba(200,168,75,.3);
+  border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;
+  color:#f0d98a;white-space:nowrap;
+}
+.cp-arr{color:rgba(200,168,75,.5);font-size:14px;margin:0 4px;flex-shrink:0}
+.cp-final{background:#c8a84b;color:#1a2340;border-color:#c8a84b}
+
+/* ── Footer ───────────────────────────────────────────── */
+.rm-footer{
+  text-align:center;font-size:10.5px;color:#94a3b8;padding:10px 0 0;
+}
+
+@media(max-width:700px){
+  .rm-kpis{grid-template-columns:repeat(3,1fr)}
+  .ms-row{grid-template-columns:28px 1fr 100px}
+  .ms-dates,.ms-owner{display:none}
+}
+</style>
+</head>
+<body>
+<div id="sidebar"></div>
+<div class="main">
+<div id="tb"></div>
+<div class="content" style="width:100%;box-sizing:border-box;padding:0">
+<div class="rm-wrap">
+
+<!-- ═══ COMMAND HEADER ════════════════════════════════════ -->
+<div class="rm-header">
+  <div class="rm-h-top">
+    <div class="rm-h-left">
+      <div class="rm-eyebrow">Saudi Arabian Glass Company · Jeddah Industrial City Phase 4</div>
+      <div class="rm-h-title">IMS Certification Roadmap 2026</div>
+      <div class="rm-h-sub">ISO 9001 · ISO 14001 · ISO 45001 · ISO 50001 · TÜV Austria Stage 2 Certification</div>
+    </div>
+    <div class="rm-target-badge">
+      <div class="tb-label">Certification Target</div>
+      <div class="tb-date">30 Sep 2026</div>
+      <div class="tb-tag" id="days-to-cert">Calculating…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ KPI DASHBOARD ════════════════════════════════════ -->
+<div class="rm-kpis">
+  <div class="rm-kpi kpi-prog">
+    <div class="kv" id="kv-progress">0%</div>
+    <div class="kl">Overall Progress</div>
+    <div class="ks" id="ks-progress">—</div>
+  </div>
+  <div class="rm-kpi kpi-done">
+    <div class="kv" id="kv-done">0</div>
+    <div class="kl">Completed</div>
+    <div class="ks" style="color:#1e8449">Milestones</div>
+  </div>
+  <div class="rm-kpi kpi-open">
+    <div class="kv" id="kv-open">0</div>
+    <div class="kl">In Progress / Open</div>
+    <div class="ks" style="color:#2563eb">Milestones</div>
+  </div>
+  <div class="rm-kpi kpi-delay">
+    <div class="kv" id="kv-delay">0</div>
+    <div class="kl">Delayed</div>
+    <div class="ks" id="ks-delay">Milestones</div>
+  </div>
+  <div class="rm-kpi kpi-s1">
+    <div class="kv" id="kv-s1">—</div>
+    <div class="kl">Days to Stage 1</div>
+    <div class="ks" style="color:#7c3aed">1 Sep 2026</div>
+  </div>
+  <div class="rm-kpi kpi-s2">
+    <div class="kv" id="kv-s2">—</div>
+    <div class="kl">Days to Certification</div>
+    <div class="ks" style="color:#c8a84b">30 Sep 2026</div>
+  </div>
+</div>
+
+<!-- ═══ CRITICAL PATH ════════════════════════════════════ -->
+<div class="rm-crit-banner">
+  <h4>🔴 Critical Path to Certification</h4>
+  <div class="crit-path">
+    <div class="cp-node">HIRA &amp; Risk</div><div class="cp-arr">→</div>
+    <div class="cp-node">Auditor Training</div><div class="cp-arr">→</div>
+    <div class="cp-node">Internal Audit</div><div class="cp-arr">→</div>
+    <div class="cp-node">Management Review</div><div class="cp-arr">→</div>
+    <div class="cp-node">Stage 1 Audit</div><div class="cp-arr">→</div>
+    <div class="cp-node">Findings Closure</div><div class="cp-arr">→</div>
+    <div class="cp-node cp-final">🏆 Stage 2 Certification · 30 Sep</div>
+  </div>
+</div>
+
+<!-- ═══ FILTERS ══════════════════════════════════════════ -->
+<div class="rm-filters">
+  <button class="rm-filter-btn active" onclick="filterPhase('all',this)">All Phases</button>
+  <button class="rm-filter-btn f-pre"   onclick="filterPhase('pre',this)">Pre-Holiday</button>
+  <button class="rm-filter-btn f-ready" onclick="filterPhase('ready',this)">Readiness</button>
+  <button class="rm-filter-btn f-prep"  onclick="filterPhase('prep',this)">Stage 2 Prep</button>
+  <button class="rm-filter-btn f-s1"    onclick="filterPhase('s1',this)">Stage 1</button>
+  <button class="rm-filter-btn f-s2"    onclick="filterPhase('s2',this)">Stage 2</button>
+</div>
+
+<!-- ═══ GANTT CHART ══════════════════════════════════════ -->
+<div class="rm-gantt-wrap">
+  <div class="rm-gantt-header">
+    <div>
+      <h3>Certification Gantt Chart</h3>
+      <div class="gh-sub">22 June → 30 September 2026 · 14 Weeks Net</div>
+    </div>
+    <div class="view-toggle">
+      <button class="vt-btn active" onclick="setView('week',this)">Weekly</button>
+      <button class="vt-btn" onclick="setView('month',this)">Monthly</button>
+    </div>
+  </div>
+  <div class="rm-gantt">
+    <div class="gantt-inner" id="gantt-inner"></div>
+  </div>
+  <div class="rm-legend">
+    <div class="leg-item"><div class="leg-dot" style="background:#f59e0b"></div> Pre-Holiday</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#38bdf8"></div> Readiness (July)</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#a78bfa"></div> Stage 2 Prep</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#ef4444"></div> Stage 1</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#22c55e"></div> Stage 2</div>
+    <div class="leg-item" style="border-left:2px solid #ff4444;padding-left:6px">Today</div>
+    <div class="leg-item" style="border-left:2px dashed #c8a84b;padding-left:6px">30 Sep Target</div>
+  </div>
+</div>
+
+<!-- ═══ MILESTONE TRACKER ════════════════════════════════ -->
+<div class="rm-milestones">
+  <div class="rm-ms-header">
+    <h3>Milestone Tracker</h3>
+    <div style="font-size:11px;color:rgba(255,255,255,.5)">10 Milestones · Dependencies enforced</div>
+  </div>
+  <div class="rm-ms-list" id="ms-list"></div>
+</div>
+
+<div class="rm-footer">
+  IMS Certification Roadmap · SAGCO · TÜV Austria Stage 2 Target: 30 September 2026 ·
+  <span id="last-updated"></span>
+</div>
+
+</div><!-- rm-wrap -->
+</div><!-- .content -->
+</div><!-- .main -->
+
+<div id="rm-tooltip">
+  <div class="tt-title" id="tt-title"></div>
+  <div class="tt-row"><span>Phase</span><span id="tt-phase"></span></div>
+  <div class="tt-row"><span>Start</span><span id="tt-start"></span></div>
+  <div class="tt-row"><span>End</span><span id="tt-end"></span></div>
+  <div class="tt-row"><span>Owner</span><span id="tt-owner"></span></div>
+  <div class="tt-row"><span>Status</span><span id="tt-status"></span></div>
+  <div class="tt-row"><span>Progress</span><span id="tt-pct"></span></div>
+</div>
+
+<script>
+/* ── Milestone data ──────────────────────────────────── */
+const MILESTONES = [
+  { id:'T01', name:'ESG Report Completion',           phase:'pre',   start:'2026-06-22', end:'2026-06-30',
+    owner:'IMS Coordinator', critical:true,  pct:70,  dep:null,  status:'inprog' },
+  { id:'T02', name:'IMS Documentation Completion',    phase:'ready', start:'2026-07-01', end:'2026-07-31',
+    owner:'IMS Coordinator', critical:true,  pct:15,  dep:'T01', status:'planned' },
+  { id:'T03', name:'IMS Awareness Training',          phase:'ready', start:'2026-07-01', end:'2026-07-25',
+    owner:'IMS Coordinator', critical:false, pct:0,   dep:'T01', status:'planned' },
+  { id:'T04', name:'HIRA & Risk Assessment',          phase:'ready', start:'2026-07-01', end:'2026-07-31',
+    owner:'Operations Manager', critical:true, pct:20, dep:'T01', status:'inprog' },
+  { id:'T05', name:'Internal Auditor Training',       phase:'prep',  start:'2026-08-03', end:'2026-08-07',
+    owner:'IMS Coordinator', critical:false, pct:0,   dep:'T04', status:'planned' },
+  { id:'T06', name:'Internal Audit',                  phase:'prep',  start:'2026-08-10', end:'2026-08-14',
+    owner:'WG Leads + IMS Coord', critical:true, pct:0, dep:'T05', status:'planned' },
+  { id:'T07', name:'Management Review',               phase:'prep',  start:'2026-08-17', end:'2026-08-17',
+    owner:'IMS Manager + CEO', critical:true, pct:0,  dep:'T06', status:'planned' },
+  { id:'T08', name:'Stage 1 Audit (TÜV Austria)',     phase:'s1',    start:'2026-09-01', end:'2026-09-05',
+    owner:'IMS Coord + TÜV', critical:true,  pct:0,   dep:'T07', status:'planned' },
+  { id:'T09', name:'Stage 1 Findings Closure',        phase:'s1',    start:'2026-09-08', end:'2026-09-18',
+    owner:'IMS Coord + WG Chairs', critical:true, pct:0, dep:'T08', status:'planned' },
+  { id:'T10', name:'Stage 2 Audit & Certification',   phase:'s2',    start:'2026-09-21', end:'2026-09-30',
+    owner:'IMS Coord + TÜV', critical:true,  pct:0,   dep:'T09', status:'planned' },
+];
+
+const PHASE_LABELS = {
+  pre:'Pre-Holiday', ready:'Readiness', prep:'Stage 2 Prep', s1:'Stage 1', s2:'Stage 2 — FINAL'
+};
+const STATUS_LABELS = { done:'Completed', inprog:'In Progress', planned:'Planned', delayed:'Delayed' };
+const STATUS_COLORS = { done:'#1e8449', inprog:'#c8a84b', planned:'#2563eb', delayed:'#dc2626' };
+
+/* ── Date utilities ─────────────────────────────────── */
+const CHART_START = new Date('2026-06-22');
+const CHART_END   = new Date('2026-09-30');
+const TOTAL_DAYS  = (CHART_END - CHART_START) / 86400000 + 1;
+
+function daysFrom(dateStr) {
+  return (new Date(dateStr) - CHART_START) / 86400000;
+}
+function fmt(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+}
+function daysRemaining(targetStr) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const tgt   = new Date(targetStr + 'T00:00:00');
+  const diff  = Math.ceil((tgt - today) / 86400000);
+  return diff;
+}
+function todayPct() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.max(0, Math.min(100, ((today - CHART_START) / 86400000) / TOTAL_DAYS * 100));
+}
+function deadlinePct() {
+  return ((new Date('2026-09-30') - CHART_START) / 86400000) / TOTAL_DAYS * 100;
+}
+
+/* ── KPI update ─────────────────────────────────────── */
+function updateKPIs() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const done  = MILESTONES.filter(m => m.status === 'done').length;
+  const open  = MILESTONES.filter(m => m.status === 'inprog' || m.status === 'planned').length;
+  const delay = MILESTONES.filter(m => m.status === 'delayed').length;
+  const totalPct = Math.round(MILESTONES.reduce((a,m) => a + m.pct, 0) / MILESTONES.length);
+
+  document.getElementById('kv-progress').textContent = totalPct + '%';
+  document.getElementById('ks-progress').textContent = totalPct < 30 ? 'Early Stage' : totalPct < 70 ? 'On Track' : 'Near Completion';
+  document.getElementById('kv-done').textContent = done;
+  document.getElementById('kv-open').textContent = open;
+  document.getElementById('kv-delay').textContent = delay;
+  document.getElementById('ks-delay').textContent = delay > 0 ? '⚠ Action Required' : 'On Schedule';
+
+  const s1Days = daysRemaining('2026-09-01');
+  const s2Days = daysRemaining('2026-09-30');
+  document.getElementById('kv-s1').textContent = s1Days > 0 ? s1Days : '🟢';
+  document.getElementById('kv-s2').textContent = s2Days > 0 ? s2Days : '🏆';
+
+  const certDays = s2Days;
+  document.getElementById('days-to-cert').textContent =
+    certDays > 0 ? certDays + ' days remaining' : '🏆 Certified';
+
+  document.getElementById('last-updated').textContent =
+    'Updated: ' + today.toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+}
+
+/* ── Gantt build ─────────────────────────────────────── */
+let currentView = 'week';
+let currentPhase = 'all';
+
+function buildGantt() {
+  const inner = document.getElementById('gantt-inner');
+  inner.innerHTML = '';
+
+  // Build column structure
+  // Weekly view: each col = 1 week
+  const weeks = [];
+  let d = new Date(CHART_START);
+  while (d <= CHART_END) {
+    weeks.push(new Date(d));
+    d.setDate(d.getDate() + 7);
+  }
+  const nCols = weeks.length;
+  const colW  = currentView === 'week' ? 56 : 100;
+  const totalW = nCols * colW;
+
+  // Month headers
+  const monthsDiv = document.createElement('div');
+  monthsDiv.className = 'gantt-months';
+  monthsDiv.style.gridTemplateColumns = `220px repeat(${nCols},${colW}px)`;
+
+  // Group weeks by month
+  const months = {};
+  weeks.forEach((w,i) => {
+    const key = w.toLocaleDateString('en-GB',{month:'short',year:'numeric'});
+    if (!months[key]) months[key] = {start:i, count:0};
+    months[key].count++;
+  });
+  Object.entries(months).forEach(([label, {start, count}]) => {
+    const cell = document.createElement('div');
+    cell.className = 'gm-cell';
+    cell.textContent = label;
+    cell.style.gridColumn = `span ${count}`;
+    monthsDiv.appendChild(cell);
+  });
+  inner.appendChild(monthsDiv);
+
+  // Week headers
+  if (currentView === 'week') {
+    const weeksDiv = document.createElement('div');
+    weeksDiv.className = 'gantt-weeks';
+    weeksDiv.style.gridTemplateColumns = `220px repeat(${nCols},${colW}px)`;
+    weeks.forEach(w => {
+      const cell = document.createElement('div');
+      cell.className = 'gw-cell';
+      cell.textContent = w.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+      weeksDiv.appendChild(cell);
+    });
+    inner.appendChild(weeksDiv);
+  }
+
+  // Rows wrapper for today/deadline lines
+  const rowsWrap = document.createElement('div');
+  rowsWrap.style.cssText = `position:relative;width:${220 + totalW}px`;
+
+  // Today line
+  const tp = todayPct();
+  const todayX = 220 + (tp / 100) * totalW;
+  const todayLine = document.createElement('div');
+  todayLine.className = 'today-line';
+  todayLine.style.cssText = `left:${todayX}px`;
+  rowsWrap.appendChild(todayLine);
+
+  // Deadline line
+  const dl = document.createElement('div');
+  dl.className = 'deadline-line';
+  dl.style.cssText = `left:${220 + totalW - 2}px`;
+  rowsWrap.appendChild(dl);
+
+  // Task rows
+  MILESTONES.forEach((m, idx) => {
+    if (currentPhase !== 'all' && m.phase !== currentPhase) return;
+
+    const row = document.createElement('div');
+    row.className = `gantt-row phase-${m.phase}`;
+    row.style.gridTemplateColumns = `220px 1fr`;
+
+    // Label
+    const label = document.createElement('div');
+    label.className = 'gr-label';
+    label.innerHTML = `
+      <div class="gr-status-dot ${m.status}"></div>
+      <div class="gr-label-inner">
+        <div class="gr-id">${m.id}${m.critical ? ' ★' : ''}</div>
+        <div class="gr-name" title="${m.name}">${m.name}</div>
+        <div class="gr-owner">${m.owner}</div>
+      </div>`;
+    row.appendChild(label);
+
+    // Cells area
+    const cells = document.createElement('div');
+    cells.className = 'gr-cells';
+    cells.style.cssText = `width:${totalW}px;position:relative`;
+
+    // Background columns
+    for (let i = 0; i < nCols; i++) {
+      const col = document.createElement('div');
+      col.style.cssText = `position:absolute;left:${i*colW}px;top:0;bottom:0;width:${colW}px;
+        border-right:1px solid #f0f4f8;`;
+      cells.appendChild(col);
+    }
+
+    // Bar
+    const startPct = daysFrom(m.start) / TOTAL_DAYS * 100;
+    const endPct   = (daysFrom(m.end) + 1) / TOTAL_DAYS * 100;
+    const barLeft  = startPct / 100 * totalW;
+    const barWidth = Math.max(8, (endPct - startPct) / 100 * totalW);
+
+    const bar = document.createElement('div');
+    bar.className = 'gr-bar-wrap';
+    bar.style.cssText = `left:${barLeft}px;width:${barWidth}px`;
+
+    const fill = document.createElement('div');
+    fill.className = 'gr-bar-fill';
+    fill.style.cssText = `width:${m.pct}%`;
+    bar.appendChild(fill);
+
+    const blabel = document.createElement('div');
+    blabel.className = 'gr-bar-label';
+    blabel.textContent = barWidth > 60 ? m.name : m.id;
+    bar.appendChild(blabel);
+
+    if (barWidth > 50) {
+      const bpct = document.createElement('div');
+      bpct.className = 'gr-bar-pct';
+      bpct.textContent = m.pct + '%';
+      bar.appendChild(bpct);
+    }
+
+    // Tooltip
+    bar.addEventListener('mouseenter', (e) => showTooltip(e, m));
+    bar.addEventListener('mousemove',  (e) => moveTooltip(e));
+    bar.addEventListener('mouseleave', hideTooltip);
+
+    cells.appendChild(bar);
+    row.appendChild(cells);
+    rowsWrap.appendChild(row);
+  });
+
+  inner.appendChild(rowsWrap);
+}
+
+/* ── Milestone list ─────────────────────────────────── */
+function buildMilestones() {
+  const list = document.getElementById('ms-list');
+  list.innerHTML = '';
+  MILESTONES.forEach((m, i) => {
+    const dep = m.dep ? MILESTONES.find(x => x.id === m.dep) : null;
+    const row = document.createElement('div');
+    row.className = 'ms-row';
+
+    const sc = STATUS_COLORS[m.status];
+    row.innerHTML = `
+      <div class="ms-num" style="background:${sc}22;color:${sc};font-size:10px">${i+1}</div>
+      <div class="ms-name">
+        ${m.critical ? '<span style="color:#dc2626;font-size:9px;font-weight:800">★ CRITICAL &nbsp;</span>' : ''}${m.name}
+        ${dep ? `<div class="ms-dep">Depends on: ${dep.name}</div>` : ''}
+      </div>
+      <div class="ms-dates"><strong>${fmt(m.start)}</strong> → ${fmt(m.end)}</div>
+      <div class="ms-owner">${m.owner}</div>
+      <div>
+        <span class="ms-status-badge" style="background:${sc}22;color:${sc}">
+          ${m.status === 'done' ? '✓' : m.status === 'inprog' ? '◉' : m.status === 'delayed' ? '⚠' : '○'}
+          ${STATUS_LABELS[m.status]}
+        </span>
+      </div>`;
+    list.appendChild(row);
+  });
+}
+
+/* ── Tooltip ────────────────────────────────────────── */
+function showTooltip(e, m) {
+  document.getElementById('tt-title').textContent = m.name;
+  document.getElementById('tt-phase').textContent = PHASE_LABELS[m.phase];
+  document.getElementById('tt-start').textContent = fmt(m.start);
+  document.getElementById('tt-end').textContent   = fmt(m.end);
+  document.getElementById('tt-owner').textContent = m.owner;
+  document.getElementById('tt-status').textContent = STATUS_LABELS[m.status];
+  document.getElementById('tt-pct').textContent    = m.pct + '% complete';
+  const tt = document.getElementById('rm-tooltip');
+  tt.classList.add('visible');
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  const tt = document.getElementById('rm-tooltip');
+  tt.style.left = (e.clientX + 14) + 'px';
+  tt.style.top  = (e.clientY - 10) + 'px';
+}
+function hideTooltip() {
+  document.getElementById('rm-tooltip').classList.remove('visible');
+}
+
+/* ── Filter ─────────────────────────────────────────── */
+function filterPhase(phase, btn) {
+  currentPhase = phase;
+  document.querySelectorAll('.rm-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  buildGantt();
+}
+
+/* ── View toggle ────────────────────────────────────── */
+function setView(view, btn) {
+  currentView = view;
+  document.querySelectorAll('.vt-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  buildGantt();
+}
+
+/* ── Init ────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function() {
+  initPage('ims-roadmap.html');
+  document.getElementById('tb').innerHTML = renderTopbar(
+    'IMS Certification Roadmap 2026',
+    'TÜV Austria Stage 2 Target: 30 September 2026 · ISO 9001 · ISO 14001 · ISO 45001 · ISO 50001'
+  );
+  IMS_AUTH.injectUserBar();
+
+  updateKPIs();
+  buildGantt();
+  buildMilestones();
+});
+</script>
+</body>
+</html>

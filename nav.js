@@ -186,6 +186,10 @@ var TREE = [
 
   ]}, /* end IMS Dashboard */
 
+  /* ══ CERTIFICATION ROADMAP ══════════════════════════════ */
+  { id:'roadmap', label:'IMS Certification Roadmap', file:'ims-roadmap.html',
+    level:'root', badge:'2026', icon:'🏆' },
+
 ];
 
 
