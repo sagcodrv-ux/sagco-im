@@ -160,6 +160,25 @@
         cursor:pointer;font-family:inherit;
         box-shadow:0 4px 12px rgba(0,0,0,.3);transition:all .2s;
       }
+      #se-dismiss {
+        position:fixed;bottom:24px;right:62px;z-index:99999;
+        width:18px;height:18px;border-radius:50%;
+        background:#374151;color:#9ca3af;
+        border:1px solid rgba(255,255,255,.15);
+        font-size:11px;line-height:1;cursor:pointer;
+        display:flex;align-items:center;justify-content:center;
+        font-family:inherit;font-weight:700;
+        transition:all .15s;
+      }
+      #se-dismiss:hover { background:#dc2626;color:#fff;border-color:#dc2626; }
+      #se-restore-btn {
+        display:none;align-items:center;gap:5px;
+        padding:5px 12px;border-radius:6px;font-size:11px;font-weight:600;
+        cursor:pointer;font-family:inherit;transition:all .15s;
+        background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);
+        border:1px solid rgba(255,255,255,.15);
+      }
+      #se-restore-btn:hover { background:rgba(200,168,75,.15);color:#c8a84b;border-color:rgba(200,168,75,.4); }
       #se-toggle:hover,#se-toggle.on { background:#c8a84b;color:#1a2340; }
 
       body.se-on [data-editable]:hover {
@@ -231,6 +250,30 @@
     tb.textContent = '✏️ Edit';
     tb.onclick = toggle;
     document.body.appendChild(tb);
+
+    /* Dismiss × button — hides the Edit button */
+    var dm = document.createElement('button');
+    dm.id = 'se-dismiss';
+    dm.title = 'Hide Edit button';
+    dm.textContent = '×';
+    dm.onclick = function() {
+      tb.style.display = 'none';
+      dm.style.display = 'none';
+      try { sessionStorage.setItem('sagco_edit_hidden','1'); } catch(e){}
+      var rb = document.getElementById('se-restore-btn');
+      if (rb) rb.style.display = 'flex';
+    };
+    document.body.appendChild(dm);
+
+    /* Restore from sessionStorage */
+    try {
+      if (sessionStorage.getItem('sagco_edit_hidden') === '1') {
+        tb.style.display = 'none';
+        dm.style.display = 'none';
+        var rb2 = document.getElementById('se-restore-btn');
+        if (rb2) rb2.style.display = 'flex';
+      }
+    } catch(e){}
 
     /* Bottom bar */
     var bar = document.createElement('div');

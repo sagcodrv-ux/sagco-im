@@ -502,10 +502,22 @@ function renderTopbar(title, subtitle) {
     + '<div class="topbar-sub">'   + (subtitle || '') + '</div>'
     + '</div>'
     + '<div class="topbar-right">'
+    + '<button id="se-restore-btn" title="Show Edit button" onclick="restoreEditBtn()" style="display:none">&#9998; Edit</button>'
     + '<button class="btn btn-ghost" onclick="printCurrentPage()" title="Print this page">&#128424; Print</button>'
     + '<button class="btn btn-ghost" onclick="localStorage.clear();var u=location.href.split(&quot;?&quot;)[0]+&quot;?_cb=&quot;+Date.now();location.replace(u)">&#8635; Refresh</button>'
     + '</div>'
     + '</div>';
+}
+
+function restoreEditBtn() {
+  /* Show the floating Edit toggle and dismiss buttons again */
+  var tb = document.getElementById('se-toggle');
+  var dm = document.getElementById('se-dismiss');
+  var rb = document.getElementById('se-restore-btn');
+  if (tb) tb.style.display = '';
+  if (dm) dm.style.display = '';
+  if (rb) rb.style.display = 'none';
+  try { sessionStorage.removeItem('sagco_edit_hidden'); } catch(e){}
 }
 
 /* ══════════════════════════════════════════════════════════════
