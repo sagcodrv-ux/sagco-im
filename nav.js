@@ -475,7 +475,7 @@ function printCurrentPage() {
       'html,body { width:100%!important; height:auto!important; overflow:visible!important; background:#fff!important; }',
       '.main { display:block!important; margin-left:0!important; padding-left:0!important; width:100%!important; height:auto!important; overflow:visible!important; }',
       '.content { display:block!important; width:100%!important; max-width:100%!important; height:auto!important; overflow:visible!important; padding:0!important; }',
-      '#sidebar,#tb,.back-row,.pp-back,.pp-print-btn,.topbar-btn,.no-print,button { display:none!important; }',
+      '#sidebar,#tb,.back-row,.pp-back,.pp-print-btn,.topbar-btn,.no-print,button,#edit-mode-bar,.edit-mode-bar,[id*="edit-mode"],[class*="edit-mode"] { display:none!important; }',
       '* { overflow:visible!important; max-height:none!important; -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; box-shadow:none!important; }',
       'table { page-break-inside:auto!important; width:100%!important; }',
       'tr { page-break-inside:avoid!important; }',
