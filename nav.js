@@ -464,6 +464,11 @@ function renderTopbar(title, subtitle) {
     + '<div class="topbar-sub">'   + (subtitle || '') + '</div>'
     + '</div>'
     + '<div class="topbar-right">'
+    + '<button class="btn btn-ghost" style="display:flex;align-items:center;gap:5px" onclick="(function(){'
+    +   'document.querySelectorAll(\'.nkids\').forEach(function(el){el._wc=el.style.display===\'none\';el.style.display=\'block\';});'
+    +   'window.print();'
+    +   'setTimeout(function(){document.querySelectorAll(\'.nkids\').forEach(function(el){if(el._wc)el.style.display=\'none\';});},1000);'
+    + '})()">🖨 Print</button>'
     + '<button class="btn btn-ghost" onclick="localStorage.clear();var u=location.href.split(&quot;?&quot;)[0]+&quot;?_cb=&quot;+Date.now();location.replace(u)">↻ Refresh</button>'
     + '</div>'
     + '</div>';
