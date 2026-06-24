@@ -529,25 +529,39 @@ function openAttachModal(doc) {
       +'</div>';
   }
 
+  /* Previewable MIME types — browser renders inline */
+  var PREVIEW_TYPES = ['application/pdf','image/jpeg','image/png','image/gif',
+                       'image/webp','image/svg+xml','text/plain','text/html',
+                       'video/mp4','audio/mpeg'];
+
   function wireOpenBtns(files) {
-    document.querySelectorAll('.dw-att-btn[data-open-fid]').forEach(function(btn) {
+    document.querySelectorAll('button[data-open-fid]').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        var fid  = btn.dataset.openFid;
-        var file = files.find(function(f){ return (f.fileId||'') === fid; });
+        var fid  = btn.getAttribute('data-open-fid');
+        var file = files.find(function(f){ return String(f.fileId||'') === String(fid||''); });
         if (!file || !file.downloadLink) return;
+        var dataUrl = file.downloadLink;
         try {
-          var dataUrl = file.downloadLink;
           var arr  = dataUrl.split(',');
           var mime = arr[0].match(/:(.*?);/)[1];
           var bstr = atob(arr[1]), n = bstr.length, u8 = new Uint8Array(n);
           while(n--){ u8[n] = bstr.charCodeAt(n); }
           var blob = new Blob([u8], {type: mime});
           var url  = URL.createObjectURL(blob);
-          var win  = window.open(url, '_blank');
-          setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
-          if (!win) { window.open(url, '_blank'); }
+          /* For non-previewable types (DOCX, XLSX etc) use an <a> click
+             so the browser opens with the associated app rather than
+             showing a save dialog */
+          if (!PREVIEW_TYPES.includes(mime)) {
+            var a = document.createElement('a');
+            a.href = url; a.target = '_blank'; a.rel = 'noopener';
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a);
+          } else {
+            window.open(url, '_blank');
+          }
+          setTimeout(function(){ URL.revokeObjectURL(url); }, 15000);
         } catch(e) {
-          window.open(file.downloadLink, '_blank');
+          window.open(dataUrl, '_blank');
         }
       });
     });
