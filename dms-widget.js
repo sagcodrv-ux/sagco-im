@@ -475,10 +475,10 @@ function openAttachModal(doc) {
       var driveIds   = driveFiles.map(function(f){ return f.fileId; });
       var localOnly  = localFiles.filter(function(f){ return !driveIds.includes(f.fileId); });
       var files      = driveFiles.concat(localOnly);
-      if (el) { el.innerHTML = buildList(files); wireDelBtns(files); }
+      if (el) { el.innerHTML = buildList(files); wireDelBtns(files); wireOpenBtns(files); }
     }).catch(function() {
       /* Drive failed — show local files only */
-      if (el) { el.innerHTML = buildList(localFiles); wireDelBtns(localFiles); }
+      if (el) { el.innerHTML = buildList(localFiles); wireDelBtns(localFiles); wireOpenBtns(localFiles); }
     });
   }
 
@@ -487,11 +487,32 @@ function openAttachModal(doc) {
     return '<div class="dw-att-list">'
       + files.map(function(f){
           var fname = f.fileName || f.name || 'file';
+          /* Open: use blob URL so browser previews instead of downloading */
+          function openLocal(dataUrl, name) {
+            try {
+              var arr = dataUrl.split(','), mime = arr[0].match(/:(.*?);/)[1];
+              var bstr = atob(arr[1]), n = bstr.length, u8 = new Uint8Array(n);
+              while(n--){ u8[n] = bstr.charCodeAt(n); }
+              var blob = new Blob([u8], {type: mime});
+              var url  = URL.createObjectURL(blob);
+              var win  = window.open(url, '_blank');
+              /* Revoke after short delay so tab has time to load */
+              setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+              if (!win) { /* popup blocked — fall back to direct open */
+                var a = document.createElement('a');
+                a.href = url; a.target = '_blank'; a.click();
+              }
+            } catch(e) {
+              /* Fallback: open dataUrl directly */
+              window.open(dataUrl, '_blank');
+            }
+          }
+          var fid_key = esc(f.fileId||'');
           var viewHtml = f.webViewLink
             ? '<a class="dw-att-btn" href="'+esc(f.webViewLink)+'" target="_blank">↗ Open</a>'
               +'<a class="dw-att-btn" href="'+esc(f.downloadLink)+'" target="_blank">⬇ Download</a>'
             : (f.downloadLink
-                ? '<a class="dw-att-btn" href="'+esc(f.downloadLink)+'" target="_blank">↗ Open</a>'
+                ? '<button class="dw-att-btn" data-open-fid="'+fid_key+'">↗ Open</button>'
                   +'<a class="dw-att-btn" href="'+esc(f.downloadLink)+'" download="'+esc(fname)+'">⬇ Download</a>'
                 : '<span class="dw-att-btn" style="opacity:.5;cursor:default">no link</span>');
           var src = (f.source==='drive')
@@ -506,6 +527,30 @@ function openAttachModal(doc) {
             +'</div>';
         }).join('')
       +'</div>';
+  }
+
+  function wireOpenBtns(files) {
+    document.querySelectorAll('.dw-att-btn[data-open-fid]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var fid  = btn.dataset.openFid;
+        var file = files.find(function(f){ return (f.fileId||'') === fid; });
+        if (!file || !file.downloadLink) return;
+        try {
+          var dataUrl = file.downloadLink;
+          var arr  = dataUrl.split(',');
+          var mime = arr[0].match(/:(.*?);/)[1];
+          var bstr = atob(arr[1]), n = bstr.length, u8 = new Uint8Array(n);
+          while(n--){ u8[n] = bstr.charCodeAt(n); }
+          var blob = new Blob([u8], {type: mime});
+          var url  = URL.createObjectURL(blob);
+          var win  = window.open(url, '_blank');
+          setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+          if (!win) { window.open(url, '_blank'); }
+        } catch(e) {
+          window.open(file.downloadLink, '_blank');
+        }
+      });
+    });
   }
 
   function wireDelBtns(files) {
