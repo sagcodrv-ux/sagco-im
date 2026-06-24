@@ -108,6 +108,92 @@ function mkLocalFile(id, fileName, dataUrl, date) {
   };
 }
 
+/* ── Upload file directly to Drive via Apps Script (no popup) ──
+   Reads file as base64 then POSTs to Apps Script uploadFilePicker.
+   Same approach as document-management.html.
+   Falls back to localStorage base64 if Apps Script unavailable.
+──────────────────────────────────────────────────────────────── */
+function uploadToDrive(file, docId, onProgress, cb) {
+  var url = (typeof SHEETS_URL !== 'undefined') ? SHEETS_URL : null;
+  var who = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser())
+            ? IMS_AUTH.getUser().username : gRole();
+
+  if (!url) {
+    /* No Sheets URL — store base64 locally */
+    if (onProgress) onProgress('Saving locally…');
+    readFileAsDataUrl(file).then(function(du) {
+      cb(null, mkLocalFile('local-'+Date.now(), file.name, du,
+         new Date().toISOString().split('T')[0]));
+    }).catch(function(e){ cb(e, null); });
+    return;
+  }
+
+  if (onProgress) onProgress('Uploading to Google Drive…');
+
+  var reader = new FileReader();
+  reader.onerror = function() { cb(new Error('Could not read file'), null); };
+  reader.onload = function(ev) {
+    var b64 = ev.target.result.split(',')[1];
+    fetch(url, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'uploadFilePicker',
+        docId: docId,
+        username: who,
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        b64: b64
+      }),
+      redirect: 'follow'
+    })
+    .then(function(r) { return r.text(); })
+    .then(function(txt) {
+      var res;
+      try { res = JSON.parse(txt); } catch(e) { res = { ok: false }; }
+      if (res.ok) {
+        var fileData = {
+          fileId:      res.fileId || ('f'+Date.now()),
+          fileName:    res.fileName || file.name,
+          mimeType:    file.type || '',
+          size:        file.size > 1048576
+                       ? (file.size/1048576).toFixed(1)+' MB'
+                       : Math.round(file.size/1024)+' KB',
+          date:        new Date().toISOString().split('T')[0],
+          user:        who,
+          webViewLink:  res.webViewLink  || null,
+          downloadLink: res.downloadLink || null,
+          attachType:  'attachment',
+          source:      'drive'
+        };
+        /* Cache in DMS_DRIVE local store */
+        if (typeof DMS_DRIVE !== 'undefined') {
+          var ex = DMS_DRIVE.localGet(docId);
+          ex.push(fileData);
+          DMS_DRIVE.localSet(docId, ex);
+        }
+        if (onProgress) onProgress('Uploaded to Drive ✓');
+        cb(null, fileData);
+      } else {
+        /* Apps Script returned error — fall back to base64 */
+        if (onProgress) onProgress('Drive failed — saving locally…');
+        readFileAsDataUrl(file).then(function(du) {
+          cb(null, mkLocalFile('local-'+Date.now(), file.name, du,
+             new Date().toISOString().split('T')[0]));
+        }).catch(function(e){ cb(e, null); });
+      }
+    })
+    .catch(function(e) {
+      /* Network error — fall back to base64 */
+      if (onProgress) onProgress('Network error — saving locally…');
+      readFileAsDataUrl(file).then(function(du) {
+        cb(null, mkLocalFile('local-'+Date.now(), file.name, du,
+           new Date().toISOString().split('T')[0]));
+      }).catch(function(e2){ cb(e2, null); });
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
 
 function injectStyles() {
   if (document.getElementById('dms-w-styles')) return;
@@ -440,24 +526,11 @@ function openEditModal(doc) {
       var f  = fi&&fi.files&&fi.files[0] ? fi.files[0] : null;
       if (f) {
         var prog2 = document.getElementById('we-fprog');
-        if (typeof DMS_DRIVE !== 'undefined' && DMS_DRIVE.isConfigured()) {
-          prog2.textContent = 'Opening upload window…';
-          var who2 = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser()) ? IMS_AUTH.getUser().username : gRole();
-          DMS_DRIVE.uploadFile(f, d.id, 'attachment', 'Initial upload', who2)
-            .then(function(fileData) {
-              prog2.textContent = 'Uploaded to Drive ✓';
-              doSave(null, null, fileData);
-            })
-            .catch(function(e) {
-              prog2.textContent = 'Drive upload cancelled — saving locally…';
-              readFileAsDataUrl(f).then(function(du){ doSave(du, f.name, null); })
-                .catch(function(e2){ toast(e2.message,'err'); prog2.textContent=''; });
-            });
-        } else {
-          prog2.textContent = 'Reading…';
-          readFileAsDataUrl(f).then(function(du){ doSave(du, f.name, null); })
-            .catch(function(e){ toast(e.message,'err'); prog2.textContent=''; });
-        }
+        uploadToDrive(f, d.id, function(msg){ prog2.textContent = msg; },
+          function(err, fileData) {
+            if (err) { toast(err.message, 'err'); prog2.textContent = ''; return; }
+            doSave(null, null, fileData);
+          });
       } else { doSave(null, null, null); }
     } else { doSave(null, null, null); }
   });
@@ -544,28 +617,11 @@ function openQuickAdd() {
 
     if (f) {
       var prog = document.getElementById('qa-fprog');
-      if (typeof DMS_DRIVE !== 'undefined' && DMS_DRIVE.isConfigured()) {
-        /* Upload to Google Drive via popup — shared across all browsers */
-        prog.textContent = 'Opening upload window…';
-        var tempId = nextId(); /* tentative ID for Drive folder */
-        var who = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser()) ? IMS_AUTH.getUser().username : gRole();
-        DMS_DRIVE.uploadFile(f, tempId, 'attachment', 'Initial upload', who)
-          .then(function(fileData) {
-            prog.textContent = 'Uploaded to Drive ✓';
-            doAdd(null, null, fileData); /* pass Drive file metadata */
-          })
-          .catch(function(e) {
-            /* User cancelled popup or Drive failed — fall back to base64 */
-            prog.textContent = 'Drive upload cancelled — saving locally…';
-            readFileAsDataUrl(f).then(function(du){ doAdd(du, f.name, null); })
-              .catch(function(e2){ toast(e2.message,'err'); prog.textContent=''; });
-          });
-      } else {
-        /* No Drive configured — store base64 locally */
-        prog.textContent = 'Reading…';
-        readFileAsDataUrl(f).then(function(du){ doAdd(du, f.name, null); })
-          .catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
-      }
+      uploadToDrive(f, nextId(), function(msg){ prog.textContent = msg; },
+        function(err, fileData) {
+          if (err) { toast(err.message, 'err'); prog.textContent = ''; return; }
+          doAdd(null, null, fileData);
+        });
     } else { doAdd(null, null, null); }
   });
 }
@@ -740,28 +796,32 @@ function openAttachModal(doc) {
       prog.textContent = 'Uploading '+files.length+' file(s)…';
       var who = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser()) ? IMS_AUTH.getUser().username : gRole();
 
-      if (driveAvail && DMS_DRIVE.isConfigured()) {
-        /* Upload to Drive */
-        Promise.all(files.map(function(f){ return DMS_DRIVE.uploadFile(f, doc.id, 'attachment', '', who); }))
-          .then(function(){ prog.textContent = files.length+' file(s) uploaded to Drive.'; loadAndRender(); renderWidget(); })
-          .catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
-      } else {
-        /* Local mode — save to d.files[] in localStorage */
-        var today = new Date().toISOString().split('T')[0];
-        Promise.all(files.map(function(f){ return readFileAsDataUrl(f).then(function(du){ return {f:f, du:du}; }); }))
-          .then(function(results){
-            var docs = gAll(), d2 = docs.find(function(x){ return x.id===doc.id; });
-            if (!d2) return;
-            results.forEach(function(r, i){
-              d2.files = (d2.files||[]).concat([mkLocalFile(doc.id+'-att-'+Date.now()+'-'+i, r.f.name, r.du, today)]);
-            });
-            saveLocalFiles(d2.id, d2.files||[], d2.versions||[]);
-            if (typeof DMS_DATA !== 'undefined') DMS_DATA.saveDoc(d2);
-            prog.textContent = results.length+' file(s) saved locally.';
-            loadAndRender(); renderWidget();
-          })
-          .catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
+      /* Upload all files sequentially using uploadToDrive (no popup) */
+      var completed = 0;
+      function uploadNext(idx) {
+        if (idx >= files.length) {
+          prog.textContent = completed + ' file(s) uploaded.';
+          loadAndRender(); renderWidget(); return;
+        }
+        uploadToDrive(files[idx], doc.id,
+          function(msg){ prog.textContent = '('+( idx+1)+'/'+files.length+') '+msg; },
+          function(err, fileData) {
+            if (err) { toast(err.message,'err'); }
+            else {
+              completed++;
+              /* Add to doc.files and persist */
+              var docs2 = gAll(), d2 = docs2.find(function(x){ return x.id===doc.id; });
+              if (d2) {
+                d2.files = (d2.files||[]).concat([fileData]);
+                saveLocalFiles(d2.id, d2.files, d2.versions||[]);
+                if (typeof DMS_DATA !== 'undefined') DMS_DATA.saveDoc(d2);
+                doc = d2;
+              }
+            }
+            uploadNext(idx + 1);
+          });
       }
+      uploadNext(0);
     }
   }
 }
@@ -886,24 +946,11 @@ function openVersionModal(doc) {
         }
 
         if (f) {
-          if (typeof DMS_DRIVE !== 'undefined' && DMS_DRIVE.isConfigured()) {
-            if (prog) prog.textContent = 'Opening upload window…';
-            var who3 = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser()) ? IMS_AUTH.getUser().username : gRole();
-            DMS_DRIVE.uploadFile(f, doc.id, 'revision', newNote, who3)
-              .then(function(fileData) {
-                if (prog) prog.textContent = 'Uploaded to Drive ✓';
-                saveRev(null, fileData.fileName, fileData);
-              })
-              .catch(function(e) {
-                if (prog) prog.textContent = 'Drive upload cancelled — saving locally…';
-                readFileAsDataUrl(f).then(function(du){ saveRev(du,f.name,null); })
-                  .catch(function(e2){ toast(e2.message,'err'); if(prog)prog.textContent=''; });
-              });
-          } else {
-            if (prog) prog.textContent = 'Reading…';
-            readFileAsDataUrl(f).then(function(du){ saveRev(du,f.name,null); })
-              .catch(function(e){ toast(e.message,'err'); if(prog)prog.textContent=''; });
-          }
+          uploadToDrive(f, doc.id, function(msg){ if(prog) prog.textContent=msg; },
+            function(err, fileData) {
+              if (err) { toast(err.message,'err'); if(prog)prog.textContent=''; return; }
+              saveRev(null, null, fileData);
+            });
         } else { saveRev(null,null,null); }
       });
     }
