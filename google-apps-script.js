@@ -244,7 +244,14 @@ function doGet(e) {
 
     switch (action) {
 
-      case 'read':       result = readSheet(e.parameter.tab);               break;
+      case 'read':
+        /* Special alias: tab=dms_docs → read Document Register */
+        if (e.parameter.tab === 'dms_docs' || e.parameter.tab === 'all') {
+          result = readAllDocumentsForWidget();
+        } else {
+          result = readSheet(e.parameter.tab);
+        }
+        break;
 
       case 'readDoc':    result = readDocument(e.parameter.docId);          break;
 
