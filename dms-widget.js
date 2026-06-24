@@ -578,8 +578,8 @@ function openQuickAdd() {
     var fi = document.getElementById('qa-file');
     var f  = fi&&fi.files&&fi.files[0] ? fi.files[0] : null;
 
-    function doAdd(dataUrl, fileName, driveFile) {
-      var newId = nextId();
+    function doAdd(dataUrl, fileName, driveFile, reservedId) {
+      var newId = reservedId || nextId();
       var docs  = gAll();
       var today = new Date().toISOString().split('T')[0];
       var finalFileName = driveFile ? driveFile.fileName : (fileName||null);
@@ -617,12 +617,13 @@ function openQuickAdd() {
 
     if (f) {
       var prog = document.getElementById('qa-fprog');
-      uploadToDrive(f, nextId(), function(msg){ prog.textContent = msg; },
+      var reservedId = nextId(); /* generate once — used for both Drive folder and doc ID */
+      uploadToDrive(f, reservedId, function(msg){ prog.textContent = msg; },
         function(err, fileData) {
           if (err) { toast(err.message, 'err'); prog.textContent = ''; return; }
-          doAdd(null, null, fileData);
+          doAdd(null, null, fileData, reservedId);
         });
-    } else { doAdd(null, null, null); }
+    } else { doAdd(null, null, null, null); }
   });
 }
 
