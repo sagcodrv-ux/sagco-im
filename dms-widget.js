@@ -1,26 +1,15 @@
 /* ═══════════════════════════════════════════════════════════════
    SAGCO IMS — Document & Evidence Widget
-   dms-widget.js  |  Rev.18  |  June 2026
-
-   Drop-in panel for any IMS page. Fully self-contained.
-   Files are uploaded to Google Drive via dms-drive.js so they
-   persist across ALL sessions, browsers, and users.
-
-   Add these lines before </body> on any IMS page:
-     <script src="data.js"></script>
-     <script src="dms-drive.js"></script>
-     <script src="dms-widget.js"></script>
+   dms-widget.js  |  Rev.18a  |  June 2026
+   FIX: Attachment count bug — files uploaded at creation now
+        populate d.files[] so count and modal display correctly.
 ═══════════════════════════════════════════════════════════════ */
 (function () {
 'use strict';
-
-/* ── Storage keys ─────────────────────────────────────────── */
 var SK = 'sagco_dms_store';
 var HK = 'sagco_dms_hist';
 var RK = 'sagco_dms_role';
 var MAX_FILE_MB = 4;
-
-/* ── Store helpers ────────────────────────────────────────── */
 function gAll()   { try { return JSON.parse(localStorage.getItem(SK)||'[]'); } catch(e){ return []; } }
 function sAll(a)  { localStorage.setItem(SK, JSON.stringify(a)); }
 function gHist()  { try { return JSON.parse(localStorage.getItem(HK)||'[]'); } catch(e){ return []; } }
@@ -40,31 +29,22 @@ function nextId() {
   return 'DOC-' + String(Math.max.apply(null,[0].concat(nums))+1).padStart(3,'0');
 }
 function PAGE() { return window.location.pathname.split('/').pop().replace(/\.html$/i,'') || 'index'; }
-function esc(s)  { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-/* ── File icon ────────────────────────────────────────────── */
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fileIcon(name) {
   var ext = (name||'').split('.').pop().toLowerCase();
   return {pdf:'📄',docx:'📝',doc:'📝',xlsx:'📊',xls:'📊',pptx:'📋',ppt:'📋',
           jpg:'🖼',jpeg:'🖼',png:'🖼',gif:'🖼',webp:'🖼',
           zip:'🗜',rar:'🗜',txt:'📃',csv:'📊',mp4:'🎥',mp3:'🎵'}[ext] || '📎';
 }
-
-/* ── Read file as base64 ──────────────────────────────────── */
 function readFileAsDataUrl(file) {
   return new Promise(function(resolve, reject) {
-    if (file.size / 1048576 > MAX_FILE_MB) {
-      reject(new Error('"' + file.name + '" exceeds ' + MAX_FILE_MB + ' MB limit.'));
-      return;
-    }
+    if (file.size / 1048576 > MAX_FILE_MB) { reject(new Error('"' + file.name + '" exceeds ' + MAX_FILE_MB + ' MB limit.')); return; }
     var r = new FileReader();
     r.onload  = function(e) { resolve(e.target.result); };
     r.onerror = function()  { reject(new Error('Could not read ' + file.name)); };
     r.readAsDataURL(file);
   });
 }
-
-/* ── Status badge ─────────────────────────────────────────── */
 function sBadge(s) {
   var m = {'Active':'nb-grn','Under Review':'nb-amb','Superseded':'nb-blue','Obsolete':'nb-red','Archived':'nb-grey'};
   return '<span class="nb '+(m[s]||'nb-grey')+'">'+s+'</span>';
@@ -73,34 +53,35 @@ function daysUntil(d) { return Math.ceil((new Date(d)-new Date())/86400000); }
 function revCls(d) { if(!d)return''; var n=daysUntil(d); if(n<0)return'dms-overdue'; if(n<90)return'dms-duesoon'; return''; }
 function revLbl(d) { if(!d)return'—'; var n=daysUntil(d); if(n<0)return d+' ⚠'; if(n<90)return d+' ('+n+'d)'; return d; }
 
-/* ════════════════════════════════════════════════════════════
-   INJECT WIDGET STYLES
-   Uses style.css variables for all colours — no conflicts.
-════════════════════════════════════════════════════════════ */
+/* ── Helper: build a local file entry object ─────────────── */
+function mkLocalFile(id, fileName, dataUrl, date) {
+  return {
+    fileId: id, fileName: fileName, size: '', date: date,
+    source: 'local', dataUrl: dataUrl,
+    downloadLink: dataUrl, webViewLink: null
+  };
+}
+
+
 function injectStyles() {
   if (document.getElementById('dms-w-styles')) return;
   var s = document.createElement('style');
   s.id = 'dms-w-styles';
   s.textContent = [
-    /* Widget container */
     '#dms-widget-container{margin-top:24px}',
     '#dms-widget{border:1px solid #d0d8e8;border-radius:var(--radius-lg,10px);overflow:hidden;box-shadow:var(--shadow,0 2px 10px rgba(0,0,0,.12))}',
-    /* Widget header */
     '.dw-hdr{background:var(--navy,#1B2A4A);color:#fff;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px}',
     '.dw-hdr-left{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700}',
     '.dw-cnt{background:var(--gold,#C9A84C);color:var(--navy,#1B2A4A);border-radius:8px;padding:1px 7px;font-size:9px;font-family:var(--mono,monospace);font-weight:700}',
     '.dw-hdr-right{display:flex;gap:5px;align-items:center}',
-    /* Role pill */
     '.dw-role{font-family:var(--mono,monospace);font-size:9px;font-weight:700;border-radius:8px;padding:2px 8px;border:1px solid rgba(255,255,255,.3);color:#fff;background:rgba(255,255,255,.12);cursor:pointer;white-space:nowrap}',
     '.dw-role:hover{background:rgba(255,255,255,.22)}',
-    /* Table */
     '.dw-tbl-wrap{overflow-x:auto;max-height:300px;overflow-y:auto}',
     '.dw-tbl{width:100%;border-collapse:collapse;font-size:10px;font-family:var(--font,Arial,sans-serif)}',
     '.dw-tbl th{background:var(--navy,#1B2A4A);color:#fff;font-size:9px;font-weight:700;padding:6px 9px;text-align:left;white-space:nowrap;position:sticky;top:0;z-index:1}',
     '.dw-tbl td{padding:6px 9px;border-bottom:1px solid #e8ecf3;vertical-align:middle}',
     '.dw-tbl tbody tr:nth-child(even) td{background:var(--g100,#EAF0F8)}',
     '.dw-tbl tbody tr:hover td{background:#dce6f5}',
-    /* Overlay & modal */
     '.dw-overlay{display:none;position:fixed;inset:0;background:rgba(12,19,32,.6);z-index:9999;align-items:center;justify-content:center}',
     '.dw-overlay.open{display:flex}',
     '.dw-modal{background:#fff;border-radius:var(--radius-lg,10px);box-shadow:0 10px 40px rgba(0,0,0,.3);width:700px;max-width:96vw;max-height:92vh;overflow-y:auto;font-family:var(--font,Arial,sans-serif);font-size:13px}',
@@ -109,14 +90,12 @@ function injectStyles() {
     '.dw-mclose{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:0 2px}',
     '.dw-mbody{padding:18px}',
     '.dw-mftr{padding:12px 18px;border-top:1px solid #e8ecf3;display:flex;justify-content:flex-end;gap:8px;background:#f8fafc;border-radius:0 0 var(--radius-lg,10px) var(--radius-lg,10px)}',
-    /* Form fields inside modal */
     '.dw-field{margin-bottom:12px}',
     '.dw-field label{display:block;font-size:11px;font-weight:600;color:var(--navy,#1B2A4A);margin-bottom:4px}',
     '.dw-field input,.dw-field select,.dw-field textarea{width:100%;border:1px solid #c8d4e8;border-radius:5px;padding:7px 10px;font-family:var(--font,Arial,sans-serif);font-size:12px;outline:none;box-sizing:border-box}',
     '.dw-field input:focus,.dw-field select:focus,.dw-field textarea:focus{border-color:var(--gold,#C9A84C)}',
     '.dw-field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}',
     '.dw-req{color:var(--red,#B71C1C)}',
-    /* Attachment list */
     '.dw-att-list{display:flex;flex-direction:column;gap:5px;margin-top:8px}',
     '.dw-att-item{display:flex;align-items:center;gap:7px;background:var(--g100,#EAF0F8);border:1px solid #d0d8e8;border-radius:5px;padding:6px 10px;font-size:11px}',
     '.dw-att-icon{font-size:15px;flex-shrink:0}',
@@ -126,12 +105,10 @@ function injectStyles() {
     '.dw-att-btn:hover{background:#bbdefb}',
     '.dw-att-del{flex-shrink:0;color:var(--red,#B71C1C);cursor:pointer;font-weight:700;padding:2px 5px;border-radius:3px;font-size:11px}',
     '.dw-att-del:hover{background:#fdecea}',
-    /* Drop zone */
     '.dw-dropzone{border:2px dashed #c8d4e8;border-radius:6px;padding:16px;text-align:center;color:var(--text-lt,#5A6478);font-size:11px;cursor:pointer;transition:border-color .15s,background .15s}',
     '.dw-dropzone:hover,.dw-dropzone.drag-over{border-color:var(--gold,#C9A84C);background:#fef9ed}',
     '.dw-dropzone strong{color:var(--navy,#1B2A4A)}',
     '.dw-uprog{font-size:10px;color:var(--text-lt,#5A6478);margin-top:5px;min-height:14px}',
-    /* Version timeline */
     '.dw-ver-row{display:grid;grid-template-columns:52px 82px 1fr auto;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid #edf0f5;font-size:11px}',
     '.dw-ver-row:hover{background:var(--g100,#EAF0F8)}',
     '.dw-ver-row.dw-active{background:#e8f5e9}',
@@ -143,16 +120,12 @@ function injectStyles() {
     '.dw-vdl{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:600;color:var(--blue,#0D47A1);background:#e3f2fd;border:1px solid #90caf9;border-radius:4px;padding:2px 7px;cursor:pointer;white-space:nowrap;text-decoration:none;margin:1px}',
     '.dw-vdl:hover{background:#bbdefb}',
     '.dw-vno{font-size:9px;color:var(--text-lt,#5A6478);font-style:italic}',
-    /* Modal tabs */
     '.dw-mtabs{display:flex;border-bottom:2px solid var(--g100,#EAF0F8);margin:0 -18px 14px;padding:0 18px}',
     '.dw-mtab{padding:7px 14px;font-size:11px;font-weight:600;cursor:pointer;color:var(--text-lt,#5A6478);border-bottom:2px solid transparent;margin-bottom:-2px}',
     '.dw-mtab:hover{color:var(--navy,#1B2A4A)}',
     '.dw-mtab.active{color:var(--navy,#1B2A4A);border-bottom-color:var(--gold,#C9A84C)}',
-    /* Alert inside modal */
     '.dw-alert-amb{background:#fff8e1;border-left:3px solid var(--amb,#F9A825);border-radius:5px;padding:8px 12px;font-size:10px;color:#7a5800;margin-top:8px}',
-    /* Empty state */
     '.dw-empty{text-align:center;padding:20px;color:var(--text-lt,#5A6478);font-size:11px}',
-    /* Toast */
     '#dms-w-toast{position:fixed;bottom:20px;right:20px;background:var(--navy,#1B2A4A);color:#fff;padding:9px 16px;border-radius:6px;font-size:12px;font-weight:600;box-shadow:0 4px 18px rgba(0,0,0,.25);z-index:99999;transform:translateY(60px);opacity:0;transition:transform .2s,opacity .2s;pointer-events:none}',
     '#dms-w-toast.show{transform:translateY(0);opacity:1}',
     '#dms-w-toast.t-ok{border-left:4px solid var(--grn,#2E7D32)}',
@@ -161,9 +134,6 @@ function injectStyles() {
   document.head.appendChild(s);
 }
 
-/* ════════════════════════════════════════════════════════════
-   TOAST
-════════════════════════════════════════════════════════════ */
 function toast(msg, type) {
   var el = document.getElementById('dms-w-toast');
   if (!el) { el = document.createElement('div'); el.id = 'dms-w-toast'; document.body.appendChild(el); }
@@ -173,9 +143,6 @@ function toast(msg, type) {
   el._t = setTimeout(function(){ el.className = ''; }, 3500);
 }
 
-/* ════════════════════════════════════════════════════════════
-   OVERLAY
-════════════════════════════════════════════════════════════ */
 function ensureOverlay() {
   var ov = document.getElementById('dms-w-overlay');
   if (!ov) {
@@ -200,14 +167,10 @@ function closeOv() {
   if (ov) ov.classList.remove('open');
 }
 
-/* ════════════════════════════════════════════════════════════
-   RENDER WIDGET
-════════════════════════════════════════════════════════════ */
 function renderWidget() {
   var page = PAGE();
   var docs = gAll().filter(function(d){ return !d.deleted && (d.pages||[]).includes(page); });
   var cnt  = docs.length;
-
   var html = '<div id="dms-widget">'
     + '<div class="dw-hdr">'
     +   '<div class="dw-hdr-left">📄 Document &amp; Evidence Register <span class="dw-cnt">'+cnt+'</span></div>'
@@ -217,7 +180,6 @@ function renderWidget() {
     +     '<a href="document-management.html" class="btn btn-ghost btn-sm" style="text-decoration:none">All Docs →</a>'
     +   '</div>'
     + '</div>';
-
   if (!cnt) {
     html += '<div class="dw-empty">'
       + '<strong style="display:block;color:var(--navy,#1B2A4A);margin-bottom:4px">No documents linked to this page yet</strong>'
@@ -233,21 +195,19 @@ function renderWidget() {
       + '<th style="text-align:center">Files</th><th style="text-align:center">Vers.</th>'
       + '<th>Actions</th>'
       + '</tr></thead><tbody>';
-
     docs.forEach(function(d) {
       var rc  = revCls(d.reviewDue);
       var rl  = revLbl(d.reviewDue);
+      /* FIX: count files from d.files[] AND version entries that have a dataUrl */
       var fc  = (d.files||[]).length;
       var vc  = (d.versions||[]).length;
       var fBadge = fc ? '<span class="nb nb-blue">'+fc+'</span>' : '<span class="muted">—</span>';
       var vBadge = vc ? '<span class="nb nb-gold">'+vc+'</span>' : '<span class="muted">—</span>';
-
-      var acts = '<button class="btn btn-teal btn-xs" data-wa="view"    data-wid="'+d.id+'" title="View details">🔍</button>';
-      if (canEd()) acts += '<button class="btn btn-navy btn-xs" data-wa="edit"    data-wid="'+d.id+'" title="Edit metadata">✏️</button>';
-      acts += '<button class="btn btn-ghost-dk btn-xs" data-wa="attach"  data-wid="'+d.id+'" title="Attachments">📎</button>';
+      var acts = '<button class="btn btn-teal btn-xs" data-wa="view" data-wid="'+d.id+'" title="View details">🔍</button>';
+      if (canEd()) acts += '<button class="btn btn-navy btn-xs" data-wa="edit" data-wid="'+d.id+'" title="Edit metadata">✏️</button>';
+      acts += '<button class="btn btn-ghost-dk btn-xs" data-wa="attach" data-wid="'+d.id+'" title="Attachments">📎</button>';
       acts += '<button class="btn btn-ghost-dk btn-xs" data-wa="version" data-wid="'+d.id+'" title="Version history">📋</button>';
       if (isAdm()) acts += '<button class="btn btn-red btn-xs" data-wa="del" data-wid="'+d.id+'" title="Move to bin">🗑</button>';
-
       html += '<tr>'
         + '<td><span class="dms-num">'+esc(d.number)+'</span></td>'
         + '<td style="font-weight:600;white-space:normal;max-width:200px">'+esc(d.title)+'</td>'
@@ -263,26 +223,18 @@ function renderWidget() {
     });
     html += '</tbody></table></div>';
   }
-  html += '</div>'; /* #dms-widget */
-
+  html += '</div>';
   var container = document.getElementById('dms-widget-container');
   container.innerHTML = html;
-
-  /* Wire action buttons */
   container.querySelectorAll('[data-wa]').forEach(function(btn) {
     btn.addEventListener('click', function() { dispatch(btn.dataset.wa, btn.dataset.wid); });
   });
-
-  /* Role pill */
   var rp = document.getElementById('dw-role-pill');
   if (rp) rp.addEventListener('click', promptRole);
-
-  /* Quick-add button */
   var qa = document.getElementById('dw-qkadd');
   if (qa) qa.addEventListener('click', function(){ openQuickAdd(); });
 }
 
-/* ── Action dispatcher ────────────────────────────────────── */
 function dispatch(action, id) {
   var doc = gAll().find(function(d){ return d.id === id; });
   if (!doc) return;
@@ -299,22 +251,14 @@ function softDel(id) {
   if (d) { d.deleted=true; d.deletedAt=new Date().toISOString().split('T')[0]; sAll(docs); logH(id,'ARCHIVED','Moved to bin'); renderWidget(); toast('Moved to Recycle Bin','ok'); }
 }
 
-/* ── Role prompt ──────────────────────────────────────────── */
 function promptRole() {
   var r = prompt('Enter role:\n  viewer / contributor / editor / admin\n\nCurrent: '+gRole(), gRole());
   var valid = ['viewer','contributor','editor','admin'];
   if (r && valid.includes(r.trim().toLowerCase())) {
-    sRole(r.trim().toLowerCase());
-    renderWidget();
-    toast('Role: '+gRole(),'ok');
-  } else if (r !== null) {
-    toast('Invalid role.','err');
-  }
+    sRole(r.trim().toLowerCase()); renderWidget(); toast('Role: '+gRole(),'ok');
+  } else if (r !== null) { toast('Invalid role.','err'); }
 }
 
-/* ════════════════════════════════════════════════════════════
-   MODAL — VIEW
-════════════════════════════════════════════════════════════ */
 function openViewModal(doc) {
   var rows = [
     ['Document Number', '<span class="dms-num">'+esc(doc.number)+'</span>'],
@@ -330,14 +274,12 @@ function openViewModal(doc) {
   ];
   openOv(
     '<div class="dw-mhdr"><h4>🔍 '+esc(doc.id)+' — '+esc(doc.title)+'</h4><button class="dw-mclose">×</button></div>'
-    +'<div class="dw-mbody" style="padding:0">'
-    +'<table style="width:100%;border-collapse:collapse">'
+    +'<div class="dw-mbody" style="padding:0"><table style="width:100%;border-collapse:collapse">'
     +rows.map(function(r){
       return '<tr><td style="width:140px;font-size:10px;font-weight:600;color:var(--navy,#1B2A4A);padding:7px 14px;border-bottom:1px solid #f0f3f9;vertical-align:top">'+r[0]+'</td>'
         +'<td style="font-size:11px;padding:7px 14px;border-bottom:1px solid #f0f3f9">'+r[1]+'</td></tr>';
     }).join('')
-    +'</table>'
-    +'</div>'
+    +'</table></div>'
     +'<div class="dw-mftr">'
     +(canEd() ? '<button class="btn btn-navy" id="wv-edit">✏️ Edit</button>' : '')
     +'<button class="btn btn-ghost-dk" id="wv-att">📎 Attachments</button>'
@@ -351,9 +293,6 @@ function openViewModal(doc) {
   if (canEd()) document.getElementById('wv-edit').addEventListener('click', function(){ closeOv(); openEditModal(doc); });
 }
 
-/* ════════════════════════════════════════════════════════════
-   MODAL — EDIT METADATA
-════════════════════════════════════════════════════════════ */
 var TYPES    = ['Procedure','Policy','Register','Record','Certificate','Report','Checklist','Form','Monitoring Log','Drawing','Specification','Image','Other'];
 var STATUSES = ['Active','Under Review','Superseded','Obsolete','Archived'];
 
@@ -362,7 +301,6 @@ function openEditModal(doc) {
   var d = doc || { id:nextId(), pages:[PAGE()], files:[], versions:[], status:'Active', type:'Register' };
   var typeOpts   = TYPES.map(function(t){ return '<option'+(d.type===t?' selected':'')+'>'+t+'</option>'; }).join('');
   var statusOpts = STATUSES.map(function(s){ return '<option'+(d.status===s?' selected':'')+'>'+s+'</option>'; }).join('');
-
   openOv(
     '<div class="dw-mhdr"><h4>'+(isNew?'＋ Add Document':'✏️ Edit — '+esc(d.id))+'</h4><button class="dw-mclose">×</button></div>'
     +'<div class="dw-mbody">'
@@ -398,7 +336,6 @@ function openEditModal(doc) {
       +'<button class="btn btn-gold" id="we-save">'+(isNew?'Add Document':'Save Changes')+'</button>'
     +'</div>'
   );
-
   document.getElementById('we-cancel').addEventListener('click', closeOv);
   document.getElementById('we-save').addEventListener('click', function() {
     var tv = document.getElementById('we-title').value.trim();
@@ -415,6 +352,11 @@ function openEditModal(doc) {
       var existVer = d.versions||[];
       var latestRev = existVer.length ? existVer[0].rev : '';
       var versionsUpd = (isNew||revVal!==latestRev||dataUrl) ? [newVer].concat(existVer) : existVer;
+      /* ── FIX 2: populate files[] when new doc has an upload ── */
+      var filesUpd = d.files || [];
+      if (isNew && dataUrl && fileName) {
+        filesUpd = [mkLocalFile(d.id+'-v1', fileName, dataUrl, newVer.ts)];
+      }
       var upd = Object.assign({}, d, {
         title:tv, number:nv, rev:revVal,
         type:   document.getElementById('we-type').value,
@@ -423,7 +365,7 @@ function openEditModal(doc) {
         owner:  document.getElementById('we-owner').value.trim(),
         status: document.getElementById('we-status').value,
         pages:  document.getElementById('we-pages').value.split(',').map(function(p){return p.trim();}).filter(Boolean),
-        versions: versionsUpd, files: d.files||[],
+        versions: versionsUpd, files: filesUpd,
       });
       if (idx>=0) docs[idx]=upd; else docs.push(upd);
       sAll(docs);
@@ -443,9 +385,6 @@ function openEditModal(doc) {
   });
 }
 
-/* ════════════════════════════════════════════════════════════
-   MODAL — QUICK ADD (minimal form, auto-links to current page)
-════════════════════════════════════════════════════════════ */
 function openQuickAdd() {
   var page = PAGE();
   var typeOpts = TYPES.map(function(t){ return '<option'+(t==='Register'?' selected':'')+'>'+t+'</option>'; }).join('');
@@ -487,23 +426,33 @@ function openQuickAdd() {
     var revVal = document.getElementById('qa-rev').value.trim()||'01';
     var fi = document.getElementById('qa-file');
     var f  = fi&&fi.files&&fi.files[0] ? fi.files[0] : null;
+
     function doAdd(dataUrl, fileName) {
       var newId = nextId();
       var docs  = gAll();
-      var newVer = { rev:revVal, ts:new Date().toISOString().split('T')[0], note:'Initial issue', user:gRole(), fileName:fileName||null, dataUrl:dataUrl||null };
+      var today = new Date().toISOString().split('T')[0];
+      var newVer = { rev:revVal, ts:today, note:'Initial issue', user:gRole(),
+                     fileName:fileName||null, dataUrl:dataUrl||null };
+      /* ── FIX 1: populate files[] when a file is uploaded at creation ── */
+      var initFiles = (dataUrl && fileName)
+        ? [mkLocalFile(newId+'-v1', fileName, dataUrl, today)]
+        : [];
       docs.push({
         id:newId, title:tv, number:nv, rev:revVal,
         type:   document.getElementById('qa-type').value,
         issued: document.getElementById('qa-issued').value,
         reviewDue:'', owner:document.getElementById('qa-owner').value.trim(),
-        status:'Active', pages:[page], deleted:false, files:[], versions:[newVer],
-        created:new Date().toISOString().split('T')[0],
+        status:'Active', pages:[page], deleted:false,
+        files: initFiles,      /* FIX 1 — was always [] */
+        versions:[newVer],
+        created:today,
       });
       sAll(docs);
       logH(newId,'ADDED','Quick-added from page: '+page);
       closeOv(); renderWidget();
       toast('Document added and linked to this page.','ok');
     }
+
     if (f) {
       document.getElementById('qa-fprog').textContent = 'Reading…';
       readFileAsDataUrl(f).then(function(du){ doAdd(du,f.name); }).catch(function(e){ toast(e.message,'err'); document.getElementById('qa-fprog').textContent=''; });
@@ -511,28 +460,32 @@ function openQuickAdd() {
   });
 }
 
-/* ════════════════════════════════════════════════════════════
-   MODAL — ATTACHMENTS  (Drive-backed, shared across all sessions)
-════════════════════════════════════════════════════════════ */
 function openAttachModal(doc) {
   var driveAvail = typeof DMS_DRIVE !== 'undefined';
 
   function loadAndRender() {
     var el = document.getElementById('w-att-list');
     if (el) el.innerHTML = '<div class="dw-empty">⏳ Loading…</div>';
-    var promise = driveAvail
-      ? DMS_DRIVE.listFiles(doc.id)
-      : Promise.resolve({ files: [] });
+    /* ── FIX 3: always include locally stored files from d.files[] ── */
+    var localFiles = (doc.files||[]).map(function(f){ return Object.assign({source:'local'}, f); });
+    var promise = driveAvail ? DMS_DRIVE.listFiles(doc.id) : Promise.resolve({files:[]});
     promise.then(function(result) {
-      var files = result.files || [];
+      /* Merge Drive files with local files — deduplicate by fileId */
+      var driveFiles = (result.files||[]).map(function(f){ return Object.assign({source:'drive'}, f); });
+      var driveIds   = driveFiles.map(function(f){ return f.fileId; });
+      var localOnly  = localFiles.filter(function(f){ return !driveIds.includes(f.fileId); });
+      var files      = driveFiles.concat(localOnly);
       if (el) { el.innerHTML = buildList(files); wireDelBtns(files); }
-    }).catch(function() { if (el) el.innerHTML = '<div class="dw-empty">Failed to load.</div>'; });
+    }).catch(function() {
+      /* Drive failed — show local files only */
+      if (el) { el.innerHTML = buildList(localFiles); wireDelBtns(localFiles); }
+    });
   }
 
   function buildList(files) {
     if (!files.length) return '<div class="dw-empty">No supporting files attached yet.</div>';
     return '<div class="dw-att-list">'
-      + files.map(function(f,i){
+      + files.map(function(f){
           var fname = f.fileName || f.name || 'file';
           var viewHtml = f.webViewLink
             ? '<a class="dw-att-btn" href="'+esc(f.webViewLink)+'" target="_blank">↗ Open</a>'
@@ -557,8 +510,15 @@ function openAttachModal(doc) {
   function wireDelBtns(files) {
     document.querySelectorAll('.dw-att-del[data-fid]').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        if (!confirm('Remove this file from Google Drive? This cannot be undone.')) return;
+        if (!confirm('Remove this file? This cannot be undone.')) return;
         var fid = btn.dataset.fid;
+        /* Remove from d.files[] in localStorage */
+        var docs = gAll(), d2 = docs.find(function(x){ return x.id===doc.id; });
+        if (d2) {
+          d2.files = (d2.files||[]).filter(function(f){ return f.fileId !== fid; });
+          sAll(docs);
+          doc = d2;
+        }
         var promise = driveAvail ? DMS_DRIVE.deleteFile(fid, doc.id) : Promise.resolve({ok:true});
         promise.then(function() { loadAndRender(); renderWidget(); toast('Removed.','ok'); })
                .catch(function(e){ toast(e.message,'err'); });
@@ -592,7 +552,6 @@ function openAttachModal(doc) {
     +'</div>'
     +'<div class="dw-mftr"><button class="btn btn-ghost-dk" id="w-att-cancel">Close</button></div>'
   );
-
   document.getElementById('w-att-cancel').addEventListener('click', closeOv);
   loadAndRender();
 
@@ -610,22 +569,32 @@ function openAttachModal(doc) {
       var prog = document.getElementById('w-prog');
       prog.textContent = 'Uploading '+files.length+' file(s)…';
       var who = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser()) ? IMS_AUTH.getUser().username : gRole();
-      var uploadFn = driveAvail
-        ? function(f){ return DMS_DRIVE.uploadFile(f, doc.id, 'attachment', '', who); }
-        : function(f){ return Promise.reject(new Error('DMS_DRIVE not loaded')); };
-      Promise.all(files.map(uploadFn))
-        .then(function(results){
-          prog.textContent = results.length+' file(s) '+(driveAvail && DMS_DRIVE.isConfigured() ? 'uploaded to Drive.' : 'saved locally.');
-          loadAndRender(); renderWidget();
-        })
-        .catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
+
+      if (driveAvail && DMS_DRIVE.isConfigured()) {
+        /* Upload to Drive */
+        Promise.all(files.map(function(f){ return DMS_DRIVE.uploadFile(f, doc.id, 'attachment', '', who); }))
+          .then(function(){ prog.textContent = files.length+' file(s) uploaded to Drive.'; loadAndRender(); renderWidget(); })
+          .catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
+      } else {
+        /* Local mode — save to d.files[] in localStorage */
+        var today = new Date().toISOString().split('T')[0];
+        Promise.all(files.map(function(f){ return readFileAsDataUrl(f).then(function(du){ return {f:f, du:du}; }); }))
+          .then(function(results){
+            var docs = gAll(), d2 = docs.find(function(x){ return x.id===doc.id; });
+            if (!d2) return;
+            results.forEach(function(r, i){
+              d2.files = (d2.files||[]).concat([mkLocalFile(doc.id+'-att-'+Date.now()+'-'+i, r.f.name, r.du, today)]);
+            });
+            sAll(docs); doc = d2;
+            prog.textContent = results.length+' file(s) saved locally.';
+            loadAndRender(); renderWidget();
+          })
+          .catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
+      }
     }
   }
 }
 
-/* ════════════════════════════════════════════════════════════
-   MODAL — VERSION HISTORY & NEW REVISION
-════════════════════════════════════════════════════════════ */
 function openVersionModal(doc) {
   var activeTab = 'history';
 
@@ -653,22 +622,21 @@ function openVersionModal(doc) {
         +'<div class="dw-field"><label>New Revision Number <span class="dw-req">*</span></label><input id="nv-rev" value="'+esc(doc.rev||'01')+'" placeholder="e.g. 03" style="width:120px"></div>'
         +'<div class="dw-field"><label>Date</label><input type="date" id="nv-date" value="'+new Date().toISOString().split('T')[0]+'"></div>'
       +'</div>'
-      +'<div class="dw-field"><label>Description of Changes <span class="dw-req">*</span></label><textarea id="nv-note" rows="3" placeholder="e.g. Section 3 updated following F4 investigation; Annex B revised"></textarea></div>'
+      +'<div class="dw-field"><label>Description of Changes <span class="dw-req">*</span></label><textarea id="nv-note" rows="3" placeholder="e.g. Section 3 updated following F4 investigation"></textarea></div>'
       +'<div class="dw-field" style="background:#f8fafc;border:1px solid #e8ecf3;border-radius:5px;padding:10px">'
         +'<label>Upload Document File for This Revision <span style="font-weight:400;color:var(--text-lt,#5A6478)">(optional, max '+MAX_FILE_MB+' MB)</span></label>'
         +'<div style="font-size:10px;color:var(--text-lt,#5A6478);margin:3px 0 7px">The previous revision remains downloadable after saving.</div>'
         +'<input type="file" id="nv-file" style="font-size:11px">'
         +'<div class="dw-uprog" id="nv-prog"></div>'
       +'</div>'
-      +'<div class="dw-alert-amb">⚠ Saving creates a new version entry at the top of the history and updates the document\'s current revision number. Previous versions are preserved.</div>'
+      +'<div class="dw-alert-amb">⚠ Saving creates a new version entry at the top of the history and updates the current revision number. Previous versions are preserved.</div>'
     +'</div>';
   }
 
   function render() {
     var roleNotice = !canEd()
       ? '<div style="background:#fff8e1;border-left:3px solid #F9A825;border-radius:0 5px 5px 0;padding:7px 12px;margin-bottom:10px;font-size:11px;color:#7a5800">'
-          +'🔒 <strong>Role: '+gRole()+'</strong> — "Upload New Revision" requires <strong>editor</strong> or <strong>admin</strong>. '
-          +'Click the <strong>● '+gRole()+'</strong> role pill in the widget header to change your role.'
+          +'🔒 <strong>Role: '+gRole()+'</strong> — "Upload New Revision" requires editor or admin.'
         +'</div>'
       : '';
     openOv(
@@ -688,7 +656,6 @@ function openVersionModal(doc) {
         +'<button class="btn btn-ghost-dk" id="nv-cancel">Close</button>'
       +'</div>'
     );
-
     document.getElementById('nv-cancel').addEventListener('click', closeOv);
     var ht = document.getElementById('wmt-hist');
     if (ht) ht.addEventListener('click', function(){ activeTab='history'; render(); });
@@ -700,20 +667,28 @@ function openVersionModal(doc) {
         var newRev  = document.getElementById('nv-rev').value.trim();
         var newNote = document.getElementById('nv-note').value.trim();
         if (!newRev||!newNote) { toast('Revision number and description are required.','err'); return; }
-        var fi = document.getElementById('nv-file');
-        var f  = fi&&fi.files&&fi.files[0] ? fi.files[0] : null;
+        var fi   = document.getElementById('nv-file');
+        var f    = fi&&fi.files&&fi.files[0] ? fi.files[0] : null;
         var prog = document.getElementById('nv-prog');
 
         function saveRev(dataUrl, fileName) {
           var docs = gAll(), d2 = docs.find(function(x){ return x.id===doc.id; });
           if (!d2) return;
-          var newVer = { rev:newRev, ts:document.getElementById('nv-date').value||new Date().toISOString().split('T')[0],
-                         note:newNote, user:gRole(), fileName:fileName||null, dataUrl:dataUrl||null };
+          var newVer = { rev:newRev,
+                         ts:document.getElementById('nv-date').value||new Date().toISOString().split('T')[0],
+                         note:newNote, user:gRole(),
+                         fileName:fileName||null, dataUrl:dataUrl||null };
           d2.versions = [newVer].concat(d2.versions||[]);
           d2.rev = newRev;
+          /* ── FIX 4: mirror new revision file into d.files[] ── */
+          if (dataUrl && fileName) {
+            d2.files = (d2.files||[]).concat([
+              mkLocalFile(doc.id+'-rev-'+newRev, fileName, dataUrl, newVer.ts)
+            ]);
+          }
           sAll(docs);
           logH(doc.id,'NEW REVISION','Rev.'+newRev+' — '+newNote+(fileName?' — '+fileName:''));
-          doc = d2;   /* update reference for re-render */
+          doc = d2;
           activeTab = 'history';
           render();
           renderWidget();
