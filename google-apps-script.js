@@ -1035,6 +1035,8 @@ function saveDocumentRecord(params) {
 
       approvalStatus: findCol(['Approval Status']),
 
+      pages:          findCol(['Pages','Linked Pages']),
+
     };
 
     /* Find existing row by Doc ID */
@@ -1069,7 +1071,7 @@ function saveDocumentRecord(params) {
 
                   deleted:'deleted', deletedAt:'deletedAt',
 
-                  approvalStatus:'approvalStatus' };
+                  approvalStatus:'approvalStatus', pages:'pages' };
 
       return params[map[key]] || '';
 

@@ -113,7 +113,7 @@ var DMS_DATA = (function() {
             reviewDue:  fmtDate(col(row, ['Review Due Date'])),
             owner:      col(row, ['Document Owner']),
             dept:       col(row, ['Department']) || '',
-            pages:      [],
+            pages:      (function(){ try{ return JSON.parse(col(row,['Pages','Linked Pages'])||'[]'); }catch(e){ var s=col(row,['Pages','Linked Pages']); return s?s.split(',').map(function(p){return p.trim();}).filter(Boolean):[]; } })(),
             deleted:        col(row, ['Deleted']) === 'true',
             approvalStatus: col(row, ['Approval Status']) || 'Draft',
             files:      [],
@@ -154,6 +154,7 @@ var DMS_DATA = (function() {
       + '&deleted='        + encodeURIComponent(doc.deleted ? 'true' : 'false')
       + '&deletedAt='      + encodeURIComponent(doc.deletedAt || '')
       + '&approvalStatus=' + encodeURIComponent(doc.approvalStatus || 'Draft')
+      + '&pages='          + encodeURIComponent(JSON.stringify(doc.pages || []))
     )
     .then(function(r) { return r.json(); })
     .then(function(res) { if(cb) cb(res); })

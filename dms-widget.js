@@ -16,29 +16,16 @@ var MAX_FILE_MB = 4;
    so records are visible across ALL browsers and devices.
    If dms-data.js is not loaded, falls back to localStorage.
 ────────────────────────────────────────────────────────────────*/
-/* ── Page links store ───────────────────────────────────────────
-   pages[] is not stored in Sheets — kept in localStorage per browser.
-   Stored separately so it survives DMS_DATA cache clears.
-────────────────────────────────────────────────────────────── */
-var PL_KEY = 'sagco_dms_pages';
-function getPageLinks() {
-  try { return JSON.parse(localStorage.getItem(PL_KEY)||'{}'); } catch(e){ return {}; }
-}
-function savePageLink(docId, pages) {
-  var pl = getPageLinks(); pl[docId] = pages;
-  try { localStorage.setItem(PL_KEY, JSON.stringify(pl)); } catch(e){}
-}
-
 function gAll() {
-  var docs = (typeof DMS_DATA !== 'undefined') ? DMS_DATA.cache() :
-    (function(){ try{ return JSON.parse(localStorage.getItem('sagco_dms_v2')||'[]'); } catch(e){ return []; } })();
-  /* Merge page links back in */
-  var pl = getPageLinks();
-  return docs.map(function(d) {
-    return Object.assign({}, d, { pages: pl[d.id] || d.pages || [] });
-  });
+  /* Read from DMS_DATA cache (backed by Google Sheets) */
+  if (typeof DMS_DATA !== 'undefined') return DMS_DATA.cache();
+  /* Fallback: localStorage */
+  try { return JSON.parse(localStorage.getItem('sagco_dms_v2') ||
+                          localStorage.getItem('sagco_dms_store') || '[]'); }
+  catch(e) { return []; }
 }
-function sAll(a) { /* no-op */ }
+function sAll(a) { /* no-op — DMS_DATA.saveDoc() handles persistence */ }
+function savePageLink(docId, pages) { /* kept for compat — pages now in DMS_DATA */ }
 function nextId() {
   if (typeof DMS_DATA !== 'undefined') return DMS_DATA.nextId();
   var nums = gAll().map(function(d){ return parseInt((d.id||'DOC-000').split('-')[1])||0; });
@@ -833,18 +820,8 @@ function inject() {
   /* Render immediately from cache, then refresh from Sheets in background */
   renderWidget();
   if (typeof DMS_DATA !== 'undefined') {
-    /* DMS_DATA.loadAll reads Google Sheets — same source as document-management.html */
+    /* DMS_DATA.loadAll — exact same call as document-management.html */
     DMS_DATA.loadAll(function(docs) {
-      /* Preserve page links and local files (not stored in Sheets) */
-      var prev = JSON.parse(localStorage.getItem('sagco_dms_v2')||'[]');
-      docs.forEach(function(d) {
-        var p = prev.find(function(x){ return x.id === d.id; });
-        if (p) {
-          d.pages    = p.pages    || d.pages    || [];
-          d.files    = p.files    || d.files    || [];
-          d.versions = p.versions || d.versions || [];
-        }
-      });
       renderWidget(); /* re-render with fresh Sheets data */
     });
   }
