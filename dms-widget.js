@@ -331,7 +331,8 @@ function renderWidget() {
       var rc  = revCls(d.reviewDue);
       var rl  = revLbl(d.reviewDue);
       /* FIX: count files from d.files[] AND version entries that have a dataUrl */
-      var fc  = (d.files||[]).length;
+      /* Use Drive attachCount as fallback when files[] not in local cache */
+      var fc  = (d.files||[]).length || (d.attachCount || 0);
       var vc  = (d.versions||[]).length;
       var fBadge = fc ? '<span class="nb nb-blue">'+fc+'</span>' : '<span class="muted">—</span>';
       var vBadge = vc ? '<span class="nb nb-gold">'+vc+'</span>' : '<span class="muted">—</span>';
@@ -511,6 +512,7 @@ function openEditModal(doc) {
         versions: versionsUpd, files: filesUpd,
       });
       if (idx>=0) docs[idx]=upd; else docs.push(upd);
+      upd.attachCount = (upd.files||[]).length;
       /* Persist files/versions locally before DMS_DATA strips them */
       saveLocalFiles(upd.id, upd.files||[], upd.versions||[]);
       if (typeof DMS_DATA !== 'undefined') {
@@ -605,6 +607,7 @@ function openQuickAdd() {
         created:today,
       });
       var newDoc = docs[docs.length-1];
+      newDoc.attachCount = (newDoc.files||[]).length;
       /* Persist files/versions locally before DMS_DATA strips them */
       saveLocalFiles(newDoc.id, newDoc.files||[], newDoc.versions||[]);
       if (typeof DMS_DATA !== 'undefined') {
@@ -810,10 +813,11 @@ function openAttachModal(doc) {
             if (err) { toast(err.message,'err'); }
             else {
               completed++;
-              /* Add to doc.files and persist */
+              /* Add to doc.files, update attachCount, persist */
               var docs2 = gAll(), d2 = docs2.find(function(x){ return x.id===doc.id; });
               if (d2) {
                 d2.files = (d2.files||[]).concat([fileData]);
+                d2.attachCount = d2.files.length;
                 saveLocalFiles(d2.id, d2.files, d2.versions||[]);
                 if (typeof DMS_DATA !== 'undefined') DMS_DATA.saveDoc(d2);
                 doc = d2;
@@ -982,6 +986,22 @@ function inject() {
     /* DMS_DATA.loadAll — exact same call as document-management.html */
     DMS_DATA.loadAll(function(docs) {
       renderWidget(); /* re-render with fresh Sheets data */
+      /* Sync Drive file counts into local store for current page docs */
+      if (typeof DMS_DRIVE !== 'undefined' && DMS_DRIVE.isConfigured()) {
+        var page = PAGE();
+        var pageDocs = gAll().filter(function(d){
+          return !d.deleted && (d.pages||[]).includes(page) && (d.attachCount||0) > 0;
+        });
+        pageDocs.forEach(function(d) {
+          DMS_DRIVE.listFiles(d.id).then(function(result) {
+            var driveFiles = result.files || [];
+            if (driveFiles.length > 0) {
+              saveLocalFiles(d.id, driveFiles, d.versions||[]);
+              renderWidget(); /* re-render with Drive file counts */
+            }
+          }).catch(function(){});
+        });
+      }
     });
   }
 }
