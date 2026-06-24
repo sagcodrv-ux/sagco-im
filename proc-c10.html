@@ -191,6 +191,105 @@
   .pp-meta{grid-template-columns:repeat(2,1fr)}
 }
 .pp-sec-idx *,.pp-capa-grid *,.pp-hr-steps *,.pp-nm-grid *,.pp-ro-grid *,.pp-rel-grid *,.pp-def-grid *{min-width:0;word-break:break-word;}
+
+/* ═══ PRINT STYLES ══════════════════════════════════════ */
+@media print {
+  /* Page setup */
+  @page {
+    size: A4 portrait;
+    margin: 15mm 12mm 15mm 12mm;
+  }
+  @page :first { margin-top: 10mm; }
+
+  /* Hide navigation chrome */
+  #sidebar, #tb, .pp-back, .no-print,
+  script, noscript { display: none !important; }
+
+  /* Reset layout — remove flex sidebar */
+  body { background: #fff !important; }
+  .main { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+  .content { padding: 0 !important; width: 100% !important; max-width: 100% !important; }
+
+  /* Cover — keep dark bg */
+  .pp-cover {
+    background: #1a2340 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    border-radius: 0 !important;
+    page-break-after: avoid;
+  }
+
+  /* Force colours to print */
+  * { -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important; }
+
+  /* Section headers keep their background */
+  .pp-s-hdr { border-radius: 0 !important; }
+
+  /* Prevent orphaned headers */
+  .pp-s-hdr {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+  .pp-s-body, .pp-sec-idx {
+    page-break-before: avoid;
+    break-before: avoid;
+  }
+
+  /* Keep cards together where possible */
+  .pp-def, .pp-abbr, .pp-rrow, .pp-cf-step,
+  .pp-capa-card, .pp-tier, .pp-hr-step,
+  .pp-disc, .pp-lc-step, .pp-layer,
+  .pp-wg-card, .pp-ocs, .pp-mx-card,
+  .pp-nm-card, .pp-infra-card {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Tables */
+  table { page-break-inside: auto; width: 100% !important; }
+  tr    { page-break-inside: avoid; break-inside: avoid; }
+  thead { display: table-header-group; }
+
+  /* Grids — stack to single column on narrow print if needed */
+  .pp-def-grid, .pp-capa-grid, .pp-hr-steps,
+  .pp-nm-grid, .pp-matrix-grid, .pp-sup-grid,
+  .pp-ocs-grid, .pp-infra-grid {
+    display: grid !important;
+  }
+
+  /* Section index — reduce to 2 cols for print */
+  .pp-sec-idx { grid-template-columns: repeat(2,1fr) !important; }
+
+  /* Related grid */
+  .pp-rel-grid { grid-template-columns: repeat(2,1fr) !important; }
+
+  /* Footer */
+  .pp-footer {
+    position: relative !important;
+    page-break-inside: avoid;
+    border: 1px solid #ddd !important;
+    margin-top: 12px !important;
+  }
+
+  /* Anchor links — hide */
+  a[href]::after { content: none !important; }
+
+  /* Scrollable table wrappers — let them expand */
+  .pp-tbl-wrap { overflow: visible !important; }
+
+  /* Remove box shadows for cleaner print */
+  * { box-shadow: none !important; }
+
+  /* Print button itself never prints */
+  .pp-print-btn { display: none !important; }
+
+  /* Scope box */
+  .pp-scope { border: 1px solid #ccc !important; background: #f9f9f9 !important; }
+
+  /* Keep back-nav totally hidden */
+  .pp-back { display: none !important; }
+}
 </style>
 </head>
 <body>
@@ -642,6 +741,10 @@
 </div>
 
 <!-- Footer -->
+
+<!-- ═══ DOCUMENT & EVIDENCE WIDGET ════════════════════════ -->
+<div id="dms-widget-container" style="margin-top:24px"></div>
+
 <div class="pp-footer">
   <span>L2-IMS-1000-P-07 · Improvement and Corrective Action · Rev.01 · June 2026 · Review: June 2028</span>
   <span>Prepared: IMS Coordinator · Checked: IMS Manager · Approved: CEO</span>
@@ -658,6 +761,36 @@ document.addEventListener('DOMContentLoaded', function() {
   );
   IMS_AUTH.injectUserBar();
 });
+</script>
+<script>
+function printPage(){
+  document.querySelectorAll('.nkids').forEach(function(el){
+    el._wasClosed = el.style.display === 'none';
+    el.style.display = 'block';
+  });
+  window.print();
+  setTimeout(function(){
+    document.querySelectorAll('.nkids').forEach(function(el){
+      if(el._wasClosed) el.style.display = 'none';
+    });
+  }, 1000);
+}
+</script>
+
+<script src="dms-drive.js"></script>
+<script src="dms-widget.js"></script>
+<script>
+/* Sync IMS_AUTH role → DMS widget role */
+(function syncRole(){
+  try {
+    var s = JSON.parse(sessionStorage.getItem('sagco_ims_session')||'null');
+    if (!s) return;
+    var map = { superadmin:'admin', admin:'admin', editor:'editor',
+                contributor:'contributor', viewer:'viewer' };
+    var r = map[s.role] || 'viewer';
+    sessionStorage.setItem('sagco_dms_role', r);
+  } catch(e){}
+})();
 </script>
 </body>
 </html>
