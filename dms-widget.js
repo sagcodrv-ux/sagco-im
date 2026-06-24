@@ -396,18 +396,23 @@ function openEditModal(doc) {
     var revVal = document.getElementById('we-rev').value.trim() || '01';
     var note   = (document.getElementById('we-note')||{value:''}).value.trim();
 
-    function doSave(dataUrl, fileName) {
+    function doSave(dataUrl, fileName, driveFile) {
       var docs = gAll(), idx = docs.findIndex(function(x){ return x.id===d.id; });
+      var finalFileName = driveFile ? driveFile.fileName : (fileName||null);
       var newVer = { rev:revVal, ts:new Date().toISOString().split('T')[0],
                      note:isNew?'Initial issue':(note||'Metadata updated'), user:gRole(),
-                     fileName:fileName||null, dataUrl:dataUrl||null };
+                     fileName:  finalFileName,
+                     dataUrl:   driveFile ? null : (dataUrl||null),
+                     webViewLink:  driveFile ? driveFile.webViewLink  : null,
+                     downloadLink: driveFile ? driveFile.downloadLink : (dataUrl||null) };
       var existVer = d.versions||[];
       var latestRev = existVer.length ? existVer[0].rev : '';
-      var versionsUpd = (isNew||revVal!==latestRev||dataUrl) ? [newVer].concat(existVer) : existVer;
-      /* ── FIX 2: populate files[] when new doc has an upload ── */
+      var versionsUpd = (isNew||revVal!==latestRev||dataUrl||driveFile) ? [newVer].concat(existVer) : existVer;
+      /* Build files[] — Drive file takes priority over base64 */
       var filesUpd = d.files || [];
-      if (isNew && dataUrl && fileName) {
-        filesUpd = [mkLocalFile(d.id+'-v1', fileName, dataUrl, newVer.ts)];
+      if (isNew) {
+        if (driveFile) { filesUpd = [driveFile]; }
+        else if (dataUrl && fileName) { filesUpd = [mkLocalFile(d.id+'-v1', fileName, dataUrl, newVer.ts)]; }
       }
       var upd = Object.assign({}, d, {
         title:tv, number:nv, rev:revVal,
@@ -434,10 +439,27 @@ function openEditModal(doc) {
       var fi = document.getElementById('we-firstfile');
       var f  = fi&&fi.files&&fi.files[0] ? fi.files[0] : null;
       if (f) {
-        document.getElementById('we-fprog').textContent = 'Reading…';
-        readFileAsDataUrl(f).then(function(du){ doSave(du,f.name); }).catch(function(e){ toast(e.message,'err'); document.getElementById('we-fprog').textContent=''; });
-      } else { doSave(null,null); }
-    } else { doSave(null,null); }
+        var prog2 = document.getElementById('we-fprog');
+        if (typeof DMS_DRIVE !== 'undefined' && DMS_DRIVE.isConfigured()) {
+          prog2.textContent = 'Opening upload window…';
+          var who2 = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser()) ? IMS_AUTH.getUser().username : gRole();
+          DMS_DRIVE.uploadFile(f, d.id, 'attachment', 'Initial upload', who2)
+            .then(function(fileData) {
+              prog2.textContent = 'Uploaded to Drive ✓';
+              doSave(null, null, fileData);
+            })
+            .catch(function(e) {
+              prog2.textContent = 'Drive upload cancelled — saving locally…';
+              readFileAsDataUrl(f).then(function(du){ doSave(du, f.name, null); })
+                .catch(function(e2){ toast(e2.message,'err'); prog2.textContent=''; });
+            });
+        } else {
+          prog2.textContent = 'Reading…';
+          readFileAsDataUrl(f).then(function(du){ doSave(du, f.name, null); })
+            .catch(function(e){ toast(e.message,'err'); prog2.textContent=''; });
+        }
+      } else { doSave(null, null, null); }
+    } else { doSave(null, null, null); }
   });
 }
 
@@ -483,16 +505,22 @@ function openQuickAdd() {
     var fi = document.getElementById('qa-file');
     var f  = fi&&fi.files&&fi.files[0] ? fi.files[0] : null;
 
-    function doAdd(dataUrl, fileName) {
+    function doAdd(dataUrl, fileName, driveFile) {
       var newId = nextId();
       var docs  = gAll();
       var today = new Date().toISOString().split('T')[0];
+      var finalFileName = driveFile ? driveFile.fileName : (fileName||null);
       var newVer = { rev:revVal, ts:today, note:'Initial issue', user:gRole(),
-                     fileName:fileName||null, dataUrl:dataUrl||null };
-      /* ── FIX 1: populate files[] when a file is uploaded at creation ── */
-      var initFiles = (dataUrl && fileName)
-        ? [mkLocalFile(newId+'-v1', fileName, dataUrl, today)]
-        : [];
+                     fileName:finalFileName,
+                     dataUrl:  driveFile ? null : (dataUrl||null),
+                     webViewLink:  driveFile ? driveFile.webViewLink  : null,
+                     downloadLink: driveFile ? driveFile.downloadLink : (dataUrl||null) };
+      /* Build files[] — Drive file takes priority over base64 */
+      var initFiles = driveFile
+        ? [driveFile]  /* Drive: shared across all browsers */
+        : (dataUrl && fileName)
+          ? [mkLocalFile(newId+'-v1', fileName, dataUrl, today)]
+          : [];
       docs.push({
         id:newId, title:tv, number:nv, rev:revVal,
         type:   document.getElementById('qa-type').value,
@@ -515,9 +543,30 @@ function openQuickAdd() {
     }
 
     if (f) {
-      document.getElementById('qa-fprog').textContent = 'Reading…';
-      readFileAsDataUrl(f).then(function(du){ doAdd(du,f.name); }).catch(function(e){ toast(e.message,'err'); document.getElementById('qa-fprog').textContent=''; });
-    } else { doAdd(null,null); }
+      var prog = document.getElementById('qa-fprog');
+      if (typeof DMS_DRIVE !== 'undefined' && DMS_DRIVE.isConfigured()) {
+        /* Upload to Google Drive via popup — shared across all browsers */
+        prog.textContent = 'Opening upload window…';
+        var tempId = nextId(); /* tentative ID for Drive folder */
+        var who = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser()) ? IMS_AUTH.getUser().username : gRole();
+        DMS_DRIVE.uploadFile(f, tempId, 'attachment', 'Initial upload', who)
+          .then(function(fileData) {
+            prog.textContent = 'Uploaded to Drive ✓';
+            doAdd(null, null, fileData); /* pass Drive file metadata */
+          })
+          .catch(function(e) {
+            /* User cancelled popup or Drive failed — fall back to base64 */
+            prog.textContent = 'Drive upload cancelled — saving locally…';
+            readFileAsDataUrl(f).then(function(du){ doAdd(du, f.name, null); })
+              .catch(function(e2){ toast(e2.message,'err'); prog.textContent=''; });
+          });
+      } else {
+        /* No Drive configured — store base64 locally */
+        prog.textContent = 'Reading…';
+        readFileAsDataUrl(f).then(function(du){ doAdd(du, f.name, null); })
+          .catch(function(e){ toast(e.message,'err'); prog.textContent=''; });
+      }
+    } else { doAdd(null, null, null); }
   });
 }
 
@@ -725,10 +774,13 @@ function openVersionModal(doc) {
     if (!versions.length) return '<div class="dw-empty">No versions recorded yet. Use "Upload New Revision" to add the first.</div>';
     return versions.map(function(v,i){
       var isActive = i===0;
-      var dlHtml = v.dataUrl
-        ? '<a class="dw-vdl" href="'+v.dataUrl+'" download="'+(v.fileName||'document')+'">⬇ Rev.'+esc(v.rev)+'</a>'
-          +'<a class="dw-vdl" href="'+v.dataUrl+'" target="_blank">↗ Open</a>'
-        : '<span class="dw-vno">no file attached</span>';
+      var dlHtml = v.webViewLink
+        ? '<a class="dw-vdl" href="'+esc(v.webViewLink)+'" target="_blank">↗ Open</a>'
+          +'<a class="dw-vdl" href="'+esc(v.downloadLink)+'" target="_blank">⬇ Download</a>'
+        : (v.dataUrl || v.downloadLink)
+          ? '<a class="dw-vdl" href="'+(v.downloadLink||v.dataUrl)+'" download="'+(v.fileName||'document')+'">⬇ Rev.'+esc(v.rev)+'</a>'
+            +'<button class="dw-vdl" data-open-fid="'+esc(v.fileName||'')+'" data-open-url="'+(v.downloadLink||v.dataUrl)+'">↗ Open</button>'
+          : '<span class="dw-vno">no file attached</span>';
       return '<div class="dw-ver-row'+(isActive?' dw-active':'')+'">'
         +'<span class="dw-vnum">Rev. '+esc(v.rev)+'</span>'
         +'<span class="dw-vdate">'+esc(v.ts||'—')+'</span>'
@@ -793,17 +845,23 @@ function openVersionModal(doc) {
         var f    = fi&&fi.files&&fi.files[0] ? fi.files[0] : null;
         var prog = document.getElementById('nv-prog');
 
-        function saveRev(dataUrl, fileName) {
+        function saveRev(dataUrl, fileName, driveFile) {
           var docs = gAll(), d2 = docs.find(function(x){ return x.id===doc.id; });
           if (!d2) return;
+          var finalFileName = driveFile ? driveFile.fileName : (fileName||null);
           var newVer = { rev:newRev,
                          ts:document.getElementById('nv-date').value||new Date().toISOString().split('T')[0],
                          note:newNote, user:gRole(),
-                         fileName:fileName||null, dataUrl:dataUrl||null };
+                         fileName:     finalFileName,
+                         dataUrl:      driveFile ? null : (dataUrl||null),
+                         webViewLink:  driveFile ? driveFile.webViewLink  : null,
+                         downloadLink: driveFile ? driveFile.downloadLink : (dataUrl||null) };
           d2.versions = [newVer].concat(d2.versions||[]);
           d2.rev = newRev;
-          /* ── FIX 4: mirror new revision file into d.files[] ── */
-          if (dataUrl && fileName) {
+          /* Mirror file into d.files[] — Drive file or local base64 */
+          if (driveFile) {
+            d2.files = (d2.files||[]).concat([driveFile]);
+          } else if (dataUrl && fileName) {
             d2.files = (d2.files||[]).concat([
               mkLocalFile(doc.id+'-rev-'+newRev, fileName, dataUrl, newVer.ts)
             ]);
@@ -828,9 +886,25 @@ function openVersionModal(doc) {
         }
 
         if (f) {
-          if (prog) prog.textContent = 'Reading…';
-          readFileAsDataUrl(f).then(function(du){ saveRev(du,f.name); }).catch(function(e){ toast(e.message,'err'); if(prog)prog.textContent=''; });
-        } else { saveRev(null,null); }
+          if (typeof DMS_DRIVE !== 'undefined' && DMS_DRIVE.isConfigured()) {
+            if (prog) prog.textContent = 'Opening upload window…';
+            var who3 = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser()) ? IMS_AUTH.getUser().username : gRole();
+            DMS_DRIVE.uploadFile(f, doc.id, 'revision', newNote, who3)
+              .then(function(fileData) {
+                if (prog) prog.textContent = 'Uploaded to Drive ✓';
+                saveRev(null, fileData.fileName, fileData);
+              })
+              .catch(function(e) {
+                if (prog) prog.textContent = 'Drive upload cancelled — saving locally…';
+                readFileAsDataUrl(f).then(function(du){ saveRev(du,f.name,null); })
+                  .catch(function(e2){ toast(e2.message,'err'); if(prog)prog.textContent=''; });
+              });
+          } else {
+            if (prog) prog.textContent = 'Reading…';
+            readFileAsDataUrl(f).then(function(du){ saveRev(du,f.name,null); })
+              .catch(function(e){ toast(e.message,'err'); if(prog)prog.textContent=''; });
+          }
+        } else { saveRev(null,null,null); }
       });
     }
   }
