@@ -331,8 +331,10 @@ function renderWidget() {
       var rc  = revCls(d.reviewDue);
       var rl  = revLbl(d.reviewDue);
       /* FIX: count files from d.files[] AND version entries that have a dataUrl */
-      /* Use Drive attachCount as fallback when files[] not in local cache */
-      var fc  = (d.files||[]).length || (d.attachCount || 0);
+      /* File count: local files → DMS_DATA attachCount → Drive local cache */
+      var fc  = (d.files||[]).length
+             || (d.attachCount || 0)
+             || ((typeof DMS_DRIVE !== 'undefined') ? DMS_DRIVE.localGet(d.id).length : 0);
       var vc  = (d.versions||[]).length;
       var fBadge = fc ? '<span class="nb nb-blue">'+fc+'</span>' : '<span class="muted">—</span>';
       var vBadge = vc ? '<span class="nb nb-gold">'+vc+'</span>' : '<span class="muted">—</span>';
@@ -986,18 +988,25 @@ function inject() {
     /* DMS_DATA.loadAll — exact same call as document-management.html */
     DMS_DATA.loadAll(function(docs) {
       renderWidget(); /* re-render with fresh Sheets data */
-      /* Sync Drive file counts into local store for current page docs */
+      /* Sync Drive files into local store for ALL docs on this page */
       if (typeof DMS_DRIVE !== 'undefined' && DMS_DRIVE.isConfigured()) {
         var page = PAGE();
         var pageDocs = gAll().filter(function(d){
-          return !d.deleted && (d.pages||[]).includes(page) && (d.attachCount||0) > 0;
+          return !d.deleted && (d.pages||[]).includes(page);
         });
+        var synced = false;
         pageDocs.forEach(function(d) {
           DMS_DRIVE.listFiles(d.id).then(function(result) {
             var driveFiles = result.files || [];
             if (driveFiles.length > 0) {
               saveLocalFiles(d.id, driveFiles, d.versions||[]);
-              renderWidget(); /* re-render with Drive file counts */
+              /* Update attachCount in DMS_DATA cache */
+              if (typeof DMS_DATA !== 'undefined') {
+                var cached = DMS_DATA.cache();
+                var c = cached.find(function(x){ return x.id===d.id; });
+                if (c) { c.attachCount = driveFiles.length; }
+              }
+              if (!synced) { synced = true; renderWidget(); }
             }
           }).catch(function(){});
         });
