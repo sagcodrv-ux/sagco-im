@@ -6,81 +6,44 @@
 ═══════════════════════════════════════════════════════════════ */
 (function () {
 'use strict';
-var SK = 'sagco_dms_store';
 var HK = 'sagco_dms_hist';
 var RK = 'sagco_dms_role';
 var MAX_FILE_MB = 4;
 
-/* ── Sheets sync ────────────────────────────────────────────
-   SHEETS_URL is defined in data.js (loaded before this script).
-   All writes go to both localStorage (fast cache) AND Sheets.
-   All reads prefer Sheets when available, fall back to localStorage.
-   Files/attachments remain in localStorage (base64 too large for Sheets).
-────────────────────────────────────────────────────────────*/
-function getSheetsUrl() {
-  return (typeof SHEETS_URL !== 'undefined') ? SHEETS_URL : null;
+/* ── Delegate storage to DMS_DATA (dms-data.js) ─────────────────
+   dms-data.js is the single source of truth — reads/writes Google
+   Sheets. The widget uses the same data layer as document-management.html
+   so records are visible across ALL browsers and devices.
+   If dms-data.js is not loaded, falls back to localStorage.
+────────────────────────────────────────────────────────────────*/
+/* ── Page links store ───────────────────────────────────────────
+   pages[] is not stored in Sheets — kept in localStorage per browser.
+   Stored separately so it survives DMS_DATA cache clears.
+────────────────────────────────────────────────────────────── */
+var PL_KEY = 'sagco_dms_pages';
+function getPageLinks() {
+  try { return JSON.parse(localStorage.getItem(PL_KEY)||'{}'); } catch(e){ return {}; }
+}
+function savePageLink(docId, pages) {
+  var pl = getPageLinks(); pl[docId] = pages;
+  try { localStorage.setItem(PL_KEY, JSON.stringify(pl)); } catch(e){}
 }
 
-/* Push a full doc record to Sheets (metadata only, no base64) */
-function syncDocToSheets(doc) {
-  var url = getSheetsUrl();
-  if (!url) return;
-  /* Strip base64 dataUrls from files/versions — too large for Sheets */
-  var meta = Object.assign({}, doc);
-  meta.files    = (doc.files||[]).map(function(f){ return Object.assign({},f,{dataUrl:'[local]',downloadLink:'[local]'}); });
-  meta.versions = (doc.versions||[]).map(function(v){ return Object.assign({},v,{dataUrl:'[local]'}); });
-  var payload = encodeURIComponent(JSON.stringify(meta));
-  fetch(url + '?action=saveDocumentRecord&data=' + payload).catch(function(){});
-}
-
-/* Load all docs from Sheets, merge with localStorage base64 files */
-function loadFromSheets(callback) {
-  var url = getSheetsUrl();
-  if (!url) { callback(gAll()); return; }
-  fetch(url + '?action=read&tab=dms_docs')
-    .then(function(r){ return r.json(); })
-    .then(function(data) {
-      if (!data || !data.rows || !data.headers) { callback(gAll()); return; }
-      var local = gAll();
-      /* Map Sheets rows to doc objects */
-      var sheetsdocs = data.rows.map(function(row) {
-        var d = {};
-        data.headers.forEach(function(h,i){ d[h.toLowerCase().replace(/\s+/g,'_')] = row[i]||''; });
-        return d;
-      });
-      /* Merge: Sheets has metadata, localStorage has base64 files */
-      var merged = sheetsrows_to_docs(sheetsocs, local);
-      sAll(merged); /* update cache */
-      callback(merged);
-    })
-    .catch(function(){ callback(gAll()); }); /* fallback to cache */
-}
-
-/* Convert Sheets row format to widget doc format */
-function sheetsrows_to_docs(sheetsRows, localDocs) {
-  return sheetsRows.map(function(sr) {
-    var localMatch = localDocs.find(function(l){ return l.id === sr.doc_id || l.number === sr.doc_number; });
-    return {
-      id:        sr.doc_id || sr.id || ('DOC-'+Math.random().toString(36).substr(2,4)),
-      title:     sr.title || sr.doc_title || '',
-      number:    sr.doc_number || sr.number || '',
-      rev:       sr.revision || sr.rev || '01',
-      type:      sr.type || sr.doc_type || 'Register',
-      issued:    sr.issued || sr.date_issued || '',
-      reviewDue: sr.review_due || sr.next_review || '',
-      owner:     sr.owner || sr.document_owner || '',
-      status:    sr.status || 'Active',
-      pages:     localMatch ? (localMatch.pages||[]) : [],
-      deleted:   false,
-      files:     localMatch ? (localMatch.files||[]) : [],
-      versions:  localMatch ? (localMatch.versions||[]) : [],
-      created:   sr.created || sr.date_added || '',
-    };
+function gAll() {
+  var docs = (typeof DMS_DATA !== 'undefined') ? DMS_DATA.cache() :
+    (function(){ try{ return JSON.parse(localStorage.getItem('sagco_dms_v2')||'[]'); } catch(e){ return []; } })();
+  /* Merge page links back in */
+  var pl = getPageLinks();
+  return docs.map(function(d) {
+    return Object.assign({}, d, { pages: pl[d.id] || d.pages || [] });
   });
 }
-
-function gAll()   { try { return JSON.parse(localStorage.getItem(SK)||'[]'); } catch(e){ return []; } }
-function sAll(a)  { localStorage.setItem(SK, JSON.stringify(a)); }
+function sAll(a) { /* no-op */ }
+function nextId() {
+  if (typeof DMS_DATA !== 'undefined') return DMS_DATA.nextId();
+  var nums = gAll().map(function(d){ return parseInt((d.id||'DOC-000').split('-')[1])||0; });
+  return 'DOC-' + String(Math.max.apply(null,[0].concat(nums))+1).padStart(3,'0');
+}
 function gHist()  { try { return JSON.parse(localStorage.getItem(HK)||'[]'); } catch(e){ return []; } }
 function sHist(a) { localStorage.setItem(HK, JSON.stringify(a)); }
 function gRole()  { return sessionStorage.getItem(RK) || 'viewer'; }
@@ -93,10 +56,7 @@ function logH(id, action, detail) {
   h.push({ docId:id, action:action, detail:detail, user:gRole(), ts:new Date().toISOString() });
   sHist(h);
 }
-function nextId() {
-  var nums = gAll().map(function(d){ return parseInt((d.id||'DOC-000').split('-')[1])||0; });
-  return 'DOC-' + String(Math.max.apply(null,[0].concat(nums))+1).padStart(3,'0');
-}
+
 function PAGE() { return window.location.pathname.split('/').pop().replace(/\.html$/i,'') || 'index'; }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fileIcon(name) {
@@ -317,7 +277,11 @@ function dispatch(action, id) {
 function softDel(id) {
   if (!confirm('Move to Recycle Bin? It can be restored from Document Management.')) return;
   var docs = gAll(), d = docs.find(function(x){ return x.id===id; });
-  if (d) { d.deleted=true; d.deletedAt=new Date().toISOString().split('T')[0]; sAll(docs); logH(id,'ARCHIVED','Moved to bin'); renderWidget(); toast('Moved to Recycle Bin','ok'); }
+  if (d) {
+    d.deleted=true; d.deletedAt=new Date().toISOString().split('T')[0];
+    if (typeof DMS_DATA !== 'undefined') DMS_DATA.saveDoc(d);
+    logH(id,'ARCHIVED','Moved to bin'); renderWidget(); toast('Moved to Recycle Bin','ok');
+  }
 }
 
 function promptRole() {
@@ -437,8 +401,10 @@ function openEditModal(doc) {
         versions: versionsUpd, files: filesUpd,
       });
       if (idx>=0) docs[idx]=upd; else docs.push(upd);
-      sAll(docs);
-      syncDocToSheets(upd); /* sync to Sheets */
+      savePageLink(upd.id, upd.pages);
+      if (typeof DMS_DATA !== 'undefined') {
+        DMS_DATA.saveDoc(upd);
+      }
       logH(d.id, isNew?'ADDED':'EDITED', note||'Saved');
       closeOv(); renderWidget();
       toast(isNew?'Document added.':'Changes saved.','ok');
@@ -517,8 +483,11 @@ function openQuickAdd() {
         versions:[newVer],
         created:today,
       });
-      sAll(docs);
-      syncDocToSheets(docs[docs.length-1]); /* sync new doc to Sheets */
+      var newDoc = docs[docs.length-1];
+      savePageLink(newDoc.id, newDoc.pages);
+      if (typeof DMS_DATA !== 'undefined') {
+        DMS_DATA.saveDoc(newDoc);
+      }
       logH(newId,'ADDED','Quick-added from page: '+page);
       closeOv(); renderWidget();
       toast('Document added and linked to this page.','ok');
@@ -817,8 +786,15 @@ function openVersionModal(doc) {
               mkLocalFile(doc.id+'-rev-'+newRev, fileName, dataUrl, newVer.ts)
             ]);
           }
-          sAll(docs);
-          syncDocToSheets(d2); /* sync revised doc to Sheets */
+          if (typeof DMS_DATA !== 'undefined') {
+            DMS_DATA.saveDoc(d2);
+            DMS_DATA.saveVersion({
+              docId: doc.id, rev: newRev,
+              ts: newVer.ts, note: newNote,
+              user: gRole(), fileName: fileName||'',
+              webViewLink: '', downloadLink: ''
+            });
+          }
           logH(doc.id,'NEW REVISION','Rev.'+newRev+' — '+newNote+(fileName?' — '+fileName:''));
           doc = d2;
           activeTab = 'history';
@@ -843,6 +819,10 @@ function openVersionModal(doc) {
 ════════════════════════════════════════════════════════════ */
 function inject() {
   injectStyles();
+  /* Init DMS_DATA with the Sheets URL from data.js */
+  if (typeof DMS_DATA !== 'undefined' && typeof SHEETS_URL !== 'undefined') {
+    DMS_DATA.init(SHEETS_URL);
+  }
   var container = document.getElementById('dms-widget-container');
   if (!container) {
     container = document.createElement('div');
@@ -852,47 +832,21 @@ function inject() {
   }
   /* Render immediately from cache, then refresh from Sheets in background */
   renderWidget();
-  if (getSheetsUrl()) {
-    /* Pull latest from Sheets — updates localStorage cache and re-renders */
-    fetch(getSheetsUrl() + '?action=readDoc&tab=all')
-      .then(function(r){ return r.json(); })
-      .then(function(data) {
-        if (data && data.docs && data.docs.length) {
-          /* Merge Sheets docs with local (preserve base64 files) */
-          var local = gAll();
-          var merged = data.docs.map(function(sd) {
-            var lm = local.find(function(l){
-              return l.id === (sd['Doc ID']||sd.id||'') ||
-                     l.number === (sd['Doc Number']||sd.number||'');
-            });
-            var pages = lm ? (lm.pages||[]) : (sd.pages ? sd.pages.split(',').map(function(p){return p.trim();}).filter(Boolean) : []);
-            return {
-              id:        sd['Doc ID']    || sd.id     || lm && lm.id || '',
-              title:     sd['Title']     || sd.title  || '',
-              number:    sd['Doc Number']|| sd.number || '',
-              rev:       sd['Revision']  || sd.rev    || '01',
-              type:      sd['Type']      || sd.type   || 'Register',
-              issued:    sd['Date Issued']|| sd.issued || '',
-              reviewDue: sd['Review Due'] || sd.reviewDue || '',
-              owner:     sd['Owner']     || sd.owner  || '',
-              status:    sd['Status']    || sd.status || 'Active',
-              pages:     pages,
-              deleted:   (sd['Status']||'').toLowerCase() === 'deleted',
-              files:     lm ? (lm.files||[])    : [],
-              versions:  lm ? (lm.versions||[]) : [],
-              created:   sd['Created']   || sd.created || '',
-            };
-          });
-          /* Keep any local-only docs not yet in Sheets */
-          local.forEach(function(ld) {
-            var inMerged = merged.find(function(m){ return m.id === ld.id; });
-            if (!inMerged && !ld.deleted) merged.push(ld);
-          });
-          sAll(merged);
-          renderWidget(); /* re-render with fresh data */
+  if (typeof DMS_DATA !== 'undefined') {
+    /* DMS_DATA.loadAll reads Google Sheets — same source as document-management.html */
+    DMS_DATA.loadAll(function(docs) {
+      /* Preserve page links and local files (not stored in Sheets) */
+      var prev = JSON.parse(localStorage.getItem('sagco_dms_v2')||'[]');
+      docs.forEach(function(d) {
+        var p = prev.find(function(x){ return x.id === d.id; });
+        if (p) {
+          d.pages    = p.pages    || d.pages    || [];
+          d.files    = p.files    || d.files    || [];
+          d.versions = p.versions || d.versions || [];
         }
-      })
-      .catch(function(){}); /* silent — cache already rendered */
+      });
+      renderWidget(); /* re-render with fresh Sheets data */
+    });
   }
 }
 
