@@ -4,7 +4,7 @@
    Provides: autoLoadPageData(), renderTable(), formatCell()
 ═══════════════════════════════════════════════════════════════ */
 
-var SHEETS_URL = 'https://script.google.com/macros/s/AKfycbweju9C4Xow2mJ95Y_namTbj8Zsll-faZv2vuL_vAwzcJ0xfmymXz88_vJanfCuXaM/exec';
+var SHEETS_URL = 'https://script.google.com/macros/s/AKfycby0dRSt6WpXG63N93Quf1zOS1wieUaxNktoGcOTZBdB8PACQG53vpBWGjmadkbxx2FL6w/exec';
 
 /* ── Page → Tab key map ────────────────────────────────────── */
 var TAB_KEYS = {
