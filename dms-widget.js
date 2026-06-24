@@ -16,13 +16,43 @@ var MAX_FILE_MB = 4;
    so records are visible across ALL browsers and devices.
    If dms-data.js is not loaded, falls back to localStorage.
 ────────────────────────────────────────────────────────────────*/
+/* ── Local files store ──────────────────────────────────────────
+   DMS_DATA.cacheSet() strips files[] and versions[] (too large for
+   Sheets). We keep them in a separate localStorage key so they
+   survive DMS_DATA cache refreshes.
+─────────────────────────────────────────────────────────────── */
+var FILES_KEY = 'sagco_dms_files_v2';
+
+function getLocalFiles() {
+  try { return JSON.parse(localStorage.getItem(FILES_KEY)||'{}'); } catch(e){ return {}; }
+}
+function saveLocalFiles(docId, files, versions) {
+  if (!files.length && !versions.length) return;
+  var store = getLocalFiles();
+  store[docId] = { files: files, versions: versions, ts: new Date().toISOString() };
+  try { localStorage.setItem(FILES_KEY, JSON.stringify(store)); } catch(e){
+    /* Quota — keep only last 20 docs */
+    var keys = Object.keys(store).sort(function(a,b){
+      return (store[a].ts||'') < (store[b].ts||'') ? -1 : 1;
+    });
+    while (keys.length > 20) { delete store[keys.shift()]; }
+    try { localStorage.setItem(FILES_KEY, JSON.stringify(store)); } catch(e2){}
+  }
+}
+
 function gAll() {
-  /* Read from DMS_DATA cache (backed by Google Sheets) */
-  if (typeof DMS_DATA !== 'undefined') return DMS_DATA.cache();
-  /* Fallback: localStorage */
-  try { return JSON.parse(localStorage.getItem('sagco_dms_v2') ||
-                          localStorage.getItem('sagco_dms_store') || '[]'); }
-  catch(e) { return []; }
+  /* Get metadata from DMS_DATA (Sheets-backed) */
+  var docs = (typeof DMS_DATA !== 'undefined') ? DMS_DATA.cache() :
+    (function(){ try{ return JSON.parse(localStorage.getItem('sagco_dms_v2')||'[]'); }catch(e){ return []; } })();
+  /* Merge local files/versions back in */
+  var lf = getLocalFiles();
+  return docs.map(function(d) {
+    var local = lf[d.id] || {};
+    return Object.assign({}, d, {
+      files:    (local.files    && local.files.length)    ? local.files    : (d.files    || []),
+      versions: (local.versions && local.versions.length) ? local.versions : (d.versions || []),
+    });
+  });
 }
 function sAll(a) { /* no-op — DMS_DATA.saveDoc() handles persistence */ }
 function savePageLink(docId, pages) { /* kept for compat — pages now in DMS_DATA */ }
@@ -267,6 +297,8 @@ function softDel(id) {
   if (d) {
     d.deleted=true; d.deletedAt=new Date().toISOString().split('T')[0];
     if (typeof DMS_DATA !== 'undefined') DMS_DATA.saveDoc(d);
+    var lf=getLocalFiles(); delete lf[id];
+    try{localStorage.setItem(FILES_KEY,JSON.stringify(lf));}catch(e){}
     logH(id,'ARCHIVED','Moved to bin'); renderWidget(); toast('Moved to Recycle Bin','ok');
   }
 }
@@ -388,7 +420,8 @@ function openEditModal(doc) {
         versions: versionsUpd, files: filesUpd,
       });
       if (idx>=0) docs[idx]=upd; else docs.push(upd);
-      savePageLink(upd.id, upd.pages);
+      /* Persist files/versions locally before DMS_DATA strips them */
+      saveLocalFiles(upd.id, upd.files||[], upd.versions||[]);
       if (typeof DMS_DATA !== 'undefined') {
         DMS_DATA.saveDoc(upd);
       }
@@ -471,7 +504,8 @@ function openQuickAdd() {
         created:today,
       });
       var newDoc = docs[docs.length-1];
-      savePageLink(newDoc.id, newDoc.pages);
+      /* Persist files/versions locally before DMS_DATA strips them */
+      saveLocalFiles(newDoc.id, newDoc.files||[], newDoc.versions||[]);
       if (typeof DMS_DATA !== 'undefined') {
         DMS_DATA.saveDoc(newDoc);
       }
@@ -672,7 +706,8 @@ function openAttachModal(doc) {
             results.forEach(function(r, i){
               d2.files = (d2.files||[]).concat([mkLocalFile(doc.id+'-att-'+Date.now()+'-'+i, r.f.name, r.du, today)]);
             });
-            sAll(docs); doc = d2;
+            saveLocalFiles(d2.id, d2.files||[], d2.versions||[]);
+            if (typeof DMS_DATA !== 'undefined') DMS_DATA.saveDoc(d2);
             prog.textContent = results.length+' file(s) saved locally.';
             loadAndRender(); renderWidget();
           })
@@ -773,6 +808,8 @@ function openVersionModal(doc) {
               mkLocalFile(doc.id+'-rev-'+newRev, fileName, dataUrl, newVer.ts)
             ]);
           }
+          /* Persist updated files/versions locally */
+          saveLocalFiles(d2.id, d2.files||[], d2.versions||[]);
           if (typeof DMS_DATA !== 'undefined') {
             DMS_DATA.saveDoc(d2);
             DMS_DATA.saveVersion({
