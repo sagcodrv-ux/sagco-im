@@ -491,7 +491,8 @@ function openAttachModal(doc) {
             ? '<a class="dw-att-btn" href="'+esc(f.webViewLink)+'" target="_blank">↗ Open</a>'
               +'<a class="dw-att-btn" href="'+esc(f.downloadLink)+'" target="_blank">⬇ Download</a>'
             : (f.downloadLink
-                ? '<a class="dw-att-btn" href="'+esc(f.downloadLink)+'" download="'+esc(fname)+'">⬇ Download</a>'
+                ? '<a class="dw-att-btn" href="'+esc(f.downloadLink)+'" target="_blank">↗ Open</a>'
+                  +'<a class="dw-att-btn" href="'+esc(f.downloadLink)+'" download="'+esc(fname)+'">⬇ Download</a>'
                 : '<span class="dw-att-btn" style="opacity:.5;cursor:default">no link</span>');
           var src = (f.source==='drive')
             ? '<span style="font-size:8px;color:#2E7D32"> ☁</span>'
