@@ -1,203 +1,169 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SAGCO IMS — IMS Procedures Hub</title>
-<link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAGCO IMS — Procedures Hub</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0D1B35;--bg2:#142140;--bg3:#1a2a50;--gold:#C9A84C;--gold-lt:#E8C97A;
+  --white:#fff;--text:rgba(255,255,255,.92);--text-muted:rgba(255,255,255,.55);
+  --text-dim:rgba(255,255,255,.35);--border:rgba(255,255,255,.08);--border-gold:rgba(201,168,76,.35)}
+html,body{min-height:100%;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.5}
+.top-bar{background:var(--bg2);border-bottom:1px solid var(--border-gold);padding:10px 28px;
+  display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200}
+.tb-left{display:flex;align-items:center;gap:16px}
+.tb-logo{font-size:13px;font-weight:700;color:var(--gold);letter-spacing:.04em}
+.tb-sep{color:var(--border);font-size:16px}
+.tb-title{font-size:13px;font-weight:500;color:var(--white)}
+.tb-right{display:flex;align-items:center;gap:10px}
+.tb-btn{display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--border);
+  border-radius:6px;color:var(--text-muted);font-size:11px;text-decoration:none;
+  background:none;cursor:pointer;transition:all .2s}
+.tb-btn:hover{border-color:var(--border-gold);color:var(--gold)}
+.search-wrap{display:flex;align-items:center;gap:6px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:6px;padding:5px 10px}
+.search-wrap input{background:none;border:none;outline:none;color:var(--text);font-size:11px;width:160px}
+.search-wrap input::placeholder{color:var(--text-dim)}
+.search-wrap i{color:var(--text-dim);font-size:14px}
+.hero{background:linear-gradient(135deg,var(--bg2) 0%,#0a1428 100%);
+  padding:28px 28px;border-bottom:1px solid var(--border)}
+.hero-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;
+  justify-content:space-between;gap:20px;flex-wrap:wrap}
+.hero-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--gold);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.hero-badge::before{content:'';width:20px;height:1px;background:var(--gold)}
+.hero-title{font-size:26px;font-weight:600;color:var(--white);letter-spacing:-.02em;margin-bottom:5px}
+.hero-sub{font-size:12px;color:var(--text-muted);line-height:1.6;max-width:560px}
+.hero-stats{display:flex;gap:10px;flex-wrap:wrap}
+.hs-item{background:rgba(201,168,76,.08);border:1px solid var(--border-gold);
+  border-radius:8px;padding:10px 14px;text-align:center;min-width:70px}
+.hs-num{font-size:24px;font-weight:700;color:var(--gold)}
+.hs-lbl{font-size:9px;color:var(--text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.05em}
+.page-body{max-width:1100px;margin:0 auto;padding:24px 28px;
+  display:grid;grid-template-columns:190px 1fr;gap:22px;align-items:start}
+.side-nav{position:sticky;top:62px;display:flex;flex-direction:column;gap:2px}
+.sn-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--text-dim);margin-bottom:6px;padding:0 8px}
+.pnav-item{display:flex;align-items:center;gap:7px;padding:6px 9px;border-radius:6px;
+  text-decoration:none;color:var(--text-muted);font-size:11px;transition:all .2s;
+  border:1px solid transparent}
+.pnav-item:hover{background:var(--bg2);color:var(--white);border-color:var(--border)}
+.pnav-item.active{background:rgba(201,168,76,.1);border-color:var(--border-gold);color:var(--gold)}
+.pni-clause{font-size:10px;font-weight:800;color:var(--gold);min-width:22px;font-family:monospace}
+.pnav-item:not(.active) .pni-clause{color:var(--text-dim)}
+.pni-title{font-size:10.5px}
+.cards-col{display:flex;flex-direction:column;gap:18px}
+.proc-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;transition:border-color .2s;animation:cardIn .4s ease both}
+.proc-card:hover{border-color:var(--border-gold)}
+@keyframes cardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.pc-header{display:flex;align-items:flex-start;justify-content:space-between;
+  padding:16px 20px;border-bottom:1px solid var(--border);
+  border-left:3px solid var(--gold)}
+.pc-left{display:flex;align-items:flex-start;gap:14px}
+.pc-clause{font-size:20px;font-weight:800;font-family:monospace;min-width:34px;line-height:1.2}
+.pc-code{font-size:9px;font-family:monospace;color:var(--text-dim);
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.pc-title{font-size:15px;font-weight:600;color:var(--white);margin-bottom:2px}
+.pc-subtitle{font-size:11px;color:var(--text-muted)}
+.pc-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.pc-icon{font-size:26px;opacity:.35}
+.pc-open-btn{display:inline-flex;align-items:center;gap:5px;color:var(--bg);
+  border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;
+  cursor:pointer;text-decoration:none;transition:opacity .15s;white-space:nowrap}
+.pc-open-btn:hover{opacity:.85}
+.pc-purpose{padding:11px 20px;font-size:11.5px;color:var(--text-muted);line-height:1.7;
+  border-bottom:1px solid var(--border)}
+.pc-standards{display:flex;gap:5px;flex-wrap:wrap;padding:7px 20px;
+  border-bottom:1px solid var(--border)}
+.std-pill{font-size:9px;font-weight:600;background:rgba(201,168,76,.1);
+  color:var(--gold-lt);border:1px solid var(--border-gold);border-radius:20px;padding:2px 9px}
+.pc-docs-label{font-size:9px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.09em;color:var(--text-dim);padding:9px 20px 3px}
+.docs-list,.oc-docs{display:flex;flex-direction:column;gap:0;padding-bottom:6px}
+.doc-item{display:flex;align-items:center;justify-content:space-between;padding:7px 20px;
+  text-decoration:none;color:var(--text-muted);transition:all .2s;border-bottom:1px solid var(--border)}
+.doc-item:last-child{border-bottom:none}
+.doc-item:hover{background:rgba(255,255,255,.03);color:var(--white);padding-left:26px}
+.di-left{display:flex;align-items:center;gap:9px}
+.di-icon{font-size:14px;color:var(--text-dim);flex-shrink:0}
+.di-name{font-size:11.5px;font-weight:500;color:inherit}
+.di-meta{font-size:9px;color:var(--text-dim);margin-top:1px}
+.di-right{display:flex;align-items:center;gap:7px}
+.doc-flag{font-size:8px;font-weight:700;border:1px solid;border-radius:3px;padding:1px 5px;letter-spacing:.04em}
+.di-arrow{font-size:13px;color:var(--text-dim);transition:transform .2s}
+.doc-item:hover .di-arrow{transform:translateX(3px);color:var(--gold)}
+.oc-section{border-bottom:1px solid var(--border)}
+.oc-section:last-child{border-bottom:none}
+.oc-header{display:flex;align-items:center;gap:10px;padding:9px 20px;
+  background:rgba(255,255,255,.02);border-bottom:1px solid var(--border)}
+.oc-icon{font-size:15px}
+.oc-title{font-size:12px;font-weight:600;color:var(--white);flex:1}
+.oc-link{display:inline-flex;align-items:center;gap:4px;font-size:10px;
+  border:1px solid;border-radius:5px;padding:3px 10px;text-decoration:none;transition:opacity .2s}
+.oc-link:hover{opacity:.8}
+.oc-docs .doc-item{padding-left:32px}
+.oc-docs .doc-item:hover{padding-left:38px}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
 </head>
 <body>
-<div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-gold{background:#FFF3CD;color:#7a5800}
-.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;color:var(--text-lt);margin:10px 0;line-height:1.6;padding:10px 14px;
-  background:var(--g100);border-radius:var(--radius);border-left:3px solid var(--gold)}
-.alert-red{background:#FFEBEE;border:1px solid #EF9A9A;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#B71C1C;margin-bottom:12px}
-.alert-amber{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:12px}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-.doc-card{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow);
-  overflow:hidden;margin-bottom:14px;border-top:3px solid var(--gold)}
-.doc-card-hdr{background:var(--navy);color:var(--gold-lt);padding:10px 18px;
-  display:flex;align-items:center;gap:12px}
-.doc-card-hdr .doc-num{font-family:var(--mono);font-size:11px;background:rgba(201,168,76,.2);
-  padding:2px 8px;border-radius:6px}
-.doc-card-hdr .doc-title{font-size:13px;font-weight:700}
-.doc-card-hdr .doc-meta{margin-left:auto;font-size:10px;opacity:.8}
-.doc-card-body{padding:14px 18px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.doc-card-body .info-item .lbl{font-size:9px;font-weight:700;text-transform:uppercase;
-  letter-spacing:.08em;color:var(--g400);margin-bottom:2px}
-.doc-card-body .info-item .val{font-size:11px;color:var(--text)}
-.oc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:14px 0}
-.oc-card{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow);
-  overflow:hidden;cursor:pointer;transition:transform .15s;text-decoration:none;display:block}
-.oc-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.12)}
-.oc-card .oc-hdr{padding:14px 16px;color:var(--white)}
-.oc-card .oc-hdr .oc-code{font-family:var(--mono);font-size:11px;opacity:.8}
-.oc-card .oc-hdr .oc-title{font-size:13px;font-weight:700;margin-top:4px}
-.oc-card .oc-body{padding:12px 16px}
-.oc-card .oc-tag{display:inline-block;padding:2px 7px;border-radius:8px;font-size:10px;
-  font-weight:600;margin:2px;font-family:var(--mono)}
-.proc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:14px 0}
-.proc-card{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow);
-  overflow:hidden;text-decoration:none;display:block;border-left:4px solid var(--gold)}
-.proc-card:hover{box-shadow:0 4px 18px rgba(0,0,0,.13)}
-.proc-card .pc-hdr{padding:12px 16px;background:var(--navy);color:var(--white);
-  display:flex;align-items:center;gap:10px}
-.proc-card .pc-code{font-family:var(--mono);font-size:10px;background:rgba(255,255,255,.15);
-  padding:2px 7px;border-radius:5px;white-space:nowrap}
-.proc-card .pc-body{padding:10px 16px}
-.proc-card .pc-desc{font-size:11px;color:var(--text-lt);line-height:1.5}
-.proc-card .pc-meta{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap}
-.flowchart-box{background:var(--g100);border-radius:var(--radius-lg);border:1px solid #e0e0e0;
-  padding:20px;margin:14px 0;text-align:center}
-.flow-row{display:flex;align-items:center;justify-content:center;gap:6px;margin:4px 0;flex-wrap:wrap}
-.flow-node{padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;
-  min-width:120px;text-align:center;white-space:nowrap}
-.flow-diamond{padding:6px 14px;transform:skewX(-8deg);font-size:10px;font-weight:600;
-  border-radius:4px;text-align:center}
-.flow-arrow{color:var(--g400);font-size:16px;font-weight:300}
-.flow-yes{font-size:9px;color:#2E7D32;font-weight:700}
-.flow-no{font-size:9px;color:#B71C1C;font-weight:700}
-.hier-tree{margin:12px 0}
-.hier-tree .ht-l1{background:var(--navy);color:var(--gold-lt);padding:8px 14px;
-  border-radius:var(--radius);font-weight:700;font-size:12px;margin-bottom:4px}
-.hier-tree .ht-l2{background:#E3F0FA;padding:7px 14px 7px 28px;border-radius:var(--radius);
-  font-size:11px;margin:3px 0;border-left:3px solid var(--navy)}
-.hier-tree .ht-l3{background:var(--g100);padding:6px 14px 6px 44px;border-radius:var(--radius);
-  font-size:10px;margin:2px 0;color:var(--text-lt);border-left:2px solid var(--gold)}
-.hier-tree a{color:inherit;text-decoration:none}
-.hier-tree a:hover{text-decoration:underline}
-</style>
-<div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
-  <div class="kpi-card kc-blue"><div class="kpi-lbl">Total Procedures</div><div class="kpi-val">7</div><div class="kpi-sub">L2 — Clauses 4 to 10</div></div>
-  <div class="kpi-card kc-grn"><div class="kpi-lbl">Certified</div><div class="kpi-val">Rev.02</div><div class="kpi-sub">Clauses 4,5,6,7,9,10</div></div>
-  <div class="kpi-card kc-gold"><div class="kpi-lbl">New — Clause 8</div><div class="kpi-val">Rev.01</div><div class="kpi-sub">L2-IMS-800-P-05</div></div>
-  <div class="kpi-card kc-nvy"><div class="kpi-lbl">OC Specifications</div><div class="kpi-val">3</div><div class="kpi-sub">L3-IMS-800-OC-01/02/03</div></div>
-  <div class="kpi-card kc-grn"><div class="kpi-lbl">IMS Coverage</div><div class="kpi-val">100%</div><div class="kpi-sub">All clauses 4–10 addressed</div></div>
+<div class="top-bar">
+  <div class="tb-left"><div class="tb-logo">SAGCO IMS</div><div class="tb-sep">|</div><div class="tb-title">Procedures Hub</div></div>
+  <div class="tb-right">
+    <div class="search-wrap"><i class="ti ti-search"></i><input type="text" id="search-input" placeholder="Search procedures..." oninput="filterSearch(this.value)"></div>
+    <a href="ims-manual.html" class="tb-btn"><i class="ti ti-book"></i> IMS Manual</a>
+    <a href="index.html" class="tb-btn"><i class="ti ti-arrow-left"></i> Portal</a>
+  </div>
 </div>
-<div class="req-text">All IMS procedures are self-contained — no separate Work Instructions are required for any clause. Clause 8 is supported by three L3 Operational Control Specifications providing detailed execution instructions. Click any procedure card to navigate to its primary registers and documentation.</div>
-
-<div class="hier-tree">
-  <div class="ht-l1">L1 — IMS Framework Manual + 9 Policies (L1-IMS-PO-01 to PO-09)</div>
-  <div class="ht-l2">L2 — One Procedure per Clause (Clauses 4–10)</div>
-  <div class="ht-l3">L3 — Operational Control Specifications (Clause 8 only: OC-01, OC-02, OC-03) + IMS Workbook Registers</div>
-  <div class="ht-l3">L4 — Records and Registers (IMS Workbook Sheets 1–31)</div>
+<div class="hero"><div class="hero-inner">
+  <div class="hero-text"><div class="hero-badge">Level 2 Documents</div>
+    <div class="hero-title">IMS Procedures Hub</div>
+    <div class="hero-sub">Seven procedures covering all ISO clause requirements — each linked to its operational controls, registers, forms, and records. Complete documentation traceability from L1 to L4.</div>
+  </div>
+  <div class="hero-stats">
+    <div class="hs-item"><div class="hs-num">7</div><div class="hs-lbl">Procedures</div></div>
+    <div class="hs-item"><div class="hs-num">3</div><div class="hs-lbl">Op. Controls</div></div>
+    <div class="hs-item"><div class="hs-num">5</div><div class="hs-lbl">Standards</div></div>
+    <div class="hs-item"><div class="hs-num">50+</div><div class="hs-lbl">Documents</div></div>
+  </div>
+</div></div>
+<div class="page-body">
+  <div class="side-nav"><div class="sn-label">Navigate</div>
+<a href="#proc-s4" class="pnav-item" data-target="proc-s4"><span class="pni-clause">§4</span><span class="pni-title">Context & Scope</span></a>
+<a href="#proc-s5" class="pnav-item" data-target="proc-s5"><span class="pni-clause">§5</span><span class="pni-title">Leadership & Commitment</span></a>
+<a href="#proc-s6" class="pnav-item" data-target="proc-s6"><span class="pni-clause">§6</span><span class="pni-title">Planning & Risk</span></a>
+<a href="#proc-s7" class="pnav-item" data-target="proc-s7"><span class="pni-clause">§7</span><span class="pni-title">Support & Competence</span></a>
+<a href="#proc-s8" class="pnav-item" data-target="proc-s8"><span class="pni-clause">§8</span><span class="pni-title">Operational Control</span></a>
+<a href="#proc-s9" class="pnav-item" data-target="proc-s9"><span class="pni-clause">§9</span><span class="pni-title">Performance Evaluation</span></a>
+<a href="#proc-s10" class="pnav-item" data-target="proc-s10"><span class="pni-clause">§10</span><span class="pni-title">Improvement & Corrective Action</span></a>
+    <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:4px">
+      <a href="ims-manual.html" class="tb-btn" style="justify-content:center"><i class="ti ti-book"></i> IMS Manual</a>
+      <a href="ims-traceability.html" class="tb-btn" style="justify-content:center"><i class="ti ti-link"></i> Traceability</a>
+    </div>
+  </div>
+  <div class="cards-col" id="cards-col">
+<div class="proc-card" id="proc-s4"><div class="pc-header" style="border-left-color:#1D6FA4"><div class="pc-left"><div class="pc-clause" style="color:#1D6FA4">§4</div><div class="pc-info"><div class="pc-code">L2-IMS-400-P-01 · Rev.02</div><div class="pc-title">Context & Scope</div><div class="pc-subtitle">Organisational context · Interested parties · IMS scope</div></div></div><div class="pc-right"><i class="ti ti-map-2 pc-icon" style="color:#1D6FA4"></i><a href="proc-c4.html" class="pc-open-btn" style="background:#1D6FA4">Open Procedure <i class="ti ti-arrow-up-right"></i></a></div></div><div class="pc-purpose">Establishes the internal and external context of the IMS, identifies interested parties and their requirements, and defines the scope and boundaries of all four management systems.</div><div class="pc-standards"><span class="std-pill">ISO 9001</span><span class="std-pill">ISO 14001</span><span class="std-pill">ISO 45001</span><span class="std-pill">ISO 50001</span></div><div class="pc-docs-label">Supporting documents</div><div class="docs-list"><a href="context.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Context Register</div><div class="di-meta">Sh.1</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="pestle-swot.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">PESTLE & SWOT</div><div class="di-meta">Sh.2</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="scope.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Scope & Process Map</div><div class="di-meta">Sh.9</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="checklist.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Annual MR Checklist</div><div class="di-meta">Sh.10</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a></div></div>
+<div class="proc-card" id="proc-s5"><div class="pc-header" style="border-left-color:#C9A84C"><div class="pc-left"><div class="pc-clause" style="color:#C9A84C">§5</div><div class="pc-info"><div class="pc-code">L2-IMS-500-P-02 · Rev.02</div><div class="pc-title">Leadership & Commitment</div><div class="pc-subtitle">Top management commitment · Policies · Roles & responsibilities</div></div></div><div class="pc-right"><i class="ti ti-crown pc-icon" style="color:#C9A84C"></i><a href="proc-c5.html" class="pc-open-btn" style="background:#C9A84C">Open Procedure <i class="ti ti-arrow-up-right"></i></a></div></div><div class="pc-purpose">Demonstrates top management leadership and commitment, establishes the nine IMS policies, assigns roles and responsibilities, and ensures worker participation and communication.</div><div class="pc-standards"><span class="std-pill">ISO 9001</span><span class="std-pill">ISO 14001</span><span class="std-pill">ISO 45001</span><span class="std-pill">ISO 50001</span></div><div class="pc-docs-label">Supporting documents</div><div class="docs-list"><a href="policies.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">IMS Policies Register</div><div class="di-meta">Sh.11</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="worker-participation.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Worker Participation</div><div class="di-meta">Sh.12</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="policy-acknowledgement.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Policy Acknowledgement</div><div class="di-meta">Sh.56</div></div></div><div class="di-right"><span class="doc-flag" style="color:#E0B040;border-color:#E0B040">URGENT</span><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="gemba-walk-log.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Gemba Walk Log</div><div class="di-meta">Sh.62</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="steering-team-minutes.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Steering Committee Minutes</div><div class="di-meta">Sh.63</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="enms-champion.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">EnMS Champion Record</div><div class="di-meta">Sh.66</div></div></div><div class="di-right"><span class="doc-flag" style="color:#E0B040;border-color:#E0B040">PENDING</span><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="ceo-signed-records.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">CEO-Signed Records Tracker</div><div class="di-meta">Sh.67</div></div></div><div class="di-right"><span class="doc-flag" style="color:#E0B040;border-color:#E0B040">URGENT</span><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="communication-matrix.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Communication Matrix</div><div class="di-meta">Sh.68</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a></div></div>
+<div class="proc-card" id="proc-s6"><div class="pc-header" style="border-left-color:#1A7A4A"><div class="pc-left"><div class="pc-clause" style="color:#1A7A4A">§6</div><div class="pc-info"><div class="pc-code">L2-IMS-600-P-03 · Rev.02</div><div class="pc-title">Planning & Risk</div><div class="pc-subtitle">Risks & opportunities · Objectives · Legal compliance</div></div></div><div class="pc-right"><i class="ti ti-shield-check pc-icon" style="color:#1A7A4A"></i><a href="proc-c6.html" class="pc-open-btn" style="background:#1A7A4A">Open Procedure <i class="ti ti-arrow-up-right"></i></a></div></div><div class="pc-purpose">Identifies and manages risks and opportunities, establishes the 27 IMS objectives, determines legal and compliance obligations, and maintains the HIRA and SEA registers.</div><div class="pc-standards"><span class="std-pill">ISO 9001</span><span class="std-pill">ISO 14001</span><span class="std-pill">ISO 45001</span><span class="std-pill">ISO 50001</span></div><div class="pc-docs-label">Supporting documents</div><div class="docs-list"><a href="risk-register.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Integrated Risk Register</div><div class="di-meta">Sh.3</div></div></div><div class="di-right"><span class="doc-flag" style="color:#E06060;border-color:#E06060">CRIT</span><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="compliance.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Legal & Compliance Register</div><div class="di-meta">Sh.4</div></div></div><div class="di-right"><span class="doc-flag" style="color:#E0B040;border-color:#E0B040">URGENT</span><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="methodology.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Risk Assessment Methodology</div><div class="di-meta">Sh.5</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="hira.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">HIRA Register</div><div class="di-meta">Sh.13</div></div></div><div class="di-right"><span class="doc-flag" style="color:#E06060;border-color:#E06060">OPEN</span><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="sea-register.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Environmental Aspects (SEA)</div><div class="di-meta">Sh.14</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="energy.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Energy Planning Register</div><div class="di-meta">Sh.8</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="bribery-risk-register.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Bribery Risk Register</div><div class="di-meta">Sh.61</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="moc.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Management of Change</div><div class="di-meta">Sh.7</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="ghg-inventory.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">GHG Inventory Report</div><div class="di-meta">Sh.69</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="scope3-emissions.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Scope 3 Emissions</div><div class="di-meta">Sh.27</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a></div></div>
+<div class="proc-card" id="proc-s7"><div class="pc-header" style="border-left-color:#534AB7"><div class="pc-left"><div class="pc-clause" style="color:#534AB7">§7</div><div class="pc-info"><div class="pc-code">L2-IMS-700-P-04 · Rev.02</div><div class="pc-title">Support & Competence</div><div class="pc-subtitle">Resources · Competence · Training · Documentation</div></div></div><div class="pc-right"><i class="ti ti-school pc-icon" style="color:#534AB7"></i><a href="proc-c7.html" class="pc-open-btn" style="background:#534AB7">Open Procedure <i class="ti ti-arrow-up-right"></i></a></div></div><div class="pc-purpose">Ensures availability of resources, determines and maintains workforce competence, manages awareness and communication, and controls all documented information across the IMS.</div><div class="pc-standards"><span class="std-pill">ISO 9001</span><span class="std-pill">ISO 14001</span><span class="std-pill">ISO 45001</span><span class="std-pill">ISO 50001</span></div><div class="pc-docs-label">Supporting documents</div><div class="docs-list"><a href="competency.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Competency Matrix</div><div class="di-meta">Sh.15</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="training.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Training Register</div><div class="di-meta">Sh.16</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="training-attendance.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Training Attendance Records</div><div class="di-meta">Sh.60</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="induction-records.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Induction Records Register</div><div class="di-meta">Sh.55</div></div></div><div class="di-right"><span class="doc-flag" style="color:#E0B040;border-color:#E0B040">URGENT</span><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="documentation.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Documentation Register</div><div class="di-meta">Sh.17</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="calibration-register.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Calibration Register</div><div class="di-meta">Sh.54</div></div></div><div class="di-right"><span class="doc-flag" style="color:#E0B040;border-color:#E0B040">URGENT</span><i class="ti ti-arrow-right di-arrow"></i></div></a></div></div>
+<div class="proc-card" id="proc-s8"><div class="pc-header" style="border-left-color:#8B2020"><div class="pc-left"><div class="pc-clause" style="color:#8B2020">§8</div><div class="pc-info"><div class="pc-code">L2-IMS-800-P-05 · Rev.01</div><div class="pc-title">Operational Control</div><div class="pc-subtitle">Safety · Environment & Energy · Quality & Customer</div></div></div><div class="pc-right"><i class="ti ti-settings pc-icon" style="color:#8B2020"></i><a href="proc-c8.html" class="pc-open-btn" style="background:#8B2020">Open Procedure <i class="ti ti-arrow-up-right"></i></a></div></div><div class="pc-purpose">Plans and controls operational processes through three L3 modules — Safety & Emergency, Environment & Energy, and Quality & Customer — each with their own operational controls and L4 records.</div><div class="pc-standards"><span class="std-pill">ISO 9001</span><span class="std-pill">ISO 14001</span><span class="std-pill">ISO 45001</span><span class="std-pill">ISO 50001</span></div><div class="pc-docs-label">Supporting documents</div><div class="oc-section"><div class="oc-header" style="--oc-color:#8B2020"><i class="ti ti-shield oc-icon"></i><span class="oc-title">OC-01 Safety & Emergency</span><a href="oc01-safety.html" class="oc-link">Open <i class="ti ti-arrow-right"></i></a></div><div class="oc-docs"><a href="ptw-register.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">PTW Register</div><div class="di-meta">Sh.36</div></div></div><div class="di-right"><span class="doc-flag" style="color:#E06060;border-color:#E06060">CAPA-001</span><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="emergency-response.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Emergency Response Plan</div><div class="di-meta">Sh.34b</div></div></div><div class="di-right"><span class="doc-flag" style="color:#E06060;border-color:#E06060">DRILL!</span><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="contractor-register.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Contractor Register</div><div class="di-meta">Sh.35</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="loto-register.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">LOTO Device Register</div><div class="di-meta">Sh.37</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="loto-auth-persons.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">LOTO Authorised Persons</div><div class="di-meta">Sh.59</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="confined-space-log.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Confined Space Log</div><div class="di-meta">Sh.38</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="heat-stress-log.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Heat Stress / WBGT Log</div><div class="di-meta">Sh.39</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="fire-extinguisher-log.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Fire Extinguisher Log</div><div class="di-meta">Sh.40</div></div></div><div class="di-right"><span class="doc-flag" style="color:#E06060;border-color:#E06060">CAPA-004</span><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="fire-pump-log.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Fire Pump Test Log</div><div class="di-meta">Sh.41</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="oh-surveillance.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">OH Surveillance Register</div><div class="di-meta">Sh.42</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="scaffold-inspection.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Scaffold Inspection</div><div class="di-meta">Sh.64</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="ndt-permit-log.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">NDT / Radiography Log</div><div class="di-meta">Sh.43</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="chemical-inventory.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Chemical Inventory (GHS)</div><div class="di-meta">Sh.44</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="crane-lifting.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Crane & Lifting Register</div><div class="di-meta">Sh.45</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a></div></div><div class="oc-section"><div class="oc-header" style="--oc-color:#1A7A4A"><i class="ti ti-leaf oc-icon"></i><span class="oc-title">OC-02 Environment & Energy</span><a href="oc02-environment.html" class="oc-link">Open <i class="ti ti-arrow-right"></i></a></div><div class="oc-docs"><a href="waste-management.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Waste Management Register</div><div class="di-meta">Sh.46</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="chemical-storage.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Chemical Storage & Spills</div><div class="di-meta">Sh.47</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="furnace-monitoring.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Furnace Monitoring Logs</div><div class="di-meta">Sh.48</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="meps-register.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">MEPS Compliance Register</div><div class="di-meta">Sh.49</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="water-waste.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Water & Waste Data</div><div class="di-meta">Sh.50</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a></div></div><div class="oc-section"><div class="oc-header" style="--oc-color:#1D6FA4"><i class="ti ti-rosette oc-icon"></i><span class="oc-title">OC-03 Quality & Customer</span><a href="oc03-quality.html" class="oc-link">Open <i class="ti ti-arrow-right"></i></a></div><div class="oc-docs"><a href="customer-register.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Customer Requirements Reg.</div><div class="di-meta">Sh.51</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="inprocess-inspection.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">In-Process Inspection Log</div><div class="di-meta">Sh.52</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="product-release.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Product Release Records</div><div class="di-meta">Sh.53</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="nonconforming.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Nonconforming Products</div><div class="di-meta">Sh.57</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="incoming-inspection.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Incoming Inspection Records</div><div class="di-meta">Sh.58</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a></div></div></div>
+<div class="proc-card" id="proc-s9"><div class="pc-header" style="border-left-color:#1D6FA4"><div class="pc-left"><div class="pc-clause" style="color:#1D6FA4">§9</div><div class="pc-info"><div class="pc-code">L2-IMS-900-P-06 · Rev.02</div><div class="pc-title">Performance Evaluation</div><div class="pc-subtitle">KPIs · Audits · Compliance evaluation · Management Review</div></div></div><div class="pc-right"><i class="ti ti-chart-bar pc-icon" style="color:#1D6FA4"></i><a href="proc-c9.html" class="pc-open-btn" style="background:#1D6FA4">Open Procedure <i class="ti ti-arrow-up-right"></i></a></div></div><div class="pc-purpose">Monitors and measures IMS performance through 26 KPIs, evaluates compliance, conducts the annual internal audit programme, and governs the Management Review process.</div><div class="pc-standards"><span class="std-pill">ISO 9001</span><span class="std-pill">ISO 14001</span><span class="std-pill">ISO 45001</span><span class="std-pill">ISO 50001</span></div><div class="pc-docs-label">Supporting documents</div><div class="docs-list"><a href="kpi-dashboard.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">KPI Dashboard</div><div class="di-meta">Sh.18</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="compliance-eval.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Compliance Evaluation</div><div class="di-meta">Sh.19</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="audit-programme.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Internal Audit Programme</div><div class="di-meta">Sh.20</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="management-review.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Management Review</div><div class="di-meta">Sh.22</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a></div></div>
+<div class="proc-card" id="proc-s10"><div class="pc-header" style="border-left-color:#1A7A4A"><div class="pc-left"><div class="pc-clause" style="color:#1A7A4A">§10</div><div class="pc-info"><div class="pc-code">L2-IMS-1000-P-07 · Rev.02</div><div class="pc-title">Improvement & Corrective Action</div><div class="pc-subtitle">Nonconformity · CAPA · Incidents · Continual improvement</div></div></div><div class="pc-right"><i class="ti ti-refresh pc-icon" style="color:#1A7A4A"></i><a href="proc-c10.html" class="pc-open-btn" style="background:#1A7A4A">Open Procedure <i class="ti ti-arrow-up-right"></i></a></div></div><div class="pc-purpose">Manages nonconformities through the 8-step CAPA process with ≥95% closure target, investigates incidents, and drives continual improvement across all five ISO standards.</div><div class="pc-standards"><span class="std-pill">ISO 9001</span><span class="std-pill">ISO 14001</span><span class="std-pill">ISO 45001</span><span class="std-pill">ISO 50001</span></div><div class="pc-docs-label">Supporting documents</div><div class="docs-list"><a href="capa-register.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">CAPA Register</div><div class="di-meta">Sh.23</div></div></div><div class="di-right"><span class="doc-flag" style="color:#E06060;border-color:#E06060">4 OPEN</span><i class="ti ti-arrow-right di-arrow"></i></div></a><a href="incident-register.html" class="doc-item"><div class="di-left"><i class="ti ti-file-text di-icon"></i><div class="di-info"><div class="di-name">Incident Register</div><div class="di-meta">Sh.24</div></div></div><div class="di-right"><i class="ti ti-arrow-right di-arrow"></i></div></a></div></div>
+  </div>
 </div>
-
-<div style="font-size:12px;font-weight:700;color:var(--navy);margin:16px 0 8px">L2 PROCEDURES — All Clauses</div>
-<div class="proc-grid">
-<a href="context.html" class="proc-card">
-  <div class="pc-hdr" style="background:#1565C0">
-    <span class="pc-code">L2-IMS-400-P-01</span>
-    <span style="flex:1;font-size:12px;font-weight:700">Organisational Context</span>
-    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.02 · 5pp</span>
-  </div>
-  <div class="pc-body">
-    <div class="pc-desc">PESTLE · SWOT · Interested Parties · Scope · Process Map · Human Rights Context</div>
-    <div class="pc-meta"><span class="badge kc-blue">§4.1</span><span class="badge kc-blue">§4.2</span><span class="badge kc-blue">§4.3</span><span class="badge kc-blue">§4.4</span></div>
-  </div>
-</a>
-<a href="policies.html" class="proc-card">
-  <div class="pc-hdr" style="background:#2E7D32">
-    <span class="pc-code">L2-IMS-500-P-02</span>
-    <span style="flex:1;font-size:12px;font-weight:700">Leadership and Commitment</span>
-    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.02 · 6pp</span>
-  </div>
-  <div class="pc-body">
-    <div class="pc-desc">9 Policies · Worker Participation · Human Rights Obligations · Speak-Up Channel</div>
-    <div class="pc-meta"><span class="badge kc-blue">§5.1</span><span class="badge kc-blue">§5.2</span><span class="badge kc-blue">§5.3</span><span class="badge kc-blue">§5.4</span></div>
-  </div>
-</a>
-<a href="risk-register.html" class="proc-card">
-  <div class="pc-hdr" style="background:#A05000">
-    <span class="pc-code">L2-IMS-600-P-03</span>
-    <span style="flex:1;font-size:12px;font-weight:700">Planning and Risk Management</span>
-    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.02 · 7pp</span>
-  </div>
-  <div class="pc-body">
-    <div class="pc-desc">HIRA · SEA · GHG Scope 1/2/3 · Legal Compliance · Objectives · Sustainable Procurement · Energy Planning</div>
-    <div class="pc-meta"><span class="badge kc-blue">§6.1</span><span class="badge kc-blue">§6.1.2</span><span class="badge kc-blue">§6.1.3</span><span class="badge kc-blue">§6.2</span><span class="badge kc-blue">§6.3</span></div>
-  </div>
-</a>
-<a href="competency.html" class="proc-card">
-  <div class="pc-hdr" style="background:#6A1B9A">
-    <span class="pc-code">L2-IMS-700-P-04</span>
-    <span style="flex:1;font-size:12px;font-weight:700">Support</span>
-    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.02 · 5pp</span>
-  </div>
-  <div class="pc-body">
-    <div class="pc-desc">Resources · Competence · Awareness · Communication · Document Control</div>
-    <div class="pc-meta"><span class="badge kc-blue">§7.1</span><span class="badge kc-blue">§7.2</span><span class="badge kc-blue">§7.3</span><span class="badge kc-blue">§7.4</span><span class="badge kc-blue">§7.5</span></div>
-  </div>
-</a>
-<a href="operational-control.html" class="proc-card">
-  <div class="pc-hdr" style="background:#B71C1C">
-    <span class="pc-code">L2-IMS-800-P-05</span>
-    <span style="flex:1;font-size:12px;font-weight:700">Operational Control</span>
-    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.01 · 9pp</span>
-  </div>
-  <div class="pc-body">
-    <div class="pc-desc">Operational Framework · Contractor Management · MoC · Procurement · Product Release · OC-01/02/03</div>
-    <div class="pc-meta"><span class="badge kc-blue">§8.1</span><span class="badge kc-blue">§8.1.1</span><span class="badge kc-blue">§8.1.2</span><span class="badge kc-blue">§8.2</span><span class="badge kc-blue">§8.4</span></div>
-  </div>
-</a>
-<a href="kpi-dashboard.html" class="proc-card">
-  <div class="pc-hdr" style="background:#37474F">
-    <span class="pc-code">L2-IMS-900-P-06</span>
-    <span style="flex:1;font-size:12px;font-weight:700">Performance Evaluation</span>
-    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.02 · 7pp</span>
-  </div>
-  <div class="pc-body">
-    <div class="pc-desc">KPI Dashboard · ESG 4-Layer Workflow · 6 Review Reports · Compliance Evaluation · Audit · MR</div>
-    <div class="pc-meta"><span class="badge kc-blue">§9.1</span><span class="badge kc-blue">§9.1.2</span><span class="badge kc-blue">§9.2</span><span class="badge kc-blue">§9.3</span></div>
-  </div>
-</a>
-<a href="capa-register.html" class="proc-card">
-  <div class="pc-hdr" style="background:#1A5C1A">
-    <span class="pc-code">L2-IMS-1000-P-07</span>
-    <span style="flex:1;font-size:12px;font-weight:700">Improvement and Corrective Action</span>
-    <span style="font-family:var(--mono);font-size:10px;opacity:.7">Rev.02 · 6pp</span>
-  </div>
-  <div class="pc-body">
-    <div class="pc-desc">CAPA · Incident Investigation · Near-Miss · Supplier SCAN (3-Tier) · Human Rights Grievance · Bribery Investigation</div>
-    <div class="pc-meta"><span class="badge kc-blue">§10.1</span><span class="badge kc-blue">§10.2</span></div>
-  </div>
-</a></div><div style="font-size:12px;font-weight:700;color:var(--navy);margin:20px 0 8px">L3 OPERATIONAL CONTROL SPECIFICATIONS — Clause 8</div><div class="oc-grid">
-<a href="oc01-safety.html" class="oc-card">
-  <div class="oc-hdr" style="background:#1565C0">
-    <div class="oc-code">L3-IMS-800-OC-01 · Rev.01 · 11pp</div>
-    <div class="oc-title">Safety and Emergency Controls</div>
-  </div>
-  <div class="oc-body">
-    <div style="font-size:11px;color:var(--text-lt);margin-bottom:8px">#DCE9F5</div>
-    <span class="oc-tag" style="background:#DCE9F5;color:#1565C0">PTW</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">LOTO</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">Confined Space</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">WAH</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">Hot Work</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">Chemical</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">Heat Stress</span><span class="oc-tag" style="background:#DCE9F5;color:#1565C0">Emergency Response</span>
-  </div>
-</a>
-<a href="oc02-environment.html" class="oc-card">
-  <div class="oc-hdr" style="background:#1A5C1A">
-    <div class="oc-code">L3-IMS-800-OC-02 · Rev.01 · 9pp</div>
-    <div class="oc-title">Environmental and Energy Controls</div>
-  </div>
-  <div class="oc-body">
-    <div style="font-size:11px;color:var(--text-lt);margin-bottom:8px">#D5EDD5</div>
-    <span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">SEA Controls</span><span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">Waste Mgmt</span><span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">Water</span><span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">Air Emissions</span><span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">GHG</span><span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">SEU Furnaces F1–F5</span><span class="oc-tag" style="background:#D5EDD5;color:#1A5C1A">Shift Handover</span>
-  </div>
-</a>
-<a href="oc03-quality.html" class="oc-card">
-  <div class="oc-hdr" style="background:#A05000">
-    <div class="oc-code">L3-IMS-800-OC-03 · Rev.01 · 10pp</div>
-    <div class="oc-title">Quality and Customer Controls</div>
-  </div>
-  <div class="oc-body">
-    <div style="font-size:11px;color:var(--text-lt);margin-bottom:8px">#FDE9D0</div>
-    <span class="oc-tag" style="background:#FDE9D0;color:#A05000">Customer Review</span><span class="oc-tag" style="background:#FDE9D0;color:#A05000">Production</span><span class="oc-tag" style="background:#FDE9D0;color:#A05000">Identification</span><span class="oc-tag" style="background:#FDE9D0;color:#A05000">Product Release</span><span class="oc-tag" style="background:#FDE9D0;color:#A05000">Nonconforming</span><span class="oc-tag" style="background:#FDE9D0;color:#A05000">Procurement</span>
-  </div>
-</a></div></div></div>
-<script>initPage("procedures.html");document.getElementById("tb").innerHTML=renderTopbar("IMS Procedures Hub","All L2 Procedures · L3 Operational Control Specifications · Rev.16");</script>
-</body></html>
+<script>
+var navItems = document.querySelectorAll('.pnav-item');
+var cards = document.querySelectorAll('.proc-card');
+function setActive(id){navItems.forEach(function(n){n.classList.toggle('active',n.getAttribute('data-target')===id)});}
+var obs = new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting)setActive(e.target.id)});},{threshold:0.2,rootMargin:'-60px 0px -60px 0px'});
+cards.forEach(function(c){obs.observe(c);});
+navItems.forEach(function(n){n.addEventListener('click',function(e){e.preventDefault();var t=document.getElementById(n.getAttribute('data-target'));if(t)t.scrollIntoView({behavior:'smooth',block:'start'});});});
+function filterSearch(v){var lv=v.toLowerCase();cards.forEach(function(c){c.style.display=(!lv||c.textContent.toLowerCase().includes(lv))?'':'none';});}
+document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key==='f'){e.preventDefault();document.getElementById('search-input').focus();}});
+</script>
+</body>
+</html>
