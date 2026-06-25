@@ -19,6 +19,7 @@ var TREE = [
     { id:'fw-obj', label:'IMS Objectives',        file:'ims-objectives.html', level:'L0', badge:'ISO §6.2', children:[
       { id:'fw-obj-plan', label:'Objectives Planning Register', file:'ims-objectives-plan.html', level:'L2', badge:'§6.2' },
     ]},
+    { id:'fw-trc', label:'Traceability Matrix',   file:'ims-traceability.html', level:'L0', badge:'Full Chain' },
   ]},
 
   /* ══ MODULE 3 — IMS DASHBOARD ═════════════════════════════ */
