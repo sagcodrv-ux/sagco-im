@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SAGCO IMS — System Overview</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="auth.js"></script>
+  <script src="data.js"></script>
+  <script src="nav.js"></script>
+  <style>
+:root{
+  --n1:#0C447C;--n2:#1B2A4A;--n3:#2d4a7a;
+  --gold:#C9A84C;--gold-lt:#FAC775;
+  --teal:#1D9E75;--pur:#534AB7;--amb:#854F0B;
+  --grn:#27500A;--red:#791F1F;
+}
+.ov-wrap{background:var(--color-background-tertiary);min-height:calc(100vh - 80px);padding:16px}
+.ov-title{font-size:13px;font-weight:500;color:var(--color-text-secondary);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.ov-chart{display:flex;flex-direction:column;align-items:center;gap:0;max-width:860px;margin:0 auto}
+
+/* Layer wrapper */
+.lyr{width:100%;margin-bottom:2px}
+.lyr-label{font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary);text-align:center;margin-bottom:4px;display:flex;align-items:center;justify-content:center;gap:6px}
+.lyr-label::before,.lyr-label::after{content:'';flex:1;height:1px;background:var(--color-border-tertiary);max-width:120px}
+.lyr-row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+
+/* Connector arrows */
+.arr-down{display:flex;justify-content:center;align-items:center;height:22px;color:var(--color-text-secondary);font-size:18px}
+.arr-bidir{display:flex;flex-direction:column;align-items:center;height:28px;justify-content:center;gap:0}
+.arr-bidir span{font-size:12px;color:var(--gold);line-height:1;font-weight:700}
+.arr-back{display:flex;justify-content:center;align-items:center;height:24px}
+.arr-back-line{width:2px;height:24px;background:var(--gold);border-radius:2px;position:relative}
+.arr-label{font-size:9px;color:var(--gold);font-weight:500;letter-spacing:.05em;text-transform:uppercase;text-align:center;margin-top:2px}
+
+/* Node base */
+.nd{
+  border-radius:10px;padding:9px 13px;
+  display:flex;flex-direction:column;align-items:center;
+  gap:2px;min-width:110px;max-width:150px;flex:1;
+  cursor:pointer;transition:transform .15s,box-shadow .15s;
+  border:none;outline:none;text-align:center;
+}
+.nd:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.18)}
+.nd:active{transform:translateY(0)}
+.nd .ni{font-size:17px;margin-bottom:1px}
+.nd .nt{font-size:11px;font-weight:500;line-height:1.3}
+.nd .ns{font-size:9px;line-height:1.3;opacity:.8;margin-top:1px}
+.nd-wide{max-width:none;width:100%}
+.nd-md{max-width:200px}
+
+/* Layer colour schemes */
+.c-strat{background:#0C447C;color:#fff}.c-strat .ns{color:#B5D4F4}
+.c-vmv{background:#1B2A4A;color:#fff}.c-vmv .ns{color:#B0C4DE}
+.c-csf{background:#C9A84C;color:#1B2A4A}.c-csf .ns{color:#633806}
+.c-pol{background:#2d4a7a;color:#fff}.c-pol .ns{color:#B0C4DE}
+.c-plan{background:#E6F1FB;color:#0C447C}.c-plan .ns{color:#185FA5}
+.c-gov{background:#EEEDFE;color:#3C3489}.c-gov .ns{color:#534AB7}
+.c-sup{background:#F1EFE8;color:#444441}.c-sup .ns{color:#5F5E5A}
+.c-l2{background:#dce8f5;color:#0C447C}.c-l2 .ns{color:#185FA5}
+.c-l3{background:#fde8c8;color:#633806}.c-l3 .ns{color:#854F0B}
+.c-l4{background:#e8e6e0;color:#444441}.c-l4 .ns{color:#5F5E5A}
+.c-kpi{background:#3B6D11;color:#fff}.c-kpi .ns{color:#C0DD97}
+.c-perf{background:#EAF3DE;color:#27500A}.c-perf .ns{color:#3B6D11}
+.c-mr{background:#2d4a7a;color:#fff}.c-mr .ns{color:#B0C4DE}
+.c-ci{background:#E1F5EE;color:#085041}.c-ci .ns{color:#0F6E56}
+
+/* Doc tier container */
+.doc-tier{border-left:3px solid;border-radius:0 10px 10px 0;padding:8px 10px 8px 14px;width:100%}
+.dt-l2{border-color:#2d4a7a;background:#EEF3FA}
+.dt-l3{border-color:#854F0B;background:#FEF3E6}
+.dt-l4{border-color:#5F5E5A;background:#F7F5F0}
+.dt-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--color-text-secondary);margin-bottom:5px}
+.dt-l2 .dt-lbl{color:#2d4a7a}
+.dt-l3 .dt-lbl{color:#854F0B}
+.dt-l4 .dt-lbl{color:#5F5E5A}
+.dt-row{display:flex;gap:7px;flex-wrap:wrap}
+
+/* Tooltip popup */
+#ov-tip{
+  display:none;position:fixed;z-index:99999;
+  width:300px;max-width:94vw;
+  background:#fff;border:1px solid #d0d8e8;
+  border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.2);
+  font-family:var(--font-sans,Arial,sans-serif);
+  overflow:hidden;
+}
+#ov-tip.show{display:block}
+.tip-hd{background:var(--n2);color:#fff;padding:11px 14px}
+.tip-hd-type{font-size:9px;color:var(--gold-lt);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+.tip-hd-name{font-size:13px;font-weight:500;line-height:1.3}
+.tip-hd-code{font-size:9px;color:rgba(255,255,255,.6);margin-top:2px;font-family:monospace}
+.tip-bd{padding:10px 14px}
+.tip-desc{font-size:11px;color:#374151;line-height:1.6;margin-bottom:10px}
+.tip-btn{display:inline-flex;align-items:center;gap:5px;background:var(--gold);color:var(--n2);border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;transition:opacity .15s}
+.tip-btn:hover{opacity:.85}
+.tip-close{position:absolute;top:10px;right:12px;background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;line-height:1}
+
+/* Legend */
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;justify-content:center;padding-top:12px;border-top:1px solid var(--color-border-tertiary)}
+.leg{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--color-text-secondary)}
+.leg-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+  </style>
+</head>
+<body>
+<div id="sidebar"></div>
+<div class="main">
+  <div id="tb"></div>
+  <div class="content">
+    <div class="ov-wrap">
+
+      <div class="ov-title">
+        <i class="ti ti-sitemap" aria-hidden="true"></i>
+        IMS System Overview — hover any element, click to navigate
+        <span style="margin-left:auto;font-size:9px;background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:4px;padding:2px 8px">
+          Use ← → keys or click nodes
+        </span>
+      </div>
+
+      <div class="ov-chart">
+
+        <!-- L1: Strategic Direction -->
+        <div class="lyr">
+          <div class="lyr-label">Level 1 — Strategic direction</div>
+          <div class="lyr-row">
+            <button class="nd c-strat nd-wide" data-tip="strat">
+              <i class="ti ti-map-2 ni" aria-hidden="true"></i>
+              <div class="nt">Strategic Direction</div>
+              <div class="ns">Context · PESTLE · SWOT · Stakeholders · ISO §4.1 · §4.2</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="arr-down"><i class="ti ti-arrow-down" aria-hidden="true"></i></div>
+
+        <!-- L2: Vision Mission Values -->
+        <div class="lyr">
+          <div class="lyr-label">Level 2 — Organisational identity</div>
+          <div class="lyr-row">
+            <button class="nd c-vmv" data-tip="vision" data-href="ims-manual.html">
+              <i class="ti ti-eye ni" aria-hidden="true"></i>
+              <div class="nt">Vision</div>
+              <div class="ns">Trusted preferred supplier</div>
+            </button>
+            <button class="nd c-vmv" data-tip="mission" data-href="ims-manual.html">
+              <i class="ti ti-rocket ni" aria-hidden="true"></i>
+              <div class="nt">Mission</div>
+              <div class="ns">Lean · safe · environmentally responsible</div>
+            </button>
+            <button class="nd c-vmv" data-tip="values" data-href="ims-manual.html">
+              <i class="ti ti-diamond ni" aria-hidden="true"></i>
+              <div class="nt">Core Values</div>
+              <div class="ns">Integrity · Respect · Accountability · Innovation · Customer Focus</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="arr-down"><i class="ti ti-arrow-down" aria-hidden="true"></i></div>
+
+        <!-- L3: CSFs -->
+        <div class="lyr">
+          <div class="lyr-label">Level 3 — Critical success factors</div>
+          <div class="lyr-row">
+            <button class="nd c-csf nd-wide" data-tip="csf" data-href="ims-framework.html">
+              <i class="ti ti-trophy ni" aria-hidden="true"></i>
+              <div class="nt">7 Critical Success Factors</div>
+              <div class="ns">Leadership · Governance · Compliance · Risk Control · Competence · KPI Monitoring · Continual Improvement</div>
+            </button>
+          </div>
+          <div style="text-align:center;font-size:9px;color:var(--gold);margin-top:3px;font-style:italic">&#8597; CSFs and Policies mutually define each other</div>
+        </div>
+
+        <div class="arr-down"><i class="ti ti-arrow-down" aria-hidden="true"></i></div>
+
+        <!-- L4: Policies -->
+        <div class="lyr">
+          <div class="lyr-label">Level 4 — IMS policies · L1 documents</div>
+          <div class="lyr-row">
+            <button class="nd c-pol nd-wide" data-tip="policies" data-href="policies-hub.html">
+              <i class="ti ti-file-certificate ni" aria-hidden="true"></i>
+              <div class="nt">IMS Policies PO-01 → PO-09</div>
+              <div class="ns">IMS Integrated · Quality · Environment · OH&amp;S · Energy · Ethics · Human Rights · ESG · Procurement — CEO signed</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="arr-down"><i class="ti ti-arrow-down" aria-hidden="true"></i></div>
+
+        <!-- L5: Planning -->
+        <div class="lyr">
+          <div class="lyr-label">Level 5 — Planning · L2-P-03 · §6</div>
+          <div class="lyr-row">
+            <button class="nd c-plan" data-tip="risks" data-href="proc-c6.html">
+              <i class="ti ti-alert-triangle ni" aria-hidden="true"></i>
+              <div class="nt">Risks &amp; Opportunities</div>
+              <div class="ns">HIRA · SEA · Risk Register · ISO §6.1</div>
+            </button>
+            <button class="nd c-plan" data-tip="objectives" data-href="ims-objectives.html">
+              <i class="ti ti-target ni" aria-hidden="true"></i>
+              <div class="nt">Objectives</div>
+              <div class="ns">27 objectives · S · Q · E · P · ISO §6.2</div>
+            </button>
+            <button class="nd c-plan" data-tip="legal" data-href="compliance.html">
+              <i class="ti ti-scale ni" aria-hidden="true"></i>
+              <div class="nt">Legal Compliance</div>
+              <div class="ns">NCEC · MEWA · MO 3337 · M/36 · ISO §6.1.3</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="arr-down"><i class="ti ti-arrow-down" aria-hidden="true"></i></div>
+
+        <!-- L6: Governance + Support -->
+        <div class="lyr">
+          <div class="lyr-label">Level 6 — Governance &amp; support</div>
+          <div class="lyr-row">
+            <button class="nd c-gov" data-tip="steering" data-href="governance.html">
+              <i class="ti ti-topology-star ni" aria-hidden="true"></i>
+              <div class="nt">IMS Steering Committee</div>
+              <div class="ns">Monthly · CEO annual · ISO §5.1</div>
+            </button>
+            <button class="nd c-gov" data-tip="wg1" data-href="governance.html">
+              <i class="ti ti-users ni" aria-hidden="true"></i>
+              <div class="nt">WG1 Plant &amp; Quality</div>
+              <div class="ns">QA Manager · 6 objectives · 4 KPIs</div>
+            </button>
+            <button class="nd c-gov" data-tip="wg2" data-href="governance.html">
+              <i class="ti ti-flame ni" aria-hidden="true"></i>
+              <div class="nt">WG2 SHEE, Energy &amp; ENV</div>
+              <div class="ns">Operations Manager · 7 objectives · 11 KPIs</div>
+            </button>
+            <button class="nd c-gov" data-tip="wg3" data-href="governance.html">
+              <i class="ti ti-heart-handshake ni" aria-hidden="true"></i>
+              <div class="nt">WG3 People, Ethics &amp; Proc.</div>
+              <div class="ns">HR Manager · 7 objectives · 6 KPIs</div>
+            </button>
+          </div>
+          <div class="lyr-row" style="margin-top:7px">
+            <button class="nd c-sup" data-tip="competence" data-href="proc-c7.html">
+              <i class="ti ti-school ni" aria-hidden="true"></i>
+              <div class="nt">Competence &amp; Training</div>
+              <div class="ns">Matrix · induction · awareness · ISO §7.2</div>
+            </button>
+            <button class="nd c-sup" data-tip="docs" data-href="document-management.html">
+              <i class="ti ti-folders ni" aria-hidden="true"></i>
+              <div class="nt">Documented Information</div>
+              <div class="ns">DMS · documents · ISO §7.5</div>
+            </button>
+            <button class="nd c-sup" data-tip="comms" data-href="proc-c5.html">
+              <i class="ti ti-speakerphone ni" aria-hidden="true"></i>
+              <div class="nt">Communication &amp; Awareness</div>
+              <div class="ns">Internal · external · toolbox · ISO §7.4</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="arr-down"><i class="ti ti-arrow-down" aria-hidden="true"></i></div>
+
+        <!-- L7: Operational Execution -->
+        <div class="lyr">
+          <div class="lyr-label">Level 7 — Operational execution · documentation hierarchy</div>
+
+          <div class="doc-tier dt-l2" style="margin-bottom:6px">
+            <div class="dt-lbl">L2 — Procedures</div>
+            <div class="dt-row">
+              <button class="nd c-l2" data-tip="procs" data-href="procedures.html" style="min-width:130px">
+                <i class="ti ti-list-check ni" aria-hidden="true"></i>
+                <div class="nt">Procedures</div>
+                <div class="ns">L2-P-01 → L2-P-07 · §4–§10</div>
+              </button>
+            </div>
+          </div>
+
+          <div class="doc-tier dt-l3" style="margin-bottom:6px">
+            <div class="dt-lbl">L3 — Operational Controls</div>
+            <div class="dt-row">
+              <button class="nd c-l3" data-tip="oc1" data-href="oc01-safety.html">
+                <i class="ti ti-shield ni" aria-hidden="true"></i>
+                <div class="nt">OC-01 Safety &amp; Emergency</div>
+                <div class="ns">PTW · LOTO · WAH · Confined space</div>
+              </button>
+              <button class="nd c-l3" data-tip="oc2" data-href="oc02-environment.html">
+                <i class="ti ti-leaf ni" aria-hidden="true"></i>
+                <div class="nt">OC-02 Environment &amp; Energy</div>
+                <div class="ns">Waste · GHG · ECM · Water</div>
+              </button>
+              <button class="nd c-l3" data-tip="oc3" data-href="oc03-quality.html">
+                <i class="ti ti-rosette ni" aria-hidden="true"></i>
+                <div class="nt">OC-03 Quality &amp; Customer</div>
+                <div class="ns">Inspection · release · complaints</div>
+              </button>
+            </div>
+          </div>
+
+          <div class="doc-tier dt-l4">
+            <div class="dt-lbl">L4 — Registers · Forms · Records</div>
+            <div class="dt-row">
+              <button class="nd c-l4" data-tip="registers" data-href="proc-c6.html">
+                <i class="ti ti-database ni" aria-hidden="true"></i>
+                <div class="nt">Registers</div>
+                <div class="ns">Risk · legal · HIRA · SEA · energy</div>
+              </button>
+              <button class="nd c-l4" data-tip="forms" data-href="proc-c8.html">
+                <i class="ti ti-forms ni" aria-hidden="true"></i>
+                <div class="nt">Forms &amp; Checklists</div>
+                <div class="ns">Permits · inspections · declarations</div>
+              </button>
+              <button class="nd c-l4" data-tip="records" data-href="proc-c8.html">
+                <i class="ti ti-file-text ni" aria-hidden="true"></i>
+                <div class="nt">Records</div>
+                <div class="ns">Evidence of conformance · retention</div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="arr-down"><i class="ti ti-arrow-down" aria-hidden="true"></i></div>
+
+        <!-- L8: Performance Evaluation -->
+        <div class="lyr">
+          <div class="lyr-label">Level 8 — Performance evaluation · L2-P-06 · §9</div>
+          <div class="lyr-row">
+            <button class="nd c-kpi" data-tip="kpis" data-href="kpi-dashboard.html">
+              <i class="ti ti-chart-bar ni" aria-hidden="true"></i>
+              <div class="nt">KPIs</div>
+              <div class="ns">26 KPIs · 4 WGs · monthly · named owners</div>
+            </button>
+            <button class="nd c-perf" data-tip="monitoring" data-href="proc-c9.html">
+              <i class="ti ti-gauge ni" aria-hidden="true"></i>
+              <div class="nt">Monitoring &amp; Measurement</div>
+              <div class="ns">Data · trend analysis · ISO §9.1</div>
+            </button>
+            <button class="nd c-perf" data-tip="compeval" data-href="compliance-eval.html">
+              <i class="ti ti-checklist ni" aria-hidden="true"></i>
+              <div class="nt">Compliance Evaluation</div>
+              <div class="ns">Quarterly · all standards · ISO §9.1.2</div>
+            </button>
+            <button class="nd c-perf" data-tip="audits" data-href="audit-programme.html">
+              <i class="ti ti-search ni" aria-hidden="true"></i>
+              <div class="nt">Internal Audits</div>
+              <div class="ns">Annual programme · all clauses · ISO §9.2</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="arr-down"><i class="ti ti-arrow-down" aria-hidden="true"></i></div>
+
+        <!-- L9: Management Review -->
+        <div class="lyr">
+          <div class="lyr-label">Level 9 — Management review · ISO §9.3</div>
+          <div class="lyr-row">
+            <button class="nd c-mr nd-wide" data-tip="mr" data-href="management-review.html">
+              <i class="ti ti-crown ni" aria-hidden="true"></i>
+              <div class="nt">Management Review</div>
+              <div class="ns">Annual · CEO + Steering Committee · KPI trends · audit results · CAPA status · objectives progress · resource decisions</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="arr-down"><i class="ti ti-arrow-down" aria-hidden="true"></i></div>
+
+        <!-- L10: Continual Improvement -->
+        <div class="lyr">
+          <div class="lyr-label">Level 10 — Continual improvement · ISO §10</div>
+          <div class="lyr-row">
+            <button class="nd c-ci" data-tip="capa" data-href="capa-register.html">
+              <i class="ti ti-bug ni" aria-hidden="true"></i>
+              <div class="nt">Nonconformity &amp; CAPA</div>
+              <div class="ns">8-step RCA · ≥95% closure · ISO §10.2</div>
+            </button>
+            <button class="nd c-ci" data-tip="incidents" data-href="incident-register.html">
+              <i class="ti ti-alert-circle ni" aria-hidden="true"></i>
+              <div class="nt">Incident Investigation</div>
+              <div class="ns">Root cause · prevention · lessons learned</div>
+            </button>
+            <button class="nd c-ci" data-tip="ci" data-href="proc-c10.html">
+              <i class="ti ti-refresh ni" aria-hidden="true"></i>
+              <div class="nt">Continual Improvement</div>
+              <div class="ns">PDCA · all 5 standards · ISO §10.3</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Feedback arrow -->
+        <div style="text-align:center;margin-top:10px">
+          <div style="display:inline-flex;flex-direction:column;align-items:center;gap:3px">
+            <i class="ti ti-arrow-up" style="font-size:18px;color:var(--gold)" aria-hidden="true"></i>
+            <span style="font-size:9px;font-weight:500;color:var(--gold);text-transform:uppercase;letter-spacing:.07em">Feeds back to strategic direction · CSFs · policies</span>
+          </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend">
+          <div class="leg"><div class="leg-dot" style="background:#0C447C"></div>Strategic direction</div>
+          <div class="leg"><div class="leg-dot" style="background:#1B2A4A"></div>Vision · Mission · Values</div>
+          <div class="leg"><div class="leg-dot" style="background:#C9A84C"></div>Critical success factors</div>
+          <div class="leg"><div class="leg-dot" style="background:#2d4a7a"></div>Policies · Management review</div>
+          <div class="leg"><div class="leg-dot" style="background:#85B7EB"></div>Planning</div>
+          <div class="leg"><div class="leg-dot" style="background:#AFA9EC"></div>Governance</div>
+          <div class="leg"><div class="leg-dot" style="background:#D3D1C7"></div>Support</div>
+          <div class="leg"><div class="leg-dot" style="background:#dce8f5"></div>L2 Procedures</div>
+          <div class="leg"><div class="leg-dot" style="background:#fde8c8"></div>L3 Operational controls</div>
+          <div class="leg"><div class="leg-dot" style="background:#e8e6e0"></div>L4 Registers · forms · records</div>
+          <div class="leg"><div class="leg-dot" style="background:#3B6D11"></div>KPIs</div>
+          <div class="leg"><div class="leg-dot" style="background:#C0DD97"></div>Monitoring · evaluation</div>
+          <div class="leg"><div class="leg-dot" style="background:#9FE1CB"></div>Continual improvement</div>
+        </div>
+
+      </div><!-- .ov-chart -->
+    </div><!-- .ov-wrap -->
+  </div><!-- .content -->
+</div><!-- .main -->
+
+<!-- Tooltip -->
+<div id="ov-tip" role="dialog" aria-modal="true">
+  <div class="tip-hd">
+    <button class="tip-close" onclick="closeTip()" aria-label="Close">&#215;</button>
+    <div class="tip-hd-type" id="tip-type"></div>
+    <div class="tip-hd-name" id="tip-name"></div>
+    <div class="tip-hd-code" id="tip-code"></div>
+  </div>
+  <div class="tip-bd">
+    <div class="tip-desc" id="tip-desc"></div>
+    <a class="tip-btn" id="tip-link" href="#" onclick="navigateFromTip(event)">
+      <i class="ti ti-arrow-right" aria-hidden="true"></i>
+      Open page
+    </a>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  initPage('ims-overview.html');
+  document.getElementById('tb').innerHTML = renderTopbar(
+    'IMS System Overview',
+    'End-to-end map of the Integrated Management System · Click any element to navigate'
+  );
+  IMS_AUTH.injectUserBar();
+});
+
+var TIPS = {
+  strat:     {type:'Strategic Foundation',    name:'Strategic Direction',             code:'ISO §4.1 · §4.2',   desc:'The primary driver of the entire IMS. Defines the external and internal context through PESTLE analysis, SWOT assessment, and stakeholder identification. All IMS elements trace back to the strategic direction.',                                                                      href:null},
+  vision:    {type:'Strategic Foundation',    name:'Vision',                          code:'IMS Manual · §4.1', desc:'To continuously strive to be a trusted and preferred supplier of glass packaging through building strategic partnerships.',                                                                                                                                                         href:'ims-manual.html'},
+  mission:   {type:'Strategic Foundation',    name:'Mission',                         code:'IMS Manual · §4.1', desc:'To manufacture and deliver high-quality glass packaging solutions through lean, safe, environmentally responsible manufacturing processes.',                                                                                                                                         href:'ims-manual.html'},
+  values:    {type:'Strategic Foundation',    name:'Core Values',                     code:'IMS Manual',        desc:'Integrity · Respect · Accountability · Innovation · Customer Focus. Embedded in all 9 IMS policies, the Code of Conduct, and every working group charter.',                                                                                                                         href:'ims-manual.html'},
+  csf:       {type:'Critical Success Factors',name:'7 Critical Success Factors',      code:'IMS Framework',     desc:'The 7 conditions that must be in place for the IMS to succeed: Leadership, Governance, Compliance, Risk Control, Competence, KPI Monitoring, and Continual Improvement. They derive from Vision/Mission and mutually define the IMS Policies.',                                   href:'ims-framework.html'},
+  policies:  {type:'IMS Policies · L1',       name:'Policies PO-01 → PO-09',          code:'L1 · CEO signed',   desc:'Nine CEO-signed policy commitments covering: IMS Integrated, Environmental, OH&S, Energy, Quality & Food Safety, Ethics & Anti-Corruption, Human Rights, Sustainability & ESG, and Sustainable Procurement.',                                                                    href:'policies-hub.html'},
+  risks:     {type:'Planning · L2-P-03 · §6', name:'Risks & Opportunities',           code:'ISO §6.1',          desc:'HIRA for all 12 hazard categories, Significant Environmental Aspects (SEA), and the Integrated Risk Register. Risks drive the objectives and operational controls. HIRA completion is the highest Stage 2 risk item.',                                                             href:'proc-c6.html'},
+  objectives:{type:'Planning · L2-P-03 · §6', name:'Objectives',                      code:'ISO §6.2 · 27 total',desc:'27 measurable objectives across four groups: S (Steering, 7), Q (Quality, 6), E (SHEE/Energy/ENV, 7), P (People/Ethics/Procurement, 7). Each objective is owned by a Working Group and measured by at least one KPI.',                                                           href:'ims-objectives.html'},
+  legal:     {type:'Planning · L2-P-03 · §6', name:'Legal Compliance',                code:'ISO §6.1.3',        desc:'All applicable Saudi and international legal obligations: NCEC, MEWA, Ministry of Labour (MO 3337), Nazaha M/65, Saudi M/36, SEEC/MIM-ICP. Evaluated quarterly. 100% compliance is objective S-03.',                                                                              href:'compliance.html'},
+  steering:  {type:'Governance · §5.1',        name:'IMS Steering Committee',          code:'Monthly reviews',   desc:'Top governance body chaired by the IMS Manager. Monthly implementation reviews, quarterly post-certification reviews, annual Management Review with CEO. Owns objectives S-01 through S-07 and 5 Steering KPIs.',                                                                  href:'governance.html'},
+  wg1:       {type:'Governance · WG1',         name:'WG1 — Plant & Quality',           code:'QA Manager (Chair)',desc:'Responsible for quality management, production performance, customer satisfaction, product conformity, and supplier evaluation. Owns objectives Q-01 through Q-06 and 4 KPIs. Reports monthly to IMS Coordinator.',                                                               href:'governance.html'},
+  wg2:       {type:'Governance · WG2',         name:'WG2 — SHEE, Energy & ENV',        code:'Operations Manager', desc:'Responsible for Safety, Health, Environment, and Energy management. Owns objectives E-01 through E-07 and 11 KPIs including LTIFR, GHG intensity, SHC, ECM milestones, and HSE training completion.',                                                                          href:'governance.html'},
+  wg3:       {type:'Governance · WG3',         name:'WG3 — People, Ethics & Proc.',    code:'HR Manager (Chair)', desc:'Responsible for workforce development, anti-corruption, human rights, grievance management, ESG reporting, and sustainable procurement. Owns objectives P-01 through P-07 and 6 KPIs.',                                                                                          href:'governance.html'},
+  competence:{type:'Support · L2-P-04 · §7',  name:'Competence & Training',           code:'ISO §7.2 · §7.3',   desc:'Competency matrix, annual training plans, induction records for 884 employees and 152 contractors, and calibration register. HSE training target: ≥95% completion. Anti-corruption training target: ≥90% of key personnel.',                                                    href:'proc-c7.html'},
+  docs:      {type:'Support · L2-P-04 · §7',  name:'Documented Information',          code:'ISO §7.5 · DMS',    desc:'Document Management System (DMS) controlling all IMS documents across L1, L2, L3 and L4 levels. Manages version control, approval workflow, distribution, and retention.',                                                                                                         href:'document-management.html'},
+  comms:     {type:'Support · L2-P-02 · §7',  name:'Communication & Awareness',       code:'ISO §7.4',          desc:'Internal communication through toolbox talks, IMS portal, Steering Committee minutes, and policy acknowledgements. External communication with customers, regulators, and certification body TÜV Austria.',                                                                        href:'proc-c5.html'},
+  procs:     {type:'Procedures · L2',          name:'Procedures L2-P-01 → L2-P-07',   code:'§4 through §10',    desc:'Seven Level 2 procedures covering all ISO clause requirements: Context & Scope (§4), Leadership (§5), Planning & Risk (§6), Support (§7), Operational Control (§8), Performance Evaluation (§9), and Improvement (§10).',                                                        href:'procedures.html'},
+  oc1:       {type:'Operational Control · L3', name:'OC-01 Safety & Emergency',        code:'L3 · §8.1',         desc:'Operational controls for all safety-critical activities: Permit to Work, Lock-Out/Tag-Out, Working at Height, Confined Space Entry, emergency response, contractor management, fire safety, chemical inventory, and crane & lifting operations.',                                  href:'oc01-safety.html'},
+  oc2:       {type:'Operational Control · L3', name:'OC-02 Environment & Energy',      code:'L3 · §8.1',         desc:'Controls for environmental and energy operations: waste management (8 streams), GHG monitoring, furnace energy consumption, ECM programme implementation, water usage, chemical storage, and MEPS compliance.',                                                                    href:'oc02-environment.html'},
+  oc3:       {type:'Operational Control · L3', name:'OC-03 Quality & Customer',        code:'L3 · §8.1',         desc:'Quality controls covering incoming inspection, in-process inspection, product release, nonconforming product management, customer requirements, and food-grade glass traceability for Coca-Cola and Almarai.',                                                                     href:'oc03-quality.html'},
+  registers: {type:'Records · L4',             name:'Registers',                       code:'L4 documents',      desc:'Formal registers maintained as Level 4 documents: Risk Register, Legal & Compliance Register, HIRA Register, SEA Register, Energy Planning Register, Bribery Risk Register, and Management of Change Register.',                                                                  href:'proc-c6.html'},
+  forms:     {type:'Records · L4',             name:'Forms & Checklists',              code:'L4 documents',      desc:'Operational forms and checklists used to record activities and evidence compliance: PTW forms, inspection checklists, LOTO forms, confined space entry permits, heat stress logs, and contractor induction records.',                                                               href:'proc-c8.html'},
+  records:   {type:'Records · L4',             name:'Records',                         code:'L4 documents',      desc:'Objective evidence that the IMS is operating as planned: training attendance, audit reports, management review minutes, CAPA closure evidence, calibration certificates, and product release records.',                                                                            href:'proc-c8.html'},
+  kpis:      {type:'Performance · L2-P-06 · §9',name:'KPIs — 26 Key Performance Indicators', code:'ISO §9.1',  desc:'26 KPIs structured across 4 groups: Steering (5), WG1 Quality (4), WG2 SHEE/Energy/ENV (11), WG3 People/Ethics (6). Each KPI has a named owner, target, formula, and monthly reporting cycle.',                                                                                  href:'kpi-dashboard.html'},
+  monitoring:{type:'Performance · L2-P-06 · §9',name:'Monitoring & Measurement',      code:'ISO §9.1',          desc:'Monthly data collection and trend analysis feeding the KPI dashboard. Includes furnace SHC monitoring, LTIFR tracking, GHG intensity measurement, customer satisfaction surveys, and compliance evaluation.',                                                                      href:'proc-c9.html'},
+  compeval:  {type:'Performance · L2-P-06 · §9',name:'Compliance Evaluation',         code:'ISO §9.1.2',        desc:'Quarterly evaluation of all applicable legal and regulatory obligations. Results recorded in the Legal & Compliance Register (L4-IMS-613-R-01) and annual evaluation form (L4-IMS-912-F-01). Target: 100% compliance.',                                                          href:'compliance-eval.html'},
+  audits:    {type:'Performance · L2-P-06 · §9',name:'Internal Audits',               code:'ISO §9.2',          desc:'Annual internal audit programme covering all 7 procedures × 5 ISO standards. Findings raised as CAPAs. Results reported to Management Review. Stage 1 audit: August 2026. Stage 2 audit: 22–26 September 2026.',                                                                  href:'audit-programme.html'},
+  mr:        {type:'Management Review · §9.3', name:'Management Review',              code:'Annual · CEO + SC', desc:'Annual review with CEO and Steering Committee evaluating: KPI trends, audit results, CAPA status, objectives progress, legal compliance, customer feedback, and resource adequacy. Outputs drive the next planning cycle.',                                                        href:'management-review.html'},
+  capa:      {type:'Improvement · L2-P-07 · §10',name:'Nonconformity & CAPA',         code:'ISO §10.2 · ≥95%',  desc:'8-step corrective action process: Containment → Problem Definition → Root Cause Analysis → Corrective Action → Implementation → Verification → Effectiveness Review → Closure. Target: ≥95% closed within class timescale. Currently 4 open CAPAs.',                          href:'capa-register.html'},
+  incidents: {type:'Improvement · L2-P-07 · §10',name:'Incident Investigation',       code:'ISO §45001',        desc:'Full investigation of all OH&S incidents, near-misses, environmental incidents, and quality escapes. Root cause analysis, corrective actions, and lessons learned communicated across all working groups.',                                                                         href:'incident-register.html'},
+  ci:        {type:'Improvement · L2-P-07 · §10',name:'Continual Improvement',        code:'ISO §10.3 · PDCA',  desc:'The PDCA loop closing: Management Review outputs → updated objectives → revised risk assessments → new operational controls → next monitoring cycle. Applies to all 5 ISO standards simultaneously. Feeds back to strategic direction.',                                          href:'proc-c10.html'},
+};
+
+var currentHref = null;
+
+function showTip(key, anchorEl) {
+  var d = TIPS[key];
+  if (!d) return;
+  currentHref = d.href;
+  document.getElementById('tip-type').textContent = d.type;
+  document.getElementById('tip-name').textContent = d.name;
+  document.getElementById('tip-code').textContent = d.code;
+  document.getElementById('tip-desc').textContent = d.desc;
+  var btn = document.getElementById('tip-link');
+  if (d.href) {
+    btn.style.display = 'inline-flex';
+    btn.href = d.href;
+  } else {
+    btn.style.display = 'none';
+  }
+  var tip = document.getElementById('ov-tip');
+  tip.classList.add('show');
+  positionTip(anchorEl);
+}
+
+function positionTip(el) {
+  var tip = document.getElementById('ov-tip');
+  var rect = el.getBoundingClientRect();
+  var tw = 300; var th = tip.offsetHeight || 200;
+  var vw = window.innerWidth; var vh = window.innerHeight;
+  var left = rect.left + rect.width/2 - tw/2;
+  var top  = rect.bottom + 8;
+  if (left + tw > vw - 8) left = vw - tw - 8;
+  if (left < 8) left = 8;
+  if (top + th > vh - 8) top = rect.top - th - 8;
+  if (top < 8) top = 8;
+  tip.style.left = left + 'px';
+  tip.style.top  = top  + 'px';
+}
+
+function closeTip() {
+  document.getElementById('ov-tip').classList.remove('show');
+  currentHref = null;
+}
+
+function navigateFromTip(e) {
+  if (currentHref) {
+    e.preventDefault();
+    closeTip();
+    window.location.href = currentHref;
+  }
+}
+
+// Attach click handlers
+document.querySelectorAll('[data-tip]').forEach(function(el) {
+  el.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var key = el.getAttribute('data-tip');
+    showTip(key, el);
+  });
+});
+
+// Close on outside click
+document.addEventListener('click', function(e) {
+  var tip = document.getElementById('ov-tip');
+  if (tip.classList.contains('show') && !tip.contains(e.target)) {
+    closeTip();
+  }
+});
+
+// Keyboard: Escape closes tooltip
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeTip();
+});
+</script>
+</body>
+</html>
