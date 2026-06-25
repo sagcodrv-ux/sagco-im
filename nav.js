@@ -8,190 +8,166 @@
 /* ── Navigation Tree ───────────────────────────────────────── */
 var TREE = [
 
-  /* ══ MODULE 1 — IMS MANUAL ════════════════════════════════ */
-  { id:'ims-manual', label:'IMS Manual', file:'ims-manual.html', level:'L0', badge:'L1', tag:'MAN-01' },
+  /* ══ HOME ═══════════════════════════════════════════════ */
+  { id:'home-overview', label:'IMS Overview',  file:'ims-overview.html', level:'L0', badge:'System Map' },
+  { id:'home-manual',   label:'IMS Manual',    file:'ims-manual.html',   level:'L0', badge:'L1 · MAN-01' },
+  { id:'home-procs',  label:'Procedures Hub',  file:'procedures.html',   level:'L0', badge:'All Procedures' },
 
-  /* ══ MODULE 2 — IMS FRAMEWORK ═════════════════════════════ */
-  { id:'ims-framework', label:'IMS Framework', level:'clause', children:[
-    { id:'fw-gov', label:'Governance',            file:'ims-framework.html',  level:'L0', badge:'§5.1' },
-    { id:'fw-pol', label:'Policies (PO-01→09)',   file:'ims-framework.html',  level:'L0', badge:'9 Policies' },
-    { id:'fw-prf', label:'Performance Framework', file:'ims-framework.html',  level:'L0', badge:'26 KPIs' },
-    { id:'fw-obj', label:'IMS Objectives',        file:'ims-objectives.html', level:'L0', badge:'ISO §6.2', children:[
-      { id:'fw-obj-plan', label:'Objectives Planning Register', file:'ims-objectives-plan.html', level:'L2', badge:'§6.2' },
+  /* ══ STRATEGIC FRAMEWORK ════════════════════════════════ */
+  { id:'strat', label:'Strategic Framework', level:'clause', children:[
+    { id:'strat-gov', label:'Governance',               file:'governance.html',        level:'L0', badge:'§5.1' },
+    { id:'strat-pol', label:'Policies',                 file:'policies-hub.html',     level:'L0', badge:'PO-01→09' },
+    { id:'strat-csf', label:'Critical Success Factors', file:'ims-framework.html',    level:'L0', badge:'7 CSFs' },
+    { id:'strat-obj', label:'Objectives',               file:'ims-objectives.html',   level:'L0', badge:'ISO §6.2', children:[
+      { id:'strat-obj-plan', label:'Objectives Planning Register', file:'ims-objectives-plan.html', level:'L2', badge:'§6.2' },
     ]},
-    { id:'fw-trc', label:'Traceability Matrix',   file:'ims-traceability.html', level:'L0', badge:'Full Chain' },
+    { id:'strat-kpi', label:'KPI Register',             file:'ims-framework.html',    level:'L0', badge:'26 KPIs' },
+    { id:'strat-trc', label:'Traceability Matrix',      file:'ims-traceability.html', level:'L0', badge:'Full Chain' },
   ]},
 
-  /* ══ MODULE 3 — IMS DASHBOARD ═════════════════════════════ */
-  { id:'root', label:'IMS Dashboard', file:'index.html', level:'L0', children:[
+  /* ══ PROCEDURES & DOCUMENTS ══════════════════════════════ */
+  { id:'docs', label:'Procedures & Documents', level:'clause', children:[
 
-    { id:'procs', label:'Procedures Hub', file:'procedures.html', level:'L0' },
+    /* ── §4 Context & Scope ───────────────────────────── */
+    { id:'p01', label:'Context & Scope', file:'proc-c4.html', level:'L2', badge:'L2-P-01 · §4',
+      children:[
+        { id:'p01-ctx',  label:'Context Register',    file:'context.html',     level:'L4', tag:'Sh.1'  },
+        { id:'p01-pest', label:'PESTLE & SWOT',        file:'pestle-swot.html', level:'L4', tag:'Sh.2'  },
+        { id:'p01-scp',  label:'Scope & Process Map',  file:'scope.html',       level:'L4', tag:'Sh.9'  },
+        { id:'p01-chk',  label:'Annual MR Checklist',  file:'checklist.html',   level:'L4', tag:'Sh.10' },
+      ]
+    },
 
-    /* ── Clause 4 ─────────────────────────────────── */
-    { id:'c4', label:'Clause 4 — Organisational Context', level:'clause', children:[
-      { id:'c4p', label:'L2-P-01  Organisational Context', file:'proc-c4.html', level:'L2', badge:'Rev.02',
-        children:[
-          { id:'ctx',  label:'Context Register',    file:'context.html',    level:'L4', tag:'Sh.1'  },
-          { id:'pest', label:'PESTLE & SWOT',        file:'pestle-swot.html',level:'L4', tag:'Sh.2'  },
-          { id:'scp',  label:'Scope & Process Map',  file:'scope.html',      level:'L4', tag:'Sh.9'  },
-          { id:'chk',  label:'Annual MR Checklist',  file:'checklist.html',  level:'L4', tag:'Sh.10' },
-        ]
-      }
-    ]},
+    /* ── §5 Leadership & Commitment ──────────────────── */
+    { id:'p02', label:'Leadership & Commitment', file:'proc-c5.html', level:'L2', badge:'L2-P-02 · §5',
+      children:[
+        { id:'p02-pol',  label:'IMS Policies Register',       file:'policies.html',               level:'L4', tag:'Sh.11' },
+        { id:'p02-wkp',  label:'Worker Participation',         file:'worker-participation.html',   level:'L4', tag:'Sh.12' },
+        { id:'p02-pack', label:'Policy Acknowledgement',       file:'policy-acknowledgement.html', level:'L4', tag:'Sh.56', badge:'URGENT', bc:'red' },
+        { id:'p02-gmb',  label:'Gemba Walk Log',               file:'gemba-walk-log.html',         level:'L4', tag:'Sh.62' },
+        { id:'p02-stm',  label:'Steering Committee Minutes',   file:'steering-team-minutes.html',  level:'L4', tag:'Sh.63' },
+        { id:'p02-ceo',  label:'CEO-Signed Records Tracker',   file:'ceo-signed-records.html',     level:'L4', tag:'Sh.67', badge:'URGENT', bc:'red' },
+        { id:'p02-enc',  label:'EnMS Champion Record',         file:'enms-champion.html',          level:'L4', tag:'Sh.66', badge:'PENDING', bc:'amb' },
+        { id:'p02-com',  label:'Communication Matrix',         file:'communication-matrix.html',   level:'L4', tag:'Sh.68' },
+      ]
+    },
 
-    /* ── Clause 5 ─────────────────────────────────── */
-    { id:'c5', label:'Clause 5 — Leadership & Commitment', level:'clause', children:[
-      { id:'c5p', label:'L2-P-02  Leadership & Commitment', file:'proc-c5.html', level:'L2', badge:'Rev.02',
-        children:[
-          { id:'pol',  label:'IMS Policies Register',       file:'policies.html',              level:'L4', tag:'Sh.11' },
-          { id:'wkp',  label:'Worker Participation',         file:'worker-participation.html',  level:'L4', tag:'Sh.12' },
-          { id:'pack', label:'Policy Acknowledgement',       file:'policy-acknowledgement.html',level:'L4', tag:'Sh.56', badge:'URGENT', bc:'red' },
-          { id:'gmb',  label:'Gemba Walk Log',               file:'gemba-walk-log.html',        level:'L4', tag:'Sh.62' },
-          { id:'stm',  label:'Steering Team Minutes',        file:'steering-team-minutes.html', level:'L4', tag:'Sh.63' },
-          { id:'enc',  label:'EnMS Champion Record',         file:'enms-champion.html',         level:'L4', tag:'Sh.66', badge:'PENDING', bc:'amb' },
-          { id:'ceo',  label:'CEO-Signed Records Tracker',   file:'ceo-signed-records.html',    level:'L4', tag:'Sh.67', badge:'URGENT', bc:'red' },
-          { id:'com',  label:'Communication Matrix',         file:'communication-matrix.html',  level:'L4', tag:'Sh.68' },
-        ]
-      }
-    ]},
+    /* ── §6 Planning & Risk ───────────────────────────── */
+    { id:'p03', label:'Planning & Risk', file:'proc-c6.html', level:'L2', badge:'L2-P-03 · §6',
+      children:[
+        { id:'p03-rsk',  label:'Integrated Risk Register',        file:'risk-register.html',        level:'L4', tag:'Sh.3',  badge:'CRIT',   bc:'red' },
+        { id:'p03-cmp',  label:'Legal & Compliance Register',     file:'compliance.html',            level:'L4', tag:'Sh.4',  badge:'URGENT', bc:'red' },
+        { id:'p03-hir',  label:'HIRA Register',                   file:'hira.html',                  level:'L4', tag:'Sh.13', badge:'OPEN',   bc:'red' },
+        { id:'p03-sea',  label:'Environmental Aspects (SEA)',      file:'sea-register.html',          level:'L4', tag:'Sh.14' },
+        { id:'p03-eny',  label:'Energy Planning Register',         file:'energy.html',                level:'L4', tag:'Sh.8'  },
+        { id:'p03-bry',  label:'Bribery Risk Register',            file:'bribery-risk-register.html', level:'L4', tag:'Sh.61' },
+        { id:'p03-mth',  label:'Risk Assessment Methodology',      file:'methodology.html',           level:'L3', tag:'Sh.5'  },
+        { id:'p03-moc',  label:'Management of Change Register',    file:'moc.html',                   level:'L4', tag:'Sh.7'  },
+        { id:'p03-ghg',  label:'GHG Inventory Report',             file:'ghg-inventory.html',         level:'L4', tag:'Sh.69' },
+        { id:'p03-sc3',  label:'Scope 3 Emissions',                file:'scope3-emissions.html',      level:'L4', tag:'Sh.27' },
+      ]
+    },
 
-    /* ── Clause 6 ─────────────────────────────────── */
-    { id:'c6', label:'Clause 6 — Planning & Risk Management', level:'clause', children:[
-      { id:'c6p', label:'L2-P-03  Planning & Risk Mgmt', file:'proc-c6.html', level:'L2', badge:'Rev.02',
-        children:[
-          { id:'rsk',  label:'Integrated Risk Register',    file:'risk-register.html',       level:'L4', tag:'Sh.3',  badge:'CRIT',   bc:'red' },
-          { id:'cmp',  label:'Legal & Compliance Register', file:'compliance.html',           level:'L4', tag:'Sh.4',  badge:'URGENT', bc:'red' },
-          { id:'mth',  label:'Risk Assessment WI',          file:'methodology.html',          level:'L3', tag:'Sh.5'  },
-          { id:'obj',  label:'Objectives & KPI Register',   file:'objectives.html',           level:'L4', tag:'Sh.6',  badge:'URGENT', bc:'red' },
-          { id:'moc',  label:'MOC Register',                file:'moc.html',                  level:'L4', tag:'Sh.7'  },
-          { id:'eny',  label:'Energy Planning Register',    file:'energy.html',               level:'L4', tag:'Sh.8'  },
-          { id:'hir',  label:'HIRA Register',               file:'hira.html',                 level:'L4', tag:'Sh.13' },
-          { id:'sea',  label:'SEA Register',                file:'sea-register.html',         level:'L4', tag:'Sh.14' },
-          { id:'bry',  label:'Bribery Risk Register',       file:'bribery-risk-register.html',level:'L4', tag:'Sh.61' },
-          { id:'ghg',  label:'GHG Inventory Report',        file:'ghg-inventory.html',        level:'L4', tag:'Sh.69' },
-          { id:'sc3',  label:'Scope 3 Emissions',           file:'scope3-emissions.html',     level:'L4', tag:'Sh.27' },
-        ]
-      }
-    ]},
+    /* ── §7 Support & Competence ─────────────────────── */
+    { id:'p04', label:'Support & Competence', file:'proc-c7.html', level:'L2', badge:'L2-P-04 · §7',
+      children:[
+        { id:'p04-cmp', label:'Competency Matrix',            file:'competency.html',          level:'L4', tag:'Sh.15' },
+        { id:'p04-trn', label:'Training Register',            file:'training.html',            level:'L4', tag:'Sh.16' },
+        { id:'p04-tra', label:'Training Attendance Records',  file:'training-attendance.html', level:'L4', tag:'Sh.60' },
+        { id:'p04-ind', label:'Induction Records Register',   file:'induction-records.html',   level:'L4', tag:'Sh.55', badge:'URGENT', bc:'red' },
+        { id:'p04-doc', label:'Documentation Register',       file:'documentation.html',       level:'L4', tag:'Sh.17' },
+        { id:'p04-cal', label:'Calibration Register',         file:'calibration-register.html',level:'L4', tag:'Sh.54', badge:'URGENT', bc:'red' },
+      ]
+    },
 
-    /* ── Clause 7 ─────────────────────────────────── */
-    { id:'c7', label:'Clause 7 — Support', level:'clause', children:[
-      { id:'c7p', label:'L2-P-04  Support', file:'proc-c7.html', level:'L2', badge:'Rev.02',
-        children:[
-          { id:'cmp7', label:'Competency Matrix',           file:'competency.html',           level:'L4', tag:'Sh.15' },
-          { id:'trn',  label:'Training Register',           file:'training.html',             level:'L4', tag:'Sh.16' },
-          { id:'tra',  label:'Training Attendance Records', file:'training-attendance.html',  level:'L4', tag:'Sh.60' },
-          { id:'ind',  label:'Induction Records Register',  file:'induction-records.html',    level:'L4', tag:'Sh.55', badge:'URGENT', bc:'red' },
-          { id:'doc',  label:'Documentation Register',      file:'documentation.html',        level:'L4', tag:'Sh.17' },
-          { id:'cal',  label:'Calibration Register',        file:'calibration-register.html', level:'L4', tag:'Sh.54', badge:'URGENT', bc:'red' },
-        ]
-      }
-    ]},
+    /* ── §8 Operational Control ──────────────────────── */
+    { id:'p05', label:'Operational Control', file:'proc-c8.html', level:'L2', badge:'L2-P-05 · §8', children:[
 
-    /* ── Clause 8 ─────────────────────────────────── */
-    { id:'c8', label:'Clause 8 — Operational Control', level:'clause', children:[
-      { id:'c8p', label:'L2-P-05  Operational Control', file:'proc-c8.html', level:'L2', badge:'Rev.01',
-        children:[
-          { id:'opc', label:'Operational Framework', file:'operational-control.html', level:'L2' },
-          { id:'oc1', label:'OC-01  Safety & Emergency', file:'oc01-safety.html', level:'L3',
-            children:[
-              { id:'ptw',  label:'PTW Register',             file:'ptw-register.html',         level:'L4', tag:'Sh.36',  badge:'CAPA-001', bc:'red' },
-              { id:'eme',  label:'Emergency Response Plan',   file:'emergency-response.html',   level:'L4', tag:'Sh.34b', badge:'DRILL!',   bc:'red' },
-              { id:'con',  label:'Contractor Register',       file:'contractor-register.html',  level:'L4', tag:'Sh.35'  },
-              { id:'lot',  label:'LOTO Device Register',      file:'loto-register.html',        level:'L4', tag:'Sh.37'  },
-              { id:'lta',  label:'LOTO Authorised Persons',   file:'loto-auth-persons.html',    level:'L4', tag:'Sh.59'  },
-              { id:'csl',  label:'Confined Space Entry Log',  file:'confined-space-log.html',   level:'L4', tag:'Sh.38'  },
-              { id:'hts',  label:'Heat Stress / WBGT Log',    file:'heat-stress-log.html',      level:'L4', tag:'Sh.39'  },
-              { id:'fxl',  label:'Fire Extinguisher Log',     file:'fire-extinguisher-log.html',level:'L4', tag:'Sh.40',  badge:'CAPA-004', bc:'red' },
-              { id:'fpl',  label:'Fire Pump Test Log',        file:'fire-pump-log.html',        level:'L4', tag:'Sh.41'  },
-              { id:'ohs',  label:'OH Surveillance Register',  file:'oh-surveillance.html',      level:'L4', tag:'Sh.42'  },
-              { id:'sca',  label:'Scaffold Inspection',       file:'scaffold-inspection.html',  level:'L4', tag:'Sh.64'  },
-              { id:'ndt',  label:'NDT / Radiography Log',     file:'ndt-permit-log.html',       level:'L4', tag:'Sh.65'  },
-              { id:'chi',  label:'Chemical Inventory (GHS)',  file:'chemical-inventory.html',   level:'L4', tag:'Sh.58'  },
-              { id:'crl',  label:'Crane & Lifting Register',  file:'crane-lifting.html',        level:'L4', tag:'Sh.57'  },
-            ]
-          },
-          { id:'oc2', label:'OC-02  Environment & Energy', file:'oc02-environment.html', level:'L3',
-            children:[
-              { id:'wst',  label:'Waste Management Register',  file:'waste-management.html',    level:'L4', tag:'Sh.45b' },
-              { id:'chs',  label:'Chemical Storage & Spills',  file:'chemical-storage.html',    level:'L4', tag:'Sh.46'  },
-              { id:'fur',  label:'Furnace Monitoring Logs',    file:'furnace-monitoring.html',   level:'L4', tag:'Sh.47',  badge:'F4!', bc:'red' },
-              { id:'mep',  label:'MEPS Compliance Register',   file:'meps-register.html',       level:'L4', tag:'Sh.48'  },
-              { id:'wwd',  label:'Water & Waste Data',         file:'water-waste.html',          level:'L4', tag:'Sh.30'  },
-            ]
-          },
-          { id:'oc3', label:'OC-03  Quality & Customer', file:'oc03-quality.html', level:'L3',
-            children:[
-              { id:'cus',  label:'Customer Requirements Reg.',  file:'customer-register.html',    level:'L4', tag:'Sh.52' },
-              { id:'ipl',  label:'In-Process Inspection Log',   file:'inprocess-inspection.html', level:'L4', tag:'Sh.53' },
-              { id:'prd',  label:'Product Release Records',     file:'product-release.html',      level:'L4', tag:'Sh.49' },
-              { id:'ncr',  label:'Nonconforming Products',      file:'nonconforming.html',        level:'L4', tag:'Sh.50' },
-              { id:'ini',  label:'Incoming Inspection Records', file:'incoming-inspection.html',  level:'L4', tag:'Sh.51' },
-            ]
-          },
-        ]
-      }
-    ]},
-
-    /* ── Clause 9 ─────────────────────────────────── */
-    { id:'c9', label:'Clause 9 — Performance Evaluation', level:'clause', children:[
-      { id:'c9p', label:'L2-P-06  Performance Evaluation', file:'proc-c9.html', level:'L2', badge:'Rev.02',
-        children:[
-          { id:'kpi',  label:'KPI Dashboard',           file:'kpi-dashboard.html',    level:'L4', tag:'Sh.18' },
-          { id:'cve',  label:'Compliance Evaluation',    file:'compliance-eval.html',  level:'L4', tag:'Sh.19' },
-          { id:'aud',  label:'Internal Audit Programme', file:'audit-programme.html',  level:'L4', tag:'Sh.20' },
-          { id:'mgr',  label:'Management Review',        file:'management-review.html',level:'L4', tag:'Sh.22' },
-        ]
-      }
-    ]},
-
-    /* ── Clause 10 ────────────────────────────────── */
-    { id:'c10', label:'Clause 10 — Improvement', level:'clause', children:[
-      { id:'c10p', label:'L2-P-07  Improvement & CA', file:'proc-c10.html', level:'L2', badge:'Rev.02',
-        children:[
-          { id:'cap',  label:'CAPA Register',     file:'capa-register.html',     level:'L4', tag:'Sh.21', badge:'4 OPEN', bc:'red' },
-          { id:'inc',  label:'Incident Register',  file:'incident-register.html', level:'L4', tag:'Sh.23' },
-        ]
-      }
-    ]},
-
-    /* ── ESG ──────────────────────────────────────── */
-    { id:'esg', label:'ESG / Sustainability / Ethics', level:'clause', children:[
-      { id:'esg-env', label:'Environment', level:'grp', children:[
-        { id:'sc3b', label:'Scope 3 Emissions',  file:'scope3-emissions.html',   level:'L4', tag:'Sh.27' },
-        { id:'wwdb', label:'Water & Waste Data', file:'water-waste.html',         level:'L4', tag:'Sh.30' },
+      { id:'p05-hub', label:'Operational Control Overview', file:'operational-control.html', level:'L3', badge:'Hub' },
+      { id:'oc1', label:'OC-01 Safety & Emergency', file:'oc01-safety.html', level:'L3', badge:'L3', children:[
+        { id:'oc1-ptw',  label:'PTW Register',              file:'ptw-register.html',          level:'L4', tag:'Sh.36', badge:'CAPA-001', bc:'red' },
+        { id:'oc1-eme',  label:'Emergency Response Plan',   file:'emergency-response.html',    level:'L4', tag:'Sh.34b',badge:'DRILL!',   bc:'red' },
+        { id:'oc1-con',  label:'Contractor Register',        file:'contractor-register.html',   level:'L4', tag:'Sh.35' },
+        { id:'oc1-lot',  label:'LOTO Device Register',       file:'loto-register.html',         level:'L4', tag:'Sh.37' },
+        { id:'oc1-lta',  label:'LOTO Authorised Persons',    file:'loto-auth-persons.html',     level:'L4', tag:'Sh.59' },
+        { id:'oc1-csl',  label:'Confined Space Entry Log',   file:'confined-space-log.html',    level:'L4', tag:'Sh.38' },
+        { id:'oc1-hts',  label:'Heat Stress / WBGT Log',     file:'heat-stress-log.html',       level:'L4', tag:'Sh.39' },
+        { id:'oc1-fxl',  label:'Fire Extinguisher Log',      file:'fire-extinguisher-log.html', level:'L4', tag:'Sh.40', badge:'CAPA-004', bc:'red' },
+        { id:'oc1-fpl',  label:'Fire Pump Test Log',          file:'fire-pump-log.html',         level:'L4', tag:'Sh.41' },
+        { id:'oc1-ohs',  label:'OH Surveillance Register',   file:'oh-surveillance.html',       level:'L4', tag:'Sh.42' },
+        { id:'oc1-sca',  label:'Scaffold Inspection',         file:'scaffold-inspection.html',   level:'L4', tag:'Sh.64' },
+        { id:'oc1-ndt',  label:'NDT / Radiography Log',       file:'ndt-permit-log.html',               level:'L4', tag:'Sh.43' },
+        { id:'oc1-ghs',  label:'Chemical Inventory (GHS)',    file:'chemical-inventory.html',    level:'L4', tag:'Sh.44' },
+        { id:'oc1-crl',  label:'Crane & Lifting Register',    file:'crane-lifting.html',         level:'L4', tag:'Sh.45' },
       ]},
-      { id:'esg-lab', label:'Labour & Human Rights', level:'grp', children:[
-        { id:'div',  label:'Workforce Diversity', file:'workforce-diversity.html', level:'L4', tag:'Sh.28' },
+
+      { id:'oc2', label:'OC-02 Environment & Energy', file:'oc02-environment.html', level:'L3', badge:'L3', children:[
+        { id:'oc2-wst', label:'Waste Management Register',  file:'waste-management.html',    level:'L4', tag:'Sh.46' },
+        { id:'oc2-chm', label:'Chemical Storage & Spills',  file:'chemical-storage.html',    level:'L4', tag:'Sh.47' },
+        { id:'oc2-fur', label:'Furnace Monitoring Logs',    file:'furnace-monitoring.html',   level:'L4', tag:'Sh.48' },
+        { id:'oc2-mps', label:'MEPS Compliance Register',   file:'meps-register.html',     level:'L4', tag:'Sh.49' },
+        { id:'oc2-wat', label:'Water & Waste Data',         file:'water-waste.html',    level:'L4', tag:'Sh.50' },
       ]},
-      { id:'esg-eth', label:'Ethics & Anti-Bribery', level:'grp', children:[
-        { id:'coi',  label:'Conflict of Interest',     file:'coi-register.html',     level:'L4', tag:'Sh.25' },
-        { id:'gif',  label:'Gifts & Hospitality',       file:'gifts-hospitality.html',level:'L4', tag:'Sh.26' },
-        { id:'tpd',  label:'Third-Party Due Diligence', file:'tpdd.html',             level:'L4', tag:'Sh.29' },
+
+      { id:'oc3', label:'OC-03 Quality & Customer', file:'oc03-quality.html', level:'L3', badge:'L3', children:[
+        { id:'oc3-cus', label:'Customer Requirements Reg.',  file:'customer-register.html', level:'L4', tag:'Sh.51' },
+        { id:'oc3-inp', label:'In-Process Inspection Log',   file:'inprocess-inspection.html', level:'L4', tag:'Sh.52' },
+        { id:'oc3-rel', label:'Product Release Records',     file:'product-release.html',       level:'L4', tag:'Sh.53' },
+        { id:'oc3-ncf', label:'Nonconforming Products',      file:'nonconforming.html',level:'L4', tag:'Sh.57' },
+        { id:'oc3-inc', label:'Incoming Inspection Records', file:'incoming-inspection.html',   level:'L4', tag:'Sh.58' },
       ]},
-      { id:'esg-pro', label:'Sustainable Procurement', level:'grp', children:[
-        { id:'sesg', label:'Supplier ESG Register',    file:'supplier-esg.html',     level:'L4', tag:'Sh.24' },
-        { id:'ssc',  label:'Supplier Code of Conduct', file:'supplier-conduct.html', level:'L4', tag:'Sh.31' },
-      ]},
+
     ]},
 
-    /* ── Document Management ──────────────────────── */
-    { id:'dms', label:'Document Management', level:'clause', children:[
-      { id:'dmsp', label:'Document & Evidence Register', file:'document-management.html', level:'L2' },
+    /* ── §9 Performance Evaluation ───────────────────── */
+    { id:'p06', label:'Performance Evaluation', file:'proc-c9.html', level:'L2', badge:'L2-P-06 · §9',
+      children:[
+        { id:'p06-kpi', label:'KPI Dashboard',          file:'kpi-dashboard.html',    level:'L4', tag:'Sh.18' },
+        { id:'p06-kpic',label:'KPI Consolidated View',    file:'kpi-consolidated.html', level:'L4', tag:'Sh.18b' },
+        { id:'p06-cev', label:'Compliance Evaluation',  file:'compliance-eval.html',  level:'L4', tag:'Sh.19' },
+        { id:'p06-aud', label:'Internal Audit Programme',file:'audit-programme.html', level:'L4', tag:'Sh.20' },
+        { id:'p06-mr',  label:'Management Review',      file:'management-review.html',level:'L4', tag:'Sh.22' },
+      ]
+    },
+
+    /* ── §10 Improvement ─────────────────────────────── */
+    { id:'p07', label:'Improvement & Corrective Action', file:'proc-c10.html', level:'L2', badge:'L2-P-07 · §10',
+      children:[
+        { id:'p07-cap', label:'CAPA Register',     file:'capa-register.html',    level:'L4', tag:'Sh.23', badge:'4 OPEN', bc:'red' },
+        { id:'p07-inc', label:'Incident Register', file:'incident-register.html',level:'L4', tag:'Sh.24' },
+      ]
+    },
+
+  ]},
+
+  /* ══ ESG & SUSTAINABILITY ════════════════════════════════ */
+  { id:'esg', label:'ESG & Sustainability', level:'clause', children:[
+    { id:'esg-ghg',  label:'GHG & Climate',            file:'ghg-inventory.html',       level:'L0', badge:'Scope 1+2+3' },
+    { id:'esg-wat',  label:'Water & Waste',             file:'water-waste.html',    level:'L0' },
+    { id:'esg-lhr',  label:'Labour & Human Rights',     file:'worker-participation.html',level:'L0', children:[
+      { id:'esg-wfd', label:'Workforce Diversity', file:'workforce-diversity.html', level:'L2' },
     ]},
-
-    /* ── Administration ───────────────────────────── */
-    { id:'adm', label:'Administration', level:'clause', children:[
-      { id:'adm-usr', label:'User Management', file:'user-management.html', level:'L2' },
+    { id:'esg-eth',  label:'Ethics & Anti-Bribery',     file:'bribery-risk-register.html',level:'L0', children:[
+      { id:'esg-coi', label:'Conflict of Interest Register', file:'coi-register.html',       level:'L2' },
+      { id:'esg-gft', label:'Gifts & Hospitality Register',  file:'gifts-hospitality.html',  level:'L2' },
+      { id:'esg-tpd', label:'Third-Party Due Diligence',     file:'tpdd.html',               level:'L2' },
     ]},
+    { id:'esg-pro',  label:'Sustainable Procurement',   file:'supplier-esg.html',        level:'L0', children:[
+      { id:'esg-sup', label:'Supplier ESG Register',        file:'supplier-esg.html',         level:'L2' },
+      { id:'esg-coc', label:'Supplier Code of Conduct',     file:'supplier-conduct.html',         level:'L2' },
+    ]},
+    { id:'esg-rpt',  label:'ESG Report',                file:'ecovadis-actions.html',    level:'L0', badge:'July deadline' },
+  ]},
 
-  ]}, /* end IMS Dashboard */
+  /* ══ ADMINISTRATION ══════════════════════════════════════ */
+  { id:'admin', label:'Administration', level:'clause', children:[
+    { id:'adm-dms',  label:'Document Management',  file:'document-management.html', level:'L0' },
+    { id:'adm-usr',  label:'User Management',       file:'user-management.html',     level:'L0' },
+    { id:'adm-rdm',  label:'Project Roadmap',       file:'project-roadmap.html',     level:'L0' },
+  ]},
 
-  /* ══ CERTIFICATION ROADMAP ══════════════════════════════ */
-  { id:'project-roadmap', label:'Project Roadmap', file:'project-roadmap.html',
-    level:'L0', badge:'Actions' },
-
-];
+]
+;
 
 
 /* ══════════════════════════════════════════════════════════════
