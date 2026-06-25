@@ -726,3 +726,301 @@ function scrollToHash() {
     if (el) setTimeout(function(){ el.scrollIntoView({behavior:'smooth',block:'center'}); }, 300);
   }
 }
+
+/* ════════════════════════════════════════════════════════════
+   GLOBAL ABBREVIATION TOOLTIP SYSTEM
+   Scans page text on load, wraps known abbreviations in
+   interactive spans, shows definition on hover.
+   Skips: badges, code, headings, document codes, tooltips.
+════════════════════════════════════════════════════════════ */
+var ABBR_DICT = {
+  // Management Systems & Standards
+  'IMS':    'Integrated Management System',
+  'QMS':    'Quality Management System',
+  'EMS':    'Environmental Management System',
+  'OHSMS':  'Occupational Health and Safety Management System',
+  'EnMS':   'Energy Management System',
+  'ABMS':   'Anti-Bribery Management System',
+  'FSSC':   'Food Safety System Certification',
+  'PDCA':   'Plan, Do, Check, Act — the continual improvement cycle',
+  // Performance & Measurement
+  'KPI':    'Key Performance Indicator',
+  'CSF':    'Critical Success Factor',
+  'SHC':    'Specific Heat Consumption — energy consumed per kilogram of packed glass (kcal/kg)',
+  'EnPI':   'Energy Performance Indicator',
+  'LTIFR':  'Lost Time Injury Frequency Rate — (Lost Time Injuries × 1,000,000) ÷ Total hours worked',
+  'TRIR':   'Total Recordable Incident Rate',
+  'LTI':    'Lost Time Injury — any work-related injury resulting in at least one full working day lost',
+  'MR':     'Management Review',
+  'NC':     'Nonconformity',
+  'NCR':    'Nonconformity Report',
+  'CAPA':   'Corrective Action and Preventive Action',
+  'RCA':    'Root Cause Analysis',
+  'AQL':    'Acceptable Quality Level',
+  // Environmental & Energy
+  'GHG':    'Greenhouse Gas',
+  'GRI':    'Global Reporting Initiative',
+  'ESG':    'Environmental, Social and Governance',
+  'ECM':    'Energy Conservation Measure',
+  'SEU':    'Significant Energy Use',
+  'SEA':    'Significant Environmental Aspect',
+  'TCFD':   'Task Force on Climate-related Financial Disclosures',
+  'SASB':   'Sustainability Accounting Standards Board',
+  'NDC':    'Nationally Determined Contribution',
+  'HFO':    'Heavy Fuel Oil',
+  'HVAC':   'Heating, Ventilation and Air Conditioning',
+  'CEMS':   'Continuous Emissions Monitoring System',
+  'MEPS':   'Minimum Energy Performance Standard',
+  'WBGT':   'Wet Bulb Globe Temperature — heat stress index used to assess heat exposure risk',
+  // Safety & Operations
+  'SHEE':   'Safety, Health, Environment and Energy',
+  'HSE':    'Health, Safety and Environment',
+  'HSSE':   'Health, Safety, Security and Environment',
+  'HIRA':   'Hazard Identification and Risk Assessment',
+  'PTW':    'Permit to Work',
+  'LOTO':   'Lock-Out / Tag-Out — energy isolation procedure to prevent accidental equipment start-up',
+  'WAH':    'Working at Height',
+  'PPE':    'Personal Protective Equipment',
+  'TBT':    'Toolbox Talk',
+  'NDT':    'Non-Destructive Testing',
+  'MOC':    'Management of Change',
+  'SPC':    'Statistical Process Control',
+  // Governance & Ethics
+  'RACI':   'Responsible, Accountable, Consulted, Informed — a roles and responsibilities matrix',
+  'CoI':    'Conflict of Interest',
+  'PDPL':   'Personal Data Protection Law (Saudi Arabia)',
+  'WG':     'Working Group',
+  'CEO':    'Chief Executive Officer',
+  'TPDD':   'Third-Party Due Diligence',
+  // Certifications & Ratings
+  'SGP':    'Supplier Guiding Principles (Coca-Cola)',
+  'ASR':    'Annual Supplier Review',
+  'SGS':    'Société Générale de Surveillance — a global inspection and certification company',
+  // Saudi Regulatory Bodies & Legislation
+  'NCEC':   'National Center for Environmental Compliance (Saudi Arabia)',
+  'MEWA':   'Ministry of Environment, Water and Agriculture (Saudi Arabia)',
+  'MHRSD':  'Ministry of Human Resources and Social Development (Saudi Arabia)',
+  'MODON':  'Saudi Authority for Industrial Cities and Technology Zones',
+  'NAZAHA': 'National Anti-Corruption Commission (Saudi Arabia)',
+  'SEEC':   'Saudi Energy Efficiency Center',
+  'SASO':   'Saudi Standards, Metrology and Quality Organization',
+  // Tools & Frameworks
+  'PESTLE': 'Political, Economic, Social, Technological, Legal, Environmental — strategic analysis framework',
+  'SWOT':   'Strengths, Weaknesses, Opportunities, Threats — strategic analysis framework',
+  'SMART':  'Specific, Measurable, Achievable, Relevant, Time-bound — objective-setting criteria',
+  'RAG':    'Red, Amber, Green — traffic-light status indicator',
+  'DMS':    'Document Management System',
+  'ASL':    'Approved Supplier List',
+  'ILO':    'International Labour Organization',
+  // OH&S handled separately below due to special character
+};
+
+/* Special cases with non-word characters */
+var ABBR_SPECIAL = {
+  'OH&S':    'Occupational Health and Safety',
+  'MIM-ICP': 'Ministry of Industry and Mineral Resources — Industrial Compliance Programme',
+};
+
+/* CSS injected once */
+var ABBR_CSS_INJECTED = false;
+
+function injectAbbrCSS() {
+  if (ABBR_CSS_INJECTED) return;
+  ABBR_CSS_INJECTED = true;
+  var style = document.createElement('style');
+  style.textContent = [
+    '.ims-abbr{',
+      'border-bottom:1px dashed var(--gold,#C9A84C);',
+      'cursor:help;',
+      'color:inherit;',
+      'text-decoration:none;',
+    '}',
+    '#ims-abbr-tip{',
+      'display:none;',
+      'position:fixed;',
+      'z-index:199999;',
+      'max-width:320px;',
+      'background:var(--navy,#1B2A4A);',
+      'color:#fff;',
+      'border-radius:7px;',
+      'padding:0;',
+      'box-shadow:0 6px 28px rgba(0,0,0,.28);',
+      'font-family:Arial,sans-serif;',
+      'font-size:12px;',
+      'pointer-events:none;',
+    '}',
+    '#ims-abbr-tip.visible{display:block}',
+    '#ims-abbr-tip .at-code{',
+      'background:var(--gold,#C9A84C);',
+      'color:var(--navy,#1B2A4A);',
+      'font-weight:700;',
+      'font-size:11px;',
+      'padding:6px 12px 5px;',
+      'border-radius:7px 7px 0 0;',
+      'letter-spacing:.04em;',
+    '}',
+    '#ims-abbr-tip .at-def{',
+      'padding:8px 12px 10px;',
+      'line-height:1.6;',
+      'color:rgba(255,255,255,.92);',
+    '}',
+  ].join('');
+  document.head.appendChild(style);
+
+  /* Shared tooltip element */
+  var tip = document.createElement('div');
+  tip.id = 'ims-abbr-tip';
+  tip.innerHTML = '<div class="at-code"></div><div class="at-def"></div>';
+  document.body.appendChild(tip);
+}
+
+function positionAbbrTip(el) {
+  var tip = document.getElementById('ims-abbr-tip');
+  if (!tip) return;
+  var rect = el.getBoundingClientRect();
+  var tw = 320; var th = tip.offsetHeight || 80;
+  var vw = window.innerWidth; var vh = window.innerHeight;
+  var left = rect.left;
+  var top  = rect.bottom + 6;
+  if (left + tw > vw - 8) left = vw - tw - 8;
+  if (left < 8) left = 8;
+  if (top + th > vh - 8) top = rect.top - th - 6;
+  if (top < 8) top = 8;
+  tip.style.left = left + 'px';
+  tip.style.top  = top  + 'px';
+}
+
+function attachAbbrEvents(span, code, def) {
+  var tip = null;
+  var hideT = null;
+  span.addEventListener('mouseenter', function() {
+    clearTimeout(hideT);
+    tip = document.getElementById('ims-abbr-tip');
+    if (!tip) return;
+    tip.querySelector('.at-code').textContent = code;
+    tip.querySelector('.at-def').textContent  = def;
+    tip.classList.add('visible');
+    positionAbbrTip(span);
+  });
+  span.addEventListener('mousemove', function() {
+    if (tip && tip.classList.contains('visible')) positionAbbrTip(span);
+  });
+  span.addEventListener('mouseleave', function() {
+    hideT = setTimeout(function() {
+      var t = document.getElementById('ims-abbr-tip');
+      if (t) t.classList.remove('visible');
+    }, 100);
+  });
+}
+
+/* Tags to skip entirely */
+var ABBR_SKIP_TAGS = {
+  'SCRIPT':1,'STYLE':1,'CODE':1,'PRE':1,'A':1,'INPUT':1,'TEXTAREA':1,'SELECT':1,'BUTTON':1,
+  'H1':1,'H2':1,'H3':1,
+};
+
+/* Class fragments to skip */
+var ABBR_SKIP_CLASSES = ['badge','iso-badge','obj-badge','pol-badge','kpi-badge','csf-pill',
+  'ims-abbr','tip-','trc-','doc-code','pp-meta','meta-val','sidebar','topbar'];
+
+function shouldSkipNode(node) {
+  var el = node.parentElement;
+  while (el) {
+    if (ABBR_SKIP_TAGS[el.tagName]) return true;
+    var cls = el.className || '';
+    for (var i = 0; i < ABBR_SKIP_CLASSES.length; i++) {
+      if (cls.indexOf(ABBR_SKIP_CLASSES[i]) !== -1) return true;
+    }
+    if (el.id === 'sidebar' || el.id === 'tb' || el.id === 'trc-tip' || el.id === 'ims-abbr-tip') return true;
+    el = el.parentElement;
+  }
+  return false;
+}
+
+function scanAndWrapAbbreviations() {
+  injectAbbrCSS();
+
+  /* Build combined regex from all keys — longest first to avoid partial matches */
+  var allKeys = Object.keys(ABBR_DICT).concat(Object.keys(ABBR_SPECIAL));
+  allKeys.sort(function(a,b){ return b.length - a.length; });
+
+  /* Escape special regex chars */
+  function escRe(s){ return s.replace(/[.*+?^${}()|[\]\\&]/g,'\\$&'); }
+
+  /* Pattern: word boundary + key + word boundary (for normal), or literal for special */
+  var pattern = allKeys.map(function(k){
+    if (k.indexOf('&') !== -1 || k.indexOf('-') !== -1) return escRe(k);
+    return '\\b' + escRe(k) + '\\b';
+  }).join('|');
+  var re = new RegExp('(' + pattern + ')', 'g');
+
+  /* Walk text nodes */
+  var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+  var nodes = [];
+  var node;
+  while ((node = walker.nextNode())) {
+    if (node.nodeValue.trim() && re.test(node.nodeValue)) {
+      re.lastIndex = 0;
+      if (!shouldSkipNode(node)) nodes.push(node);
+    }
+  }
+
+  /* Track already-wrapped per container to show each abbr only once per block */
+  nodes.forEach(function(textNode) {
+    re.lastIndex = 0;
+    var text = textNode.nodeValue;
+    var match;
+    var lastIndex = 0;
+    var frag = document.createDocumentFragment();
+    var wrapped = false;
+
+    /* Find nearest block parent to track per-block occurrence */
+    var blockEl = textNode.parentElement;
+    while (blockEl && blockEl !== document.body) {
+      var tag = blockEl.tagName;
+      if (tag==='P'||tag==='TD'||tag==='LI'||tag==='DIV'||tag==='SPAN') break;
+      blockEl = blockEl.parentElement;
+    }
+    if (!blockEl._abbrSeen) blockEl._abbrSeen = {};
+
+    while ((match = re.exec(text)) !== null) {
+      var abbr = match[0];
+      var def  = ABBR_DICT[abbr] || ABBR_SPECIAL[abbr];
+      if (!def) continue;
+
+      /* Only wrap first occurrence per block element */
+      if (blockEl._abbrSeen[abbr]) continue;
+      blockEl._abbrSeen[abbr] = true;
+
+      /* Text before match */
+      if (match.index > lastIndex) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+      }
+      /* Wrapped abbreviation span */
+      var span = document.createElement('span');
+      span.className = 'ims-abbr';
+      span.textContent = abbr;
+      attachAbbrEvents(span, abbr, def);
+      frag.appendChild(span);
+      lastIndex = match.index + abbr.length;
+      wrapped = true;
+    }
+
+    if (wrapped) {
+      /* Remaining text */
+      if (lastIndex < text.length) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+      }
+      textNode.parentNode.replaceChild(frag, textNode);
+    }
+  });
+}
+
+/* Run after DOM is ready — use a short delay to allow dynamic content to settle */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(scanAndWrapAbbreviations, 600);
+  });
+} else {
+  setTimeout(scanAndWrapAbbreviations, 600);
+}
