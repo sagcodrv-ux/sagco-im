@@ -15,7 +15,7 @@ var TREE = [
 
   /* ══ STRATEGIC FRAMEWORK ════════════════════════════════ */
   { id:'strat', label:'Strategic Framework', level:'clause', children:[
-    { id:'strat-gov', label:'Governance',               file:'governance.html',        level:'L0', badge:'§5.1' },
+    { id:'strat-gov', label:'Governance',               file:'ims-framework.html#tab-gov',        level:'L0', badge:'§5.1' },
     { id:'strat-pol', label:'Policies',                 file:'policies-hub.html',     level:'L0', badge:'PO-01→09' },
     { id:'strat-csf', label:'Critical Success Factors', file:'ims-traceability.html',    level:'L0', badge:'7 CSFs' },
     { id:'strat-obj', label:'Objectives',               file:'ims-objectives.html',   level:'L0', badge:'ISO §6.2', children:[

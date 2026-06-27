@@ -1472,6 +1472,43 @@ document.addEventListener('DOMContentLoaded', function() {
     'Governance · Policies · KPIs & Objectives'
   );
   IMS_AUTH.injectUserBar();
+
+  // ── Hash-based navigation ─────────────────────────────
+  var hash = window.location.hash.replace('#','');
+  if (!hash) return;
+
+  if (hash === 'tab-gov' || hash === 'grp-gov') {
+    showGroup('gov');
+  }
+  else if (hash === 'tab-kpi') {
+    showGroup('kpi');
+  }
+  else if (hash === 'tab-pol') {
+    showGroup('pol');
+  }
+  else if (hash.indexOf('kpi-') === 0) {
+    showGroup('kpi');
+    showKpiGroup(hash, document.querySelector('[onclick*="' + hash + '"]'));
+  }
+  else if (hash.indexOf('pol-') === 0) {
+    showGroup('pol');
+    setTimeout(function() {
+      document.querySelectorAll('#grp-pol .page-section').forEach(function(p){
+        p.style.display = 'none';
+      });
+      var target = document.getElementById(hash);
+      if (target) {
+        target.style.display = 'block';
+        document.querySelectorAll('#tab-pol .nav-tab').forEach(function(t){
+          t.classList.remove('active');
+          if ((t.getAttribute('onclick') || '').indexOf(hash) >= 0) {
+            t.classList.add('active');
+          }
+        });
+        target.scrollIntoView({behavior: 'smooth', block: 'start'});
+      }
+    }, 200);
+  }
 });
 </script>
 </body>
