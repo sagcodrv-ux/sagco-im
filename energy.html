@@ -44,148 +44,8 @@
 </div>
 
 
-<div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
-<script>
-initPage("energy.html");
-document.getElementById("tb").innerHTML=renderTopbar("Energy Planning Register &amp; EnMS Compliance","ISO 50001 §4.4 · §6.3 · §6.4 · §6.5 · §8.1 · §9.1 · §10.2 · L4-630-A-21 v6 · Q1 2026");
-
-// Static charts (source: L4-630-A-21 Q1 2026)
-const cd=chartDefaults();
-new Chart(document.getElementById("cSHC"),{type:"bar",data:{
-  labels:["F1","F2","F3","F4","F5"],
-  datasets:[
-    {label:"Q1 2026 SHC",data:[1208,1608,2021,2185,2171],backgroundColor:["#2E7D32","#E65100","#E65100","#B71C1C","#F9A825"],borderRadius:5,order:2},
-    {label:"Age-Adj. Target",data:[1242,1580,1996,2066,2138],type:"line",borderColor:"#C9A84C",backgroundColor:"transparent",borderWidth:2.5,borderDash:[6,3],pointRadius:5,pointBackgroundColor:"#C9A84C",order:1}
-  ]},options:{...cd,scales:{y:{min:1000,title:{display:true,text:"kcal/kg draw",font:{size:9}},ticks:{font:{size:9}}},x:{grid:{display:false},ticks:{font:{size:11,weight:"600"}}}}}
-});
-new Chart(document.getElementById("cSplit"),{type:"doughnut",data:{
-  labels:["HFO — Furnaces (~210 GWh)","LPG — Downstream (~16 GWh)","Electricity — SCECO (~39 GWh)","Diesel — Fleet (~1.1 GWh)"],
-  datasets:[{data:[210.84,16.05,39.29,1.12],backgroundColor:["#B71C1C","#E65100","#003366","#37474F"],borderWidth:0}]
-},options:{...cd,cutout:"55%",plugins:{legend:{position:"right",labels:{font:{size:9},boxWidth:10}}}}});
-
-const trendStyle={
-  "▼ IMPROVING":["var(--low-l)","var(--low)"],"→ STABLE":["var(--med-l)","#E65100"],
-  "▲ ADVERSE":["var(--crit-l)","var(--crit)"],"▲ SLIGHT ADVERSE":["var(--high-l)","var(--high)"],
-  "? UNKNOWN":["var(--g100)","var(--g700)"],"▲ OPPORTUNITY":["var(--opp-l)","var(--opp)"],
-  "▲ ADVERSE (cullet-driven)":["var(--crit-l)","var(--crit)"],"▲ ADVERSE (structural)":["var(--crit-l)","var(--crit)"],
-  "▲ ADVERSE +5.6%":["var(--high-l)","var(--high)"]
-};
-
-async function load(){
-  const l=document.getElementById("loader");if(l)l.classList.remove("hidden");
-  try{
-    let data=await getData.energy();
-    if(!data||!data.length)data=FALLBACK.energy;
-    document.getElementById("en-tbody").innerHTML=data.map(d=>{
-      const ts=trendStyle[d.trend||""]||["var(--g100)","var(--g700)"];
-      const isUrg=String(d.action||"").toUpperCase().includes("URGENT");
-      const eCol={"EN-T-":"#4A0E0E","EN-E-":"#003366","EN-D-":"#37474F","EN-EC":"#004D40"};
-      const eC=Object.entries(eCol).find(([k])=>String(d.id||"").startsWith(k));
-      const eBg=eC?eC[1]:"#003366";
-      return `<tr id="${d.id||""}">
-        <td style="font-family:var(--mono);font-size:10.5px;background:${eBg}18">${d.id||"—"}</td>
-        <td style="font-size:11.5px;line-height:1.35;font-weight:500">${d.source||"—"}</td>
-        <td style="font-size:11px;font-weight:600;color:var(--navy)">${d.enpi||"—"}</td>
-        <td style="font-size:10.5px;color:var(--text-lt)">${d.enb||"—"}</td>
-        <td style="font-size:11.5px;font-weight:500">${d.q1_actual||"—"}</td>
-        <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:${ts[0]};color:${ts[1]};font-size:10px;font-weight:700;line-height:1.3">${d.trend||"—"}</span></td>
-        <td style="font-size:11px;line-height:1.35;${isUrg?"color:var(--crit);font-weight:600":""}">${String(d.action||"—").substring(0,120)}${String(d.action||"").length>120?"…":""}</td>
-        <td style="font-size:10px;color:var(--text-lt)">${d.owner||"—"}</td>
-        <td style="font-size:10px">${traceLinks(d.risk_ref||"")}</td>
-        <td style="font-size:10px">${traceLinks(d.obj_ref||"")}</td>
-      </tr>`;
-    }).join("");
-    scrollToHash();
-  }catch(e){console.error(e);}
-  finally{const l=document.getElementById("loader");if(l)l.classList.add("hidden");}
-}
-load();startRefresh(load);
-</script>
-
-<script>
-/* ── Auto-update summary cards from live Sheets data ── */
-
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
-  }
-  return '—';
-}
-
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
-    }
-  }
-}
-(function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows && d.rows.length > 0){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('SEUs Identified', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
-      }
-    };
-  }
-})();
-</script>
-
-
+<div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div>
+<div style="display:block;width:100%;float:none;grid-column:1/-1;clear:both">
 <!-- ═══════════════════════════════════════════════════════════════
      ISO 50001 COMPLIANCE SECTIONS — L4-630-A-21 v6 · June 2026
      §4.4 Boundary · §6.3 Review · §6.4 EnPI · §6.5 Baseline
@@ -428,5 +288,149 @@ function updateCard(label, val){
     <div style="font-size:10px;color:var(--text-lt);margin-top:6px">All CAPEX figures exclusive of VAT · NPV model: 5% discount rate · 2% fuel escalation · 20-year project life · Source: IGA Audit Annexure C · ECM 2–7 detailed figures pending IGA Audit final report</div>
   </div>
 </div>
+
+</div><!-- end iso50001 sections -->
+</div></div>
+<script>
+initPage("energy.html");
+document.getElementById("tb").innerHTML=renderTopbar("Energy Planning Register &amp; EnMS Compliance","ISO 50001 §4.4 · §6.3 · §6.4 · §6.5 · §8.1 · §9.1 · §10.2 · L4-630-A-21 v6 · Q1 2026");
+
+// Static charts (source: L4-630-A-21 Q1 2026)
+const cd=chartDefaults();
+new Chart(document.getElementById("cSHC"),{type:"bar",data:{
+  labels:["F1","F2","F3","F4","F5"],
+  datasets:[
+    {label:"Q1 2026 SHC",data:[1208,1608,2021,2185,2171],backgroundColor:["#2E7D32","#E65100","#E65100","#B71C1C","#F9A825"],borderRadius:5,order:2},
+    {label:"Age-Adj. Target",data:[1242,1580,1996,2066,2138],type:"line",borderColor:"#C9A84C",backgroundColor:"transparent",borderWidth:2.5,borderDash:[6,3],pointRadius:5,pointBackgroundColor:"#C9A84C",order:1}
+  ]},options:{...cd,scales:{y:{min:1000,title:{display:true,text:"kcal/kg draw",font:{size:9}},ticks:{font:{size:9}}},x:{grid:{display:false},ticks:{font:{size:11,weight:"600"}}}}}
+});
+new Chart(document.getElementById("cSplit"),{type:"doughnut",data:{
+  labels:["HFO — Furnaces (~210 GWh)","LPG — Downstream (~16 GWh)","Electricity — SCECO (~39 GWh)","Diesel — Fleet (~1.1 GWh)"],
+  datasets:[{data:[210.84,16.05,39.29,1.12],backgroundColor:["#B71C1C","#E65100","#003366","#37474F"],borderWidth:0}]
+},options:{...cd,cutout:"55%",plugins:{legend:{position:"right",labels:{font:{size:9},boxWidth:10}}}}});
+
+const trendStyle={
+  "▼ IMPROVING":["var(--low-l)","var(--low)"],"→ STABLE":["var(--med-l)","#E65100"],
+  "▲ ADVERSE":["var(--crit-l)","var(--crit)"],"▲ SLIGHT ADVERSE":["var(--high-l)","var(--high)"],
+  "? UNKNOWN":["var(--g100)","var(--g700)"],"▲ OPPORTUNITY":["var(--opp-l)","var(--opp)"],
+  "▲ ADVERSE (cullet-driven)":["var(--crit-l)","var(--crit)"],"▲ ADVERSE (structural)":["var(--crit-l)","var(--crit)"],
+  "▲ ADVERSE +5.6%":["var(--high-l)","var(--high)"]
+};
+
+async function load(){
+  const l=document.getElementById("loader");if(l)l.classList.remove("hidden");
+  try{
+    let data=await getData.energy();
+    if(!data||!data.length)data=FALLBACK.energy;
+    document.getElementById("en-tbody").innerHTML=data.map(d=>{
+      const ts=trendStyle[d.trend||""]||["var(--g100)","var(--g700)"];
+      const isUrg=String(d.action||"").toUpperCase().includes("URGENT");
+      const eCol={"EN-T-":"#4A0E0E","EN-E-":"#003366","EN-D-":"#37474F","EN-EC":"#004D40"};
+      const eC=Object.entries(eCol).find(([k])=>String(d.id||"").startsWith(k));
+      const eBg=eC?eC[1]:"#003366";
+      return `<tr id="${d.id||""}">
+        <td style="font-family:var(--mono);font-size:10.5px;background:${eBg}18">${d.id||"—"}</td>
+        <td style="font-size:11.5px;line-height:1.35;font-weight:500">${d.source||"—"}</td>
+        <td style="font-size:11px;font-weight:600;color:var(--navy)">${d.enpi||"—"}</td>
+        <td style="font-size:10.5px;color:var(--text-lt)">${d.enb||"—"}</td>
+        <td style="font-size:11.5px;font-weight:500">${d.q1_actual||"—"}</td>
+        <td><span style="display:inline-block;padding:3px 8px;border-radius:4px;background:${ts[0]};color:${ts[1]};font-size:10px;font-weight:700;line-height:1.3">${d.trend||"—"}</span></td>
+        <td style="font-size:11px;line-height:1.35;${isUrg?"color:var(--crit);font-weight:600":""}">${String(d.action||"—").substring(0,120)}${String(d.action||"").length>120?"…":""}</td>
+        <td style="font-size:10px;color:var(--text-lt)">${d.owner||"—"}</td>
+        <td style="font-size:10px">${traceLinks(d.risk_ref||"")}</td>
+        <td style="font-size:10px">${traceLinks(d.obj_ref||"")}</td>
+      </tr>`;
+    }).join("");
+    scrollToHash();
+  }catch(e){console.error(e);}
+  finally{const l=document.getElementById("loader");if(l)l.classList.add("hidden");}
+}
+load();startRefresh(load);
+</script>
+
+<script>
+/* ── Auto-update summary cards from live Sheets data ── */
+
+function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
+function getColIdx(headers, colName){
+  var cn = _h(colName);
+  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
+  // partial match
+  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
+  return -1;
+}
+function getVal(row, colName){
+  var idx = getColIdx(window._liveHeaders||[], colName);
+  return idx>-1 ? String(row[idx]||'').trim() : '';
+}
+function count(){ return window._liveRows ? window._liveRows.length : 0; }
+function countWhere(col,val){
+  if(!window._liveRows) return 0;
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return 0;
+  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
+}
+function countNotEmpty(col){
+  if(!window._liveRows) return 0;
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return 0;
+  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
+}
+function countContains(col,val){
+  if(!window._liveRows) return 0;
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return 0;
+  var vl=val.toLowerCase();
+  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
+}
+function sumCol(col){
+  if(!window._liveRows) return 0;
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return 0;
+  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
+}
+function getFirst(col){
+  if(!window._liveRows||!window._liveRows.length) return '—';
+  var idx=getColIdx(window._liveHeaders||[],col);
+  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
+}
+function getLastNotEmpty(col){
+  if(!window._liveRows) return '—';
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return '—';
+  for(var i=window._liveRows.length-1;i>=0;i--){
+    var v=String(window._liveRows[i][idx]||'').trim();
+    if(v && v!=='-' && v!=='—') return v;
+  }
+  return '—';
+}
+
+function updateCard(label, val){
+  var cards = document.querySelectorAll('.kpi-card');
+  for(var i=0;i<cards.length;i++){
+    var lbl = cards[i].querySelector('.kpi-lbl');
+    var valEl = cards[i].querySelector('.kpi-val');
+    if(lbl && valEl && lbl.textContent.trim()===label){
+      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
+      break;
+    }
+  }
+}
+(function(){
+  var origRT = window.renderTable;
+  if(typeof origRT === 'function'){
+    window.renderTable = function(d, el){
+      origRT(d, el);
+      if(d && d.rows && d.rows.length > 0){
+        var rows = d.rows, headers = d.headers||[];
+        window._liveRows = rows; window._liveHeaders = headers;
+  updateCard('SEUs Identified', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
+      }
+    };
+  }
+})();
+</script>
+
+
 
 </body></html>
