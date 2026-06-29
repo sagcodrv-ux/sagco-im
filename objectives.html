@@ -140,4 +140,48 @@ async function load(){
 }
 load();startRefresh(load);
 </script>
+
+<script>
+(function() {
+  function colIdx(headers, name) {
+    var n = name.toLowerCase();
+    for (var i=0;i<headers.length;i++) {
+      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
+    }
+    return -1;
+  }
+  function countVal(rows, col, val) {
+    if (col < 0) return 0;
+    var v = val ? val.toLowerCase() : null;
+    return rows.filter(function(r){
+      var cell = String(r[col]||'').toLowerCase().trim();
+      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
+    }).length;
+  }
+  function sumCol(rows, col) {
+    if (col < 0) return 0;
+    return rows.reduce(function(s,r){
+      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
+      return s + (isNaN(v) ? 0 : v);
+    }, 0);
+  }
+  function setCard(idx, val) {
+    var cards = document.querySelectorAll('.kpi-val');
+    if (cards[idx]) cards[idx].textContent = val;
+  }
+
+  var origRender = window.renderTable;
+  window.renderTable = function(data, container) {
+    if (origRender) origRender(data, container);
+    if (!data || !data.rows || !data.headers) return;
+    var rows = data.rows, h = data.headers;
+    try { setCard(0, countVal(rows, colIdx(h,"status"), "on track")); } catch(e) {}
+    try { setCard(1, countVal(rows, colIdx(h,"status"), "progress")); } catch(e) {}
+    try { setCard(2, countVal(rows, colIdx(h,"status"), "at risk")); } catch(e) {}
+    try { setCard(3, countVal(rows, colIdx(h,"status"), "urgent") + countVal(rows, colIdx(h,"status"), "overdue")); } catch(e) {}
+    try { setCard(4, countVal(rows, colIdx(h,"status"), "planned")); } catch(e) {}
+    try { setCard(5, countVal(rows, colIdx(h,"status"), "monitor")); } catch(e) {}
+  };
+})();
+</script>
 </body></html>

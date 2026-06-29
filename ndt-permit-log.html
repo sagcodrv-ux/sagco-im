@@ -22,4 +22,127 @@
 </style><div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"><div class="kpi-card kc-blue"><div class="kpi-lbl">NDT Methods</div><div class="kpi-val">Radiography + UT + MT + PT</div><div class="kpi-sub">Multiple methods — radiation only for X-ray/gamma</div></div><div class="kpi-card kc-red"><div class="kpi-lbl">Radiation RSO</div><div class="kpi-val">Mandatory</div><div class="kpi-sub">Radiation Safety Officer before X-ray/gamma work</div></div><div class="kpi-card kc-org"><div class="kpi-lbl">Exclusion Zone</div><div class="kpi-val">Required</div><div class="kpi-sub">Distance per source type</div></div><div class="kpi-card kc-amb"><div class="kpi-lbl">Dosimetry</div><div class="kpi-val">Check before work</div><div class="kpi-sub">Baseline + limit</div></div><div class="kpi-card kc-nvy"><div class="kpi-lbl">Sheet</div><div class="kpi-val">65</div><div class="kpi-sub">L4-SHEE-PR-XX-R-01</div></div></div><div class="req-text">ISO 45001 §8.1 — Radiography (NDT using X-ray or gamma sources) requires a dedicated permit log separate from the general PTW register because it involves radiation sources and has specific regulatory requirements. Radiation Safety Officer (RSO) must verify exclusion zone and dosimetry before work commences. Ultrasonic Testing (UT), Magnetic Particle (MT), and Dye Penetrant (PT) tests are lower risk but still require PTW.</div><div class="tbl-wrap"><table class="tbl-stripe"><thead><tr><th>NDT Ref</th><th>Date</th><th>Location</th><th>NDT Method</th><th>Radiation Source</th><th>RSO Name</th><th>Exclusion Zone Established</th><th>Zone Distance (m)</th><th>Dosimetry Checked</th><th>Permit Issued By</th><th>Valid Until</th><th>Contractor</th><th>Operator Licence No.</th><th>Regulatory Notification Required</th><th>Notification Ref</th><th>Post-Work Survey Completed</th><th>CAPA Ref</th><th>Notes</th></tr></thead><tbody><tr><td style="font-size:10px">NDT-2026-001</td><td style="font-size:10px">—</td><td style="font-size:10px">[Location]</td><td style="font-size:10px">Radiography (X-ray/Gamma)</td><td style="font-size:10px">[Source]</td><td style="font-size:10px">[RSO]</td><td style="font-size:10px">Yes/No</td><td style="font-size:10px">[Distance]</td><td style="font-size:10px">Yes/No</td><td style="font-size:10px">SHEE Head</td><td style="font-size:10px">—</td><td style="font-size:10px">[Contractor]</td><td style="font-size:10px">[Licence]</td><td style="font-size:10px">Yes/No</td><td style="font-size:10px">—</td><td style="font-size:10px">Yes/No</td><td style="font-size:10px">—</td><td style="font-size:10px"></td></tr><tr><td style="font-size:10px">NDT-2026-002</td><td style="font-size:10px">—</td><td style="font-size:10px">[Location]</td><td style="font-size:10px">Ultrasonic Testing (UT)</td><td style="font-size:10px">No radiation — UT only</td><td style="font-size:10px">N/A</td><td style="font-size:10px">N/A</td><td style="font-size:10px">N/A</td><td style="font-size:10px">N/A</td><td style="font-size:10px">SHEE Head</td><td style="font-size:10px">—</td><td style="font-size:10px">[Contractor]</td><td style="font-size:10px">[Licence]</td><td style="font-size:10px">No</td><td style="font-size:10px">N/A</td><td style="font-size:10px">N/A</td><td style="font-size:10px">—</td><td style="font-size:10px">UT: no radiation hazard — standard PTW</td></tr></tbody></table></div>
 <div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">📡 LIVE DATA — Google Sheets  |  Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
 <script>initPage("ndt-permit-log.html");document.getElementById("tb").innerHTML=renderTopbar("Radiography / NDT Permit Log","L4-SHEE-PR-XX-R-01 · ISO 45001 §8.1 / Saudi Radiation Safety · OC-01 §A.2 (PTW) · Workbook Sheet 65");</script>
+
+<script>
+/* ── Auto-update summary cards from live Sheets data ── */
+
+function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
+function getColIdx(headers, colName){
+  var cn = _h(colName);
+  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
+  // partial match
+  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
+  return -1;
+}
+function getVal(row, colName){
+  var idx = getColIdx(window._liveHeaders||[], colName);
+  return idx>-1 ? String(row[idx]||'').trim() : '';
+}
+function count(){ return window._liveRows ? window._liveRows.length : 0; }
+function countWhere(col,val){
+  if(!window._liveRows) return 0;
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return 0;
+  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
+}
+function countNotEmpty(col){
+  if(!window._liveRows) return 0;
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return 0;
+  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
+}
+function countContains(col,val){
+  if(!window._liveRows) return 0;
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return 0;
+  var vl=val.toLowerCase();
+  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
+}
+function sumCol(col){
+  if(!window._liveRows) return 0;
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return 0;
+  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
+}
+function getFirst(col){
+  if(!window._liveRows||!window._liveRows.length) return '—';
+  var idx=getColIdx(window._liveHeaders||[],col);
+  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
+}
+function getLastNotEmpty(col){
+  if(!window._liveRows) return '—';
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return '—';
+  for(var i=window._liveRows.length-1;i>=0;i--){
+    var v=String(window._liveRows[i][idx]||'').trim();
+    if(v && v!=='-' && v!=='—') return v;
+  }
+  return '—';
+}
+
+function updateCard(label, val){
+  var cards = document.querySelectorAll('.kpi-card');
+  for(var i=0;i<cards.length;i++){
+    var lbl = cards[i].querySelector('.kpi-lbl');
+    var valEl = cards[i].querySelector('.kpi-val');
+    if(lbl && valEl && lbl.textContent.trim()===label){
+      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
+      break;
+    }
+  }
+}
+(function(){
+  var origRT = window.renderTable;
+  if(typeof origRT === 'function'){
+    window.renderTable = function(d, el){
+      origRT(d, el);
+      if(d && d.rows && d.rows.length > 0){
+        var rows = d.rows, headers = d.headers||[];
+        window._liveRows = rows; window._liveHeaders = headers;
+  updateCard('NDT Permits', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
+      }
+    };
+  }
+})();
+</script>
+
+
+<script>
+(function() {
+  function colIdx(headers, name) {
+    var n = name.toLowerCase();
+    for (var i=0;i<headers.length;i++) {
+      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
+    }
+    return -1;
+  }
+  function countVal(rows, col, val) {
+    if (col < 0) return 0;
+    var v = val ? val.toLowerCase() : null;
+    return rows.filter(function(r){
+      var cell = String(r[col]||'').toLowerCase().trim();
+      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
+    }).length;
+  }
+  function sumCol(rows, col) {
+    if (col < 0) return 0;
+    return rows.reduce(function(s,r){
+      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
+      return s + (isNaN(v) ? 0 : v);
+    }, 0);
+  }
+  function setCard(idx, val) {
+    var cards = document.querySelectorAll('.kpi-val');
+    if (cards[idx]) cards[idx].textContent = val;
+  }
+
+  var origRender = window.renderTable;
+  window.renderTable = function(data, container) {
+    if (origRender) origRender(data, container);
+    if (!data || !data.rows || !data.headers) return;
+    var rows = data.rows, h = data.headers;
+    try { setCard(0, rows.length); } catch(e) {}
+  };
+})();
+</script>
 </body></html>
