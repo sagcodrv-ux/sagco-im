@@ -74,6 +74,15 @@ var TAB_KEYS = {
   'supplier-conduct.html':      'supplier_scoc',
   'document-management.html':   'documents',
   'user-management.html':       'users',
+  'ppe-register.html':           'ppe_register',
+  'wah-register.html':           'wah_register',
+  'hot-work-log.html':           'hot_work',
+  'electrical-safety-log.html':  'electrical_safety',
+  'furnace-leakage-log.html':    'furnace_leakage',
+  'first-aid-records.html':      'first_aid',
+  'forklift-log.html':           'forklift_log',
+  'visitor-register.html':       'visitor_register',
+  'speak-up.html':               'speak_up',
 };
 
 /* ── Status badge rules ─────────────────────────────────────── */

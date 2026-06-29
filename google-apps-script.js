@@ -2,7 +2,7 @@
 
    SAGCO IMS — Google Apps Script
 
-   google-apps-script.js  |  Rev.18  |  June 2026
+   google-apps-script.js  |  Rev.19  |  30 June 2026
 
    DEPLOYMENT INSTRUCTIONS:
 
@@ -197,6 +197,26 @@ var TABS = {
   'water_waste':     ' Water & Waste',
 
   'supplier_scoc':   ' Supplier SCoC',
+
+  /* New Safety & ESG Programmes — Rev.19 (30 Jun 2026) */
+
+  'ppe_register':      '54 – PPE Register',
+
+  'wah_register':      '55 – WAH Register',
+
+  'hot_work':          '56 – Hot Work Log',
+
+  'electrical_safety': '57 – Electrical Safety Log',
+
+  'furnace_leakage':   '58 – Furnace Leakage Log',
+
+  'first_aid':         '59 – First Aid Records',
+
+  'forklift_log':      '60 – Forklift Log',
+
+  'visitor_register':  '61 – Visitor Register',
+
+  'speak_up':          '62 – Speak-Up Register',
 
 };
 
