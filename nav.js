@@ -1,5 +1,4 @@
 /* ═══════════════════════════════════════════════════════════════
-                { id:'su-reg',  label:'Speak-Up / Whistleblowing Register', file:'speak-up.html', level:'L4', tag:'Sh.62' },
    SAGCO IMS — Shared Navigation
    nav.js  |  Rev.18  |  June 2026
    Fixes: sidebar scroll position preserved on navigation (Issue 1)
@@ -160,6 +159,7 @@ var TREE = [
       { id:'esg-coi', label:'Conflict of Interest Register', file:'coi-register.html',       level:'L2' },
       { id:'esg-gft', label:'Gifts & Hospitality Register',  file:'gifts-hospitality.html',  level:'L2' },
       { id:'esg-tpd', label:'Third-Party Due Diligence',     file:'tpdd.html',               level:'L2' },
+      { id:'su-reg',  label:'Speak-Up / Whistleblowing',     file:'speak-up.html',           level:'L2', tag:'Sh.62' },
     ]},
     { id:'esg-pro',  label:'Sustainable Procurement',   file:'supplier-esg.html',        level:'L0', children:[
       { id:'esg-sup', label:'Supplier ESG Register',        file:'supplier-esg.html',         level:'L2' },
