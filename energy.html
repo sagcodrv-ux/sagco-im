@@ -47,7 +47,7 @@
 <div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
 <script>
 initPage("energy.html");
-document.getElementById("tb").innerHTML=renderTopbar("Energy Planning Register","ISO 50001 §6.3/§9.1 · Source: L4-630-A-21 Q1 2026 Energy Review");
+document.getElementById("tb").innerHTML=renderTopbar("Energy Planning Register &amp; EnMS Compliance","ISO 50001 §4.4 · §6.3 · §6.4 · §6.5 · §8.1 · §9.1 · §10.2 · L4-630-A-21 v6 · Q1 2026");
 
 // Static charts (source: L4-630-A-21 Q1 2026)
 const cd=chartDefaults();
@@ -101,4 +101,332 @@ async function load(){
 }
 load();startRefresh(load);
 </script>
+
+<script>
+/* ── Auto-update summary cards from live Sheets data ── */
+
+function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
+function getColIdx(headers, colName){
+  var cn = _h(colName);
+  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
+  // partial match
+  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
+  return -1;
+}
+function getVal(row, colName){
+  var idx = getColIdx(window._liveHeaders||[], colName);
+  return idx>-1 ? String(row[idx]||'').trim() : '';
+}
+function count(){ return window._liveRows ? window._liveRows.length : 0; }
+function countWhere(col,val){
+  if(!window._liveRows) return 0;
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return 0;
+  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
+}
+function countNotEmpty(col){
+  if(!window._liveRows) return 0;
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return 0;
+  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
+}
+function countContains(col,val){
+  if(!window._liveRows) return 0;
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return 0;
+  var vl=val.toLowerCase();
+  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
+}
+function sumCol(col){
+  if(!window._liveRows) return 0;
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return 0;
+  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
+}
+function getFirst(col){
+  if(!window._liveRows||!window._liveRows.length) return '—';
+  var idx=getColIdx(window._liveHeaders||[],col);
+  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
+}
+function getLastNotEmpty(col){
+  if(!window._liveRows) return '—';
+  var idx=getColIdx(window._liveHeaders||[],col);
+  if(idx<0) return '—';
+  for(var i=window._liveRows.length-1;i>=0;i--){
+    var v=String(window._liveRows[i][idx]||'').trim();
+    if(v && v!=='-' && v!=='—') return v;
+  }
+  return '—';
+}
+
+function updateCard(label, val){
+  var cards = document.querySelectorAll('.kpi-card');
+  for(var i=0;i<cards.length;i++){
+    var lbl = cards[i].querySelector('.kpi-lbl');
+    var valEl = cards[i].querySelector('.kpi-val');
+    if(lbl && valEl && lbl.textContent.trim()===label){
+      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
+      break;
+    }
+  }
+}
+(function(){
+  var origRT = window.renderTable;
+  if(typeof origRT === 'function'){
+    window.renderTable = function(d, el){
+      origRT(d, el);
+      if(d && d.rows && d.rows.length > 0){
+        var rows = d.rows, headers = d.headers||[];
+        window._liveRows = rows; window._liveHeaders = headers;
+  updateCard('SEUs Identified', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
+      }
+    };
+  }
+})();
+</script>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     ISO 50001 COMPLIANCE SECTIONS — L4-630-A-21 v6 · June 2026
+     §4.4 Boundary · §6.3 Review · §6.4 EnPI · §6.5 Baseline
+     §8.1 Controls · §9.1 EnPI vs EnB · §10.2 ECM Register
+═══════════════════════════════════════════════════════════════ -->
+
+<!-- DIVIDER -->
+<div style="margin:28px 0 0;border-top:2px solid var(--navy);padding-top:6px;display:flex;align-items:center;justify-content:space-between">
+  <span style="font-size:10px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.08em">ISO 50001:2018 — EnMS Compliance Documentation</span>
+  <span style="font-size:9px;color:var(--text-lt)">Source: L4-630-A-21 v5 (Nov 2025) &amp; v6 (Q1 2026) · Ref: ISO 50001:2018 §4.4 · §6.3 · §6.4 · §6.5 · §8.1 · §9.1 · §10.2</span>
+</div>
+
+<!-- ─── SECTION 1 · §4.4 EnMS BOUNDARY ─────────────────────────── -->
+<div style="margin-top:16px;border:1px solid var(--g300);border-left:4px solid #003366;border-radius:var(--radius);overflow:hidden">
+  <div style="background:#003366;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:12px;font-weight:700">§4.4 — EnMS Scope &amp; Boundary Declaration</span>
+    <span style="font-size:10px;opacity:.75">ISO 50001:2018 §4.3/§4.4 · L4-630-A-21 v6 §1</span>
+  </div>
+  <div style="padding:14px 16px;background:var(--g100)">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div>
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-lt);margin-bottom:4px">Organisation</div>
+        <div style="font-size:12px;font-weight:600;color:var(--navy)">Saudi Arabian Glass Co. Ltd. (SAGCO)</div>
+        <div style="font-size:11px;color:var(--text-lt);margin-top:2px">Jeddah Industrial City Phase 4 · Facility ID: S-SAU-PK-0001049</div>
+      </div>
+      <div>
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-lt);margin-bottom:4px">Standard &amp; Version</div>
+        <div style="font-size:12px;font-weight:600;color:var(--navy)">ISO 50001:2018 EnMS</div>
+        <div style="font-size:11px;color:var(--text-lt);margin-top:2px">Document: L4-630-A-21 v6 · Updated May 2026 · ASHRAE Level 3 Audit</div>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="background:#1565C020">
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--navy);border-bottom:1px solid var(--g300)">Boundary Element</th>
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--navy);border-bottom:1px solid var(--g300)">Included in EnMS Scope</th>
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--navy);border-bottom:1px solid var(--g300)">Status</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">Glass Melting Furnaces</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">F1–F5 · HFO combustion · All production units</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)"><span style="background:#EAF3DE;color:#2E7D32;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">INCLUDED</span></td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">Electrical Supply</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">6 SCECO feeders · All units · Boosters, Lehrs, Cold-end</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)"><span style="background:#EAF3DE;color:#2E7D32;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">INCLUDED</span></td></tr>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">LPG</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Forehearth · Lehr · Forming · Packing · ACL building</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)"><span style="background:#EAF3DE;color:#2E7D32;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">INCLUDED</span></td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">Diesel</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Mobile equipment · Forklifts · Loaders · Material handling</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)"><span style="background:#EAF3DE;color:#2E7D32;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">INCLUDED</span></td></tr>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">Compressed Air</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Generated on-site — indirect energy user</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)"><span style="background:#FAEEDA;color:#854F0B;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">PHASE 2 — ECM only</span></td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;font-weight:600">Chilled Water</td><td style="padding:5px 8px">Generated on-site — indirect energy user</td><td style="padding:5px 8px"><span style="background:#FAEEDA;color:#854F0B;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">PHASE 2 — ECM only</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── SECTION 2 · §6.4 EnPI METHODOLOGY ──────────────────────── -->
+<div style="margin-top:16px;border:1px solid var(--g300);border-left:4px solid #1B5E20;border-radius:var(--radius);overflow:hidden">
+  <div style="background:#1B5E20;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:12px;font-weight:700">§6.4 — EnPI Definition &amp; Calorific Conversion Methodology</span>
+    <span style="font-size:10px;opacity:.75">ISO 50001:2018 §6.4 · L4-630-A-21 v5/v6</span>
+  </div>
+  <div style="padding:14px 16px;background:var(--g100)">
+    <!-- Formula -->
+    <div style="background:#fff;border:1px solid var(--g300);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px;text-align:center">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-lt);margin-bottom:6px">Primary EnPI Formula — Specific Heat Consumption (SHC)</div>
+      <div style="font-size:16px;font-weight:600;color:var(--navy);font-family:var(--mono)">SHC (kcal/kg) = Energy consumed (kcal) ÷ Output (kg melted <em>or</em> packed)</div>
+      <div style="font-size:10px;color:var(--text-lt);margin-top:5px">Energy (kcal) = Volume (L) × Density (kg/L) × Gross Calorific Value (kcal/kg) &nbsp;·&nbsp; Facility SPC (kWh/t) = Total electricity (kWh) ÷ Packed glass (tonnes)</div>
+    </div>
+    <!-- Calorific table -->
+    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-lt);margin-bottom:6px">Calorific Values &amp; Conversion Factors</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="background:#1B5E2020">
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--navy);border-bottom:1px solid var(--g300)">Energy Type</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:var(--navy);border-bottom:1px solid var(--g300)">GCV (kcal/kg)</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:var(--navy);border-bottom:1px solid var(--g300)">Density (kg/L)</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:var(--navy);border-bottom:1px solid var(--g300)">2026 Tariff (SAR/L)</th>
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--navy);border-bottom:1px solid var(--g300)">Reference</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">HFO — Heavy Fuel Oil</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">10,500</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">0.9786</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono);color:#B71C1C;font-weight:600">0.42 ↑+45.9%</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Fuel oil specification document</td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">LPG</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">11,826</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">0.5460</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">—</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">LPG certificate of analysis</td></tr>
+        <tr><td style="padding:5px 8px;font-weight:600">Diesel</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono)">10,982</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono)">0.8400</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono)">1.5065</td><td style="padding:5px 8px">AFDC standard reference</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── SECTION 3 · §6.5 ENERGY BASELINE ───────────────────────── -->
+<div style="margin-top:16px;border:1px solid var(--g300);border-left:4px solid #4A0E0E;border-radius:var(--radius);overflow:hidden">
+  <div style="background:#4A0E0E;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:12px;font-weight:700">§6.5 — Energy Baseline (EnB) Declaration</span>
+    <span style="font-size:10px;opacity:.75">ISO 50001:2018 §6.5 · Ref: L4-620-A-8 / L4-620-A-9 · L4-630-A-21 v5/v6</span>
+  </div>
+  <div style="padding:14px 16px;background:var(--g100)">
+    <!-- Baseline periods -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div style="background:#fff;border:1px solid var(--g300);border-radius:var(--radius);padding:12px">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-lt);margin-bottom:4px">Historical Baseline Period</div>
+        <div style="font-size:18px;font-weight:700;color:#4A0E0E">2019 – 2022</div>
+        <div style="font-size:11px;color:var(--text-lt);margin-top:3px">4-year average · EnMS logbooks · All energy sources</div>
+        <div style="font-size:11px;margin-top:6px"><strong>HFO:</strong> 235,353,680 L total (4-yr)</div>
+        <div style="font-size:11px"><strong>Electricity:</strong> 566,532,472 kWh total (4-yr)</div>
+        <div style="font-size:11px"><strong>LPG:</strong> 30,354,205 L total (4-yr)</div>
+      </div>
+      <div style="background:#fff;border:1px solid var(--g300);border-radius:var(--radius);padding:12px">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-lt);margin-bottom:4px">Operating Comparator (EnB)</div>
+        <div style="font-size:18px;font-weight:700;color:#003366">2025 Full Year</div>
+        <div style="font-size:11px;color:var(--text-lt);margin-top:3px">Pending formal designation per L4-620-A-8/A-9</div>
+        <div style="font-size:11px;margin-top:6px"><strong>HFO:</strong> 65,004,390 L · +4.4% vs 2022</div>
+        <div style="font-size:11px"><strong>Electricity:</strong> 148,818,221 kWh · +1.5% vs 2022</div>
+        <div style="font-size:11px"><strong>Facility SPC:</strong> 561.24 kWh/t packed</div>
+      </div>
+    </div>
+    <!-- Per-furnace baseline SHC -->
+    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-lt);margin-bottom:6px">Per-Furnace Baseline SHC — kcal/kg pulled (Source: L4-630-A-21 v5, updated Nov 2023–Mar 2024)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="background:#4A0E0E15">
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#4A0E0E;border-bottom:1px solid var(--g300)">Furnace</th>
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#4A0E0E;border-bottom:1px solid var(--g300)">Type</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:#4A0E0E;border-bottom:1px solid var(--g300)">Baseline SHC (kcal/kg)</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:#4A0E0E;border-bottom:1px solid var(--g300)">Target SHC (kcal/kg)</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:#4A0E0E;border-bottom:1px solid var(--g300)">Improvement opportunity</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:#4A0E0E;border-bottom:1px solid var(--g300)">Age-adj. target Q1 2026</th>
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#4A0E0E;border-bottom:1px solid var(--g300)">Last rebuilt</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F1</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Regenerative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,503</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,277</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono);color:#2E7D32;font-weight:600">15%</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,242</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">2025 · age 1yr</td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F2</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Regenerative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,600</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,243</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono);color:#2E7D32;font-weight:600">22%</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,580</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">2018 · age 8yr · <span style="color:#B71C1C;font-weight:700">REBUILD DUE</span></td></tr>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F3</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Recuperative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">2,145</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,664</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono);color:#2E7D32;font-weight:600">22%</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,996</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">2023 · age 3yr</td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F4</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Recuperative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">2,282</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,743</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono);color:#E65100;font-weight:600">24%</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">2,066</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">2022 · age 4yr</td></tr>
+        <tr><td style="padding:5px 8px;font-weight:600">F5</td><td style="padding:5px 8px">Recuperative</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono)">2,091</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono)">1,847</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono);color:#E65100;font-weight:600">12%</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono)">2,138</td><td style="padding:5px 8px">2021 · age 5yr</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:10px;color:var(--text-lt);margin-top:6px">Age-adjusted target = base SHC × 1.035<sup>age</sup> · Base: 1,200 kcal/kg (regenerative) · 1,800 kcal/kg (recuperative) · 3.5%/yr degradation · Source: IGA Audit Annexure C</div>
+  </div>
+</div>
+
+<!-- ─── SECTION 4 · §9.1 EnPI vs EnB Q1 2026 ───────────────────── -->
+<div style="margin-top:16px;border:1px solid var(--g300);border-left:4px solid #004D40;border-radius:var(--radius);overflow:hidden">
+  <div style="background:#004D40;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:12px;font-weight:700">§9.1 — EnPI vs Energy Baseline · Q1 2026 Performance Review</span>
+    <span style="font-size:10px;opacity:.75">ISO 50001:2018 §9.1 · L3-750-T-5 · L4-630-A-21 v6 §7</span>
+  </div>
+  <div style="padding:14px 16px;background:var(--g100)">
+    <!-- Facility level -->
+    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-lt);margin-bottom:6px">Facility-Level EnPI — Specific Power Consumption (SPC)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:14px">
+      <thead><tr style="background:#004D4015">
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#004D40;border-bottom:1px solid var(--g300)">EnPI</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:#004D40;border-bottom:1px solid var(--g300)">EnB (2025 FY)</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:#004D40;border-bottom:1px solid var(--g300)">Q1 2026 Actual</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:#004D40;border-bottom:1px solid var(--g300)">Variance</th>
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#004D40;border-bottom:1px solid var(--g300)">Assessment</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">Facility SPC (kWh/t packed)</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">561.24</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">562.90</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">+0.3%</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)"><span style="background:#EAF3DE;color:#2E7D32;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">✓ Within tolerance (&lt;+2%)</span></td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">Total HFO (L/quarter)</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">~16.25M</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">16.206M</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">−0.3%</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)"><span style="background:#EAF3DE;color:#2E7D32;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">✓ Stable</span></td></tr>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">Total electricity (kWh/quarter)</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">~37.2M</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">39.29M</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">+5.6%</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)"><span style="background:#FAEEDA;color:#854F0B;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">⚠ Monitor — review feeder data Q2</span></td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;font-weight:600">Total energy cost (SAR/quarter)</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono)">~13.9M</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono)">17.01M</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono)">+22.4%</td><td style="padding:5px 8px"><span style="background:#FCEBEB;color:#B71C1C;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px">🔴 Adverse — HFO tariff +45.9%</span></td></tr>
+      </tbody>
+    </table>
+    <!-- SEU level -->
+    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-lt);margin-bottom:6px">SEU-Level EnPI — Furnace SHC vs Age-Adjusted Target · Q1 2026</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:14px">
+      <thead><tr style="background:#004D4015">
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#004D40;border-bottom:1px solid var(--g300)">Furnace</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:#004D40;border-bottom:1px solid var(--g300)">Q1 2026 SHC</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:#004D40;border-bottom:1px solid var(--g300)">Age-adj. Target</th>
+        <th style="padding:5px 8px;text-align:right;font-size:10px;color:#004D40;border-bottom:1px solid var(--g300)">Gap</th>
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#004D40;border-bottom:1px solid var(--g300)">Status</th>
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#004D40;border-bottom:1px solid var(--g300)">Corrective action</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F1 — Regenerative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,208</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,242</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono);color:#2E7D32;font-weight:600">−34 ✓</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)"><span style="background:#EAF3DE;color:#2E7D32;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px">Below target</span></td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-size:10px">Monitor booster continuity Q2</td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F2 — Regenerative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,608</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,580</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono);color:#E65100;font-weight:600">+28 ⚠</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)"><span style="background:#FAEEDA;color:#854F0B;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px">Lifecycle end</span></td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-size:10px;color:#B71C1C;font-weight:600">Rebuild/conversion decision — Aug 2026</td></tr>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F3 — Recuperative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">2,021</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">1,996</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono);color:#E65100;font-weight:600">+25 ⚠</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)"><span style="background:#FAEEDA;color:#854F0B;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px">Cullet-driven</span></td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-size:10px">Restore cullet to ≥45% — Energy Coord. Jul 2026</td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F4 — Recuperative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">2,185</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">2,066</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono);color:#B71C1C;font-weight:700">+119 🔴</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)"><span style="background:#FCEBEB;color:#B71C1C;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px">URGENT</span></td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-size:10px;color:#B71C1C;font-weight:600">Root cause investigation — Furnaces Mgr Jun 2026</td></tr>
+        <tr><td style="padding:5px 8px;font-weight:600">F5 — Recuperative</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono)">2,171</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono)">2,138</td><td style="padding:5px 8px;text-align:right;font-family:var(--mono);color:#E65100;font-weight:600">+33 ⚠</td><td style="padding:5px 8px"><span style="background:#FAEEDA;color:#854F0B;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px">Within aging range</span></td><td style="padding:5px 8px;font-size:10px">Monitor monthly — review Q2 2026</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── SECTION 5 · §8.1 SEU OPERATING CRITERIA ─────────────────── -->
+<div style="margin-top:16px;border:1px solid var(--g300);border-left:4px solid #37474F;border-radius:var(--radius);overflow:hidden">
+  <div style="background:#37474F;color:#fff;padding:8px 16px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:12px;font-weight:700">§8.1 — SEU Operating Criteria &amp; Control Parameters</span>
+    <span style="font-size:10px;opacity:.75">ISO 50001:2018 §8.1 · L3-810-OCC-01 · L4-630-A-21 v6 §8</span>
+  </div>
+  <div style="padding:14px 16px;background:var(--g100)">
+    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-lt);margin-bottom:6px">Furnace Combustion — Normal Operating Ranges (Q1 2026 actual data)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:12px">
+      <thead><tr style="background:#37474F15">
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#37474F;border-bottom:1px solid var(--g300)">Furnace</th>
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#37474F;border-bottom:1px solid var(--g300)">Crown Temp. Normal Range</th>
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#37474F;border-bottom:1px solid var(--g300)">Alert Threshold</th>
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#37474F;border-bottom:1px solid var(--g300)">Check Frequency</th>
+        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#37474F;border-bottom:1px solid var(--g300)">Action if Exceeded</th>
+      </tr></thead>
+      <tbody>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F1 Regenerative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-family:var(--mono)">1,558–1,572°C</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-family:var(--mono);color:#B71C1C">&lt;1,548 or &gt;1,582°C</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Continuous DCS · Daily log</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Notify Furnaces Mgr · Adjust air-fuel ratio</td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F2 Regenerative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-family:var(--mono)">1,525–1,555°C</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-family:var(--mono);color:#B71C1C">&lt;1,495 or &gt;1,560°C</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Continuous DCS · Daily log</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Notify Furnaces Mgr · Adjust air-fuel ratio</td></tr>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F3 Recuperative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-family:var(--mono)">1,296–1,323°C</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-family:var(--mono);color:#B71C1C">&lt;1,290 or &gt;1,330°C</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Continuous DCS · Daily log</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Notify Furnaces Mgr · Check recuperator</td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F4 Recuperative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-family:var(--mono)">1,303–1,381°C</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-family:var(--mono);color:#B71C1C">&lt;1,295 or &gt;1,390°C</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Continuous DCS · Daily log</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Notify Furnaces Mgr · Check recuperator</td></tr>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">F5 Recuperative</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-family:var(--mono)">1,386–1,449°C</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-family:var(--mono);color:#B71C1C">&lt;1,380 or &gt;1,455°C</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Continuous DCS · Daily log</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Notify Furnaces Mgr · Check recuperator</td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">Air-fuel ratio (all)</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-family:var(--mono)">5–10% excess air</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-family:var(--mono);color:#B71C1C">&gt;15% or &lt;3%</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Weekly combustion analysis</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Check burner condition · Recalibrate analyser</td></tr>
+        <tr><td style="padding:5px 8px;border-bottom:1px solid var(--g300);font-weight:600">Monthly SHC (all)</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Within ±3% of age-adj. target</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300);color:#B71C1C">&gt;+5% above target</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Monthly (Energy Review)</td><td style="padding:5px 8px;border-bottom:1px solid var(--g300)">Escalate to SEET · Initiate root cause investigation</td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 8px;font-weight:600">F3 Cullet input</td><td style="padding:5px 8px">Target ≥45%</td><td style="padding:5px 8px;color:#B71C1C">&lt;40% consecutive month</td><td style="padding:5px 8px">Daily log (Furnace_kpi_behavior)</td><td style="padding:5px 8px">Notify production/procurement · Log in Energy Review</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:10px;color:var(--text-lt)">Source: L3-810-OCC-01 (SEU Operating Criteria Checklist) · Crown temperature ranges from Q1 2026 Daily Process Information Logs (F1–F5)</div>
+  </div>
+</div>
+
+<!-- ─── SECTION 6 · §10.2 ECM REGISTER ─────────────────────────── -->
+<div style="margin-top:16px;margin-bottom:8px;border:1px solid var(--g300);border-left:4px solid #C9A84C;border-radius:var(--radius);overflow:hidden">
+  <div style="background:linear-gradient(135deg,#3E2A00,#7A5A10);color:#FFF9C4;padding:8px 16px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:12px;font-weight:700">§10.2 — Energy Conservation Measures (ECM) Implementation Register</span>
+    <span style="font-size:10px;opacity:.75">ISO 50001:2018 §10.2 · IGA Audit May 2026 · L4-630-A-21 v6 §9</span>
+  </div>
+  <div style="padding:14px 16px;background:var(--g100)">
+    <div style="background:#FFF9C4;border:1px solid #C9A84C;border-radius:var(--radius);padding:8px 12px;margin-bottom:10px;font-size:11px;color:#3E2A00">
+      <strong>Total programme:</strong> 7 ECMs · Total saving: 259,734 MWh/yr · 20,867,385 SAR/yr · 29.0% of annual consumption · Source: IGA Audit — EnMS Team May 2026
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:10.5px">
+      <thead><tr style="background:#7A5A1020">
+        <th style="padding:5px 6px;text-align:left;font-size:10px;color:#3E2A00;border-bottom:1px solid var(--g300)">#</th>
+        <th style="padding:5px 6px;text-align:left;font-size:10px;color:#3E2A00;border-bottom:1px solid var(--g300)">ECM Description</th>
+        <th style="padding:5px 6px;text-align:right;font-size:10px;color:#3E2A00;border-bottom:1px solid var(--g300)">Saving (MWh/yr)</th>
+        <th style="padding:5px 6px;text-align:right;font-size:10px;color:#3E2A00;border-bottom:1px solid var(--g300)">SAR/yr</th>
+        <th style="padding:5px 6px;text-align:right;font-size:10px;color:#3E2A00;border-bottom:1px solid var(--g300)">CAPEX (SAR)</th>
+        <th style="padding:5px 6px;text-align:right;font-size:10px;color:#3E2A00;border-bottom:1px solid var(--g300)">Payback (yrs)</th>
+        <th style="padding:5px 6px;text-align:right;font-size:10px;color:#3E2A00;border-bottom:1px solid var(--g300)">NPV (SAR)</th>
+        <th style="padding:5px 6px;text-align:left;font-size:10px;color:#3E2A00;border-bottom:1px solid var(--g300)">Decision / Status</th>
+      </tr></thead>
+      <tbody>
+        <tr style="background:#FCEBEB20"><td style="padding:5px 6px;border-bottom:1px solid var(--g300);font-weight:700;color:#B71C1C">ECM 1</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);font-weight:600">Recuperative → Regenerative conversion (F3, F4, F5)</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">251,763</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">13,287,989</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">220,000,000</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">7.3</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono);color:#2E7D32;font-weight:600">457,009,000</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300)"><span style="background:#FCEBEB;color:#B71C1C;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px">DECISION DUE Aug 2026</span></td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 6px;border-bottom:1px solid var(--g300);font-weight:600">ECM 2</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300)">Compressed air system optimisation</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">~2,000</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">~400,000</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">TBD</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">TBD</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">—</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300)"><span style="background:#EBF3FB;color:#1565C0;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px">IGA STUDY</span></td></tr>
+        <tr><td style="padding:5px 6px;border-bottom:1px solid var(--g300);font-weight:600">ECM 3</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300)">Chiller COP upgrade (COP 1.0 → ≥3.5)</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">~2,500</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">~500,000</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">TBD</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">TBD</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">—</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300)"><span style="background:#EBF3FB;color:#1565C0;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px">IGA STUDY</span></td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 6px;border-bottom:1px solid var(--g300);font-weight:600">ECM 4</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300)">LED lighting upgrade — production areas</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">~500</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">~100,000</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">TBD</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">TBD</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">—</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300)"><span style="background:#EBF3FB;color:#1565C0;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px">IGA STUDY</span></td></tr>
+        <tr><td style="padding:5px 6px;border-bottom:1px solid var(--g300);font-weight:600">ECM 5</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300)">Waste heat recovery — forming section</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">~1,000</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">~200,000</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">TBD</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">TBD</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">—</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300)"><span style="background:#EBF3FB;color:#1565C0;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px">IGA STUDY</span></td></tr>
+        <tr style="background:var(--g100)"><td style="padding:5px 6px;border-bottom:1px solid var(--g300);font-weight:600">ECM 6</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300)">Variable speed drives — compressors &amp; fans</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">~972</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">~194,000</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">TBD</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">TBD</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300);text-align:right;font-family:var(--mono)">—</td><td style="padding:5px 6px;border-bottom:1px solid var(--g300)"><span style="background:#EBF3FB;color:#1565C0;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px">IGA STUDY</span></td></tr>
+        <tr><td style="padding:5px 6px;font-weight:600">ECM 7</td><td style="padding:5px 6px">Lehr electric → natural gas conversion (13 lehrs)</td><td style="padding:5px 6px;text-align:right;font-family:var(--mono)">~999</td><td style="padding:5px 6px;text-align:right;font-family:var(--mono)">~585,000</td><td style="padding:5px 6px;text-align:right;font-family:var(--mono)">TBD</td><td style="padding:5px 6px;text-align:right;font-family:var(--mono)">TBD</td><td style="padding:5px 6px;text-align:right;font-family:var(--mono)">—</td><td style="padding:5px 6px"><span style="background:#EBF3FB;color:#1565C0;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px">IGA STUDY</span></td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:10px;color:var(--text-lt);margin-top:6px">All CAPEX figures exclusive of VAT · NPV model: 5% discount rate · 2% fuel escalation · 20-year project life · Source: IGA Audit Annexure C · ECM 2–7 detailed figures pending IGA Audit final report</div>
+  </div>
+</div>
+
 </body></html>
