@@ -1,4 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
+                { id:'su-reg',  label:'Speak-Up / Whistleblowing Register', file:'speak-up.html', level:'L4', tag:'Sh.62' },
    SAGCO IMS — Shared Navigation
    nav.js  |  Rev.18  |  June 2026
    Fixes: sidebar scroll position preserved on navigation (Issue 1)
@@ -99,6 +100,14 @@ var TREE = [
         { id:'oc1-ndt',  label:'NDT / Radiography Log',       file:'ndt-permit-log.html',               level:'L4', tag:'Sh.43' },
         { id:'oc1-ghs',  label:'Chemical Inventory (GHS)',    file:'chemical-inventory.html',    level:'L4', tag:'Sh.44' },
         { id:'oc1-crl',  label:'Crane & Lifting Register',    file:'crane-lifting.html',         level:'L4', tag:'Sh.45' },
+        { id:'oc1-ppe',  label:'PPE Compliance Register',       file:'ppe-register.html',          level:'L4', tag:'Sh.54' },
+        { id:'oc1-wah',  label:'Working at Height Register',      file:'wah-register.html',          level:'L4', tag:'Sh.55' },
+        { id:'oc1-hwl',  label:'Hot Work Activity Log',            file:'hot-work-log.html',          level:'L4', tag:'Sh.56' },
+        { id:'oc1-els',  label:'Electrical Safety & Isolation Log',file:'electrical-safety-log.html', level:'L4', tag:'Sh.57' },
+        { id:'oc1-fll',  label:'Furnace Leakage Emergency Log',    file:'furnace-leakage-log.html',   level:'L4', tag:'Sh.58', badge:'DRILL!', bc:'red' },
+        { id:'oc1-fad',  label:'First Aid Records Register',       file:'first-aid-records.html',     level:'L4', tag:'Sh.59' },
+        { id:'oc1-fkl',  label:'Forklift & Mobile Equipment Log',  file:'forklift-log.html',          level:'L4', tag:'Sh.60' },
+        { id:'oc1-vis',  label:'Visitor Register & Induction Log', file:'visitor-register.html',      level:'L4', tag:'Sh.61' },
       ]},
 
       { id:'oc2', label:'OC-02 Environment & Energy', file:'oc02-environment.html', level:'L3', badge:'L3', children:[
