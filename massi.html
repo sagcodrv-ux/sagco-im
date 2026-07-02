@@ -323,7 +323,7 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;min-height:100vh}
 </div>
 
 <script>
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwjbidUwAUwUosiDeZAKPoddiaoUxiMVDghW7RvN5Mw9q3AwlWs0o9PRcFwAE7NeRwjOg/exec';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycby_K2m3qx5XxXRfK1gdJc55CglC7SqilYGzj6R77gcxkodcNHAs7SlIgy6wOJA6hH817w/exec';
 
 const SYSTEM_PROMPT = `You are MASSI — the IMS AI Copilot for Saudi Arabian Glass Company Ltd. (SAGCO), Jeddah Industrial City Phase 4. You are operating on the dedicated MASSI AI Copilot workspace page. The user has full access to all MASSI capabilities. You are an intelligent digital colleague serving as IMS Manager, ISO Consultant, ESG Advisor, Data Analyst, Internal Auditor, and Knowledge Assistant. Standards: ISO 9001:2015, ISO 14001:2015, ISO 45001:2018, ISO 50001:2018, ISO 37001:2016. Stage 1 TÜV Austria audit: 25-26 August 2026. Stage 2: 22-26 September 2026. SAGCO operates 5 HFO-fired furnaces F1-F5 with 884 employees and 152 contractors. Energy baseline: Facility SPC 561.24 kWh/ton. F4 SHC URGENT at +119 kcal/kg above target. 4 open CAPAs (001-004) are Stage 2 blockers. CEO signatures pending on 7 of 9 L1 policies. Be concise, specific, data-grounded. Always reference ISO clauses and portal page links.`;
 
@@ -383,20 +383,22 @@ function callMassi(txt){
   showTyping();
   state.history.push({role:'user',content:txt});
   if(state.history.length>20) state.history=state.history.slice(-20);
-  /* Gemini 1.5 Flash — free tier */
-  var geminiKey='AIzaSyAQ.Ab8RN6Jg9J7QGAjLEr9KUSIiIVsjzwSrvcX54LBNFyijJHlFvg';
-  var geminiUrl='https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+geminiKey;
-  var contents=[{role:'user',parts:[{text:'SYSTEM:
-'+SYSTEM_PROMPT}]},{role:'model',parts:[{text:'Understood.'}]}];
-  state.history.forEach(function(m){contents.push({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]});});
-  fetch(geminiUrl,{
+
+  /* Groq — free tier, llama-3.3-70b-versatile */
+  var groqKey='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';
+  var groqUrl='https://api.groq.com/openai/v1/chat/completions';
+
+  var messages=[{role:'system',content:SYSTEM_PROMPT}];
+  state.history.forEach(function(m){messages.push({role:m.role,content:m.content});});
+
+  fetch(groqUrl,{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({contents:contents,generationConfig:{maxOutputTokens:800,temperature:0.7}})
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
+    body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:messages,max_tokens:800,temperature:0.7})
   }).then(function(r){return r.json();}).then(function(d){
     removeTyping();
     var resp='I could not get a response. Please try again.';
-    if(d.candidates&&d.candidates[0])resp=d.candidates[0].content.parts[0].text;
+    if(d.choices&&d.choices[0])resp=d.choices[0].message.content;
     else if(d.error)resp='API error: '+d.error.message;
     state.history.push({role:'assistant',content:resp});
     setAvatarState('idle');
