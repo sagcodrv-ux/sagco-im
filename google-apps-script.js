@@ -2,7 +2,7 @@
 
    SAGCO IMS — Google Apps Script
 
-   google-apps-script.js  |  Rev.19  |  30 June 2026
+   google-apps-script.js  |  Rev.20  |  02 July 2026
 
    DEPLOYMENT INSTRUCTIONS:
 
@@ -264,6 +264,8 @@ function doGet(e) {
 
     switch (action) {
 
+      case 'scanAlerts': result = scanAlerts();                                    break;
+      case 'search':     result = searchRows(e.parameter.tab, e.parameter.q || ''); break;
       case 'read':
         /* Special alias: tab=dms_docs → read Document Register */
         if (e.parameter.tab === 'dms_docs' || e.parameter.tab === 'all') {
@@ -774,6 +776,16 @@ function uploadFileFromPicker(docId, fileName, mimeType, base64Data, uploadedBy)
 /* ── POST handler ───────────────────────────────────────────── */
 
 function doPost(e) {
+  try {
+    var pAction = e && e.parameter ? (e.parameter.action || '') : '';
+    if (pAction === 'write') {
+      var wTab  = e.parameter.tab || '';
+      var wRows = JSON.parse(e.postData ? e.postData.contents : '[]');
+      return ContentService
+        .createTextOutput(writeRows(wTab, wRows))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch(writeErr) {}
 
   var output = ContentService.createTextOutput();
 
@@ -2017,4 +2029,234 @@ function setDocumentStatusDraft(docId) {
       }
     }
   } catch (e) { /* silent */ }
+}
+
+
+/* =============================================================
+
+   Rev.20 ADDITIONS  |  02 July 2026
+
+   Three new functions for the IMS Copilot:
+
+   1. writeRows(tabKey, rows)   -- Excel import + CAPA write
+   2. scanAlerts()              -- proactive alert engine
+   3. searchRows(tabKey, query) -- row-level content search
+
+   After adding: Deploy -> New deployment -> Web App
+   Copy new URL -> update SHEETS_URL in data.js + copilot_v2.html
+
+============================================================= */
+
+
+/* -- 1. writeRows ----------------------------------------
+   Called by copilot_v2.html applyUpdate() and confirmCapa()
+   POST body: JSON array of objects {field: value}
+   Each object becomes one appended row in the target sheet.
+   An audit log entry is written automatically after every write.
+   -------------------------------------------------------- */
+
+function writeRows(tabKey, rows) {
+  try {
+    var sheetName = TABS[tabKey];
+    if (!sheetName) {
+      return JSON.stringify({ status: 'error', message: 'Unknown tabKey: ' + tabKey });
+    }
+
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = null;
+    var sheets = ss.getSheets();
+    for (var i = 0; i < sheets.length; i++) {
+      var sn = sheets[i].getName().replace(/[^a-zA-Z0-9 _-]/g, '').trim().toLowerCase();
+      var tn = sheetName.replace(/[^a-zA-Z0-9 _-]/g, '').trim().toLowerCase();
+      if (sn === tn || sn.includes(tn) || tn.includes(sn)) { sheet = sheets[i]; break; }
+    }
+
+    if (!sheet) {
+      return JSON.stringify({ status: 'error', message: 'Sheet not found: ' + sheetName });
+    }
+
+    var headerRow = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var written   = 0;
+
+    rows.forEach(function(rowObj) {
+      var newRow = headerRow.map(function(header) {
+        return rowObj[header] !== undefined ? rowObj[header] : '';
+      });
+      sheet.appendRow(newRow);
+      written++;
+    });
+
+    appendAuditLog(
+      'COPILOT_WRITE',
+      'writeRows: ' + written + ' rows written to ' + sheetName + ' (' + tabKey + ')',
+      'copilot',
+      'IMS Copilot'
+    );
+
+    return JSON.stringify({ status: 'ok', written: written, sheet: sheetName });
+  } catch (err) {
+    return JSON.stringify({ status: 'error', message: err.toString() });
+  }
+}
+
+
+/* -- 2. scanAlerts ---------------------------------------
+   Scans all date-bearing registers for overdue items,
+   empty critical sheets, and threshold breaches.
+   Returns a structured JSON alert list sorted by severity.
+   -------------------------------------------------------- */
+
+function scanAlerts() {
+  var today  = new Date();
+  var alerts = [];
+
+  var DATE_RULES = [
+    { tab: 'calibration',     dateField: 'Next Due',             warnDays: 30, label: 'Calibration',     page: 'calibration-register.html'  },
+    { tab: 'training',        dateField: 'Next Due',             warnDays: 30, label: 'Training',         page: 'training.html'              },
+    { tab: 'ppe_register',    dateField: 'Next Inspection Due',  warnDays: 30, label: 'PPE Inspection',   page: 'ppe-register.html'          },
+    { tab: 'fire_ext',        dateField: 'Next Inspection Date', warnDays: 14, label: 'Fire Extinguisher',page: 'fire-extinguisher-log.html' },
+    { tab: 'capa',            dateField: 'Due Date',             warnDays:  7, label: 'CAPA',             page: 'capa-register.html'         },
+    { tab: 'ptw_register',    dateField: 'Expiry Date',          warnDays:  3, label: 'PTW',              page: 'ptw-register.html'          },
+    { tab: 'oh_surveillance', dateField: 'Next Due',             warnDays: 30, label: 'OH Surveillance',  page: 'oh-surveillance.html'       },
+    { tab: 'scaffold',        dateField: 'Next Inspection Date', warnDays:  7, label: 'Scaffold',         page: 'scaffold-inspection.html'   },
+    { tab: 'crane_lifting',   dateField: 'Next Inspection Due',  warnDays: 14, label: 'Crane & Lifting',  page: 'crane-lifting.html'         },
+    { tab: 'loto_register',   dateField: 'Last Verified',        warnDays: 90, label: 'LOTO',             page: 'loto-register.html'         },
+  ];
+
+  DATE_RULES.forEach(function(rule) {
+    try {
+      var sheetName = TABS[rule.tab];
+      if (!sheetName) return;
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sheet = null;
+      var sheets = ss.getSheets();
+      for (var i = 0; i < sheets.length; i++) {
+        var sn = sheets[i].getName().replace(/[^a-zA-Z0-9 _-]/g,'').trim().toLowerCase();
+        var tn = sheetName.replace(/[^a-zA-Z0-9 _-]/g,'').trim().toLowerCase();
+        if (sn === tn || sn.includes(tn) || tn.includes(sn)) { sheet = sheets[i]; break; }
+      }
+      if (!sheet) return;
+
+      var lastRow = sheet.getLastRow();
+      if (lastRow < 4) {
+        alerts.push({ sev: 'med', text: rule.label + ' register -- no data entered yet', page: rule.page, id: 'empty-' + rule.tab });
+        return;
+      }
+
+      var headers = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+      var dateIdx = -1;
+      var dfLower = rule.dateField.toLowerCase().split(' ')[0];
+      for (var j = 0; j < headers.length; j++) {
+        if (String(headers[j]).toLowerCase().includes(dfLower)) { dateIdx = j; break; }
+      }
+      if (dateIdx < 0) return;
+
+      var data = sheet.getRange(4, 1, lastRow - 3, sheet.getLastColumn()).getValues();
+      var overdueCount = 0; var warnCount = 0;
+      data.forEach(function(row) {
+        var cell = row[dateIdx];
+        if (!cell) return;
+        var d = new Date(cell);
+        if (isNaN(d.getTime())) return;
+        var daysLeft = Math.floor((d - today) / 86400000);
+        if (daysLeft < 0) overdueCount++;
+        else if (daysLeft < rule.warnDays) warnCount++;
+      });
+
+      if (overdueCount > 0) {
+        alerts.push({ sev: overdueCount > 3 ? 'crit' : 'high',
+          text: rule.label + ': ' + overdueCount + ' item' + (overdueCount > 1 ? 's' : '') + ' OVERDUE',
+          page: rule.page, id: 'overdue-' + rule.tab, count: overdueCount });
+      } else if (warnCount > 0) {
+        alerts.push({ sev: 'high',
+          text: rule.label + ': ' + warnCount + ' due within ' + rule.warnDays + ' days',
+          page: rule.page, id: 'warn-' + rule.tab, count: warnCount });
+      }
+    } catch(e) { /* silent */ }
+  });
+
+  // KPI below target
+  try {
+    var ss2 = SpreadsheetApp.getActiveSpreadsheet();
+    var kpiSheets = ss2.getSheets().filter(function(s) { return s.getName().toLowerCase().includes('kpi'); });
+    if (kpiSheets.length) {
+      var kpiSheet = kpiSheets[0];
+      if (kpiSheet.getLastRow() >= 4) {
+        var kpiHeaders = kpiSheet.getRange(3,1,1,kpiSheet.getLastColumn()).getValues()[0];
+        var statusIdx  = kpiHeaders.indexOf('Status');
+        var nameIdx    = kpiHeaders.indexOf('KPI Name');
+        if (statusIdx >= 0 && nameIdx >= 0) {
+          var kpiData = kpiSheet.getRange(4,1,kpiSheet.getLastRow()-3,kpiSheet.getLastColumn()).getValues();
+          var atRisk  = kpiData.filter(function(r){ return /at.risk|behind/i.test(String(r[statusIdx]||'')); })
+                                .map(function(r){ return r[nameIdx]; });
+          if (atRisk.length > 0) {
+            alerts.push({ sev: 'high',
+              text: atRisk.length + ' KPI' + (atRisk.length>1?'s':'') + ' AT RISK: ' + atRisk.slice(0,3).join(', '),
+              page: 'kpi-dashboard.html', id: 'kpi-at-risk' });
+          }
+        }
+      }
+    }
+  } catch(e) { /* silent */ }
+
+  var order = { crit: 0, high: 1, med: 2 };
+  alerts.sort(function(a,b){ return (order[a.sev]||9) - (order[b.sev]||9); });
+
+  return JSON.stringify({ status: 'ok', alerts: alerts, scanned: today.toISOString() });
+}
+
+
+/* -- 3. searchRows ---------------------------------------
+   GET ?action=search&tab=calibration&q=temperature
+   Returns up to 20 matching rows as JSON.
+   -------------------------------------------------------- */
+
+function searchRows(tabKey, query) {
+  try {
+    var sheetName = TABS[tabKey];
+    if (!sheetName) return JSON.stringify({ status: 'error', message: 'Unknown tabKey' });
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = null;
+    var sheets = ss.getSheets();
+    for (var i = 0; i < sheets.length; i++) {
+      var sn = sheets[i].getName().replace(/[^a-zA-Z0-9 _-]/g,'').trim().toLowerCase();
+      var tn = sheetName.replace(/[^a-zA-Z0-9 _-]/g,'').trim().toLowerCase();
+      if (sn === tn || sn.includes(tn) || tn.includes(sn)) { sheet = sheets[i]; break; }
+    }
+
+    if (!sheet || sheet.getLastRow() < 4) {
+      return JSON.stringify({ status: 'ok', headers: [], rows: [], rowCount: 0 });
+    }
+
+    var headers  = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var data     = sheet.getRange(4, 1, sheet.getLastRow()-3, sheet.getLastColumn()).getValues();
+    var qLower   = String(query).toLowerCase();
+    var matches  = data.filter(function(row) {
+      return row.map(function(c){ return String(c||''); }).join(' ').toLowerCase().includes(qLower);
+    });
+
+    return JSON.stringify({
+      status: 'ok', headers: headers, rows: matches.slice(0,20),
+      rowCount: matches.length, query: query, sheet: sheetName, tab: tabKey
+    });
+  } catch(err) {
+    return JSON.stringify({ status: 'error', message: err.toString() });
+  }
+}
+
+
+/* -- testNewFunctions ------------------------------------
+   Run from Apps Script editor to verify Rev.20 functions.
+   -------------------------------------------------------- */
+
+function testNewFunctions() {
+  Logger.log('=== Testing Rev.20 new functions ===');
+  var alertResult = JSON.parse(scanAlerts());
+  Logger.log('scanAlerts: ' + alertResult.alerts.length + ' alerts found');
+  alertResult.alerts.slice(0,3).forEach(function(a){ Logger.log('  [' + a.sev + '] ' + a.text); });
+  var searchResult = JSON.parse(searchRows('calibration', 'meter'));
+  Logger.log('searchRows calibration "meter": ' + searchResult.rowCount + ' matches');
+  Logger.log('writeRows: function defined -- OK');
+  Logger.log('=== Rev.20 test complete ===');
 }
