@@ -714,23 +714,21 @@ function callClaude(txt) {
   state.history.push({role:'user', content: txt});
   if (state.history.length > 20) state.history = state.history.slice(-20);
 
-  /* Gemini 1.5 Flash — free tier */
-  var gKey='AQ.Ab8RN6LFRIB5qC29JS5U2urddwcqTDJhuK3sNX9njtVhg54t8w';
-  var gUrl='https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+gKey;
-  var gContents=[{role:'user',parts:[{text:'SYSTEM:
-'+SYSTEM_PROMPT}]},{role:'model',parts:[{text:'Understood.'}]}];
-  state.history.forEach(function(m){gContents.push({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]});});
-  fetch(gUrl,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({contents:gContents,generationConfig:{maxOutputTokens:1000,temperature:0.7}})
-  })
-  .then(function(r){return r.json();})
-  .then(function(data){
-    removeTyping();
-    var response = 'I could not get a response. Please try again.';
-    if(data.candidates&&data.candidates[0]) response = data.candidates[0].content.parts[0].text;
-    else if(data.error) response = 'Gemini error: ' + data.error.message;
+var groqKey='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';
+var groqUrl='https://api.groq.com/openai/v1/chat/completions';
+var messages=[{role:'system',content:SYSTEM_PROMPT}];
+state.history.forEach(function(m){messages.push({role:m.role,content:m.content});});
+fetch(groqUrl,{
+  method:'POST',
+  headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
+  body: JSON.stringify({model:'llama-3.3-70b-versatile',messages:messages,max_tokens:1000,temperature:0.7})
+})
+.then(function(r){return r.json();})
+.then(function(data){
+  removeTyping();
+  var response = 'I could not get a response. Please try again.';
+  if(data.choices&&data.choices[0]) response = data.choices[0].message.content;
+  else if(data.error) response = 'Groq error: ' + data.error.message;
     state.history.push({role:'assistant', content: response});
     var navMatch = response.match(/navigate\s+to\s+([a-z0-9-]+\.html)/i)||response.match(/go\s+to\s+([a-z0-9-]+\.html)/i);
     if(navMatch){appendAI(response);setTimeout(function(){navigateTo(navMatch[1]);},1200);}
