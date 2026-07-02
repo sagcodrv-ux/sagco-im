@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MASSI AI Copilot — SAGCO IMS</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#f4f5f7;min-height:100vh}
+
+.massi-page{display:grid;grid-template-columns:320px 1fr 280px;grid-template-rows:auto 1fr;
+  gap:0;height:calc(100vh - 60px);overflow:hidden}
+
+/* ── LEFT PANEL ──────────────────────────────────────────────────────────── */
+.massi-left{background:#1B2A4A;display:flex;flex-direction:column;overflow:hidden}
+.massi-identity{padding:24px 20px 16px;text-align:center;border-bottom:0.5px solid rgba(255,255,255,.1)}
+.massi-av-large{display:flex;justify-content:center;margin-bottom:10px}
+.massi-name{font-size:22px;font-weight:700;color:#C9A84C;letter-spacing:1px}
+.massi-tagline{font-size:11px;color:rgba(255,255,255,.5);margin-top:3px;line-height:1.5}
+.massi-status{display:flex;align-items:center;justify-content:center;gap:6px;
+  margin-top:8px;font-size:11px;color:rgba(255,255,255,.6)}
+.status-live{width:7px;height:7px;border-radius:50%;background:#4ade80;
+  animation:status-pulse 2s ease-in-out infinite}
+@keyframes status-pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+.massi-left-scroll{flex:1;overflow-y:auto;padding:12px}
+.left-section{margin-bottom:16px}
+.left-section-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  color:rgba(255,255,255,.35);margin-bottom:7px}
+
+.alert-item{background:rgba(255,255,255,.06);border-radius:7px;padding:8px 10px;
+  margin-bottom:5px;cursor:pointer;transition:background .15s;border-left:3px solid transparent}
+.alert-item:hover{background:rgba(255,255,255,.1)}
+.alert-item.crit{border-left-color:#E24B4A}
+.alert-item.high{border-left-color:#EF9F27}
+.alert-item.med{border-left-color:#378ADD}
+.alert-text{font-size:10.5px;color:rgba(255,255,255,.85);line-height:1.4}
+.alert-page{font-size:9.5px;color:rgba(255,255,255,.4);margin-top:2px}
+
+.quick-action{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);
+  border-radius:7px;padding:8px 10px;margin-bottom:5px;cursor:pointer;
+  transition:background .15s;border:none;width:100%;text-align:left}
+.quick-action:hover{background:rgba(255,255,255,.12)}
+.qa-icon{font-size:16px;flex-shrink:0}
+.qa-text{font-size:11px;color:rgba(255,255,255,.85)}
+.qa-sub{font-size:9.5px;color:rgba(255,255,255,.4);margin-top:1px}
+
+.kpi-mini{background:rgba(255,255,255,.06);border-radius:7px;padding:8px 10px;margin-bottom:5px}
+.kpi-mini-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.kpi-mini-name{font-size:10.5px;color:rgba(255,255,255,.75)}
+.kpi-mini-val{font-size:11px;font-weight:600}
+.kpi-bar{height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden}
+.kpi-fill{height:100%;border-radius:2px;transition:width .4s ease}
+
+/* ── CENTRE PANEL — CHAT ─────────────────────────────────────────────────── */
+.massi-centre{display:flex;flex-direction:column;background:white;border-left:0.5px solid #e0e0e0;border-right:0.5px solid #e0e0e0}
+.chat-header{background:white;border-bottom:1px solid #f0f0f0;padding:12px 16px;
+  display:flex;align-items:center;gap:10px;flex-shrink:0}
+.chat-header-title{font-size:15px;font-weight:600;color:#1B2A4A}
+.chat-header-sub{font-size:11px;color:#888;margin-top:1px}
+.chat-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+
+.suggested-chips{padding:0 16px 8px;display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0}
+.sug-chip{background:#f5f5f5;border:0.5px solid #e0e0e0;border-radius:16px;
+  padding:5px 12px;font-size:11px;cursor:pointer;color:#444;transition:all .12s;white-space:nowrap}
+.sug-chip:hover{background:#E6F1FB;border-color:#B5D4F4;color:#0C447C}
+
+.msg{display:flex;gap:8px;max-width:100%}
+.msg.user{flex-direction:row-reverse}
+.msg-av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;
+  align-items:center;justify-content:center;font-size:11px;font-weight:600;margin-top:1px}
+.msg-av.user{background:#E6F1FB;color:#0C447C;font-size:13px}
+.massi-msg-av{flex-shrink:0;width:28px;height:36px;margin-top:1px}
+.bubble{padding:9px 12px;border-radius:10px;font-size:12px;line-height:1.65;max-width:80%}
+.msg.ai .bubble{background:#f5f5f5;border-radius:3px 10px 10px 10px;color:#1a1a1a}
+.msg.user .bubble{background:#1B2A4A;color:white;border-radius:10px 3px 10px 10px}
+.msg.ai .bubble a{color:#185FA5}
+.msg-time{font-size:9.5px;color:#aaa;margin-top:3px;padding:0 3px}
+.msg.user .msg-time{text-align:right}
+
+.card-block{background:white;border:0.5px solid #e0e0e0;border-radius:8px;
+  padding:10px 12px;margin-top:5px;font-size:11px}
+.card-block-title{font-size:11px;font-weight:600;margin-bottom:6px;color:#1B2A4A}
+.data-table{width:100%;border-collapse:collapse;font-size:11px}
+.data-table th{background:#f8f8f8;padding:5px 7px;text-align:left;font-weight:600;
+  color:#555;border-bottom:1px solid #eee;font-size:10px}
+.data-table td{padding:5px 7px;border-bottom:0.5px solid #f5f5f5;color:#333}
+.tag-s{display:inline-block;font-size:8px;font-weight:700;border-radius:2px;padding:1px 4px;white-space:nowrap}
+.tag-ok{background:#EAF3DE;color:#27500A}.tag-warn{background:#FAEEDA;color:#633806}
+.tag-err{background:#FCEBEB;color:#791F1F}.tag-info{background:#E6F1FB;color:#0C447C}
+
+.typing-b{display:flex;align-items:center;gap:3px;padding:9px 12px;background:#f5f5f5;
+  border-radius:3px 10px 10px 10px}
+.tdot{width:5px;height:5px;border-radius:50%;background:#999;animation:td 1.2s ease-in-out infinite}
+.tdot:nth-child(2){animation-delay:.2s}.tdot:nth-child(3){animation-delay:.4s}
+@keyframes td{0%,100%{opacity:.2;transform:scale(.8)}50%{opacity:.9;transform:scale(1)}}
+.chart-wrap{margin-top:6px;position:relative;height:140px}
+
+.file-chip{background:#E6F1FB;border:0.5px solid #B5D4F4;border-radius:6px;
+  padding:4px 8px;font-size:10px;color:#0C447C;display:flex;align-items:center;gap:4px;margin-bottom:5px}
+.chat-input-area{border-top:1px solid #f0f0f0;padding:10px 12px;display:flex;
+  gap:7px;align-items:flex-end;flex-shrink:0;background:white}
+.chat-textarea{flex:1;border:0.5px solid #ddd;border-radius:8px;padding:8px 12px;
+  font-size:12.5px;resize:none;min-height:38px;max-height:80px;font-family:Arial,sans-serif;
+  outline:none;color:#1a1a1a;line-height:1.4}
+.chat-textarea:focus{border-color:#888}
+.attach-btn{width:32px;height:32px;border-radius:7px;background:#f5f5f5;
+  border:0.5px solid #ddd;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;font-size:16px}
+.attach-btn:hover{background:#ebebeb}
+.send-btn-lg{height:32px;border-radius:7px;background:#1B2A4A;border:none;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  padding:0 14px;gap:5px;font-size:12px;font-weight:600;color:#C9A84C}
+.send-btn-lg:hover{background:#243a5e}
+
+/* ── RIGHT PANEL ─────────────────────────────────────────────────────────── */
+.massi-right{background:white;border-left:0.5px solid #e0e0e0;overflow-y:auto;padding:14px}
+.right-section{margin-bottom:18px}
+.right-section-title{font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.07em;color:#888;margin-bottom:8px;padding-bottom:5px;
+  border-bottom:0.5px solid #f0f0f0}
+
+.kpi-card{background:#f8f8f8;border-radius:8px;padding:10px 12px;margin-bottom:7px}
+.kpi-name{font-size:10.5px;font-weight:500;color:#444;margin-bottom:4px}
+.kpi-val-row{display:flex;align-items:baseline;gap:6px;margin-bottom:4px}
+.kpi-val{font-size:18px;font-weight:600;color:#1B2A4A}
+.kpi-target{font-size:10px;color:#888}
+.kpi-progress{height:5px;background:#e8e8e8;border-radius:3px;overflow:hidden;margin-bottom:4px}
+.kpi-prog-fill{height:100%;border-radius:3px;transition:width .4s ease}
+.kpi-status{font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:10px}
+
+.rec-item{background:#f8f8f8;border-radius:7px;padding:8px 10px;margin-bottom:6px;
+  border-left:3px solid #1B2A4A;cursor:pointer;transition:background .12s}
+.rec-item:hover{background:#f0f0f0}
+.rec-item-title{font-size:11px;font-weight:500;color:#1B2A4A;margin-bottom:2px}
+.rec-item-sub{font-size:10px;color:#888;line-height:1.4}
+
+.hist-item{padding:6px 0;border-bottom:0.5px solid #f5f5f5;cursor:pointer}
+.hist-item:last-child{border-bottom:none}
+.hist-item:hover .hist-q{color:#185FA5}
+.hist-q{font-size:11px;color:#333;margin-bottom:1px;line-height:1.4}
+.hist-t{font-size:9.5px;color:#aaa}
+
+@keyframes massi-blink{0%,90%,100%{transform:scaleY(1)}95%{transform:scaleY(0.05)}}
+@keyframes massi-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes massi-nod{0%,100%{transform:translateY(0)}30%,70%{transform:translateY(-4px)}50%{transform:translateY(-7px)}}
+@keyframes massi-wave{0%,100%{transform:rotate(0deg)}20%{transform:rotate(-18deg)}40%{transform:rotate(12deg)}60%{transform:rotate(-10deg)}80%{transform:rotate(6deg)}}
+@keyframes massi-celebrate{0%,100%{transform:scale(1) rotate(0deg)}25%{transform:scale(1.08) rotate(-3deg)}50%{transform:scale(1.12) rotate(3deg)}75%{transform:scale(1.06) rotate(-2deg)}}
+@keyframes massi-ring{0%{r:19;opacity:.6}100%{r:24;opacity:0}}
+@keyframes massi-scan{0%,100%{transform:translateX(-5px)}50%{transform:translateX(5px)}}
+@keyframes massi-t1{0%,100%{opacity:.3;transform:scale(.7)}33%{opacity:1;transform:scale(1)}}
+@keyframes massi-t2{0%,100%{opacity:.3;transform:scale(.7)}66%{opacity:1;transform:scale(1)}}
+@keyframes massi-t3{0%,100%{opacity:.3;transform:scale(.7)}100%{opacity:1;transform:scale(1)}}
+
+@media(max-width:900px){
+  .massi-page{grid-template-columns:1fr;grid-template-rows:auto auto 1fr}
+  .massi-left,.massi-right{display:none}
+  .massi-centre{border:none}
+}
+</style>
+</head>
+<body>
+<script src="nav.js"></script>
+
+<div id="topbar-mount"></div>
+
+<div class="massi-page">
+
+<!-- ── LEFT PANEL ──────────────────────────────────────────────────────── -->
+<div class="massi-left">
+  <div class="massi-identity">
+    <div class="massi-av-large"><div id="massiLargeAv" style="width:90px;height:117px"></div></div>
+    <div class="massi-name">MASSI</div>
+    <div class="massi-tagline">IMS AI Copilot · SAGCO<br>ISO 9001 · 14001 · 45001 · 50001 · 37001</div>
+    <div class="massi-status"><div class="status-live"></div><span>Online · <span id="alertCount">Loading alerts...</span></span></div>
+  </div>
+  <div class="massi-left-scroll">
+
+    <div class="left-section">
+      <div class="left-section-title">Live alerts</div>
+      <div id="alertsList">
+        <div class="alert-item crit"><div class="alert-text">CAPA-2026-001 PTW discrepancy — OPEN</div><div class="alert-page">capa-register.html · HSSE Manager</div></div>
+        <div class="alert-item crit"><div class="alert-text">CAPA-2026-002 Emergency drill overdue</div><div class="alert-page">capa-register.html · HSSE Manager</div></div>
+        <div class="alert-item crit"><div class="alert-text">HIRA E-03 BEHIND — overdue since Jun 2026</div><div class="alert-page">hira.html · HSSE Manager</div></div>
+        <div class="alert-item high"><div class="alert-text">F4 SHC +119 kcal/kg above target — URGENT</div><div class="alert-page">furnace-monitoring.html · Furnace Manager</div></div>
+        <div class="alert-item high"><div class="alert-text">Stage 1 audit — 25-26 Aug 2026</div><div class="alert-page">audit-programme.html · IMS Manager</div></div>
+        <div class="alert-item high"><div class="alert-text">7 of 9 L1 policies pending CEO signature</div><div class="alert-page">policies-hub.html · CEO</div></div>
+      </div>
+    </div>
+
+    <div class="left-section">
+      <div class="left-section-title">Quick actions</div>
+      <button class="quick-action" onclick="massIAsk('Show overdue CAPAs and Stage 2 blockers')">
+        <span class="qa-icon">⚠</span><div><div class="qa-text">Stage 2 blockers</div><div class="qa-sub">4 open CAPAs · audit in 83 days</div></div>
+      </button>
+      <button class="quick-action" onclick="massIAsk('Show KPI trends and which KPIs are AT RISK')">
+        <span class="qa-icon">📊</span><div><div class="qa-text">KPI performance</div><div class="qa-sub">4 KPIs AT RISK · compare periods</div></div>
+      </button>
+      <button class="quick-action" onclick="massIAsk('Show energy opportunity analysis F1 to F5')">
+        <span class="qa-icon">⚡</span><div><div class="qa-text">Energy analysis</div><div class="qa-sub">F4 SHC URGENT · ECM 1 pending</div></div>
+      </button>
+      <button class="quick-action" onclick="massIAsk('Calculate EcoVadis score and Silver gap')">
+        <span class="qa-icon">🏅</span><div><div class="qa-text">EcoVadis Silver path</div><div class="qa-sub">Deadline 31 Jul 2026</div></div>
+      </button>
+      <button class="quick-action" onclick="massIAsk('Which department requires most attention?')">
+        <span class="qa-icon">🏭</span><div><div class="qa-text">Department insights</div><div class="qa-sub">WG1 · WG2 · WG3 RAG status</div></div>
+      </button>
+      <button class="quick-action" onclick="document.getElementById('xlFile').click()">
+        <span class="qa-icon">📂</span><div><div class="qa-text">Upload Excel file</div><div class="qa-sub">Update any register from Excel</div></div>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── CENTRE PANEL — CHAT ──────────────────────────────────────────────── -->
+<div class="massi-centre">
+  <div class="chat-header">
+    <div id="chatHeaderAv" style="width:32px;height:42px;flex-shrink:0"></div>
+    <div>
+      <div class="chat-header-title">Chat with MASSI</div>
+      <div class="chat-header-sub">Ask anything about your IMS — data, policies, registers, analysis, navigation</div>
+    </div>
+  </div>
+
+  <div class="suggested-chips" id="sugChips">
+    <div class="sug-chip" onclick="massIAsk('Show me all overdue items')">Overdue items</div>
+    <div class="sug-chip" onclick="massIAsk('Explain our Environmental Policy')">Environmental Policy</div>
+    <div class="sug-chip" onclick="massIAsk('Where is the Calibration Register?')">Calibration Register</div>
+    <div class="sug-chip" onclick="massIAsk('Show LTIFR trend')">LTIFR trend</div>
+    <div class="sug-chip" onclick="massIAsk('What are the top 5 risks?')">Top risks</div>
+    <div class="sug-chip" onclick="massIAsk('Which ISO clause covers Management Review?')">ISO clauses</div>
+    <div class="sug-chip" onclick="massIAsk('Show me our energy baseline')">Energy baseline</div>
+    <div class="sug-chip" onclick="massIAsk('Generate CAPA proposal from incidents')">CAPA proposal</div>
+  </div>
+
+  <div class="chat-msgs" id="chatMsgs"></div>
+
+  <div class="chat-input-area">
+    <div style="flex:1">
+      <div class="file-chip" id="fileChip" style="display:none">
+        <span>📄</span><span id="fileChipName"></span><span id="fileChipInfo" style="color:#185FA5;margin-left:3px"></span>
+      </div>
+      <textarea class="chat-textarea" id="chatInput" rows="1"
+        placeholder="Ask MASSI anything about your IMS..."
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();massISend()}"
+        oninput="this.style.height='38px';this.style.height=this.scrollHeight+'px'"></textarea>
+    </div>
+    <button class="attach-btn" onclick="document.getElementById('xlFile').click()" title="Upload Excel file">📎</button>
+    <button class="send-btn-lg" onclick="massISend()">&#10148; Ask MASSI</button>
+    <input type="file" id="xlFile" accept=".xlsx,.xls,.csv" style="display:none">
+  </div>
+</div>
+
+<!-- ── RIGHT PANEL ──────────────────────────────────────────────────────── -->
+<div class="massi-right">
+
+  <div class="right-section">
+    <div class="right-section-title">KPI summary</div>
+    <div id="kpiSummary">
+      <div class="kpi-card">
+        <div class="kpi-name">Facility SPC (EnPI)</div>
+        <div class="kpi-val-row"><span class="kpi-val">562.9</span><span class="kpi-target">target ≤565 kWh/t</span></div>
+        <div class="kpi-progress"><div class="kpi-prog-fill" style="width:99%;background:#27500A"></div></div>
+        <span class="kpi-status" style="background:#EAF3DE;color:#27500A">ON TRACK</span>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-name">PTW Compliance</div>
+        <div class="kpi-val-row"><span class="kpi-val" style="color:#791F1F">79%</span><span class="kpi-target">target 95%</span></div>
+        <div class="kpi-progress"><div class="kpi-prog-fill" style="width:83%;background:#E24B4A"></div></div>
+        <span class="kpi-status" style="background:#FCEBEB;color:#791F1F">AT RISK</span>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-name">Training Completion</div>
+        <div class="kpi-val-row"><span class="kpi-val" style="color:#633806">35%</span><span class="kpi-target">target 100%</span></div>
+        <div class="kpi-progress"><div class="kpi-prog-fill" style="width:35%;background:#EF9F27"></div></div>
+        <span class="kpi-status" style="background:#FAEEDA;color:#633806">IN PROGRESS</span>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-name">Legal Compliance</div>
+        <div class="kpi-val-row"><span class="kpi-val" style="color:#791F1F">68%</span><span class="kpi-target">target 95%</span></div>
+        <div class="kpi-progress"><div class="kpi-prog-fill" style="width:72%;background:#E24B4A"></div></div>
+        <span class="kpi-status" style="background:#FCEBEB;color:#791F1F">AT RISK</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-section">
+    <div class="right-section-title">MASSI recommendations</div>
+    <div id="recsList">
+      <div class="rec-item" onclick="massIAsk('What actions should management prioritize before Stage 2?')">
+        <div class="rec-item-title">Stage 2 audit — 83 days</div>
+        <div class="rec-item-sub">4 open CAPAs · 7 pending signatures · HIRA overdue</div>
+      </div>
+      <div class="rec-item" onclick="massIAsk('Show energy opportunity analysis F1 to F5')">
+        <div class="rec-item-title">F4 energy optimisation</div>
+        <div class="rec-item-sub">+119 kcal/kg above target · ECM 1 decision Aug 2026</div>
+      </div>
+      <div class="rec-item" onclick="massIAsk('Calculate EcoVadis score and Silver gap')">
+        <div class="rec-item-title">EcoVadis Silver deadline</div>
+        <div class="rec-item-sub">31 Jul 2026 · supplier ESG assessments pending</div>
+      </div>
+      <div class="rec-item" onclick="massIAsk('Show preventive actions from HIRA residual risk')">
+        <div class="rec-item-title">HIRA preventive actions</div>
+        <div class="rec-item-sub">HIGH residual risk items need PA proposals</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-section">
+    <div class="right-section-title">Recent conversations</div>
+    <div id="histList">
+      <div class="hist-item" onclick="massIAsk('Show KPI trends')"><div class="hist-q">Show KPI trends</div><div class="hist-t">Earlier today</div></div>
+      <div class="hist-item" onclick="massIAsk('Which department requires attention?')"><div class="hist-q">Which department requires attention?</div><div class="hist-t">Earlier today</div></div>
+      <div class="hist-item" onclick="massIAsk('Show energy opportunity analysis')"><div class="hist-q">Show energy opportunity analysis</div><div class="hist-t">Earlier today</div></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwjbidUwAUwUosiDeZAKPoddiaoUxiMVDghW7RvN5Mw9q3AwlWs0o9PRcFwAE7NeRwjOg/exec';
+
+const SYSTEM_PROMPT = `You are MASSI — the IMS AI Copilot for Saudi Arabian Glass Company Ltd. (SAGCO), Jeddah Industrial City Phase 4. You are operating on the dedicated MASSI AI Copilot workspace page. The user has full access to all MASSI capabilities. You are an intelligent digital colleague serving as IMS Manager, ISO Consultant, ESG Advisor, Data Analyst, Internal Auditor, and Knowledge Assistant. Standards: ISO 9001:2015, ISO 14001:2015, ISO 45001:2018, ISO 50001:2018, ISO 37001:2016. Stage 1 TÜV Austria audit: 25-26 August 2026. Stage 2: 22-26 September 2026. SAGCO operates 5 HFO-fired furnaces F1-F5 with 884 employees and 152 contractors. Energy baseline: Facility SPC 561.24 kWh/ton. F4 SHC URGENT at +119 kcal/kg above target. 4 open CAPAs (001-004) are Stage 2 blockers. CEO signatures pending on 7 of 9 L1 policies. Be concise, specific, data-grounded. Always reference ISO clauses and portal page links.`;
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const NAVY='#1B2A4A',GOLD='#C9A84C',FACE='#2A4A7A',LIGHT='#E8F0FB';
+
+let state={history:[], pendingParsed:null, pendingFile:null, awaitingConfirm:false, confirmData:null, currentState:'idle'};
+let chartInst={};
+
+function buildMassi(size,st){
+  const s=size,cx=s/2,cy=s/2,r=s*0.46,eyeY=cy-s*0.06,eyeOff=s*0.13,eyeR=s*0.065,pupilR=eyeR*0.55,mouthY=cy+s*0.15,antY=cy-r-s*0.04;
+  let ring='',arm='',bA='',eA='',pA='',mouth='';
+  if(st==='idle'){eA='style="transform-origin:'+cx+'px '+eyeY+'px;animation:massi-blink 4s ease-in-out infinite"';mouth='<path d="M'+(cx-s*.1)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.06)+' '+(cx+s*.1)+' '+mouthY+'" stroke="'+GOLD+'" stroke-width="'+(s*.025)+'" stroke-linecap="round" fill="none"/>';bA='style="animation:massi-float 3s ease-in-out infinite"';}
+  else if(st==='greeting'){mouth='<path d="M'+(cx-s*.12)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.1)+' '+(cx+s*.12)+' '+mouthY+'" stroke="'+GOLD+'" stroke-width="'+(s*.025)+'" stroke-linecap="round" fill="none"/>';arm='<g style="transform-origin:'+(cx+r*.8)+'px '+(cy-r*.1)+'px;animation:massi-wave 1.5s ease-in-out 3"><rect x="'+(cx+r*.75)+'" y="'+(cy-r*.3)+'" width="'+(s*.09)+'" height="'+(s*.26)+'" rx="'+(s*.04)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><circle cx="'+(cx+r*.8)+'" cy="'+(cy-r*.28)+'" r="'+(s*.05)+'" fill="'+GOLD+'"/></g>';bA='style="animation:massi-nod .6s ease-in-out 2"';}
+  else if(st==='thinking'){pA='style="animation:massi-scan 1s ease-in-out infinite"';mouth='<path d="M'+(cx-s*.08)+' '+(mouthY+s*.01)+' Q'+cx+' '+(mouthY-s*.03)+' '+(cx+s*.08)+' '+(mouthY+s*.01)+'" stroke="'+GOLD+'" stroke-width="'+(s*.022)+'" stroke-linecap="round" fill="none"/>';ring='<circle cx="'+cx+'" cy="'+(cy+r*1.4)+'" r="3" fill="'+GOLD+'" style="animation:massi-t1 1.2s ease-in-out infinite"/><circle cx="'+(cx+s*.14)+'" cy="'+(cy+r*1.4)+'" r="3" fill="'+GOLD+'" style="animation:massi-t2 1.2s ease-in-out infinite"/><circle cx="'+(cx-s*.14)+'" cy="'+(cy+r*1.4)+'" r="3" fill="'+GOLD+'" style="animation:massi-t3 1.2s ease-in-out infinite"/>';}
+  else if(st==='success'){mouth='<path d="M'+(cx-s*.14)+' '+(mouthY-s*.02)+' Q'+cx+' '+(mouthY+s*.12)+' '+(cx+s*.14)+' '+(mouthY-s*.02)+'" stroke="'+GOLD+'" stroke-width="'+(s*.028)+'" stroke-linecap="round" fill="none"/>';bA='style="animation:massi-celebrate .8s ease-in-out 2"';ring='<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+s*.08)+'" fill="none" stroke="'+GOLD+'" stroke-width="'+(s*.04)+'" opacity=".3" style="animation:massi-ring 1s ease-out 2"/>';}
+  else if(st==='alert'){mouth='<path d="M'+(cx-s*.1)+' '+(mouthY+s*.02)+' Q'+cx+' '+(mouthY-s*.04)+' '+(cx+s*.1)+' '+(mouthY+s*.02)+'" stroke="'+GOLD+'" stroke-width="'+(s*.022)+'" stroke-linecap="round" fill="none"/>';ring='<path d="M'+cx+' '+(cy-r-s*.08)+' L'+(cx-s*.06)+' '+(cy-r-s*.18)+' L'+(cx+s*.06)+' '+(cy-r-s*.18)+' Z" fill="#E24B4A" opacity=".9"/><text x="'+cx+'" y="'+(cy-r-s*.1)+'" text-anchor="middle" font-size="'+(s*.09)+'" fill="white" font-weight="700">!</text>';}
+  else if(st==='happy'){mouth='<path d="M'+(cx-s*.14)+' '+(mouthY-s*.02)+' Q'+cx+' '+(mouthY+s*.12)+' '+(cx+s*.14)+' '+(mouthY-s*.02)+'" stroke="'+GOLD+'" stroke-width="'+(s*.028)+'" stroke-linecap="round" fill="none"/>';ring='<text x="'+(cx-r*1.1)+'" y="'+(cy-r*.6)+'" font-size="'+(s*.14)+'" fill="'+GOLD+'" opacity=".7">&#10022;</text><text x="'+(cx+r*.8)+'" y="'+(cy-r*.9)+'" font-size="'+(s*.1)+'" fill="'+GOLD+'" opacity=".5">&#10022;</text>';bA='style="animation:massi-float 1.5s ease-in-out infinite"';}
+  else if(st==='nod'){mouth='<path d="M'+(cx-s*.1)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.07)+' '+(cx+s*.1)+' '+mouthY+'" stroke="'+GOLD+'" stroke-width="'+(s*.025)+'" stroke-linecap="round" fill="none"/>';bA='style="animation:massi-nod .5s ease-in-out 3"';ring='<path d="M'+(cx+r*.6)+' '+(cy+r*.3)+' L'+(cx+r*.85)+' '+(cy+r*.6)+' L'+(cx+r*1.3)+' '+(cy-r*.1)+'" stroke="#27500A" stroke-width="'+(s*.05)+'" stroke-linecap="round" stroke-linejoin="round" fill="none"/>';}
+  const dm=mouth||'<path d="M'+(cx-s*.08)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.05)+' '+(cx+s*.08)+' '+mouthY+'" stroke="'+GOLD+'" stroke-width="'+(s*.022)+'" stroke-linecap="round" fill="none"/>';
+  const h=s*1.3;
+  return '<svg width="'+s+'" height="'+h+'" viewBox="0 0 '+s+' '+h+'" xmlns="http://www.w3.org/2000/svg">'+ring+'<g '+bA+'><line x1="'+cx+'" y1="'+(antY+s*.04)+'" x2="'+cx+'" y2="'+(cy-r)+'" stroke="'+NAVY+'" stroke-width="'+(s*.025)+'"/><circle cx="'+cx+'" cy="'+antY+'" r="'+(s*.055)+'" fill="'+GOLD+'"/><rect x="'+(cx-r*.25)+'" y="'+(cy+r*.85)+'" width="'+(r*.2)+'" height="'+(r*.45)+'" rx="'+(r*.08)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><rect x="'+(cx+r*.05)+'" y="'+(cy+r*.85)+'" width="'+(r*.2)+'" height="'+(r*.45)+'" rx="'+(r*.08)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><rect x="'+(cx-r*.95)+'" y="'+(cy-r*.1)+'" width="'+(r*.28)+'" height="'+(r*.55)+'" rx="'+(r*.1)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><rect x="'+(cx+r*.67)+'" y="'+(cy-r*.1)+'" width="'+(r*.28)+'" height="'+(r*.55)+'" rx="'+(r*.1)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><ellipse cx="'+cx+'" cy="'+(cy+r*.45)+'" rx="'+(r*.72)+'" ry="'+(r*.52)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.02)+'"/><circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+FACE+'" stroke="'+NAVY+'" stroke-width="'+(s*.025)+'"/><g '+eA+'><rect x="'+(cx-eyeOff-eyeR)+'" y="'+(eyeY-eyeR)+'" width="'+(eyeR*2)+'" height="'+(eyeR*2)+'" rx="'+(eyeR*.5)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.02)+'"/><rect x="'+(cx+eyeOff-eyeR)+'" y="'+(eyeY-eyeR)+'" width="'+(eyeR*2)+'" height="'+(eyeR*2)+'" rx="'+(eyeR*.5)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.02)+'"/><g '+pA+'><circle cx="'+(cx-eyeOff)+'" cy="'+eyeY+'" r="'+pupilR+'" fill="'+NAVY+'"/><circle cx="'+(cx+eyeOff)+'" cy="'+eyeY+'" r="'+pupilR+'" fill="'+NAVY+'"/><circle cx="'+(cx-eyeOff+pupilR*.3)+'" cy="'+(eyeY-pupilR*.3)+'" r="'+(pupilR*.3)+'" fill="white"/><circle cx="'+(cx+eyeOff+pupilR*.3)+'" cy="'+(eyeY-pupilR*.3)+'" r="'+(pupilR*.3)+'" fill="white"/></g></g>'+dm+'<rect x="'+(cx-r*.5)+'" y="'+(cy+r*.28)+'" width="'+r+'" height="'+(r*.18)+'" rx="'+(r*.06)+'" fill="'+NAVY+'" opacity=".35"/><rect x="'+(cx-r*.3)+'" y="'+(cy+r*.31)+'" width="'+(r*.22)+'" height="'+(r*.12)+'" rx="'+(r*.04)+'" fill="'+GOLD+'" opacity=".7"/></g>'+arm+'</svg>';
+}
+
+function setAvatarState(st){
+  state.currentState=st;
+  document.getElementById('massiLargeAv').innerHTML=buildMassi(90,st);
+  document.getElementById('chatHeaderAv').innerHTML=buildMassi(32,st);
+}
+
+async function fetchSheet(tab,limit){
+  try{const r=await fetch(SHEETS_URL+'?tab='+tab+(limit?'&limit='+limit:''));return await r.json();}catch(e){return null;}
+}
+
+function massIAsk(q){
+  document.getElementById('chatInput').value=q;
+  massISend();
+}
+
+function massISend(){
+  const inp=document.getElementById('chatInput');
+  const txt=inp.value.trim();
+  if(!txt&&!state.pendingParsed) return;
+  if(txt) appendUser(txt);
+  inp.value=''; inp.style.height='38px';
+  document.getElementById('sugChips').style.display='none';
+  if(state.awaitingConfirm){handleConfirm(txt);return;}
+  if(state.pendingParsed){processExcel(txt);return;}
+  if(/thank|great|excellent|good job|well done|perfect|amazing/i.test(txt)){
+    setAvatarState('happy');setTimeout(function(){setAvatarState('idle');},2500);
+  }
+  callMassi(txt);
+}
+
+function callMassi(txt){
+  setAvatarState('thinking');
+  showTyping();
+  state.history.push({role:'user',content:txt});
+  if(state.history.length>20) state.history=state.history.slice(-20);
+  fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,system:SYSTEM_PROMPT,messages:state.history})
+  }).then(function(r){return r.json();}).then(function(d){
+    removeTyping();
+    const resp=d.content&&d.content[0]?d.content[0].text:'I could not get a response. Please try again.';
+    state.history.push({role:'assistant',content:resp});
+    setAvatarState('idle');
+    appendAI(resp);
+    addHistory(txt);
+  }).catch(function(){
+    removeTyping();setAvatarState('idle');
+    appendAI('Connection issue. Check your Apps Script deployment URL.');
+  });
+}
+
+document.getElementById('xlFile').addEventListener('change',function(e){
+  const file=e.target.files[0];if(!file)return;
+  state.pendingFile=file;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(data.length<2){appendAI('That file appears empty.');return;}
+      state.pendingParsed={headers:data[0].map(String),rows:data.slice(1).filter(function(r){return r.some(function(c){return String(c).trim();});})};
+      const chip=document.getElementById('fileChip');
+      chip.style.display='flex';
+      document.getElementById('fileChipName').textContent=file.name;
+      document.getElementById('fileChipInfo').textContent=' · '+state.pendingParsed.rows.length+' rows';
+      document.getElementById('chatInput').focus();
+    }catch(err){appendAI('Could not read that file — ensure it is a valid .xlsx or .csv.');}
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value='';
+});
+
+function processExcel(hint){
+  setAvatarState('thinking');showTyping();
+  setTimeout(function(){
+    removeTyping();
+    appendAI('Excel file detected with '+state.pendingParsed.rows.length+' rows and '+state.pendingParsed.headers.length+' columns: '+state.pendingParsed.headers.slice(0,4).join(', ')+'...\n\nI have detected the structure. Which register should this update? Or describe what this file contains and I will identify the target register automatically.');
+    setAvatarState('idle');
+    state.pendingParsed=null;
+    document.getElementById('fileChip').style.display='none';
+  },1200);
+}
+
+function handleConfirm(txt){
+  if(/yes|y|confirm|proceed|ok/i.test(txt.trim())){state.awaitingConfirm=false;appendAI('Confirmed. Processing update...');setAvatarState('success');setTimeout(function(){setAvatarState('idle');},2500);}
+  else if(/no|n|cancel/i.test(txt.trim())){state.awaitingConfirm=false;appendAI('Cancelled. No changes made.');}
+  else{appendAI('Type yes to confirm or no to cancel.');}
+}
+
+function showTyping(){
+  if(document.getElementById('massi-typing')) return;
+  const msgs=document.getElementById('chatMsgs');
+  const div=document.createElement('div');
+  div.className='msg ai';div.id='massi-typing';
+  div.innerHTML='<div class="massi-msg-av">'+buildMassi(28,'thinking')+'</div><div class="bubble typing-b"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>';
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+}
+function removeTyping(){const el=document.getElementById('massi-typing');if(el)el.remove();}
+
+function appendUser(txt){
+  const msgs=document.getElementById('chatMsgs');
+  const t=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const div=document.createElement('div');div.className='msg user';
+  div.innerHTML='<div class="msg-av user">U</div><div><div class="bubble">'+txt.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><div class="msg-time">'+t+'</div></div>';
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+}
+
+function appendAI(txt,card){
+  const msgs=document.getElementById('chatMsgs');
+  const t=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const div=document.createElement('div');div.className='msg ai';
+  let content='';
+  if(txt) content+='<div class="bubble">'+txt.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>')+'</div>';
+  if(card) content+=card;
+  div.innerHTML='<div class="massi-msg-av">'+buildMassi(28,'idle')+'</div><div>'+content+'<div class="msg-time">'+t+'</div></div>';
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+}
+
+function addHistory(q){
+  const hist=document.getElementById('histList');
+  const div=document.createElement('div');div.className='hist-item';
+  div.onclick=function(){massIAsk(q);};
+  div.innerHTML='<div class="hist-q">'+q+'</div><div class="hist-t">Just now</div>';
+  hist.insertBefore(div,hist.firstChild);
+  if(hist.children.length>6) hist.removeChild(hist.lastChild);
+}
+
+/* Init */
+window.addEventListener('DOMContentLoaded',function(){
+  if(typeof renderTopbar==='function'){
+    document.getElementById('topbar-mount').innerHTML=renderTopbar('MASSI AI Copilot','Your intelligent IMS digital assistant');
+  }
+  setTimeout(function(){
+    setAvatarState('greeting');
+    setTimeout(function(){setAvatarState('idle');},2500);
+    const daysToS1=Math.max(0,Math.floor((new Date('2026-08-25')-new Date())/86400000));
+    const daysToS2=Math.max(0,Math.floor((new Date('2026-09-22')-new Date())/86400000));
+    document.getElementById('alertCount').textContent='6 alerts · Stage 1 in '+daysToS1+' days';
+    appendAI('Hello! I\'m MASSI, your IMS AI Copilot for SAGCO.\n\nI\'m monitoring <strong>6 active alerts</strong> today — including 2 overdue CAPAs that are Stage 2 blockers, F4 SHC running +119 kcal/kg above target, and Stage 1 audit in <strong>'+daysToS1+' days</strong>.\n\nI can help you analyse data, navigate the portal, answer questions about your ISO standards, update registers from Excel, and prepare for your TÜV Austria audit. What would you like to explore?');
+  },300);
+});
+</script>
+</body>
+</html>

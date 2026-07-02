@@ -8,6 +8,9 @@
 /* ── Navigation Tree ───────────────────────────────────────── */
 var TREE = [
 
+  /* ══ MASSI AI COPILOT ══════════════════════════════════ */
+  { id:'massi-copilot', label:'MASSI AI Copilot', file:'massi.html', level:'L0', badge:'AI Copilot', icon:'massi' },
+
   /* ══ HOME ═══════════════════════════════════════════════ */
   { id:'home-overview', label:'IMS Overview',  file:'ims-overview.html', level:'L0', badge:'System Map' },
   { id:'home-manual',   label:'IMS Manual',    file:'ims-manual.html',   level:'L0', badge:'L1 · MAN-01' },
@@ -322,6 +325,8 @@ function renderNodes(nodes, open, activeFile, depth) {
     /* Root node gets special bold gold styling */
     var rootStyle = (n.id === 'root')
       ? ' style="'+depthPad(depth)+';font-weight:700;font-size:12px"'
+      : (n.id === 'massi-copilot')
+      ? ' style="'+depthPad(depth)+';font-weight:700;font-size:13px;color:#C9A84C;border-bottom:0.5px solid rgba(201,168,76,.25);margin-bottom:6px;background:rgba(27,42,74,.08);border-radius:6px"'
       : ' style="'+depthPad(depth)+'"';
 
     html += '<'+tag+hrefAttr
@@ -331,7 +336,10 @@ function renderNodes(nodes, open, activeFile, depth) {
           + rootStyle
           + '>';
     html += arrow;
-    html += '<span class="nlbl">'+n.label+'</span>';
+    var labelHtml = (n.id === 'massi-copilot')
+      ? '<span style="display:flex;align-items:center;gap:6px">'+'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#C9A84C;flex-shrink:0"></span>'+n.label+'</span>'
+      : n.label;
+    html += '<span class="nlbl">'+labelHtml+'</span>';
     html += lvlPill + tagEl + bdgEl;
     html += '</'+tag+'>';
 
@@ -489,6 +497,7 @@ function renderTopbar(title, subtitle) {
     + '</div>'
     + '<div class="topbar-right">'
     + '<button id="se-restore-btn" title="Show Edit button" onclick="restoreEditBtn()" style="display:none">&#9998; Edit</button>'
+    + '<button id="massi-nav-btn" onclick="massINavOpen()" title="Open MASSI AI Copilot" style="display:flex;align-items:center;gap:5px;background:#1B2A4A;border:none;color:#C9A84C;border-radius:7px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:600" ><span id="massi-nav-av" style="width:22px;height:29px;flex-shrink:0"></span>MASSI</button>'
     + '<button class="btn btn-ghost" onclick="printCurrentPage()" title="Print this page">&#128424; Print</button>'
     + '<button class="btn btn-ghost" onclick="localStorage.clear();var u=location.href.split(&quot;?&quot;)[0]+&quot;?_cb=&quot;+Date.now();location.replace(u)">&#8635; Refresh</button>'
     + '</div>'
@@ -534,6 +543,15 @@ function bindHoverCollapse() {
 ══════════════════════════════════════════════════════════════ */
 function initPage(filename) {
   /* Inject edit-mode.js dynamically if not already loaded */
+  /* Inject IMS Copilot widget if not already loaded */
+  if (!document.getElementById('sagco-copilot-script')) {
+    var cs = document.createElement('script');
+    cs.id  = 'sagco-copilot-script';
+    cs.src = 'copilot_v2.html';
+    cs.type = 'text/javascript';
+    document.body.appendChild(cs);
+  }
+
   if (!document.getElementById('sagco-edit-mode-script')) {
     var s = document.createElement('script');
     s.id  = 'sagco-edit-mode-script';
@@ -1009,3 +1027,88 @@ if (document.readyState === 'loading') {
 } else {
   setTimeout(scanAndWrapAbbreviations, 600);
 }
+
+
+/* ── MASSI navbar integration ─────────────────────────────────────────────── */
+function massINavOpen() {
+  var panel = document.getElementById('copPanel');
+  if (!panel) {
+    window.location.href = 'massi.html';
+    return;
+  }
+  if (panel.classList.contains('cop-hidden')) {
+    panel.classList.remove('cop-hidden');
+    if (typeof togglePanel === 'function') togglePanel();
+  } else {
+    panel.classList.add('cop-hidden');
+  }
+}
+
+/* ── Context-aware suggestions per page ──────────────────────────────────────
+   Reads current filename from window.location and injects relevant
+   suggestions into MASSI on page load.
+   ─────────────────────────────────────────────────────────────────────────── */
+var MASSI_PAGE_CONTEXT = {
+  'hira.html':                 {sev:'crit',  msg:'HIRA register is open. E-03 objective is BEHIND — overdue since Jun 2026. Shall I show the gap analysis?', q:['Show overdue HIRA items','Which hazards have HIGH residual risk?','Propose preventive actions from HIRA']},
+  'capa-register.html':        {sev:'crit',  msg:'CAPA register is open. 4 CAPAs are open — 2 are Stage 2 blockers. Shall I show overdue actions?', q:['Show overdue CAPAs','Which CAPAs are Stage 2 blockers?','Generate a CAPA proposal from incidents']},
+  'kpi-dashboard.html':        {sev:'high',  msg:'KPI dashboard is open. 4 KPIs are AT RISK including PTW compliance (79%) and Cullet ratio (20% vs 30% target).', q:['Show KPI trend chart','Compare this month with last month','Which KPIs are deteriorating?']},
+  'calibration-register.html': {sev:'high',  msg:'Calibration register is open. CAL-003 WBGT meter is overdue. Shall I show all overdue calibrations?', q:['Show overdue calibrations','Which instruments are due this month?','Update calibration register from Excel']},
+  'energy.html':               {sev:'crit',  msg:'Energy page is open. F4 SHC is +119 kcal/kg above age-adjusted target — URGENT. ECM 1 decision due August 2026.', q:['Show energy opportunity analysis','Compare furnace SHC vs targets','Show ECM recommendations']},
+  'incident-register.html':    {sev:'high',  msg:'Incident register is open. Shall I analyse trends and identify recurring root causes?', q:['Analyse incident trends','Generate CAPA proposal from incidents','Show incidents by severity']},
+  'training.html':             {sev:'med',   msg:'Training register is open. TRN-003 EnMS Awareness is planned for 31 Jul 2026 — not yet conducted.', q:['Show training completion rates','Which training is overdue?','Update training register from Excel']},
+  'supplier-esg.html':         {sev:'high',  msg:'Supplier ESG register is open. 0 of 10 strategic supplier ESG assessments completed — EcoVadis Silver deadline 31 Jul 2026.', q:['Show EcoVadis score estimate','Which suppliers need ESG assessment?','Update supplier ESG register from Excel']},
+  'audit-programme.html':      {sev:'crit',  msg:'Audit programme is open. Stage 1 TÜV Austria audit is on 25-26 August 2026. AUD-2026-006 is outstanding.', q:['Show audit readiness status','Which pages have empty data?','What must be done before Stage 1?']},
+  'risk-register.html':        {sev:'med',   msg:'Risk register is open. Shall I show the top risks by score and identify any that have increased since last review?', q:['Show top risks by score','Which risks are above tolerance?','Analyse risk trends']},
+  'sea-register.html':         {sev:'med',   msg:'Environmental Aspects register is open. Shall I identify significant aspects and check against legal compliance?', q:['Show significant environmental aspects','Which aspects are HIGH significance?','Link aspects to legal requirements']},
+  'ghg-inventory.html':        {sev:'med',   msg:'GHG Inventory is open. GHG intensity KPI-02 is AT RISK at 617 kgCO2e/t vs target ≤590.', q:['Show GHG trend','Compare GHG vs target','Show Scope 3 emissions breakdown']},
+  'compliance.html':           {sev:'high',  msg:'Legal compliance register is open. Legal compliance KPI-08 is AT RISK at 68% vs 95% target.', q:['Show compliance gaps','Which legal requirements are overdue?','Update legal register from Excel']},
+  'management-review.html':    {sev:'crit',  msg:'Management Review page is open. MR-2026-01 must be conducted before Stage 2 (22 Sep 2026).', q:['What inputs are needed for MR-2026-01?','Show management review checklist','Which KPIs need attention for MR?']},
+  'speak-up.html':             {sev:'med',   msg:'Speak-Up register is open. ISO 37001 §8.9 and Saudi M/25 require this to be active before Stage 1.', q:['Show speak-up register status','ISO 37001 §8.9 requirements','What evidence does TÜV need for §8.9?']},
+  'ppe-register.html':         {sev:'high',  msg:'PPE register is open. All 884 employees + 152 contractors must have PPE requirements documented before Stage 2.', q:['Show PPE compliance by area','Which areas are missing PPE data?','Update PPE register from Excel']},
+};
+
+function massIInjectPageContext() {
+  var page = window.location.pathname.split('/').pop() || 'index.html';
+  var ctx  = MASSI_PAGE_CONTEXT[page];
+  if (!ctx) return;
+  setTimeout(function() {
+    var panel = document.getElementById('copPanel');
+    if (!panel || panel.classList.contains('cop-hidden')) return;
+    var msgs = document.getElementById('copMsgs');
+    if (!msgs) return;
+    var div = document.createElement('div');
+    div.style.cssText = 'background:' + (ctx.sev==='crit'?'#FCEBEB':ctx.sev==='high'?'#FAEEDA':'#E6F1FB') +
+      ';border-radius:8px;padding:9px 12px;font-size:11px;margin:4px 0;border:0.5px solid ' +
+      (ctx.sev==='crit'?'#F7C1C1':ctx.sev==='high'?'#FAC775':'#B5D4F4');
+    div.innerHTML = '<div style="font-size:10px;font-weight:700;color:' +
+      (ctx.sev==='crit'?'#791F1F':ctx.sev==='high'?'#633806':'#0C447C') +
+      ';margin-bottom:4px">' + (ctx.sev==='crit'?'MASSI · Critical alert':'MASSI · Page insight') + '</div>' +
+      '<div style="color:var(--text-primary);line-height:1.5;margin-bottom:6px">' + ctx.msg + '</div>' +
+      '<div style="display:flex;gap:5px;flex-wrap:wrap">' +
+      ctx.q.map(function(q){ return '<button onclick="massISuggest(\'' + q.replace(/'/g,"\'") + '\')" style="background:white;border:0.5px solid #ddd;border-radius:5px;padding:3px 8px;font-size:10px;cursor:pointer;color:#1B2A4A">' + q + '</button>'; }).join('') +
+      '</div>';
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+    if (typeof setMassiState === 'function') {
+      setMassiState(ctx.sev === 'crit' ? 'alert' : 'idle');
+      setTimeout(function(){ setMassiState('idle'); }, 2500);
+    }
+  }, 800);
+}
+
+function massISuggest(q) {
+  var input = document.getElementById('copInput');
+  if (input) { input.value = q; }
+  if (typeof sendMsg === 'function') sendMsg();
+}
+
+/* Initialise MASSI nav icon avatar and set page context on load */
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function() {
+    var navAv = document.getElementById('massi-nav-av');
+    if (navAv && typeof buildMassi === 'function') {
+      navAv.innerHTML = buildMassi(22, 'idle');
+    }
+    massIInjectPageContext();
+  }, 500);
+});
