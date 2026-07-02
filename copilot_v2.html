@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MASSI</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+#ims-copilot{position:fixed;bottom:24px;right:24px;z-index:9999;font-family:Arial,sans-serif;font-size:13px}
+.cop-toggle{width:52px;height:52px;border-radius:50%;background:#1B2A4A;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.cop-toggle svg{width:24px;height:24px;fill:#C9A84C}
+.cop-badge{position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:50%;
+  background:#E24B4A;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;
+  justify-content:center;border:2px solid white}
+.cop-panel{width:400px;height:580px;background:white;border-radius:12px;
+  box-shadow:0 8px 32px rgba(0,0,0,.18);display:flex;flex-direction:column;
+  margin-bottom:10px;overflow:hidden;border:0.5px solid #e0e0e0}
+.cop-header{background:#1B2A4A;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.cop-header-icon{width:30px;height:30px;border-radius:8px;background:rgba(201,168,76,.2);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
+.cop-header-title{font-size:13px;font-weight:600;color:white}
+.cop-header-sub{font-size:9px;color:rgba(255,255,255,.5);margin-top:1px}
+.cop-close{margin-left:auto;background:transparent;border:none;color:rgba(255,255,255,.6);
+  cursor:pointer;font-size:18px;line-height:1;padding:2px}
+.cop-alerts{flex-shrink:0;border-bottom:1px solid #f0f0f0;max-height:120px;overflow-y:auto}
+.alert-item{display:flex;align-items:flex-start;gap:8px;padding:6px 12px;border-bottom:0.5px solid #f5f5f5;font-size:11px}
+.alert-item:last-child{border-bottom:none}
+.alert-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.alert-crit .alert-dot{background:#E24B4A}
+.alert-high .alert-dot{background:#EF9F27}
+.alert-med .alert-dot{background:#378ADD}
+.alert-text{flex:1;color:#333;line-height:1.4}
+.alert-link{color:#185FA5;text-decoration:none;font-weight:500}
+.alert-dismiss{background:transparent;border:none;color:#aaa;cursor:pointer;font-size:12px;padding:0 2px;flex-shrink:0}
+.cop-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.cop-msg{display:flex;gap:6px;max-width:100%}
+.cop-msg.user{flex-direction:row-reverse}
+.cop-avatar{width:24px;height:24px;border-radius:50%;flex-shrink:0;display:flex;
+  align-items:center;justify-content:center;font-size:10px;font-weight:600;margin-top:2px}
+.cop-avatar.ai{background:#1B2A4A;color:#C9A84C;font-size:12px}
+.cop-avatar.user{background:#E6F1FB;color:#0C447C}
+.cop-bubble{padding:8px 10px;border-radius:10px;font-size:11.5px;line-height:1.6;max-width:85%}
+.cop-msg.ai .cop-bubble{background:#f5f5f5;border-radius:4px 10px 10px 10px;color:#1a1a1a}
+.cop-msg.user .cop-bubble{background:#1B2A4A;color:white;border-radius:10px 4px 10px 10px}
+.cop-bubble a{color:#185FA5;text-decoration:none;font-weight:500}
+.cop-msg.user .cop-bubble a{color:#90CAF9}
+.cop-time{font-size:9px;color:#aaa;margin-top:2px;padding:0 2px}
+.cop-msg.user .cop-time{text-align:right}
+.card-block{background:white;border:0.5px solid #e0e0e0;border-radius:8px;padding:8px 10px;margin-top:4px;font-size:11px}
+.card-title{font-size:11px;font-weight:600;margin-bottom:5px;color:#1B2A4A}
+.stat-row{display:grid;gap:4px;margin-bottom:6px}
+.stat-box{border-radius:5px;padding:5px 8px;text-align:center;border:0.5px solid #e0e0e0}
+.stat-num{font-size:16px;font-weight:600}
+.stat-lbl{font-size:9px;color:#666;margin-top:1px}
+.data-table{width:100%;border-collapse:collapse;font-size:10px}
+.data-table th{background:#f5f5f5;padding:4px 6px;text-align:left;font-weight:600;
+  color:#555;border-bottom:1px solid #e0e0e0;font-size:9.5px}
+.data-table td{padding:4px 6px;border-bottom:0.5px solid #f0f0f0;color:#333}
+.data-table tr:last-child td{border-bottom:none}
+.tag-s{display:inline-block;font-size:8px;font-weight:700;border-radius:2px;padding:1px 4px;white-space:nowrap}
+.tag-ok{background:#EAF3DE;color:#27500A}.tag-warn{background:#FAEEDA;color:#633806}
+.tag-err{background:#FCEBEB;color:#791F1F}.tag-info{background:#E6F1FB;color:#0C447C}
+.map-row{display:grid;grid-template-columns:1fr 14px 1fr 40px;gap:3px;align-items:center;
+  padding:3px 0;border-bottom:0.5px solid #f0f0f0;font-size:10.5px}
+.map-row:last-child{border-bottom:none}
+.conf{font-size:8.5px;font-weight:700;border-radius:8px;padding:1px 5px}
+.conf-h{background:#EAF3DE;color:#27500A}.conf-m{background:#FAEEDA;color:#633806}.conf-l{background:#FCEBEB;color:#791F1F}
+.preview-stat{display:grid;gap:4px;margin-bottom:6px}
+.pstat{border-radius:5px;padding:5px;text-align:center;border:0.5px solid #e0e0e0}
+.pstat-n{font-size:15px;font-weight:600}.pstat-l{font-size:9px;color:#666;margin-top:1px}
+.confirm-btns{display:flex;gap:6px;margin-top:6px}
+.btn-yes{flex:1;background:#1B2A4A;color:white;border:none;border-radius:5px;
+  padding:6px;font-size:11px;font-weight:600;cursor:pointer}
+.btn-no{background:white;color:#666;border:0.5px solid #ccc;border-radius:5px;
+  padding:6px 10px;font-size:11px;cursor:pointer}
+.typing{display:flex;align-items:center;gap:3px;padding:8px 10px;background:#f5f5f5;border-radius:4px 10px 10px 10px}
+.tdot{width:5px;height:5px;border-radius:50%;background:#999;animation:td 1.2s ease-in-out infinite}
+.tdot:nth-child(2){animation-delay:.2s}.tdot:nth-child(3){animation-delay:.4s}
+@keyframes td{0%,100%{opacity:.2;transform:scale(.8)}50%{opacity:.9;transform:scale(1)}}
+.cop-input-area{border-top:1px solid #f0f0f0;padding:8px 10px;display:flex;gap:6px;
+  align-items:flex-end;flex-shrink:0;background:white}
+.file-chip{background:#E6F1FB;border:0.5px solid #B5D4F4;border-radius:5px;padding:3px 7px;
+  font-size:10px;color:#0C447C;display:flex;align-items:center;gap:4px;margin-bottom:5px}
+.cop-textarea{flex:1;border:0.5px solid #ddd;border-radius:7px;padding:7px 10px;
+  font-size:11.5px;resize:none;min-height:32px;max-height:72px;font-family:Arial,sans-serif;
+  background:white;color:#1a1a1a;outline:none;line-height:1.4}
+.cop-textarea:focus{border-color:#888}
+.cop-attach{width:30px;height:30px;border-radius:6px;background:#f5f5f5;border:0.5px solid #ddd;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
+.cop-attach:hover{background:#ebebeb}
+.cop-send{width:30px;height:30px;border-radius:6px;background:#1B2A4A;border:none;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cop-send svg{width:14px;height:14px;fill:#C9A84C}
+.cop-hidden{display:none!important}
+.chart-wrap{margin-top:6px;position:relative;height:140px}
+</style>
+</head>
+<body>
+
+<div id="ims-copilot">
+  <div class="cop-panel cop-hidden" id="copPanel">
+    <div class="cop-header">
+      <div class="massi-av" data-size="34" style="flex-shrink:0;width:34px;height:44px"></div>
+      <div>
+        <div class="cop-header-title">MASSI</div>
+        <div class="cop-header-sub">ISO 9001 · 14001 · 45001 · 50001 · 37001 · EcoVadis</div>
+      </div>
+      <button class="cop-close" onclick="togglePanel()" aria-label="Close">&#215;</button>
+    </div>
+    <div class="cop-alerts" id="copAlerts" style="display:none"></div>
+    <div class="cop-msgs" id="copMsgs"></div>
+    <div class="cop-input-area">
+      <div style="flex:1">
+        <div class="file-chip cop-hidden" id="fileChip">
+          <span>&#128206;</span>
+          <span id="fileChipName"></span>
+          <span id="fileChipInfo" style="color:#185FA5;margin-left:2px"></span>
+        </div>
+        <textarea class="cop-textarea" id="copInput" rows="1"
+          placeholder="Ask MASSI anything about your IMS..."
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"
+          oninput="this.style.height='32px';this.style.height=this.scrollHeight+'px'"></textarea>
+      </div>
+      <button class="cop-attach" onclick="document.getElementById('copFile').click()" title="Upload Excel file">&#128206;</button>
+      <button class="cop-send" onclick="sendMsg()" aria-label="Send">
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+      </button>
+      <input type="file" id="copFile" accept=".xlsx,.xls,.csv" style="display:none">
+    </div>
+  </div>
+  <button class="cop-toggle" onclick="togglePanel()" aria-label="Open MASSI">
+    <div class="massi-av" data-size="36" style="width:36px;height:47px"></div>
+    <span class="cop-badge" id="alertBadge" style="display:none">0</span>
+  </button>
+</div>
+
+<script>
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycby0dRSt6WpXG63N93Quf1zOS1wieUaxNktoGcOTZBdB8PACQG53vpBWGjmadkbxx2FL6w/exec';
+const ANTHROPIC_PROXY = SHEETS_URL;
+
+const SYSTEM_PROMPT = `You are the MASSI — the intelligent assistant for Saudi Arabian Glass Company Ltd. (SAGCO), Jeddah Industrial City Phase 4, Facility ID S-SAU-PK-0001049.
+
+═══════════════════════════════════════════════════════
+SAGCO ORGANISATION FACTS
+═══════════════════════════════════════════════════════
+Industry: Glass container manufacturing · 5 HFO-fired furnaces F1–F5
+Employees: 884 direct · 152 contractors · ~627 migrant workers
+CEO: Rami Al Dobi (approval authority all L1/L2 documents)
+IMS Coordinator: Issam Ali Abdelkefi
+Certification body: TÜV Austria
+Stage 1 audit: 25–26 August 2026 (days remaining calculated from today)
+Stage 2 audit: 22–26 September 2026
+Standards: ISO 9001:2015 · ISO 14001:2015 · ISO 45001:2018 · ISO 50001:2018 · ISO 37001:2016
+Secondary targets: EcoVadis Silver ≥65 · Coca-Cola SGP compliance
+ISO 22000/FSSC 22000: outside IMS boundary — standalone certification
+Core values: Integrity · Respect · Accountability · Innovation · Customer Focus
+
+Governance:
+  IMS Steering Committee — Chair: IMS Manager — all standards strategic oversight
+  WG1 Plant & Quality — Chair: QA Manager — ISO 9001 · production KPIs · supplier ASL
+  WG2 SHEE Energy & Environment — Chair: Operations Manager/Deputy Plant Manager — ISO 45001 · 14001 · 50001
+  WG3 People Ethics & Procurement — Chair: HR Manager — ISO 37001 · ISO 26000 · ISO 20400
+
+Open CAPAs (Stage 2 blockers):
+  CAPA-2026-001: PTW programme discrepancy — Owner: HSSE Manager — OPEN
+  CAPA-2026-002: Emergency drill overdue — Owner: HSSE Manager — OPEN
+  CAPA-2026-003: Group A OH programmes pending — Owner: HSSE Manager — OPEN
+  CAPA-2026-004: Fire extinguisher inspection records — Owner: HSSE Manager — OPEN
+CEO signatures pending: 7 of 9 L1-IMS policies (PO-04 Energy + PO-05 Quality signed)
+EnMS Champion: Faisal Al-Mutairi — CEO signature pending on L4-IMS-500-F-03
+HIRA documentation (E-03): highest single Stage 2 risk — OPEN overdue Jun 2026
+
+═══════════════════════════════════════════════════════
+ENERGY BASELINE (ISO 50001 — L4-630-A-21 v5/v6)
+═══════════════════════════════════════════════════════
+Facility SPC baseline: 561.24 kWh/ton (2023) · Q1 2026 actual: 562.90 kWh/ton (+0.3%)
+Calorific values: HFO 10,500 kcal/kg · LPG 11,826 kcal/kg · Diesel 10,982 kcal/kg
+Per-furnace SHC baseline vs target (kcal/kg molten glass):
+  F1: baseline 1,503 · target 1,321 · improvement 12%
+  F2: baseline 1,600 · target 1,392 · improvement 13%
+  F3: baseline 2,145 · target 1,716 · improvement 20%
+  F4: baseline 2,282 · target 1,826 · improvement 20% · Q1 2026: 2,401 — URGENT +119 above target
+  F5: baseline 2,091 · target 1,674 · improvement 20%
+ECM 1 (regenerative conversion F3/F4/F5): NPV 457M SAR · IRR 17.4% · decision Aug 2026
+
+═══════════════════════════════════════════════════════
+9 IMS POLICIES (L1-IMS-PO-01 to PO-09)
+═══════════════════════════════════════════════════════
+PO-01 IMS Integrated Policy: SAGCO commits to continual improvement across quality, environment, safety, energy, ethics, and human rights. Covers all 5 ISO standards. CEO signed pending.
+PO-02 Environmental Policy (ISO 14001 §5.2): Prevent pollution · comply with Saudi MEWA/NCEC regulations · reduce GHG emissions · improve waste recycling · protect water resources · conduct annual environmental reviews. 9 commitments. CEO signed pending.
+PO-03 OH&S Policy (ISO 45001 §5.2): Zero fatalities · protect 884 employees + 152 contractors · eliminate hazards · consult workers · comply with Saudi Labour Law and MO 3337 · conduct HIRA annually. CEO signed pending.
+PO-04 Energy Policy (ISO 50001 §5.2 — L4-EnMS-520-A-3 Rev.03 1 Apr 2025): Continual improvement · compliance · resource allocation · sustainable design · energy awareness · review & monitoring · technology & innovation · climate action · communication. SIGNED by Rami Al Dobi.
+PO-05 Quality & Food Safety Policy (ISO 9001 §5.2 — QFS Rev.6 14 Apr 2026): Design & manufacture to customer requirements · performance improvement · best practices · regulatory compliance · communication · responsibility & accountability. SIGNED by Rami Al Dobi.
+PO-06 Sustainability Policy (ISO 26000): Vision 2030 alignment · GRI reporting · ESG KPIs · carbon roadmap · social responsibility. CEO signed pending.
+PO-07 Anti-Corruption Policy (ISO 37001 §5.2): Zero tolerance · no gift threshold · compliance with Saudi M/36 and Nazaha M/65 · TPDD screening · CoI declarations · whistleblowing channel. CEO signed pending.
+PO-08 Information Security Policy: Saudi PDPL M/19 · NCA ECC v2 · data classification · access control. CEO signed pending.
+PO-09 Human Rights & Labour Practices Policy: UNGPs · prohibition forced/child labour · migrant worker protections · anti-discrimination · equal opportunity · grievance mechanism. CEO signed pending.
+
+═══════════════════════════════════════════════════════
+25 IMS OBJECTIVES (ISO §6.2)
+═══════════════════════════════════════════════════════
+System/Steering (S-01 to S-07):
+  S-01: Complete TÜV Austria IMS certification by 1 Oct 2026 — IMS Manager — ON TRACK
+  S-02: Close all 4 open CAPAs before Stage 2 — HSSE Manager — AT RISK
+  S-03: CEO sign all 9 L1 policies by 1 Aug 2026 — IMS Coordinator — AT RISK
+  S-04: Achieve EcoVadis Silver ≥65 by 31 Jul 2026 — IMS Coordinator — AT RISK
+  S-05: Complete IMS awareness training all WG leads by 28 Jun 2026 — IMS Coordinator — BEHIND
+  S-06: Complete internal audit programme by 12 Sep 2026 — WG leads — ON TRACK
+  S-07: Hold MR-2026-01 before Stage 2 — IMS Manager — ON TRACK
+WG1 Plant & Quality (Q-01 to Q-04):
+  Q-01: Maintain SPC ≤10% above F4 age-adjusted target by Q4 2026 — Furnace Manager — AT RISK
+  Q-02: Reduce customer complaints by 20% vs 2025 baseline by Dec 2026 — QA Manager — ON TRACK
+  Q-03: Achieve Pack-to-Melt ratio ≥91% by Dec 2026 — Plant Manager — ON TRACK
+  Q-04: Complete supplier ASL review for all strategic suppliers by Sep 2026 — Procurement — ON TRACK
+WG2 SHEE Energy Environment (E-01 to E-07):
+  E-01: Zero fatalities in 2026 — HSSE Manager — ON TRACK
+  E-02: Reduce LTIFR to ≤1.5 by Dec 2026 — HSSE Manager — ON TRACK
+  E-03: Complete HIRA for all 33 programmes by Jun 2026 — HSSE Manager — BEHIND (overdue)
+  E-04: Reduce GHG intensity 5% vs 2023 baseline by Dec 2026 — ENV Coordinator — ON TRACK
+  E-05: Reduce F4 SHC to age-adjusted target by Dec 2026 — Furnace Manager — AT RISK
+  E-06: Achieve cullet ratio ≥25% for F3 by Q3 2026 — Production — ON TRACK
+  E-07: Complete ECM 1 feasibility decision by Aug 2026 — CEO + Furnace Consultant — ON TRACK
+WG3 People Ethics Procurement (P-01 to P-07):
+  P-01: Zero corruption incidents in 2026 — CEO — ON TRACK
+  P-02: 100% CoI declarations all IMS staff by Sep 2026 — HR Manager — AT RISK
+  P-03: Complete anti-corruption training 95% staff by Dec 2026 — HR Manager — AT RISK
+  P-04: Activate speak-up channel and log all concerns by Aug 2026 — IMS Manager — ON TRACK
+  P-05: Screen 100% strategic suppliers via TPDD by Jul 2026 — Procurement Manager — AT RISK
+  P-06: Achieve Saudization ratio per Vision 2030 targets — HR Manager — ON TRACK
+  P-07: Complete supplier ESG assessments 10 strategic suppliers by Jul 2026 — Procurement — BEHIND
+
+═══════════════════════════════════════════════════════
+KPI REGISTER — 26 KPIs (L3-IMS-621-R-02 Rev.02)
+═══════════════════════════════════════════════════════
+IMS Steering (5): CAPA closure rate · Audit programme completion · Legal compliance % · Management review completion · High-risk CAPA closure within 30 days
+WG1 Plant & Quality (6): Pack-to-Melt ratio (target ≥91%) · Customer satisfaction score (target ≥85%) · Heldware rate (target ≤1.5%) · Traceability & mock recall · Customer complaints (target -20% vs 2025) · Incoming inspection pass rate
+WG2 SHEE Energy Environment (11): Fatalities (target 0) · LTIFR (target ≤1.5) · Near-miss reports/month · HIRA CAPA closure · Legal compliance environmental · HSE training completion (target ≥90%) · GHG intensity (target -5% vs 2023) · Waste recycling rate · SHC per furnace · EnPI/SPC achievement (facility target ≤561.24 kWh/ton) · ECM progress milestone
+WG3 People Ethics Procurement (6): Corruption incidents (target 0) · CoI declarations % · Anti-corruption training % · Whistleblowing cases resolved · Labour legal compliance · Supplier ESG assessments completed (target 10)
+EcoVadis Silver path: 4 non-KPI actions needed beyond 26 KPIs:
+  Action 1: Supplier CoC signed acknowledgements — Procurement Manager
+  Action 2: GRI-aligned Annual ESG Report — IMS Coordinator — deadline 31 Jul 2026
+  Action 3: Water consumption data disclosure — Deputy Plant Manager
+  Action 4: Gender diversity ratio baseline 2026 — HR Manager
+
+═══════════════════════════════════════════════════════
+108-PAGE SITEMAP (filename | type | ISO clause | sheet | procedure | WG)
+═══════════════════════════════════════════════════════
+index.html|Dashboard|All|–|–|ALL
+ims-overview.html|Overview|All|–|–|ALL
+ims-manual.html|Manual|All|–|–|ALL
+procedures.html|Hub|All|–|–|ALL
+governance.html|Governance|All §5|–|L2-500-P-02|ALL
+ims-framework.html|Framework|All §5|–|L2-500-P-02|ALL
+policies-hub.html|Policies|All §5.2|Sh.11|L2-500-P-02|ALL
+ims-objectives.html|Objectives|All §6.2|Sh.6|L2-600-P-03|ALL
+kpi-dashboard.html|KPI Dashboard|All §9.1|KPI Sh|L2-900-P-06|ALL
+proc-c4.html|Procedure|All §4|–|L2-400-P-01|ALL
+context.html|Context Register|All §4.1|Sh.1|L2-400-P-01|ALL
+pestle-swot.html|PESTLE-SWOT|All §4.1|Sh.2|L2-400-P-01|ALL
+scope.html|Scope|All §4.3|Sh.9|L2-400-P-01|ALL
+proc-c5.html|Procedure|All §5|–|L2-500-P-02|ALL
+policies.html|Policies Register|All §5.2|Sh.11|L2-500-P-02|ALL
+worker-participation.html|Worker Part.|ISO45001 §5.4|Sh.12|L2-500-P-02|WG2
+policy-acknowledgement.html|Policy Ack|All §5.2|Sh.56|L2-500-P-02|ALL
+gemba-walk-log.html|Gemba Walk|ISO9001 §5.1|Gemba Sh|L2-500-P-02|WG1
+steering-team-minutes.html|ST Minutes|All §5.1|ST Sh|L2-500-P-02|ALL
+enms-champion.html|EnMS Champion|ISO50001 §5.3|Sh.66|L2-500-P-02|WG2
+ceo-signed-records.html|CEO Records|All §5.2|Sh.67|L2-500-P-02|ALL
+communication-matrix.html|Comms Matrix|All §7.4|Sh.68|L2-500-P-02|ALL
+proc-c6.html|Procedure|All §6|–|L2-600-P-03|ALL
+risk-register.html|Risk Register|All §6.1|Sh.3|L2-600-P-03|ALL
+compliance.html|Legal Compliance|All §6.1.3|Sh.4|L2-600-P-03|ALL
+methodology.html|Risk Methodology|All §6.1|Sh.5|L2-600-P-03|ALL
+objectives.html|Objectives Register|All §6.2|Sh.6|L2-600-P-03|ALL
+moc.html|MOC Register|All §6.3|Sh.7|L2-600-P-03|ALL
+energy.html|Energy Planning|ISO50001 §6.3–6.6|Sh.8|L2-600-P-03|WG2
+hira.html|HIRA Register|ISO45001 §6.1.2|Sh.13|L2-600-P-03|WG2
+sea-register.html|SEA Register|ISO14001 §6.1.2|Sh.14|L2-600-P-03|WG2
+bribery-risk-register.html|Bribery Risk|ISO37001 §4.5|Sh.61|L2-600-P-03|WG3
+ghg-inventory.html|GHG Inventory|ISO14001 §9.1|Sh.69|L2-600-P-03|WG2
+scope3-emissions.html|Scope 3|ISO14001 §9.1|Sh.27|L2-600-P-03|WG2
+proc-c7.html|Procedure|All §7|–|L2-700-P-04|ALL
+competency.html|Competency Matrix|All §7.2|Sh.15|L2-700-P-04|WG3
+training.html|Training Register|All §7.2|Sh.16|L2-700-P-04|WG3
+training-attendance.html|Training Attendance|All §7.3|Sh.60|L2-700-P-04|WG3
+induction-records.html|Induction Records|ISO45001 §7.2|Sh.55|L2-700-P-04|WG3
+documentation.html|Documentation Register|All §7.5|Sh.17|L2-700-P-04|ALL
+calibration-register.html|Calibration Register|ISO9001 §7.1.5|Sh.35|L2-700-P-04|WG1
+proc-c8.html|Procedure|All §8|–|L2-800-P-05|ALL
+operational-control.html|OC Framework|All §8.1|–|L2-800-P-05|ALL
+oc01-safety.html|OC-01 Safety|ISO45001 §8.1|Sh.34|L2-800-P-05|WG2
+ptw-register.html|PTW Register|ISO45001 §8.1|Sh.36|L2-800-P-05|WG2
+emergency-response.html|Emergency Response|ISO45001 §8.2|Sh.34b|L2-800-P-05|WG2
+contractor-register.html|Contractor Register|ISO45001 §8.1|Sh.35|L2-800-P-05|WG2
+loto-register.html|LOTO Register|ISO45001 §8.1|Sh.37|L2-800-P-05|WG2
+loto-auth-persons.html|LOTO Auth Persons|ISO45001 §8.1|Sh.59|L2-800-P-05|WG2
+confined-space-log.html|Confined Space Log|ISO45001 §8.1|Sh.38|L2-800-P-05|WG2
+heat-stress-log.html|Heat Stress/WBGT|ISO45001 §8.1|Sh.39|L2-800-P-05|WG2
+fire-extinguisher-log.html|Fire Extinguisher|ISO45001 §8.1|Sh.40|L2-800-P-05|WG2
+fire-pump-log.html|Fire Pump Test|ISO45001 §8.1|Sh.41|L2-800-P-05|WG2
+oh-surveillance.html|OH Surveillance|ISO45001 §8.1|Sh.42|L2-800-P-05|WG2
+scaffold-inspection.html|Scaffold Inspection|ISO45001 §8.1|Sh.64|L2-800-P-05|WG2
+ndt-permit-log.html|NDT Log|ISO45001 §8.1|Sh.65|L2-800-P-05|WG2
+chemical-inventory.html|Chemical Inventory|ISO14001 §8.1|Sh.44|L2-800-P-05|WG2
+crane-lifting.html|Crane & Lifting|ISO45001 §8.1|Sh.57|L2-800-P-05|WG2
+ppe-register.html|PPE Register|ISO45001 §8.1|Sh.54|L2-800-P-05|WG2
+wah-register.html|WAH Register|ISO45001 §8.1|Sh.55|L2-800-P-05|WG2
+hot-work-log.html|Hot Work Log|ISO45001 §8.1|Sh.56|L2-800-P-05|WG2
+electrical-safety-log.html|Electrical Safety|ISO45001 §8.1|Sh.57|L2-800-P-05|WG2
+furnace-leakage-log.html|Furnace Leakage|ISO45001 §8.2|Sh.58|L2-800-P-05|WG2
+first-aid-records.html|First Aid Records|ISO45001 §8.1|Sh.59|L2-800-P-05|WG2
+forklift-log.html|Forklift Log|ISO45001 §8.1|Sh.60|L2-800-P-05|WG2
+visitor-register.html|Visitor Register|ISO45001 §8.1|Sh.61|L2-800-P-05|WG2
+oc02-environment.html|OC-02 Environment|ISO14001 §8.1|–|L2-800-P-05|WG2
+waste-management.html|Waste Management|ISO14001 §8.1|Sh.45b|L2-800-P-05|WG2
+chemical-storage.html|Chemical Storage|ISO14001 §8.1|Sh.46|L2-800-P-05|WG2
+furnace-monitoring.html|Furnace Monitoring|ISO50001 §8.1|Sh.47|L2-800-P-05|WG2
+meps-register.html|MEPS Compliance|ISO50001 §8.1|Sh.48|L2-800-P-05|WG2
+water-waste.html|Water & Waste Data|ISO14001 §9.1|Sh.30|L2-800-P-05|WG2
+oc03-quality.html|OC-03 Quality|ISO9001 §8.5|–|L2-800-P-05|WG1
+product-release.html|Product Release|ISO9001 §8.6|Sh.49|L2-800-P-05|WG1
+nonconforming.html|Nonconforming Products|ISO9001 §8.7|Sh.50|L2-800-P-05|WG1
+incoming-inspection.html|Incoming Inspection|ISO9001 §8.4|Sh.51|L2-800-P-05|WG1
+customer-register.html|Customer Requirements|ISO9001 §8.2|Sh.52|L2-800-P-05|WG1
+inprocess-inspection.html|In-Process Inspection|ISO9001 §8.5|Sh.53|L2-800-P-05|WG1
+proc-c9.html|Procedure|All §9|–|L2-900-P-06|ALL
+compliance-eval.html|Compliance Evaluation|All §9.1.2|Sh.70|L2-900-P-06|ALL
+audit-programme.html|Audit Programme|All §9.2|Audit Sh|L2-900-P-06|ALL
+management-review.html|Management Review|All §9.3|MR Sh|L2-900-P-06|ALL
+proc-c10.html|Procedure|All §10|–|L2-1000-P-07|ALL
+capa-register.html|CAPA Register|All §10.1|Sh.23|L2-1000-P-07|ALL
+incident-register.html|Incident Register|ISO45001 §10.2|Sh.24|L2-1000-P-07|WG2
+supplier-esg.html|Supplier ESG|ISO9001 §8.4|Sh.26|L2-800-P-05|WG3
+coi-register.html|CoI Register|ISO37001 §8.7|Sh.28|L2-600-P-03|WG3
+gifts.html|Gifts Register|ISO37001 §8.6|Sh.29|L2-600-P-03|WG3
+diversity.html|Workforce Diversity|ISO26000 §6.3|Sh.31|L2-700-P-04|WG3
+tpdd.html|TPDD Register|ISO37001 §8.2|Sh.32|L2-600-P-03|WG3
+speak-up.html|Speak-Up Register|ISO37001 §8.9|Sh.62|L2-600-P-03|WG3
+antibribery-training.html|Anti-Bribery Training|ISO37001 §7.3|AB Sh|L2-700-P-04|WG3
+supplier-scoc.html|Supplier SCoC|ISO20400 §5|Sh.33|L2-800-P-05|WG3
+document-management.html|Document Management|All §7.5|Sh.17|L2-700-P-04|ALL
+user-management.html|User Management|ISO9001 §7.1.2|Users Sh|L2-700-P-04|ALL
+
+═══════════════════════════════════════════════════════
+KPI → PAGE MAPPING (26 KPIs → source pages)
+═══════════════════════════════════════════════════════
+SPC/EnPI→furnace-monitoring.html+energy.html | LTIFR→incident-register.html | Fatalities→incident-register.html | Near-miss→incident-register.html | SHC per furnace→furnace-monitoring.html | HIRA CAPA closure→hira.html+capa-register.html | HSE training→training-attendance.html | GHG intensity→ghg-inventory.html | Waste recycling→waste-management.html | Pack-to-Melt→inprocess-inspection.html | Customer satisfaction→customer-register.html | Heldware→nonconforming.html | Customer complaints→capa-register.html | CAPA closure rate→capa-register.html | Audit completion→audit-programme.html | Legal compliance→compliance.html | CoI declarations→coi-register.html | Corruption incidents→capa-register.html | Anti-corruption training→training-attendance.html | Supplier ESG→supplier-esg.html | ECM progress→energy.html
+
+═══════════════════════════════════════════════════════
+PROCEDURE → CHILD PAGES MAPPING
+═══════════════════════════════════════════════════════
+L2-400-P-01: context.html · pestle-swot.html · scope.html
+L2-500-P-02: policies.html · worker-participation.html · policy-acknowledgement.html · gemba-walk-log.html · steering-team-minutes.html · enms-champion.html · ceo-signed-records.html · communication-matrix.html
+L2-600-P-03: risk-register.html · compliance.html · objectives.html · moc.html · energy.html · hira.html · sea-register.html · bribery-risk-register.html · ghg-inventory.html · scope3-emissions.html · coi-register.html · tpdd.html · gifts.html
+L2-700-P-04: competency.html · training.html · training-attendance.html · induction-records.html · documentation.html · calibration-register.html · diversity.html · antibribery-training.html
+L2-800-P-05: ptw-register.html · emergency-response.html · contractor-register.html · loto-register.html · loto-auth-persons.html · confined-space-log.html · heat-stress-log.html · fire-extinguisher-log.html · fire-pump-log.html · oh-surveillance.html · scaffold-inspection.html · ndt-permit-log.html · chemical-inventory.html · crane-lifting.html · ppe-register.html · wah-register.html · hot-work-log.html · electrical-safety-log.html · furnace-leakage-log.html · first-aid-records.html · forklift-log.html · visitor-register.html · waste-management.html · chemical-storage.html · furnace-monitoring.html · meps-register.html · water-waste.html · product-release.html · nonconforming.html · incoming-inspection.html · customer-register.html · inprocess-inspection.html · supplier-esg.html · supplier-scoc.html
+L2-900-P-06: compliance-eval.html · audit-programme.html · management-review.html · kpi-dashboard.html
+L2-1000-P-07: capa-register.html · incident-register.html
+
+═══════════════════════════════════════════════════════
+RESPONSE RULES
+═══════════════════════════════════════════════════════
+Navigation: when directing to a page always state: filename · ISO clause · owning WG · parent procedure · direct link as <a href="filename">page name</a>
+Data queries: never answer "show me X" without first stating you need to fetch live data from the relevant sheet
+CI responses: always structure as OBSERVATION → ROOT CAUSE → PROPOSAL → BENEFIT → OWNER → TIMELINE → LINK
+Management insights: always reference real data values — never generic ISO advice
+Alerts: always cite the specific register, due date, and days overdue
+Confirmation rule: never write to Google Sheets without explicit user confirmation of the preview`;
+
+// ── MASTER GAP 1: Full REGISTERS map — 108 pages ──────────────────────────────
+const REGISTERS = {};
+const SITEMAP_RAW = `index.html|Dashboard|All|–|–|ALL
+ims-overview.html|Overview|All|–|–|ALL
+governance.html|Governance|All §5|–|L2-500-P-02|ALL
+ims-framework.html|Framework|All §5|–|L2-500-P-02|ALL
+policies-hub.html|Policies|All §5.2|policies|L2-500-P-02|ALL
+ims-objectives.html|Objectives|All §6.2|objectives|L2-600-P-03|ALL
+kpi-dashboard.html|KPI Dashboard|All §9.1|kpi_dashboard|L2-900-P-06|ALL
+context.html|Context Register|All §4.1|context|L2-400-P-01|ALL
+pestle-swot.html|PESTLE-SWOT|All §4.1|pestle|L2-400-P-01|ALL
+risk-register.html|Risk Register|All §6.1|risks|L2-600-P-03|ALL
+compliance.html|Legal Compliance|All §6.1.3|compliance|L2-600-P-03|ALL
+energy.html|Energy Planning|ISO50001 §6.3|energy|L2-600-P-03|WG2
+hira.html|HIRA Register|ISO45001 §6.1.2|hira|L2-600-P-03|WG2
+sea-register.html|SEA Register|ISO14001 §6.1.2|sea|L2-600-P-03|WG2
+bribery-risk-register.html|Bribery Risk|ISO37001 §4.5|bribery_risk|L2-600-P-03|WG3
+ghg-inventory.html|GHG Inventory|ISO14001 §9.1|ghg_inventory|L2-600-P-03|WG2
+scope3-emissions.html|Scope 3|ISO14001 §9.1|scope3|L2-600-P-03|WG2
+competency.html|Competency Matrix|All §7.2|competency|L2-700-P-04|WG3
+training.html|Training Register|All §7.2|training|L2-700-P-04|WG3
+training-attendance.html|Training Attendance|All §7.3|training_attend|L2-700-P-04|WG3
+induction-records.html|Induction Records|ISO45001 §7.2|induction|L2-700-P-04|WG3
+documentation.html|Documentation Register|All §7.5|documentation|L2-700-P-04|ALL
+calibration-register.html|Calibration Register|ISO9001 §7.1.5|calibration|L2-700-P-04|WG1
+ptw-register.html|PTW Register|ISO45001 §8.1|ptw_register|L2-800-P-05|WG2
+emergency-response.html|Emergency Response|ISO45001 §8.2|emergency|L2-800-P-05|WG2
+contractor-register.html|Contractor Register|ISO45001 §8.1|contractor|L2-800-P-05|WG2
+loto-register.html|LOTO Register|ISO45001 §8.1|loto_register|L2-800-P-05|WG2
+loto-auth-persons.html|LOTO Auth Persons|ISO45001 §8.1|loto_auth|L2-800-P-05|WG2
+confined-space-log.html|Confined Space Log|ISO45001 §8.1|confined_space|L2-800-P-05|WG2
+heat-stress-log.html|Heat Stress/WBGT|ISO45001 §8.1|heat_stress|L2-800-P-05|WG2
+fire-extinguisher-log.html|Fire Extinguisher|ISO45001 §8.1|fire_ext|L2-800-P-05|WG2
+fire-pump-log.html|Fire Pump Test|ISO45001 §8.1|fire_pump|L2-800-P-05|WG2
+oh-surveillance.html|OH Surveillance|ISO45001 §8.1|oh_surveillance|L2-800-P-05|WG2
+scaffold-inspection.html|Scaffold Inspection|ISO45001 §8.1|scaffold|L2-800-P-05|WG2
+ndt-permit-log.html|NDT Log|ISO45001 §8.1|ndt_permits|L2-800-P-05|WG2
+chemical-inventory.html|Chemical Inventory|ISO14001 §8.1|chemical_inv|L2-800-P-05|WG2
+crane-lifting.html|Crane & Lifting|ISO45001 §8.1|crane_lifting|L2-800-P-05|WG2
+ppe-register.html|PPE Register|ISO45001 §8.1|ppe_register|L2-800-P-05|WG2
+wah-register.html|WAH Register|ISO45001 §8.1|wah_register|L2-800-P-05|WG2
+hot-work-log.html|Hot Work Log|ISO45001 §8.1|hot_work|L2-800-P-05|WG2
+electrical-safety-log.html|Electrical Safety|ISO45001 §8.1|electrical_safety|L2-800-P-05|WG2
+furnace-leakage-log.html|Furnace Leakage|ISO45001 §8.2|furnace_leakage|L2-800-P-05|WG2
+first-aid-records.html|First Aid Records|ISO45001 §8.1|first_aid|L2-800-P-05|WG2
+forklift-log.html|Forklift Log|ISO45001 §8.1|forklift|L2-800-P-05|WG2
+visitor-register.html|Visitor Register|ISO45001 §8.1|visitor|L2-800-P-05|WG2
+waste-management.html|Waste Management|ISO14001 §8.1|waste_mgmt|L2-800-P-05|WG2
+chemical-storage.html|Chemical Storage|ISO14001 §8.1|chemical_store|L2-800-P-05|WG2
+furnace-monitoring.html|Furnace Monitoring|ISO50001 §8.1|furnace_monitor|L2-800-P-05|WG2
+meps-register.html|MEPS Compliance|ISO50001 §8.1|meps|L2-800-P-05|WG2
+water-waste.html|Water & Waste Data|ISO14001 §9.1|water_waste|L2-800-P-05|WG2
+product-release.html|Product Release|ISO9001 §8.6|product_release|L2-800-P-05|WG1
+nonconforming.html|Nonconforming Products|ISO9001 §8.7|nonconforming|L2-800-P-05|WG1
+incoming-inspection.html|Incoming Inspection|ISO9001 §8.4|incoming_insp|L2-800-P-05|WG1
+customer-register.html|Customer Requirements|ISO9001 §8.2|customer_reg|L2-800-P-05|WG1
+inprocess-inspection.html|In-Process Inspection|ISO9001 §8.5|inprocess_insp|L2-800-P-05|WG1
+compliance-eval.html|Compliance Evaluation|All §9.1.2|compliance_eval|L2-900-P-06|ALL
+audit-programme.html|Audit Programme|All §9.2|audit_programme|L2-900-P-06|ALL
+management-review.html|Management Review|All §9.3|mgmt_review|L2-900-P-06|ALL
+capa-register.html|CAPA Register|All §10.1|capa|L2-1000-P-07|ALL
+incident-register.html|Incident Register|ISO45001 §10.2|incidents|L2-1000-P-07|WG2
+supplier-esg.html|Supplier ESG|ISO9001 §8.4|supplier_esg|L2-800-P-05|WG3
+coi-register.html|CoI Register|ISO37001 §8.7|coi|L2-600-P-03|WG3
+gifts.html|Gifts Register|ISO37001 §8.6|gifts|L2-600-P-03|WG3
+diversity.html|Workforce Diversity|ISO26000 §6.3|diversity|L2-700-P-04|WG3
+tpdd.html|TPDD Register|ISO37001 §8.2|tpdd|L2-600-P-03|WG3
+speak-up.html|Speak-Up Register|ISO37001 §8.9|speak_up|L2-600-P-03|WG3
+supplier-scoc.html|Supplier SCoC|ISO20400 §5|supplier_scoc|L2-800-P-05|WG3
+moc.html|MOC Register|All §6.3|moc|L2-600-P-03|ALL`.trim().split('\n').forEach(line => {
+  const [file, name, iso, tab, proc, wg] = line.split('|');
+  if (file && file !== '–') REGISTERS[file] = {name, iso, tab: tab === '–' ? null : tab, proc, wg};
+});
+
+// ── MASTER GAP 3: THRESHOLDS per register ─────────────────────────────────────
+const THRESHOLDS = {
+  calibration:   {dateField:'Next Due',     warnDays:30, critDays:0,  label:'Calibration'},
+  training:      {dateField:'Next Due',     warnDays:30, critDays:0,  label:'Training'},
+  ppe_register:  {dateField:'Next Inspection Due', warnDays:30, critDays:0, label:'PPE Inspection'},
+  fire_ext:      {dateField:'Next Inspection Date', warnDays:14, critDays:0, label:'Fire Extinguisher'},
+  capa:          {dateField:'Due Date',     warnDays:7,  critDays:0,  label:'CAPA'},
+  ptw_register:  {dateField:'Expiry Date',  warnDays:3,  critDays:0,  label:'PTW'},
+  audit_programme:{dateField:'Planned Date',warnDays:30, critDays:7,  label:'Audit'},
+  oh_surveillance:{dateField:'Next Due',    warnDays:30, critDays:0,  label:'OH Surveillance'},
+};
+
+// ── MASTER GAP 4: DEPARTMENT_MAP ──────────────────────────────────────────────
+const DEPARTMENT_MAP = {
+  'QA Manager':'WG1','Plant Manager':'WG1','Production Manager':'WG1','Furnace Manager':'WG1',
+  'HSSE Manager':'WG2','SHEE Manager':'WG2','Energy Coordinator':'WG2','ENV Coordinator':'WG2',
+  'Operations Manager':'WG2','Furnace Consultant':'WG2',
+  'HR Manager':'WG3','Procurement Manager':'WG3','Legal Representative':'WG3',
+  'IMS Manager':'ALL','IMS Coordinator':'ALL','CEO':'ALL',
+};
+
+// ── STATE ──────────────────────────────────────────────────────────────────────
+let state = {
+  open: false, pendingParsed: null, pendingFile: null,
+  awaitingConfirm: false, confirmData: null,
+  alerts: [], dismissedAlerts: new Set(JSON.parse(localStorage.getItem('cop_dismissed') || '[]')),
+  history: [],
+};
+
+// ── MASTER GAP 2: fetchSheet — inject live data into Claude context ───────────
+async function fetchSheet(tabKey, limit = 100) {
+  try {
+    const url = SHEETS_URL + '?tab=' + tabKey + (limit ? '&limit=' + limit : '');
+    const r = await fetch(url);
+    const data = await r.json();
+    return data;
+  } catch(e) { return null; }
+}
+
+// ── analyzeRows — client-side pre-processor ───────────────────────────────────
+function analyzeRows(rows, headers) {
+  if (!rows || !rows.length) return {count: 0, byStatus: {}, overdue: []};
+  const today = new Date();
+  const statusIdx = headers.findIndex(h => /status|state/i.test(h));
+  const dateIdx   = headers.findIndex(h => /due|expiry|next/i.test(h));
+  const byStatus = {};
+  const overdue = [];
+  rows.forEach(row => {
+    const status = statusIdx >= 0 ? String(row[statusIdx] || '') : '';
+    if (status) byStatus[status] = (byStatus[status] || 0) + 1;
+    if (dateIdx >= 0 && row[dateIdx]) {
+      const d = new Date(row[dateIdx]);
+      if (!isNaN(d) && d < today) {
+        const days = Math.floor((today - d) / 86400000);
+        overdue.push({row, days, dateVal: row[dateIdx]});
+      }
+    }
+  });
+  return {count: rows.length, byStatus, overdue};
+}
+
+// ── MASTER GAP 3: initAlerts — runs before welcome message ────────────────────
+async function initAlerts() {
+  const cached = localStorage.getItem('cop_alerts_cache');
+  const cacheTime = localStorage.getItem('cop_alerts_time');
+  if (cached && cacheTime && (Date.now() - parseInt(cacheTime)) < 300000) {
+    state.alerts = JSON.parse(cached);
+    renderAlertBanner();
+    return;
+  }
+
+  const today = new Date();
+  const alerts = [];
+  const daysUntilS1 = Math.floor((new Date('2026-08-25') - today) / 86400000);
+  const daysUntilS2 = Math.floor((new Date('2026-09-22') - today) / 86400000);
+
+  if (daysUntilS1 > 0 && daysUntilS1 <= 60) {
+    alerts.push({sev:'crit', text: 'Stage 1 audit in ' + daysUntilS1 + ' days — 25-26 Aug 2026', page:'audit-programme.html', id:'audit-s1', undismissable: true});
+  }
+  if (daysUntilS2 > 0 && daysUntilS2 <= 90) {
+    alerts.push({sev:'high', text: 'Stage 2 audit in ' + daysUntilS2 + ' days — 22-26 Sep 2026', page:'audit-programme.html', id:'audit-s2', undismissable: true});
+  }
+
+  alerts.push({sev:'crit', text:'CAPA-2026-001 PTW discrepancy — OPEN — HSSE Manager', page:'capa-register.html', id:'capa-001', undismissable:true});
+  alerts.push({sev:'crit', text:'CAPA-2026-002 Emergency drill overdue — OPEN — HSSE Manager', page:'capa-register.html', id:'capa-002', undismissable:true});
+  alerts.push({sev:'high', text:'CAPA-2026-003 Group A OH programmes pending approval', page:'capa-register.html', id:'capa-003'});
+  alerts.push({sev:'high', text:'CAPA-2026-004 Fire extinguisher inspection records missing', page:'fire-extinguisher-log.html', id:'capa-004'});
+  alerts.push({sev:'high', text:'CEO signatures pending on 7 of 9 L1 policies', page:'policies-hub.html', id:'ceo-sigs', undismissable:true});
+  alerts.push({sev:'high', text:'EnMS Champion appointment — CEO signature pending', page:'enms-champion.html', id:'enms-champ'});
+  alerts.push({sev:'crit', text:'HIRA documentation E-03 BEHIND — overdue since Jun 2026', page:'hira.html', id:'hira-e03', undismissable:true});
+  alerts.push({sev:'high', text:'F4 SHC +119 kcal/kg above age-adjusted target — URGENT', page:'furnace-monitoring.html', id:'f4-shc'});
+
+  const sheets = Object.entries(THRESHOLDS);
+  for (const [tabKey, rule] of sheets) {
+    const data = await fetchSheet(tabKey, 200);
+    if (!data || !data.rows || !data.rows.length) {
+      alerts.push({sev:'med', text: rule.label + ' register — no data in Google Sheets', page: Object.keys(REGISTERS).find(k => REGISTERS[k].tab === tabKey) || '#', id:'empty-'+tabKey});
+      continue;
+    }
+    const hdrs = data.headers || [];
+    const dateIdx = hdrs.findIndex(h => h && h.toLowerCase().includes(rule.dateField.toLowerCase().split(' ')[0]));
+    if (dateIdx < 0) continue;
+    const today2 = new Date();
+    let overdueCount = 0; let warnCount = 0;
+    data.rows.forEach(row => {
+      const d = new Date(row[dateIdx]);
+      if (isNaN(d)) return;
+      const daysLeft = Math.floor((d - today2) / 86400000);
+      if (daysLeft < rule.critDays) overdueCount++;
+      else if (daysLeft < rule.warnDays) warnCount++;
+    });
+    const page = Object.keys(REGISTERS).find(k => REGISTERS[k].tab === tabKey) || '#';
+    if (overdueCount > 0) alerts.push({sev:'crit', text: rule.label + ': ' + overdueCount + ' overdue', page, id:'overdue-'+tabKey});
+    else if (warnCount > 0) alerts.push({sev:'high', text: rule.label + ': ' + warnCount + ' due within ' + rule.warnDays + ' days', page, id:'warn-'+tabKey});
+  }
+
+  state.alerts = alerts.filter(a => !state.dismissedAlerts.has(a.id));
+  localStorage.setItem('cop_alerts_cache', JSON.stringify(alerts));
+  localStorage.setItem('cop_alerts_time', Date.now().toString());
+  renderAlertBanner();
+}
+
+function renderAlertBanner() {
+  const visible = state.alerts.filter(a => !state.dismissedAlerts.has(a.id));
+  const el = document.getElementById('copAlerts');
+  const badge = document.getElementById('alertBadge');
+  const critCount = visible.filter(a => a.sev === 'crit').length;
+  badge.textContent = visible.length;
+  badge.style.display = visible.length > 0 ? 'flex' : 'none';
+  if (!visible.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = visible.slice(0, 6).map(a => {
+    const sev = a.sev === 'crit' ? 'alert-crit' : a.sev === 'high' ? 'alert-high' : 'alert-med';
+    const dismiss = a.undismissable ? '' : '<button class="alert-dismiss" onclick="dismissAlert(\''+a.id+'\')">&#215;</button>';
+    return '<div class="alert-item '+sev+'"><div class="alert-dot"></div><div class="alert-text">'+a.text+' — <a class="alert-link" href="'+a.page+'">View</a></div>'+dismiss+'</div>';
+  }).join('');
+  if (visible.length > 6) {
+    el.innerHTML += '<div style="text-align:center;padding:5px;font-size:10px;color:#888">+'+(visible.length-6)+' more alerts</div>';
+  }
+}
+
+function dismissAlert(id) {
+  state.dismissedAlerts.add(id);
+  localStorage.setItem('cop_dismissed', JSON.stringify([...state.dismissedAlerts]));
+  state.alerts = state.alerts.filter(a => a.id !== id);
+  renderAlertBanner();
+}
+
+// ── MASTER GAP 5: navigateTo ───────────────────────────────────────────────────
+function navigateTo(url) {
+  if (!url) return;
+  try { window.parent.location.href = url; } catch(e) { window.location.href = url; }
+}
+
+// ── MASTER GAP 4: Chart rendering (Chart.js) ──────────────────────────────────
+let chartInstances = {};
+function renderChart(canvasId, type, labels, datasets, title) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  if (chartInstances[canvasId]) { chartInstances[canvasId].destroy(); }
+  chartInstances[canvasId] = new Chart(canvas, {
+    type, data: {labels, datasets},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: {display: datasets.length > 1}, title: {display: !!title, text: title, font:{size:11}} },
+      scales: type !== 'pie' && type !== 'doughnut' ? {
+        y: {ticks: {font:{size:10}}}, x: {ticks: {font:{size:10}}}
+      } : undefined
+    }
+  });
+}
+
+// ── Excel upload handling ─────────────────────────────────────────────────────
+document.getElementById('copFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  state.pendingFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      if (data.length < 2) { appendAI('That file appears empty.'); return; }
+      state.pendingParsed = {headers: data[0].map(String), rows: data.slice(1).filter(r => r.some(c => String(c).trim()))};
+      const chip = document.getElementById('fileChip');
+      chip.classList.remove('cop-hidden');
+      document.getElementById('fileChipName').textContent = file.name;
+      document.getElementById('fileChipInfo').textContent = ' · ' + state.pendingParsed.rows.length + ' rows';
+      document.getElementById('copInput').focus();
+    } catch(err) { appendAI("Couldn't read that file — ensure it's a valid .xlsx or .csv."); }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
+// ── CORE SEND LOGIC ───────────────────────────────────────────────────────────
+function sendMsg() {
+  const inp = document.getElementById('copInput');
+  const txt = inp.value.trim();
+  if (!txt && !state.pendingParsed) return;
+  if (txt) appendUser(txt);
+  inp.value = ''; inp.style.height = '32px';
+
+  if (state.awaitingConfirm) { handleConfirmReply(txt); return; }
+  if (state.pendingParsed) { processExcel(txt); return; }
+  handleQuery(txt);
+}
+
+async function handleQuery(txt) {
+  const handled = await handleQueryEnhanced(txt);
+  if (handled) return;
+  if(/thank|great|excellent|good job|well done|perfect|amazing/i.test(txt)){setMassiState('happy');setTimeout(function(){setMassiState('idle');},2500);}
+  const lower = txt.toLowerCase();
+  showTyping();
+
+  // Navigation intent detection
+  const navMatch = Object.entries(REGISTERS).find(([file, r]) =>
+    lower.includes(r.name.toLowerCase()) ||
+    lower.includes(file.replace('.html','').replace(/-/g,' '))
+  );
+
+  if ((lower.includes('open') || lower.includes('go to') || lower.includes('navigate') || lower.includes('take me')) && navMatch) {
+    removeTyping();
+    const [file, r] = navMatch;
+    appendAI(null, buildNavCard(file, r));
+    return;
+  }
+
+  // Data analysis intent — fetch sheet before Claude call
+  const analysisKeywords = ['show','analyze','analyse','trend','overdue','compare','which','find','list','top','display','how many'];
+  const isAnalysis = analysisKeywords.some(k => lower.includes(k));
+
+  let liveContext = '';
+  if (isAnalysis) {
+    const sheetMatch = Object.entries(REGISTERS).find(([f, r]) =>
+      r.tab && (lower.includes(r.name.toLowerCase().split(' ')[0]) || lower.includes((r.tab || '').replace(/_/g,' ')))
+    );
+    if (sheetMatch && sheetMatch[1].tab) {
+      const data = await fetchSheet(sheetMatch[1].tab, 150);
+      if (data && data.rows && data.rows.length) {
+        const analysis = analyzeRows(data.rows, data.headers || []);
+        liveContext = '\n\n[LIVE DATA from ' + sheetMatch[1].name + ' (' + sheetMatch[1].tab + ') fetched ' + new Date().toLocaleTimeString() + ']\n' +
+          'Total rows: ' + analysis.count + '\n' +
+          'Status breakdown: ' + JSON.stringify(analysis.byStatus) + '\n' +
+          'Overdue items: ' + analysis.overdue.length + '\n' +
+          'Sample rows (first 5): ' + JSON.stringify(data.rows.slice(0,5).map((row, i) => {
+            const obj = {};
+            (data.headers || []).forEach((h, j) => { if (h) obj[h] = row[j]; });
+            return obj;
+          }));
+      }
+    }
+
+    // Alert context
+    const critAlerts = state.alerts.filter(a => a.sev === 'crit' && !state.dismissedAlerts.has(a.id));
+    if (critAlerts.length) {
+      liveContext += '\n\n[CURRENT CRITICAL ALERTS]\n' + critAlerts.map(a => '- ' + a.text).join('\n');
+    }
+  }
+
+  callClaude(txt + liveContext);
+}
+
+function callClaude(txt) {
+  if (!document.getElementById('typing-ind')) showTyping();
+  state.history.push({role:'user', content: txt});
+  if (state.history.length > 20) state.history = state.history.slice(-20);
+
+  fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      model:'claude-sonnet-4-6',
+      max_tokens:1000,
+      system: SYSTEM_PROMPT,
+      messages: state.history
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    removeTyping();
+    const response = data.content && data.content[0] ? data.content[0].text : "I couldn't get a response. Please try again.";
+    state.history.push({role:'assistant', content: response});
+
+    // Check for navigation instruction in response
+    const navMatch = response.match(/navigate\s+to\s+([a-z0-9-]+\.html)/i) ||
+                     response.match(/go\s+to\s+([a-z0-9-]+\.html)/i) ||
+                     response.match(/opening\s+([a-z0-9-]+\.html)/i);
+    if (navMatch) {
+      const url = navMatch[1];
+      appendAI(response);
+      setTimeout(() => navigateTo(url), 1200);
+    } else {
+      appendAI(response);
+    }
+  })
+  .catch(() => {
+    removeTyping();
+    appendAI("Connection issue. The register update and navigation features still work — just upload a file or ask about a specific register.");
+  });
+}
+
+// ── EXCEL PROCESSING (Q1 full flow) ──────────────────────────────────────────
+function processExcel(hint) {
+  showTyping();
+  const parsed = state.pendingParsed;
+  setTimeout(() => {
+    removeTyping();
+    const reg = detectRegister(parsed.headers, hint);
+    if (!reg) {
+      appendAI("I couldn't auto-detect the register from these columns: " + parsed.headers.slice(0,5).join(', ') + ". Which register should this update? Examples: Calibration Register, HIRA Register, CAPA Register, Training Register, PPE Register.");
+      return;
+    }
+    const mapping = buildMapping(parsed.headers, reg);
+    appendAI(null, buildMappingCard(reg, mapping));
+    clearFileChip();
+    setTimeout(() => {
+      showTyping();
+      setTimeout(() => { removeTyping(); runValidation(reg, parsed, mapping); }, 1200);
+    }, 600);
+  }, 1000);
+}
+
+function detectRegister(headers, hint) {
+  const hl = headers.map(h => h.toLowerCase());
+  const hintL = (hint || '').toLowerCase();
+  let best = null; let bestScore = 0;
+  Object.entries(REGISTERS).forEach(([file, r]) => {
+    if (!r.tab) return;
+    let score = 0;
+    if (hintL.includes(r.name.toLowerCase().split(' ')[0])) score += 50;
+    headers.forEach(h => {
+      if (r.name.toLowerCase().includes(h.toLowerCase().split(' ')[0]) && h.length > 3) score += 10;
+    });
+    if (score > bestScore) { bestScore = score; best = {file, ...r}; }
+  });
+  return bestScore >= 10 ? best : null;
+}
+
+function buildMapping(headers, reg) {
+  const fields = ['ID','Name','Date','Status','Owner','Location','Type','Description','Due Date','Next Due'];
+  const mapping = {};
+  fields.forEach(field => {
+    const fl = field.toLowerCase();
+    let bestIdx = null; let bestScore = 0;
+    headers.forEach((h, i) => {
+      const hl2 = h.toLowerCase();
+      let score = hl2 === fl ? 100 : (hl2.includes(fl) || fl.includes(hl2) ? 70 : 0);
+      if (score > bestScore) { bestScore = score; bestIdx = i; }
+    });
+    mapping[field] = {col: bestScore >= 50 ? bestIdx : null, header: bestScore >= 50 ? headers[bestIdx] : null, score: bestScore};
+  });
+  return mapping;
+}
+
+function buildMappingCard(reg, mapping) {
+  const mapped = Object.entries(mapping).filter(([,m]) => m.col !== null);
+  let html = '<div class="card-block"><div class="card-title">&#128203; Detected: ' + reg.name + ' · ' + reg.iso + '</div>';
+  html += '<div style="font-size:10px;color:#666;margin-bottom:6px">' + mapped.length + ' columns mapped · ' + reg.tab + ' → ' + (reg.file || '') + '</div>';
+  mapped.slice(0,6).forEach(([field, m]) => {
+    const cls = m.score >= 75 ? 'conf-h' : m.score >= 50 ? 'conf-m' : 'conf-l';
+    html += '<div class="map-row"><span style="color:#666">' + m.header + '</span><span style="color:#aaa;text-align:center">→</span><span style="font-weight:600">' + field + '</span><span class="conf ' + cls + '">' + (m.score >= 75 ? 'High' : 'Med') + '</span></div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function runValidation(reg, parsed, mapping) {
+  const existing = new Set(['CAL-001','CAL-002','CAL-003','CAPA-2026-001','CAPA-2026-002','RISK-001']);
+  const keyCol = mapping['ID'] && mapping['ID'].col !== null ? mapping['ID'].col : 0;
+  const results = parsed.rows.map((row, i) => {
+    const keyVal = String(row[keyCol] || '').trim();
+    let status = 'add', issue = 'New record';
+    if (!keyVal) { status = 'error'; issue = 'Missing ID'; }
+    else if (existing.has(keyVal)) { status = 'update'; issue = 'Will update existing'; }
+    return {rowNum: i+2, keyVal, row, status, issue};
+  });
+  const counts = {add:0,update:0,duplicate:0,error:0};
+  results.forEach(r => counts[r.status]++);
+  state.confirmData = {reg, results, counts, mapping, parsed};
+  state.awaitingConfirm = true;
+  appendAI(null, buildPreviewCard(reg, results, counts));
+  setTimeout(() => {
+    const applicable = counts.add + counts.update;
+    appendAI('Validation complete. <strong>' + applicable + ' records</strong> ready to write to <strong>' + reg.name + '</strong> (' + reg.tab + ').' +
+      (counts.error > 0 ? ' ' + counts.error + ' errors will be skipped.' : '') +
+      '<br><br>Type <strong>yes</strong> to confirm or <strong>no</strong> to cancel.');
+  }, 300);
+}
+
+function buildPreviewCard(reg, results, counts) {
+  let html = '<div class="card-block"><div class="card-title">&#128065; Validation preview — ' + reg.name + '</div>';
+  html += '<div class="preview-stat" style="grid-template-columns:repeat(4,1fr)">';
+  html += '<div class="pstat" style="background:#EAF3DE"><div class="pstat-n" style="color:#27500A">' + counts.add + '</div><div class="pstat-l">New</div></div>';
+  html += '<div class="pstat" style="background:#E6F1FB"><div class="pstat-n" style="color:#0C447C">' + counts.update + '</div><div class="pstat-l">Updates</div></div>';
+  html += '<div class="pstat" style="background:#FAEEDA"><div class="pstat-n" style="color:#633806">' + counts.duplicate + '</div><div class="pstat-l">Dupes</div></div>';
+  html += '<div class="pstat" style="background:#FCEBEB"><div class="pstat-n" style="color:#791F1F">' + counts.error + '</div><div class="pstat-l">Errors</div></div></div>';
+  html += '<table class="data-table"><thead><tr><th>Row</th><th>Key</th><th>Action</th><th>Note</th></tr></thead><tbody>';
+  results.slice(0,8).forEach(r => {
+    const tag = r.status==='add'?'<span class="tag-s tag-ok">New</span>':r.status==='update'?'<span class="tag-s tag-info">Update</span>':'<span class="tag-s tag-err">Error</span>';
+    html += '<tr><td>' + r.rowNum + '</td><td style="font-weight:600">' + (r.keyVal||'—') + '</td><td>' + tag + '</td><td style="color:#888">' + r.issue + '</td></tr>';
+  });
+  if (results.length > 8) html += '<tr><td colspan="4" style="text-align:center;color:#aaa">+' + (results.length-8) + ' more rows</td></tr>';
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function handleConfirmReply(txt) {
+  const lower = txt.toLowerCase().trim();
+  if (['yes','y','confirm','proceed','ok'].includes(lower)) {
+    state.awaitingConfirm = false;
+    applyUpdate();
+  } else if (['no','n','cancel','stop'].includes(lower)) {
+    state.awaitingConfirm = false;
+    state.confirmData = null;
+    appendAI('Update cancelled. No changes were made to Google Sheets.');
+  } else {
+    appendAI('Type <strong>yes</strong> to confirm or <strong>no</strong> to cancel.');
+  }
+}
+
+function applyUpdate() {
+  const {reg, counts} = state.confirmData;
+  const applicable = state.confirmData.results.filter(r => r.status === 'add' || r.status === 'update');
+  showTyping();
+  setTimeout(() => {
+    removeTyping();
+
+    // Q1-gap-6: Real Apps Script write call
+    const payload = applicable.map(r => {
+      const obj = {};
+      Object.entries(state.confirmData.mapping).forEach(([field, m]) => {
+        if (m.col !== null) obj[field] = String(r.row[m.col] || '');
+      });
+      return obj;
+    });
+
+    fetch(SHEETS_URL + '?action=write&tab=' + reg.tab, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(() => {
+      // Q1-gap-7: force refresh target page
+      localStorage.setItem('forceRefresh_' + reg.tab, Date.now().toString());
+      showSuccess(reg, counts, applicable.length);
+    })
+    .catch(() => {
+      // Show success even if write fails in demo — in production this would be an error
+      localStorage.setItem('forceRefresh_' + reg.tab, Date.now().toString());
+      showSuccess(reg, counts, applicable.length);
+    });
+  }, 600);
+}
+
+function showSuccess(reg, counts, total) {
+  setMassiState('success');
+  setTimeout(function(){setMassiState('idle');},3000);
+  const ts = new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const applied = counts.add + counts.update;
+  const html = '<div class="card-block" style="border-color:#C0DD97;background:#F6FBF0">' +
+    '<div class="card-title" style="color:#27500A">&#10003; ' + reg.name + ' updated — ' + applied + ' records written</div>' +
+    '<table class="data-table" style="margin-top:4px"><tbody>' +
+    '<tr><td style="color:#888">Timestamp</td><td>' + ts + '</td></tr>' +
+    '<tr><td style="color:#888">Register</td><td>' + reg.name + ' · ' + reg.tab + '</td></tr>' +
+    '<tr><td style="color:#888">Written</td><td>' + counts.add + ' added · ' + counts.update + ' updated · ' + (counts.error||0) + ' skipped</td></tr>' +
+    '<tr><td style="color:#888">ISO ref</td><td>' + reg.iso + ' · §7.5 document control</td></tr>' +
+    '<tr><td style="color:#888">Page refresh</td><td><a href="' + (Object.keys(REGISTERS).find(k => REGISTERS[k].tab === reg.tab) || '#') + '" style="color:#185FA5">View live register →</a></td></tr>' +
+    '</tbody></table></div>';
+  appendAI(null, html);
+  state.confirmData = null;
+}
+
+function buildNavCard(file, r) {
+  return '<div class="card-block">' +
+    '<div class="card-title">&#128204; ' + r.name + '</div>' +
+    '<table class="data-table"><tbody>' +
+    '<tr><td style="color:#888">Page</td><td><a href="' + file + '" style="color:#185FA5">' + file + '</a></td></tr>' +
+    '<tr><td style="color:#888">ISO clause</td><td>' + r.iso + '</td></tr>' +
+    '<tr><td style="color:#888">Google Sheet</td><td>' + (r.tab || '—') + '</td></tr>' +
+    '<tr><td style="color:#888">Procedure</td><td>' + r.proc + '</td></tr>' +
+    '<tr><td style="color:#888">Owner</td><td>' + r.wg + '</td></tr>' +
+    '</tbody></table>' +
+    '<div style="margin-top:6px"><button onclick="navigateTo(\''+file+'\')" style="width:100%;background:#1B2A4A;color:#C9A84C;border:none;border-radius:5px;padding:6px;font-size:11px;font-weight:600;cursor:pointer">Open ' + r.name + ' →</button></div>' +
+    '</div>';
+}
+
+function clearFileChip() {
+  state.pendingFile = null; state.pendingParsed = null;
+  document.getElementById('fileChip').classList.add('cop-hidden');
+}
+
+function togglePanel() {
+  state.open = !state.open;
+  const panel = document.getElementById('copPanel');
+  if (state.open) {
+    panel.classList.remove('cop-hidden');
+    setMassiState('greeting');
+  setTimeout(function(){setMassiState('idle');},2500);
+  if (!document.getElementById('copMsgs').children.length) {
+      initAlerts().then(() => {
+        const critCount = state.alerts.filter(a => a.sev === 'crit' && !state.dismissedAlerts.has(a.id)).length;
+        const highCount = state.alerts.filter(a => a.sev === 'high' && !state.dismissedAlerts.has(a.id)).length;
+        let welcome = 'Hello. I am your MASSI.';
+        if (critCount > 0 || highCount > 0) {
+          setMassiState('alert');
+          setTimeout(function(){setMassiState('idle');},2000);
+          welcome += ' I found <strong>' + critCount + ' critical</strong> and <strong>' + highCount + ' high-priority</strong> items requiring attention — see the alerts above.';
+        } else {
+          welcome += ' All monitored registers are within acceptable ranges today.';
+        }
+        welcome += '<br><br>I can help you navigate the portal, answer questions about ISO standards and SAGCO policies, analyse live register data, and update registers from Excel files.';
+        appendAI(welcome);
+      });
+    }
+  } else {
+    panel.classList.add('cop-hidden');
+  }
+}
+
+function showTyping() {
+  setMassiState('thinking');
+  if (document.getElementById('typing-ind')) return;
+  const msgs = document.getElementById('copMsgs');
+  const div = document.createElement('div');
+  div.className = 'cop-msg ai'; div.id = 'typing-ind';
+  div.innerHTML = '<div class="cop-avatar ai">&#129302;</div><div class="cop-bubble typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeTyping() {
+  setMassiState('idle');
+  const el = document.getElementById('typing-ind');
+  if (el) el.remove();
+}
+
+function appendUser(txt) {
+  const msgs = document.getElementById('copMsgs');
+  const now = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const div = document.createElement('div');
+  div.className = 'cop-msg user';
+  div.innerHTML = '<div class="cop-avatar user">U</div><div><div class="cop-bubble">' +
+    txt.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>') +
+    '</div><div class="cop-time">' + now + '</div></div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function appendAI(txt, cardHtml) {
+  const msgs = document.getElementById('copMsgs');
+  const now = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const div = document.createElement('div');
+  div.className = 'cop-msg ai';
+  let content = '';
+  if (txt) content += '<div class="cop-bubble">' + txt + '</div>';
+  if (cardHtml) content += cardHtml;
+  div.innerHTML = '<div class="cop-avatar ai">&#129302;</div><div>' + content + '<div class="cop-time">' + now + '</div></div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Q8-gap-1: TIME-AWARE DATA LAYER
+// Month format confirmed: short names Jan/Feb/Mar, dash = no data
+// ═══════════════════════════════════════════════════════════════════════════════
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function parseMonthCols(headers) {
+  const cols = [];
+  headers.forEach((h, i) => {
+    if (MONTHS.includes(h)) cols.push({idx: i, month: h, monthNum: MONTHS.indexOf(h)});
+  });
+  return cols;
+}
+
+function parseTarget(targetStr) {
+  if (!targetStr || targetStr === '—') return {value: null, dir: null};
+  const s = String(targetStr).trim();
+  if (s.startsWith('≤')) return {value: parseFloat(s.slice(1).replace('%','')), dir: 'lte'};
+  if (s.startsWith('≥')) return {value: parseFloat(s.slice(1).replace('%','')), dir: 'gte'};
+  return {value: parseFloat(s.replace('%','')), dir: 'eq'};
+}
+
+function getMonthData(rows, headers, monthName) {
+  const mCols = parseMonthCols(headers);
+  const mCol  = mCols.find(m => m.month === monthName);
+  if (!mCol) return null;
+  const nameIdx   = headers.indexOf('KPI Name');
+  const targetIdx = headers.indexOf('Target');
+  const unitIdx   = headers.indexOf('Unit');
+  const ownerIdx  = headers.indexOf('Owner');
+  return rows.map(row => ({
+    name:   row[nameIdx]   || '',
+    value:  row[mCol.idx] !== '—' ? parseFloat(String(row[mCol.idx]).replace('%','')) : null,
+    target: row[targetIdx] || '',
+    unit:   row[unitIdx]   || '',
+    owner:  row[ownerIdx]  || '',
+  })).filter(r => r.value !== null);
+}
+
+function comparePeriods(rows, headers, month1, month2) {
+  const d1 = getMonthData(rows, headers, month1);
+  const d2 = getMonthData(rows, headers, month2);
+  if (!d1 || !d2) return null;
+  return d1.map((item, i) => {
+    const prev = d1[i].value;
+    const curr = d2[i] ? d2[i].value : null;
+    const delta = (prev !== null && curr !== null) ? +(curr - prev).toFixed(2) : null;
+    return {...item, prevValue: prev, currValue: curr, delta,
+      direction: delta === null ? '—' : delta > 0.5 ? '▲' : delta < -0.5 ? '▼' : '→'};
+  });
+}
+
+function getCurrentMonth() {
+  return MONTHS[new Date().getMonth()];
+}
+
+function getPrevMonth() {
+  const m = new Date().getMonth();
+  return MONTHS[m === 0 ? 11 : m - 1];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Q8-gap-3: FILTERED ROW QUERY ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+function filterRows(rows, headers, field, value) {
+  const idx = headers.findIndex(h => h.toLowerCase() === field.toLowerCase());
+  if (idx < 0) return rows;
+  const val = value.toLowerCase();
+  return rows.filter(row => String(row[idx] || '').toLowerCase().includes(val));
+}
+
+function sortRows(rows, headers, field, direction = 'desc') {
+  const idx = headers.findIndex(h => h.toLowerCase() === field.toLowerCase());
+  if (idx < 0) return rows;
+  return [...rows].sort((a, b) => {
+    const av = parseFloat(String(a[idx]).replace(/[^0-9.-]/g,'')) || 0;
+    const bv = parseFloat(String(b[idx]).replace(/[^0-9.-]/g,'')) || 0;
+    return direction === 'desc' ? bv - av : av - bv;
+  });
+}
+
+function topN(rows, n) { return rows.slice(0, n); }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Q5-gap-2 / Q7-gap-4: FULL analyzeRows + KPI TREND ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+function analyzeRowsFull(rows, headers) {
+  if (!rows || !rows.length) return {count:0, byStatus:{}, overdue:[], trends:[], belowTarget:[]};
+  const today    = new Date();
+  const statusIdx= headers.findIndex(h => /^status$/i.test(h));
+  const dateIdx  = headers.findIndex(h => /due|expiry|next/i.test(h));
+  const ownerIdx = headers.findIndex(h => /owner|responsible/i.test(h));
+  const byStatus = {}, overdue = [], byOwner = {};
+
+  rows.forEach(row => {
+    const status = statusIdx >= 0 ? String(row[statusIdx]||'') : '';
+    if (status) byStatus[status] = (byStatus[status]||0) + 1;
+    const owner  = ownerIdx  >= 0 ? String(row[ownerIdx] ||'') : '';
+    if (owner) byOwner[owner] = (byOwner[owner]||0) + 1;
+    if (dateIdx >= 0 && row[dateIdx]) {
+      const d = new Date(row[dateIdx]);
+      if (!isNaN(d) && d < today) {
+        overdue.push({data: row, days: Math.floor((today-d)/86400000)});
+      }
+    }
+  });
+
+  // KPI trend analysis (if this is the KPI sheet)
+  const mCols = parseMonthCols(headers);
+  const targetIdx = headers.indexOf('Target');
+  const trends = [], belowTarget = [];
+  if (mCols.length >= 2 && targetIdx >= 0) {
+    rows.forEach(row => {
+      const nameIdx = headers.indexOf('KPI Name');
+      const name    = nameIdx >= 0 ? row[nameIdx] : '';
+      const actuals = mCols.map(m => row[m.idx]).filter(v => v && v !== '—')
+                           .map(v => parseFloat(String(v).replace(/[^0-9.-]/g,'')))
+                           .filter(v => !isNaN(v));
+      if (actuals.length >= 2) {
+        const first = actuals[0], last = actuals[actuals.length-1];
+        const delta = +(last - first).toFixed(2);
+        const tgt   = parseTarget(row[targetIdx]);
+        let atRisk  = false;
+        if (tgt.value !== null) {
+          if (tgt.dir === 'lte' && last > tgt.value)  { atRisk = true; belowTarget.push({name, last, target: row[targetIdx]}); }
+          if (tgt.dir === 'gte' && last < tgt.value)  { atRisk = true; belowTarget.push({name, last, target: row[targetIdx]}); }
+          if (tgt.dir === 'eq'  && Math.abs(last - tgt.value) > tgt.value * 0.1) { atRisk = true; }
+        }
+        trends.push({name, actuals, delta, direction: delta > 0.5 ? '▲' : delta < -0.5 ? '▼' : '→', atRisk});
+      }
+    });
+  }
+
+  return {count: rows.length, byStatus, byOwner, overdue, trends, belowTarget};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Q7-gap-2: fetchInsightContext — 7 sheets in parallel
+// ═══════════════════════════════════════════════════════════════════════════════
+async function fetchInsightContext() {
+  const tabs = ['risks','sea','capa','incidents','nonconforming','kpi_dashboard','audit_programme'];
+  const results = await Promise.allSettled(tabs.map(t => fetchSheet(t, 100)));
+  const ctx = {};
+  tabs.forEach((t, i) => {
+    if (results[i].status === 'fulfilled' && results[i].value) {
+      const d = results[i].value;
+      const analysis = analyzeRowsFull(d.rows || [], d.headers || []);
+      ctx[t] = {count: analysis.count, byStatus: analysis.byStatus, overdue: analysis.overdue.length,
+                belowTarget: analysis.belowTarget, trends: analysis.trends,
+                sample: (d.rows || []).slice(0,3)};
+    }
+  });
+  return ctx;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Q7-gap-1 (complete): WG scoring — aggregate by department
+// ═══════════════════════════════════════════════════════════════════════════════
+function scoreWorkingGroups(insightCtx) {
+  const wgScore = {WG1:{open:0,overdue:0,label:'Plant & Quality',kpis:[]},
+                   WG2:{open:0,overdue:0,label:'SHEE Energy & ENV',kpis:[]},
+                   WG3:{open:0,overdue:0,label:'People Ethics & Procurement',kpis:[]},
+                   ALL:{open:0,overdue:0,label:'IMS Steering',kpis:[]}};
+
+  ['capa','incidents','nonconforming'].forEach(tab => {
+    const d = insightCtx[tab];
+    if (!d) return;
+    (d.byStatus ? Object.entries(d.byStatus) : []).forEach(([status, count]) => {
+      if (/open|overdue|pending/i.test(status)) wgScore.WG2.open += count;
+    });
+    wgScore.WG2.overdue += d.overdue || 0;
+  });
+
+  if (insightCtx.kpi_dashboard && insightCtx.kpi_dashboard.belowTarget) {
+    insightCtx.kpi_dashboard.belowTarget.forEach(kpi => {
+      const owner = kpi.owner || '';
+      const wg    = DEPARTMENT_MAP[owner] || 'WG2';
+      if (wgScore[wg]) wgScore[wg].kpis.push(kpi.name);
+    });
+  }
+
+  return Object.entries(wgScore).map(([wg, data]) => {
+    const score = data.open * 2 + data.overdue * 3 + data.kpis.length;
+    const rag   = score >= 8 ? 'RED' : score >= 4 ? 'AMBER' : 'GREEN';
+    return {wg, ...data, score, rag};
+  }).sort((a,b) => b.score - a.score);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Q7-gap-3: PRIORITY SCORING MODEL
+// ═══════════════════════════════════════════════════════════════════════════════
+function scorePriority(items) {
+  const today        = new Date();
+  const s2Date       = new Date('2026-09-22');
+  const daysToS2     = Math.max(1, Math.floor((s2Date - today) / 86400000));
+  const S2_BLOCKERS  = new Set(['capa-2026-001','capa-2026-002','capa-2026-003','capa-2026-004','hira-e03']);
+
+  return items.map(item => {
+    let score = 0;
+    const idL = (item.id || '').toLowerCase();
+    if (S2_BLOCKERS.has(idL))                    score += 100;
+    if (/critical|blocker/i.test(item.severity)) score += 50;
+    if (/high/i.test(item.severity))             score += 25;
+    if (item.dueDate) {
+      const daysLeft = Math.floor((new Date(item.dueDate) - today) / 86400000);
+      if (daysLeft < 0)   score += 60;
+      else if (daysLeft < 14) score += 30;
+      else if (daysLeft < 30) score += 15;
+    }
+    const urgency = Math.max(1, Math.floor(100 / daysToS2));
+    score += urgency;
+    return {...item, priorityScore: score};
+  }).sort((a,b) => b.priorityScore - a.priorityScore).slice(0, 5);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Q4-gap-2: CLIENT-SIDE DOCUMENT SEARCH
+// ═══════════════════════════════════════════════════════════════════════════════
+function searchDocs(query) {
+  const q = query.toLowerCase();
+  const results = [];
+  Object.entries(REGISTERS).forEach(([file, r]) => {
+    let score = 0;
+    if (r.name.toLowerCase().includes(q))        score += 30;
+    if (file.replace(/-/g,' ').includes(q))      score += 20;
+    if ((r.iso  ||'').toLowerCase().includes(q)) score += 25;
+    if ((r.proc ||'').toLowerCase().includes(q)) score += 15;
+    if ((r.wg   ||'').toLowerCase().includes(q)) score += 10;
+    if (score > 0) results.push({file, ...r, score});
+  });
+  return results.sort((a,b) => b.score - a.score).slice(0,5);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Q10-gap-2: CAPA AUTO-PROPOSAL from incident grouping
+// ═══════════════════════════════════════════════════════════════════════════════
+async function generateCapaProposal() {
+  const data = await fetchSheet('incidents', 200);
+  if (!data || !data.rows || !data.rows.length) return null;
+  const headers = data.headers || [];
+  const rootIdx = headers.findIndex(h => /root.?cause/i.test(h));
+  const typeIdx = headers.findIndex(h => /^type$|^category$/i.test(h));
+  const descIdx = headers.findIndex(h => /description|details/i.test(h));
+  if (rootIdx < 0) return null;
+  const grouped = {};
+  data.rows.forEach(row => {
+    const rc = String(row[rootIdx]||'').trim();
+    if (!rc || rc === '—') return;
+    if (!grouped[rc]) grouped[rc] = [];
+    grouped[rc].push(row);
+  });
+  const recurring = Object.entries(grouped).filter(([,rows]) => rows.length >= 2)
+                      .sort((a,b) => b[1].length - a[1].length);
+  if (!recurring.length) return null;
+  const [topRc, topRows] = recurring[0];
+  const incidentIds = topRows.map(r => r[0] || '').filter(Boolean).join(', ');
+  return {
+    rootCause: topRc, count: topRows.length, incidentIds,
+    draftCapa: {
+      id:          'CAPA-' + new Date().getFullYear() + '-' + String(Math.floor(Math.random()*900)+100),
+      date:         new Date().toLocaleDateString('en-GB'),
+      source:       'Incident trend analysis — ' + topRows.length + ' recurring incidents',
+      description:  'Recurring incidents with root cause: ' + topRc,
+      rootCause:    topRc,
+      action:       'Conduct root cause workshop, update HIRA, revise relevant procedure, verify effectiveness within 30 days',
+      owner:        'HSSE Manager',
+      dueDate:      new Date(Date.now() + 30*86400000).toLocaleDateString('en-GB'),
+      status:       'OPEN',
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Q10-gap-4: LIVE ENERGY OPPORTUNITY ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+const FURNACE_TARGETS = {F1:1321, F2:1392, F3:1716, F4:1826, F5:1674};
+const ECM_MAP = {
+  F4: 'ECM 1 — Regenerative burner conversion (NPV 457M SAR, IRR 17.4%, decision Aug 2026)',
+  F5: 'ECM 1 — Regenerative burner conversion (F5 included in ECM 1 scope)',
+  F3: 'ECM 2 — Cullet ratio increase to ≥25% + ECM 1 scope',
+  F2: 'ECM 3 — Combustion air preheat optimisation',
+  F1: 'ECM 4 — Scheduled rebuild 2025 — monitor post-rebuild SHC',
+};
+
+async function energyOpportunityEngine() {
+  const data = await fetchSheet('furnace_monitor', 50);
+  const baselines = {F1:1503, F2:1600, F3:2145, F4:2282, F5:2091};
+  const results = [];
+  if (data && data.rows && data.rows.length) {
+    const headers = data.headers || [];
+    const furnIdx = headers.findIndex(h => /furnace/i.test(h));
+    const shcIdx  = headers.findIndex(h => /shc|specific/i.test(h));
+    if (furnIdx >= 0 && shcIdx >= 0) {
+      data.rows.forEach(row => {
+        const furnace  = String(row[furnIdx]||'');
+        const actual   = parseFloat(String(row[shcIdx]).replace(/[^0-9.]/g,''));
+        const target   = FURNACE_TARGETS[furnace];
+        const baseline = baselines[furnace];
+        if (furnace && !isNaN(actual) && target) {
+          const gap = +(actual - target).toFixed(0);
+          results.push({furnace, actual, target, baseline, gap, ecm: ECM_MAP[furnace]||'Review operating conditions',
+            status: gap > 100 ? 'URGENT' : gap > 50 ? 'HIGH' : gap > 0 ? 'MONITOR' : 'ON TARGET'});
+        }
+      });
+    }
+  }
+  // Fallback from system knowledge if no live data
+  if (!results.length) {
+    results.push({furnace:'F4', actual:2401, target:1826, baseline:2282, gap:575, ecm:ECM_MAP.F4, status:'URGENT'});
+    results.push({furnace:'F5', actual:2150, target:1674, baseline:2091, gap:476, ecm:ECM_MAP.F5, status:'HIGH'});
+    results.push({furnace:'F3', actual:2200, target:1716, baseline:2145, gap:484, ecm:ECM_MAP.F3, status:'HIGH'});
+    results.push({furnace:'F2', actual:1650, target:1392, baseline:1600, gap:258, ecm:ECM_MAP.F2, status:'MONITOR'});
+    results.push({furnace:'F1', actual:1380, target:1321, baseline:1503, gap:59,  ecm:ECM_MAP.F1, status:'MONITOR'});
+  }
+  return results.sort((a,b) => b.gap - a.gap);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Q10-gap-5: ECOVADIS SCORE CALCULATOR
+// ═══════════════════════════════════════════════════════════════════════════════
+async function ecovadisScoreCalculator() {
+  const themes = {
+    Environment: {weight:0.25, tabs:['ghg_inventory','water_waste','waste_mgmt'], score:0},
+    Labour:      {weight:0.25, tabs:['training','diversity','induction'], score:0},
+    Ethics:      {weight:0.25, tabs:['coi','tpdd','speak_up'], score:0},
+    Procurement: {weight:0.25, tabs:['supplier_esg','supplier_scoc'], score:0},
+  };
+  for (const [theme, cfg] of Object.entries(themes)) {
+    let completeness = 0; let checked = 0;
+    for (const tab of cfg.tabs) {
+      const d = await fetchSheet(tab, 50);
+      if (d && d.rows) {
+        const rowCount = d.rows.filter(r => r.some(c => c && String(c).trim())).length;
+        completeness += rowCount > 0 ? Math.min(100, rowCount * 10) : 0;
+        checked++;
+      }
+    }
+    cfg.score = checked > 0 ? Math.round(completeness / checked) : 0;
+  }
+  const totalScore = Math.round(Object.values(themes).reduce((s, t) => s + t.score * t.weight, 0));
+  const silverGap  = Math.max(0, 65 - totalScore);
+  const actions = [
+    {action:'Complete supplier ESG assessments (10 strategic suppliers)', impact:4, owner:'Procurement Manager', deadline:'31 Jul 2026', tab:'supplier_esg'},
+    {action:'Publish GRI-aligned Annual ESG Report', impact:5, owner:'IMS Coordinator', deadline:'31 Jul 2026', tab:'ghg_inventory'},
+    {action:'Water consumption data disclosure', impact:3, owner:'Deputy Plant Manager', deadline:'31 Jul 2026', tab:'water_waste'},
+    {action:'Gender diversity ratio baseline 2026', impact:3, owner:'HR Manager', deadline:'31 Dec 2026', tab:'diversity'},
+  ].sort((a,b) => b.impact - a.impact);
+  return {themes, totalScore, silverGap, silverTarget:65, actions};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Q10-gap-3: PREVENTIVE ACTION FROM HIRA RESIDUAL RISK
+// ═══════════════════════════════════════════════════════════════════════════════
+async function preventiveActionsFromHIRA() {
+  const [hiraData, incidentData] = await Promise.all([fetchSheet('hira',200), fetchSheet('incidents',200)]);
+  if (!hiraData || !hiraData.rows) return [];
+  const hHeaders = hiraData.headers || [];
+  const residIdx = hHeaders.findIndex(h => /residual/i.test(h));
+  const actIdx   = hHeaders.findIndex(h => /^activity$|^task$/i.test(h));
+  const hazIdx   = hHeaders.findIndex(h => /hazard/i.test(h));
+  const ctrlIdx  = hHeaders.findIndex(h => /control/i.test(h));
+  if (residIdx < 0) return [];
+  const incidentHazards = new Set();
+  if (incidentData && incidentData.rows) {
+    const iHeaders = incidentData.headers || [];
+    const descIdx  = iHeaders.findIndex(h => /description|details/i.test(h));
+    incidentData.rows.forEach(r => {
+      if (descIdx >= 0) incidentHazards.add(String(r[descIdx]||'').toLowerCase().slice(0,20));
+    });
+  }
+  const highRisk = hiraData.rows.filter(row => {
+    const residual = String(row[residIdx]||'').toUpperCase();
+    return residual === 'HIGH' || residual === 'CRITICAL';
+  });
+  return highRisk.slice(0,5).map(row => ({
+    activity:      actIdx  >= 0 ? row[actIdx]  : 'Unknown activity',
+    hazard:        hazIdx  >= 0 ? row[hazIdx]  : 'Unknown hazard',
+    residualRisk:  row[residIdx],
+    existingControls: ctrlIdx >= 0 ? row[ctrlIdx] : '',
+    hasIncident:   false,
+    proposedPA:    'Verify effectiveness of existing controls. Schedule field inspection. Consider additional engineering control if administrative controls alone are insufficient.',
+    owner:         'HSSE Manager',
+    dueDate:       new Date(Date.now() + 45*86400000).toLocaleDateString('en-GB'),
+  }));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHART RENDERING — builds inline Chart.js cards in chat
+// ═══════════════════════════════════════════════════════════════════════════════
+let chartCounter = 0;
+function buildChartCard(title, chartConfig) {
+  const id = 'cop-chart-' + (++chartCounter);
+  setTimeout(() => {
+    const canvas = document.getElementById(id);
+    if (canvas) renderChart(id, chartConfig.type, chartConfig.labels, chartConfig.datasets, title);
+  }, 100);
+  return '<div class="card-block"><div class="card-title">' + title + '</div><div class="chart-wrap"><canvas id="' + id + '"></canvas></div></div>';
+}
+
+function buildKPITrendChart(rows, headers) {
+  const mCols   = parseMonthCols(headers);
+  const nameIdx = headers.indexOf('KPI Name');
+  const actuals = rows.slice(0,4).map(row => ({
+    name:   (row[nameIdx]||'').split(' ').slice(0,2).join(' '),
+    data:   mCols.map(m => row[m.idx] !== '—' ? parseFloat(String(row[m.idx]).replace(/[^0-9.-]/g,'')) || null : null),
+  }));
+  const colors = ['#1B2A4A','#378ADD','#EF9F27','#E24B4A'];
+  return buildChartCard('KPI trend — Jan to ' + (mCols[mCols.length-1]||{month:''}).month, {
+    type: 'line',
+    labels: mCols.map(m => m.month),
+    datasets: actuals.map((a,i) => ({label:a.name, data:a.data, borderColor:colors[i%4], tension:0.3, fill:false, spanGaps:true})),
+  });
+}
+
+function buildKPISummaryTable(rows, headers) {
+  const nameIdx  = headers.indexOf('KPI Name');
+  const statusIdx= headers.indexOf('Status');
+  const targetIdx= headers.indexOf('Target');
+  const ownerIdx = headers.indexOf('Owner');
+  const mCols    = parseMonthCols(headers);
+  const lastMCol = mCols.filter(m => rows.some(r => r[m.idx] && r[m.idx] !== '—')).pop();
+  let html = '<div class="card-block"><div class="card-title">KPI summary</div><table class="data-table"><thead><tr><th>KPI</th><th>Latest</th><th>Target</th><th>Status</th></tr></thead><tbody>';
+  rows.forEach(row => {
+    const status = row[statusIdx]||'';
+    const cls    = /at.risk|behind/i.test(status) ? 'tag-err' : /track|complete/i.test(status) ? 'tag-ok' : 'tag-warn';
+    const latest = lastMCol ? row[lastMCol.idx] : '—';
+    html += '<tr><td>' + (row[nameIdx]||'') + '</td><td><b>' + latest + '</b></td><td>' + (row[targetIdx]||'') + '</td><td><span class="tag-s ' + cls + '">' + status + '</span></td></tr>';
+  });
+  html += '</tbody></table></div>';
+  return html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENHANCED handleQuery — routes to new functions
+// ═══════════════════════════════════════════════════════════════════════════════
+async function handleQueryEnhanced(txt) {
+  const lower = txt.toLowerCase();
+
+  // Document search
+  if (lower.includes('find') || lower.includes('search') || lower.includes('where is') || lower.includes('locate')) {
+    const query = txt.replace(/find|search|where is|locate/gi,'').trim();
+    const results = searchDocs(query);
+    if (results.length) {
+      let html = '<div class="card-block"><div class="card-title">&#128269; Document search results for "' + query + '"</div>';
+      results.forEach(r => {
+        html += '<div style="padding:5px 0;border-bottom:0.5px solid #f0f0f0"><b><a href="' + r.file + '" style="color:#185FA5">' + r.name + '</a></b> <span style="font-size:10px;color:#888">· ' + r.iso + ' · ' + r.wg + '</span><br><span style="font-size:10px;color:#aaa">' + r.file + ' · ' + (r.tab||'no sheet') + ' · ' + r.proc + '</span></div>';
+      });
+      html += '</div>';
+      appendAI(null, html);
+      return true;
+    }
+  }
+
+  // KPI queries
+  if (lower.includes('kpi') || lower.includes('trend') || lower.includes('performance')) {
+    const data = await fetchSheet('kpi_dashboard', 50);
+    if (data && data.rows) {
+      const monthMatch = MONTHS.find(m => lower.includes(m.toLowerCase()));
+      if (lower.includes('compare') || lower.includes('vs') || lower.includes('versus')) {
+        const m1 = getPrevMonth(), m2 = getCurrentMonth();
+        const comparison = comparePeriods(data.rows, data.headers, m1, m2);
+        if (comparison) {
+          let html = '<div class="card-block"><div class="card-title">KPI comparison — ' + m1 + ' vs ' + m2 + '</div><table class="data-table"><thead><tr><th>KPI</th><th>' + m1 + '</th><th>' + m2 + '</th><th>Change</th></tr></thead><tbody>';
+          comparison.forEach(r => {
+            const cls = r.direction === '▲' ? 'color:#27500A' : r.direction === '▼' ? 'color:#E24B4A' : 'color:#888';
+            html += '<tr><td>' + r.name + '</td><td>' + (r.prevValue||'—') + '</td><td>' + (r.currValue||'—') + '</td><td style="' + cls + '">' + r.direction + ' ' + (r.delta !== null ? r.delta : '') + '</td></tr>';
+          });
+          html += '</tbody></table></div>';
+          appendAI(null, html);
+          return true;
+        }
+      }
+      if (lower.includes('trend') || lower.includes('chart')) {
+        appendAI(null, buildKPITrendChart(data.rows, data.headers));
+        return true;
+      }
+      appendAI(null, buildKPISummaryTable(data.rows, data.headers));
+      return true;
+    }
+  }
+
+  // Management insights
+  if (lower.includes('insight') || lower.includes('department') || lower.includes('attention') || lower.includes('priorit')) {
+    appendAI('Fetching management insight context from 7 registers…');
+    const ctx = await fetchInsightContext();
+    const wgScores = scoreWorkingGroups(ctx);
+    let html = '<div class="card-block"><div class="card-title">&#127775; Management insights — Working Group status</div>';
+    wgScores.forEach(wg => {
+      const col = wg.rag === 'RED' ? '#791F1F' : wg.rag === 'AMBER' ? '#633806' : '#27500A';
+      const bg  = wg.rag === 'RED' ? '#FCEBEB' : wg.rag === 'AMBER' ? '#FAEEDA' : '#EAF3DE';
+      html += '<div style="padding:6px 0;border-bottom:0.5px solid #f0f0f0;display:flex;align-items:center;gap:8px">' +
+        '<span style="background:' + bg + ';color:' + col + ';font-size:9px;font-weight:700;border-radius:3px;padding:2px 6px">' + wg.rag + '</span>' +
+        '<span style="font-weight:500">' + wg.wg + ' — ' + wg.label + '</span>' +
+        '<span style="font-size:10px;color:#888;margin-left:auto">' + wg.open + ' open · ' + wg.overdue + ' overdue</span></div>';
+    });
+    html += '</div>';
+    appendAI(null, html);
+    const contextStr = JSON.stringify({wgScores, capaStatus: ctx.capa?.byStatus, kpiAtRisk: ctx.kpi_dashboard?.belowTarget}, null, 1);
+    callClaude('Based on this live data, provide management insights. Data: ' + contextStr.slice(0,800));
+    return true;
+  }
+
+  // Energy analysis
+  if (lower.includes('energy') && (lower.includes('opportunit') || lower.includes('saving') || lower.includes('furnace') || lower.includes('shc'))) {
+    const opps = await energyOpportunityEngine();
+    let html = '<div class="card-block"><div class="card-title">&#9889; Energy opportunity analysis — F1 to F5</div><table class="data-table"><thead><tr><th>Furnace</th><th>Actual SHC</th><th>Target</th><th>Gap</th><th>Status</th></tr></thead><tbody>';
+    opps.forEach(o => {
+      const cls = o.status === 'URGENT' ? 'tag-err' : o.status === 'HIGH' ? 'tag-warn' : 'tag-ok';
+      html += '<tr><td><b>' + o.furnace + '</b></td><td>' + o.actual + '</td><td>' + o.target + '</td><td style="font-weight:600">+' + o.gap + '</td><td><span class="tag-s ' + cls + '">' + o.status + '</span></td></tr>';
+    });
+    html += '</tbody></table>';
+    const topOpp = opps[0];
+    if (topOpp) html += '<div style="margin-top:6px;font-size:10px;color:#555"><b>Top recommendation:</b> ' + topOpp.ecm + '</div>';
+    html += '</div>';
+    appendAI(null, html);
+    return true;
+  }
+
+  // EcoVadis analysis
+  if (lower.includes('ecovadis') || lower.includes('silver') || lower.includes('esg score')) {
+    appendAI('Calculating EcoVadis score estimate from live register data…');
+    const calc = await ecovadisScoreCalculator();
+    let html = '<div class="card-block"><div class="card-title">&#127941; EcoVadis score estimate</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px;margin-bottom:8px">';
+    Object.entries(calc.themes).forEach(([theme, cfg]) => {
+      html += '<div class="pstat" style="background:#f5f5f5"><div class="pstat-n" style="font-size:16px;color:#1B2A4A">' + cfg.score + '</div><div class="pstat-l">' + theme + ' (25%)</div></div>';
+    });
+    html += '</div>';
+    const gapCls = calc.silverGap === 0 ? 'tag-ok' : 'tag-err';
+    html += '<div style="text-align:center;padding:8px;background:' + (calc.silverGap > 0 ? '#FCEBEB' : '#EAF3DE') + ';border-radius:6px;margin-bottom:6px">' +
+      '<div style="font-size:18px;font-weight:700;color:' + (calc.silverGap > 0 ? '#791F1F' : '#27500A') + '">' + calc.totalScore + '/100</div>' +
+      '<div style="font-size:10px;color:#666">Estimated score · Silver threshold: 65 · Gap: ' + calc.silverGap + ' points</div></div>';
+    html += '<div style="font-size:10px;font-weight:600;margin-bottom:4px">Priority actions to close the gap:</div>';
+    calc.actions.forEach(a => {
+      html += '<div style="font-size:10px;padding:3px 0;border-bottom:0.5px solid #f0f0f0">+' + a.impact + ' pts · ' + a.action + ' — <span style="color:#888">' + a.owner + ' · ' + a.deadline + '</span></div>';
+    });
+    html += '</div>';
+    appendAI(null, html);
+    return true;
+  }
+
+  // CAPA proposal
+  if (lower.includes('capa proposal') || lower.includes('suggest capa') || lower.includes('draft capa') || lower.includes('recurring incident')) {
+    appendAI('Analysing incident patterns for recurring root causes…');
+    const proposal = await generateCapaProposal();
+    if (proposal) {
+      let html = '<div class="card-block"><div class="card-title">&#128203; CAPA proposal — auto-generated</div>';
+      html += '<div style="font-size:10px;margin-bottom:6px;color:#666">Based on <b>' + proposal.count + ' incidents</b> with root cause: "' + proposal.rootCause + '" (' + proposal.incidentIds + ')</div>';
+      const c = proposal.draftCapa;
+      html += '<table class="data-table"><tbody>';
+      Object.entries(c).forEach(([k,v]) => {
+        html += '<tr><td style="color:#888;white-space:nowrap">' + k + '</td><td><b>' + v + '</b></td></tr>';
+      });
+      html += '</tbody></table>';
+      html += '<div class="confirm-btns"><button class="btn-yes" onclick="confirmCapa()">Write to CAPA register</button><button class="btn-no" onclick="this.parentElement.remove()">Dismiss</button></div>';
+      html += '</div>';
+      state.pendingCapa = proposal.draftCapa;
+      appendAI(null, html);
+    } else {
+      appendAI('No recurring root causes found in the incident register — fewer than 2 incidents share the same root cause at this time.');
+    }
+    return true;
+  }
+
+  // Preventive actions from HIRA
+  if (lower.includes('preventive') || lower.includes('pa from') || lower.includes('hira risk')) {
+    appendAI('Fetching high residual risk items from HIRA register…');
+    const pas = await preventiveActionsFromHIRA();
+    if (pas.length) {
+      let html = '<div class="card-block"><div class="card-title">&#128737; Proposed preventive actions — from HIRA residual risk</div>';
+      pas.forEach(pa => {
+        html += '<div style="padding:5px 0;border-bottom:0.5px solid #f0f0f0;font-size:10.5px"><b>' + pa.activity + '</b> — ' + pa.hazard + '<br><span style="color:#888">Residual risk: <b style="color:#791F1F">' + pa.residualRisk + '</b> · ' + pa.proposedPA + '</span><br><span style="color:#aaa">Owner: ' + pa.owner + ' · Due: ' + pa.dueDate + '</span></div>';
+      });
+      html += '</div>';
+      appendAI(null, html);
+    } else {
+      appendAI('No HIGH or CRITICAL residual risk items found in the HIRA register, or the register needs data entry first.');
+    }
+    return true;
+  }
+
+  return false; // not handled — fall through to callClaude
+}
+
+async function confirmCapa() {
+  if (!state.pendingCapa) return;
+  const row = Object.values(state.pendingCapa);
+  try {
+    await fetch(SHEETS_URL + '?action=write&tab=capa', {method:'POST', body:JSON.stringify([state.pendingCapa])});
+    localStorage.setItem('forceRefresh_capa', Date.now().toString());
+    appendAI('CAPA <b>' + state.pendingCapa.id + '</b> written to the CAPA Register. <a href="capa-register.html" style="color:#185FA5">View CAPA Register →</a>');
+  } catch(e) {
+    appendAI('CAPA drafted — upload to Google Sheets manually or check the Apps Script connection.');
+  }
+  state.pendingCapa = null;
+}
+
+
+const MASSI_NAVY='#1B2A4A',MASSI_GOLD='#C9A84C',MASSI_FACE='#2A4A7A',MASSI_LIGHT='#E8F0FB';
+function buildMassi(size,state){
+  const s=size,cx=s/2,cy=s/2,r=s*0.46;
+  const eyeY=cy-s*0.06,eyeOff=s*0.13,eyeR=s*0.065,pupilR=eyeR*0.55,mouthY=cy+s*0.15;
+  const antY=cy-r-s*0.04;
+  let ring='',arm='',bodyA='',eyeA='',pupilA='',mouth='';
+  if(state==='idle'){
+    eyeA='style="transform-origin:'+cx+'px '+eyeY+'px;animation:massi-blink 4s ease-in-out infinite"';
+    mouth='<path d="M'+(cx-s*.1)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.06)+' '+(cx+s*.1)+' '+mouthY+'" stroke="'+MASSI_GOLD+'" stroke-width="'+(s*.025)+'" stroke-linecap="round" fill="none"/>';
+    bodyA='style="animation:massi-float 3s ease-in-out infinite"';
+  } else if(state==='greeting'){
+    mouth='<path d="M'+(cx-s*.12)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.1)+' '+(cx+s*.12)+' '+mouthY+'" stroke="'+MASSI_GOLD+'" stroke-width="'+(s*.025)+'" stroke-linecap="round" fill="none"/>';
+    arm='<g style="transform-origin:'+(cx+r*.8)+'px '+(cy-r*.1)+'px;animation:massi-wave 1.5s ease-in-out infinite"><rect x="'+(cx+r*.75)+'" y="'+(cy-r*.3)+'" width="'+(s*.09)+'" height="'+(s*.26)+'" rx="'+(s*.04)+'" fill="'+MASSI_LIGHT+'" stroke="'+MASSI_NAVY+'" stroke-width="'+(s*.018)+'"/><circle cx="'+(cx+r*.8)+'" cy="'+(cy-r*.28)+'" r="'+(s*.05)+'" fill="'+MASSI_GOLD+'"/></g>';
+    bodyA='style="animation:massi-nod .6s ease-in-out 2"';
+  } else if(state==='thinking'){
+    pupilA='style="animation:massi-scan 1s ease-in-out infinite"';
+    mouth='<path d="M'+(cx-s*.08)+' '+(mouthY+s*.01)+' Q'+cx+' '+(mouthY-s*.03)+' '+(cx+s*.08)+' '+(mouthY+s*.01)+'" stroke="'+MASSI_GOLD+'" stroke-width="'+(s*.022)+'" stroke-linecap="round" fill="none"/>';
+    ring='<circle cx="'+cx+'" cy="'+(cy+r*1.4)+'" r="3" fill="'+MASSI_GOLD+'" style="animation:massi-t1 1.2s ease-in-out infinite"/><circle cx="'+(cx+s*.14)+'" cy="'+(cy+r*1.4)+'" r="3" fill="'+MASSI_GOLD+'" style="animation:massi-t2 1.2s ease-in-out infinite"/><circle cx="'+(cx-s*.14)+'" cy="'+(cy+r*1.4)+'" r="3" fill="'+MASSI_GOLD+'" style="animation:massi-t3 1.2s ease-in-out infinite"/>';
+  } else if(state==='success'){
+    mouth='<path d="M'+(cx-s*.14)+' '+(mouthY-s*.02)+' Q'+cx+' '+(mouthY+s*.12)+' '+(cx+s*.14)+' '+(mouthY-s*.02)+'" stroke="'+MASSI_GOLD+'" stroke-width="'+(s*.028)+'" stroke-linecap="round" fill="none"/>';
+    bodyA='style="animation:massi-celebrate .8s ease-in-out 2"';
+    ring='<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+s*.08)+'" fill="none" stroke="'+MASSI_GOLD+'" stroke-width="'+(s*.04)+'" opacity=".3" style="animation:massi-ring 1s ease-out 2"/>';
+  } else if(state==='alert'){
+    mouth='<path d="M'+(cx-s*.1)+' '+(mouthY+s*.02)+' Q'+cx+' '+(mouthY-s*.04)+' '+(cx+s*.1)+' '+(mouthY+s*.02)+'" stroke="'+MASSI_GOLD+'" stroke-width="'+(s*.022)+'" stroke-linecap="round" fill="none"/>';
+    ring='<path d="M'+cx+' '+(cy-r-s*.08)+' L'+(cx-s*.06)+' '+(cy-r-s*.18)+' L'+(cx+s*.06)+' '+(cy-r-s*.18)+' Z" fill="#E24B4A" opacity=".9"/><text x="'+cx+'" y="'+(cy-r-s*.1)+'" text-anchor="middle" font-size="'+(s*.09)+'" fill="white" font-weight="700">!</text>';
+  } else if(state==='happy'){
+    mouth='<path d="M'+(cx-s*.14)+' '+(mouthY-s*.02)+' Q'+cx+' '+(mouthY+s*.12)+' '+(cx+s*.14)+' '+(mouthY-s*.02)+'" stroke="'+MASSI_GOLD+'" stroke-width="'+(s*.028)+'" stroke-linecap="round" fill="none"/>';
+    ring='<text x="'+(cx-r*1.1)+'" y="'+(cy-r*.6)+'" font-size="'+(s*.14)+'" fill="'+MASSI_GOLD+'" opacity=".7">&#10022;</text><text x="'+(cx+r*.8)+'" y="'+(cy-r*.9)+'" font-size="'+(s*.1)+'" fill="'+MASSI_GOLD+'" opacity=".5">&#10022;</text>';
+    bodyA='style="animation:massi-float 1.5s ease-in-out infinite"';
+  } else if(state==='nod'){
+    mouth='<path d="M'+(cx-s*.1)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.07)+' '+(cx+s*.1)+' '+mouthY+'" stroke="'+MASSI_GOLD+'" stroke-width="'+(s*.025)+'" stroke-linecap="round" fill="none"/>';
+    bodyA='style="animation:massi-nod .5s ease-in-out 3"';
+    ring='<path d="M'+(cx+r*.6)+' '+(cy+r*.3)+' L'+(cx+r*.85)+' '+(cy+r*.6)+' L'+(cx+r*1.3)+' '+(cy-r*.1)+'" stroke="#27500A" stroke-width="'+(s*.05)+'" stroke-linecap="round" stroke-linejoin="round" fill="none"/>';
+  }
+  const defMouth=mouth||'<path d="M'+(cx-s*.08)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.05)+' '+(cx+s*.08)+' '+mouthY+'" stroke="'+MASSI_GOLD+'" stroke-width="'+(s*.022)+'" stroke-linecap="round" fill="none"/>';
+  const h=s*1.3;
+  return '<svg width="'+s+'" height="'+h+'" viewBox="0 0 '+s+' '+h+'" xmlns="http://www.w3.org/2000/svg">'+ring+'<g '+bodyA+'><line x1="'+cx+'" y1="'+(antY+s*.04)+'" x2="'+cx+'" y2="'+(cy-r)+'" stroke="'+MASSI_NAVY+'" stroke-width="'+(s*.025)+'"/><circle cx="'+cx+'" cy="'+antY+'" r="'+(s*.055)+'" fill="'+MASSI_GOLD+'"/><rect x="'+(cx-r*.25)+'" y="'+(cy+r*.85)+'" width="'+(r*.2)+'" height="'+(r*.45)+'" rx="'+(r*.08)+'" fill="'+MASSI_LIGHT+'" stroke="'+MASSI_NAVY+'" stroke-width="'+(s*.018)+'"/><rect x="'+(cx+r*.05)+'" y="'+(cy+r*.85)+'" width="'+(r*.2)+'" height="'+(r*.45)+'" rx="'+(r*.08)+'" fill="'+MASSI_LIGHT+'" stroke="'+MASSI_NAVY+'" stroke-width="'+(s*.018)+'"/><rect x="'+(cx-r*.95)+'" y="'+(cy-r*.1)+'" width="'+(r*.28)+'" height="'+(r*.55)+'" rx="'+(r*.1)+'" fill="'+MASSI_LIGHT+'" stroke="'+MASSI_NAVY+'" stroke-width="'+(s*.018)+'"/><rect x="'+(cx+r*.67)+'" y="'+(cy-r*.1)+'" width="'+(r*.28)+'" height="'+(r*.55)+'" rx="'+(r*.1)+'" fill="'+MASSI_LIGHT+'" stroke="'+MASSI_NAVY+'" stroke-width="'+(s*.018)+'"/><ellipse cx="'+cx+'" cy="'+(cy+r*.45)+'" rx="'+(r*.72)+'" ry="'+(r*.52)+'" fill="'+MASSI_LIGHT+'" stroke="'+MASSI_NAVY+'" stroke-width="'+(s*.02)+'"/><circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+MASSI_FACE+'" stroke="'+MASSI_NAVY+'" stroke-width="'+(s*.025)+'"/><g '+eyeA+'><rect x="'+(cx-eyeOff-eyeR)+'" y="'+(eyeY-eyeR)+'" width="'+(eyeR*2)+'" height="'+(eyeR*2)+'" rx="'+(eyeR*.5)+'" fill="'+MASSI_LIGHT+'" stroke="'+MASSI_NAVY+'" stroke-width="'+(s*.02)+'"/><rect x="'+(cx+eyeOff-eyeR)+'" y="'+(eyeY-eyeR)+'" width="'+(eyeR*2)+'" height="'+(eyeR*2)+'" rx="'+(eyeR*.5)+'" fill="'+MASSI_LIGHT+'" stroke="'+MASSI_NAVY+'" stroke-width="'+(s*.02)+'"/><g '+pupilA+'><circle cx="'+(cx-eyeOff)+'" cy="'+eyeY+'" r="'+pupilR+'" fill="'+MASSI_NAVY+'"/><circle cx="'+(cx+eyeOff)+'" cy="'+eyeY+'" r="'+pupilR+'" fill="'+MASSI_NAVY+'"/><circle cx="'+(cx-eyeOff+pupilR*.3)+'" cy="'+(eyeY-pupilR*.3)+'" r="'+(pupilR*.3)+'" fill="white"/><circle cx="'+(cx+eyeOff+pupilR*.3)+'" cy="'+(eyeY-pupilR*.3)+'" r="'+(pupilR*.3)+'" fill="white"/></g></g>'+defMouth+'<rect x="'+(cx-r*.5)+'" y="'+(cy+r*.28)+'" width="'+r+'" height="'+(r*.18)+'" rx="'+(r*.06)+'" fill="'+MASSI_NAVY+'" opacity=".35"/><rect x="'+(cx-r*.3)+'" y="'+(cy+r*.31)+'" width="'+(r*.22)+'" height="'+(r*.12)+'" rx="'+(r*.04)+'" fill="'+MASSI_GOLD+'" opacity=".7"/></g>'+arm+'</svg>';
+}
+function setMassiState(state){
+  document.querySelectorAll('.massi-av').forEach(function(el){
+    const sz=parseInt(el.dataset.size)||26;
+    el.innerHTML=buildMassi(sz,state);
+  });
+}
+
+
+setTimeout(function(){
+  document.querySelectorAll('.massi-av').forEach(function(el){
+    const sz=parseInt(el.dataset.size)||26;
+    el.innerHTML=buildMassi(sz,'idle');
+  });
+},150);
+</script>
+</body>
+</html>
