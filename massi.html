@@ -1,209 +1,113 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)https://sagcodrv-ux.github.io/sagco-im/massi.html -->
-<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="en">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MASSI AI Copilot — SAGCO IMS</title>
-<link rel="stylesheet" href="./MASSI AI Copilot — SAGCO IMS_files/style.css">
-<script src="./MASSI AI Copilot — SAGCO IMS_files/xlsx.full.min.js.download"></script>
-<script src="./MASSI AI Copilot — SAGCO IMS_files/chart.umd.min.js.download"></script>
+<title>iMASSI &mdash; SAGCO IMS Copilot</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0;overflow:hidden;height:100vh}
+body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0}
 
-.massi-page{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:row;overflow:hidden;z-index:9998}
-
-/* ── LEFT PANEL ──────────────────────────────────────────────────────────── */
-.massi-left{display:none}
-.massi-identity{padding:24px 20px 16px;text-align:center;border-bottom:0.5px solid rgba(255,255,255,.1)}
-.massi-av-large{display:flex;justify-content:center;margin-bottom:10px}
-.massi-name{font-size:22px;font-weight:700;color:#C9A84C;letter-spacing:1px}
-.massi-tagline{font-size:11px;color:rgba(255,255,255,.5);margin-top:3px;line-height:1.5}
-.massi-status{display:flex;align-items:center;justify-content:center;gap:6px;
-  margin-top:8px;font-size:11px;color:rgba(255,255,255,.6)}
-.status-live{width:7px;height:7px;border-radius:50%;background:#4ade80;
-  animation:status-pulse 2s ease-in-out infinite}
-@keyframes status-pulse{0%,100%{opacity:1}50%{opacity:.5}}
-
-.massi-left-scroll{flex:1;overflow-y:auto;padding:12px}
-.left-section{margin-bottom:16px}
-.left-section-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
-  color:rgba(255,255,255,.35);margin-bottom:7px}
-
-.alert-item{background:rgba(255,255,255,.06);border-radius:7px;padding:8px 10px;
-  margin-bottom:5px;cursor:pointer;transition:background .15s;border-left:3px solid transparent}
-.alert-item:hover{background:rgba(255,255,255,.1)}
-.alert-item.crit{border-left-color:#E24B4A}
-.alert-item.high{border-left-color:#EF9F27}
-.alert-item.med{border-left-color:#378ADD}
-.alert-text{font-size:10.5px;color:rgba(255,255,255,.85);line-height:1.4}
-.alert-page{font-size:9.5px;color:rgba(255,255,255,.4);margin-top:2px}
-
-.quick-action{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);
-  border-radius:7px;padding:8px 10px;margin-bottom:5px;cursor:pointer;
-  transition:background .15s;border:none;width:100%;text-align:left}
-.quick-action:hover{background:rgba(255,255,255,.12)}
-.qa-icon{font-size:16px;flex-shrink:0}
-.qa-text{font-size:11px;color:rgba(255,255,255,.85)}
-.qa-sub{font-size:9.5px;color:rgba(255,255,255,.4);margin-top:1px}
-
-.kpi-mini{background:rgba(255,255,255,.06);border-radius:7px;padding:8px 10px;margin-bottom:5px}
-.kpi-mini-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
-.kpi-mini-name{font-size:10.5px;color:rgba(255,255,255,.75)}
-.kpi-mini-val{font-size:11px;font-weight:600}
-.kpi-bar{height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden}
-.kpi-fill{height:100%;border-radius:2px;transition:width .4s ease}
-
-/* ── CENTRE PANEL — CHAT ─────────────────────────────────────────────────── */
+/* Layout */
+.massi-page{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;overflow:hidden;z-index:9998}
 .massi-centre{display:flex;flex-direction:column;flex:1;min-height:0;background:white;border:none}
+
+/* Header */
 .chat-header{background:linear-gradient(135deg,#1B2A4A 0%,#243a5e 100%);border-bottom:none;
-  padding:18px 28px;display:flex;align-items:center;gap:20px;flex-shrink:0;position:relative;overflow:hidden}
-
-/* ── DB STATUS STRIP ─────────────────────────────────────────────── */
-.db-status-strip{flex-shrink:0;padding:8px 24px;display:flex;align-items:center;gap:10px;
-  font-size:11px;font-family:Arial,sans-serif;border-bottom:0.5px solid #e8e8e8;
-  background:#f8f9fb;transition:background .3s}
-.db-status-strip.connecting{background:#FFF8E7}
-.db-status-strip.loading{background:#EEF5FF}
-.db-status-strip.syncing{background:#EEF5FF}
-.db-status-strip.ready{background:#F0FAF0}
-.db-status-strip.error{background:#FFF0F0}
-.db-status-strip.offline{background:#f5f5f5}
-
-.db-status-icon{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.db-status-icon.connecting,.db-status-icon.loading,.db-status-icon.syncing{
-  background:#EF9F27;animation:status-pulse 1s ease-in-out infinite}
-.db-status-icon.ready{background:#4ade80}
-.db-status-icon.error{background:#E24B4A;animation:status-pulse .6s ease-in-out infinite}
-.db-status-icon.offline{background:#aaa}
-
-.db-status-label{font-weight:600;color:#333;min-width:80px}
-.db-status-detail{color:#666;flex:1}
-.db-status-sync{font-size:10px;color:#aaa;margin-left:auto;white-space:nowrap}
-.db-retry-btn{margin-left:8px;background:#E24B4A;color:white;border:none;border-radius:4px;
-  padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;display:none}
-.db-retry-btn:hover{background:#c03030}
-
-.db-progress-bar{height:3px;background:#e0e0e0;border-radius:2px;overflow:hidden;width:120px;flex-shrink:0}
-.db-progress-fill{height:100%;border-radius:2px;background:#378ADD;width:0%;
-  transition:width .4s ease}
-.db-progress-fill.ready{background:#4ade80}
-.db-progress-fill.error{background:#E24B4A}
-
-/* ── HEADER STATUS BADGE ─────────────────────────────────────────── */
-.hdr-status-badge{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;
-  font-size:10px;font-weight:600;background:rgba(255,255,255,.1);margin-left:auto;flex-shrink:0;
-  border:0.5px solid rgba(255,255,255,.15)}
-.hdr-status-dot{width:6px;height:6px;border-radius:50%}
-.hdr-status-dot.connecting,.hdr-status-dot.loading,.hdr-status-dot.syncing{
-  background:#EF9F27;animation:status-pulse 1s ease-in-out infinite}
-.hdr-status-dot.ready{background:#4ade80}
-.hdr-status-dot.error{background:#E24B4A}
-.hdr-status-dot.offline{background:#aaa}
-.hdr-status-txt{color:rgba(255,255,255,.8)}
-
-/* ── QUEUE BANNER ────────────────────────────────────────────────── */
-.queue-banner{background:#1B2A4A;color:rgba(255,255,255,.8);font-size:11px;padding:6px 24px;
-  display:none;align-items:center;gap:8px;flex-shrink:0}
-.queue-banner.visible{display:flex}
-.queue-spinner{width:12px;height:12px;border:2px solid rgba(255,255,255,.2);
-  border-top-color:#C9A84C;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
-@keyframes spin{to{transform:rotate(360deg)}}
-.chat-header::before{content:'';position:absolute;top:-60px;right:-40px;width:220px;height:220px;border-radius:50%;
-  background:radial-gradient(circle,rgba(201,168,76,.12) 0%,transparent 70%);animation:hpulse 3s ease-in-out infinite}
-@keyframes hpulse{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.3);opacity:1}}
-.chat-header-av-wrap{position:relative;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:90px;height:117px}
-.av-ring{position:absolute;border-radius:50%;border:1.5px solid rgba(201,168,76,.3);animation:avring 2.5s ease-in-out infinite;pointer-events:none}
-.av-ring1{width:96px;height:96px}
-.av-ring2{width:116px;height:116px;animation-delay:.5s}
-@keyframes avring{0%,100%{transform:scale(.9);opacity:.6}50%{transform:scale(1.08);opacity:.15}}
+  padding:16px 24px;display:flex;align-items:center;gap:16px;flex-shrink:0;position:relative;overflow:hidden}
+.chat-header::before{content:'';position:absolute;top:-50px;right:-30px;width:200px;height:200px;
+  border-radius:50%;background:radial-gradient(circle,rgba(201,168,76,.1) 0%,transparent 70%);
+  animation:hpulse 3s ease-in-out infinite;pointer-events:none}
+@keyframes hpulse{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.2);opacity:1}}
+.chat-header-av-wrap{position:relative;flex-shrink:0;width:80px;height:104px;
+  display:flex;align-items:center;justify-content:center}
+.av-ring{position:absolute;border-radius:50%;border:1.5px solid rgba(201,168,76,.3);
+  animation:avring 2.5s ease-in-out infinite;pointer-events:none}
+.av-ring1{width:88px;height:88px}
+.av-ring2{width:108px;height:108px;animation-delay:.5s}
+@keyframes avring{0%,100%{transform:scale(.9);opacity:.6}50%{transform:scale(1.05);opacity:.15}}
 .chat-header-info{flex:1;z-index:1}
-.chat-header-title{font-size:24px;font-weight:700;color:#C9A84C;letter-spacing:1.5px}
+.chat-header-title{font-size:22px;font-weight:700;color:#C9A84C;letter-spacing:1.5px}
 .chat-header-sub{font-size:11px;color:rgba(255,255,255,.5);margin-top:3px}
-.chat-header-live{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:10.5px;color:rgba(255,255,255,.5)}
+.chat-header-live{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:10.5px;color:rgba(255,255,255,.5)}
 .ch-dot{width:7px;height:7px;border-radius:50%;background:#4ade80;animation:status-pulse 2s ease-in-out infinite}
-.chat-msgs{flex:1;overflow-y:auto;padding:16px 24px;display:flex;flex-direction:column;gap:10px}
+.hdr-badge{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;
+  background:rgba(255,255,255,.1);border:0.5px solid rgba(255,255,255,.15);
+  font-size:10px;font-weight:600;white-space:nowrap}
+.hdr-badge-dot{width:6px;height:6px;border-radius:50%}
+.hdr-badge-dot.loading,.hdr-badge-dot.connecting,.hdr-badge-dot.syncing{background:#EF9F27;animation:status-pulse 1s ease-in-out infinite}
+.hdr-badge-dot.ready{background:#4ade80}
+.hdr-badge-dot.error{background:#E24B4A}
+.hdr-badge-dot.offline{background:#aaa}
+.hdr-badge-txt{color:rgba(255,255,255,.8)}
 
-.suggested-chips{padding:0 16px 8px;display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0}
-.sug-chip{background:#f5f5f5;border:0.5px solid #e0e0e0;border-radius:16px;
-  padding:5px 12px;font-size:11px;cursor:pointer;color:#444;transition:all .12s;white-space:nowrap}
+/* DB status strip */
+.db-strip{flex-shrink:0;padding:6px 24px;display:flex;align-items:center;gap:8px;
+  font-size:11px;background:#f8f9fb;border-bottom:0.5px solid #e8e8e8;transition:background .3s}
+.db-strip.loading,.db-strip.connecting,.db-strip.syncing{background:#EEF5FF}
+.db-strip.ready{background:#F0FAF0}
+.db-strip.error{background:#FFF0F0}
+.db-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.db-dot.loading,.db-dot.connecting,.db-dot.syncing{background:#378ADD;animation:status-pulse 1s ease-in-out infinite}
+.db-dot.ready{background:#4ade80}
+.db-dot.error{background:#E24B4A;animation:status-pulse .5s ease-in-out infinite}
+.db-dot.offline{background:#aaa}
+.db-label{font-weight:600;color:#333;min-width:90px}
+.db-detail{color:#666;flex:1;font-size:10.5px}
+.db-sync{font-size:10px;color:#aaa;margin-left:auto;white-space:nowrap}
+.db-retry{margin-left:8px;background:#E24B4A;color:white;border:none;border-radius:4px;
+  padding:2px 8px;font-size:10px;font-weight:600;cursor:pointer;display:none}
+.db-progress{height:2px;width:100px;background:#ddd;border-radius:1px;overflow:hidden;flex-shrink:0}
+.db-prog-fill{height:100%;background:#378ADD;width:0%;transition:width .3s ease;border-radius:1px}
+.db-prog-fill.done{background:#4ade80}
+
+/* Chat */
+.suggested-chips{padding:8px 24px;display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0;
+  background:#fafafa;border-bottom:0.5px solid #f0f0f0}
+.sug-chip{background:#f5f5f5;border:0.5px solid #e0e0e0;border-radius:16px;padding:5px 12px;
+  font-size:11px;cursor:pointer;color:#444;transition:all .12s;white-space:nowrap}
 .sug-chip:hover{background:#E6F1FB;border-color:#B5D4F4;color:#0C447C}
-
+.chat-msgs{flex:1;overflow-y:auto;padding:16px 24px;display:flex;flex-direction:column;gap:10px}
 .msg{display:flex;gap:8px;max-width:100%}
 .msg.user{flex-direction:row-reverse}
 .msg-av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;
-  align-items:center;justify-content:center;font-size:11px;font-weight:600;margin-top:1px}
-.msg-av.user{background:#E6F1FB;color:#0C447C;font-size:13px}
+  align-items:center;justify-content:center;font-size:13px;font-weight:600;margin-top:1px}
+.msg-av.user{background:#E6F1FB;color:#0C447C}
 .massi-msg-av{flex-shrink:0;width:28px;height:36px;margin-top:1px}
-.bubble{padding:9px 12px;border-radius:10px;font-size:12px;line-height:1.65;max-width:80%}
-.msg.ai .bubble{background:#f5f5f5;border-radius:3px 10px 10px 10px;color:#1a1a1a}
-.msg.user .bubble{background:#1B2A4A;color:white;border-radius:10px 3px 10px 10px}
+.bubble{padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.7;max-width:65%}
+.msg.ai .bubble{background:#f5f5f5;border-radius:3px 12px 12px 12px;color:#1a1a1a}
+.msg.user .bubble{background:#1B2A4A;color:white;border-radius:12px 3px 12px 12px}
 .msg.ai .bubble a{color:#185FA5}
 .msg-time{font-size:9.5px;color:#aaa;margin-top:3px;padding:0 3px}
 .msg.user .msg-time{text-align:right}
-
-.card-block{background:white;border:0.5px solid #e0e0e0;border-radius:8px;
-  padding:10px 12px;margin-top:5px;font-size:11px}
-.card-block-title{font-size:11px;font-weight:600;margin-bottom:6px;color:#1B2A4A}
-.data-table{width:100%;border-collapse:collapse;font-size:11px}
-.data-table th{background:#f8f8f8;padding:5px 7px;text-align:left;font-weight:600;
-  color:#555;border-bottom:1px solid #eee;font-size:10px}
-.data-table td{padding:5px 7px;border-bottom:0.5px solid #f5f5f5;color:#333}
-.tag-s{display:inline-block;font-size:8px;font-weight:700;border-radius:2px;padding:1px 4px;white-space:nowrap}
-.tag-ok{background:#EAF3DE;color:#27500A}.tag-warn{background:#FAEEDA;color:#633806}
-.tag-err{background:#FCEBEB;color:#791F1F}.tag-info{background:#E6F1FB;color:#0C447C}
-
-.typing-b{display:flex;align-items:center;gap:3px;padding:9px 12px;background:#f5f5f5;
-  border-radius:3px 10px 10px 10px}
+.typing-b{display:flex;align-items:center;gap:3px;padding:9px 12px;background:#f5f5f5;border-radius:3px 10px 10px 10px}
 .tdot{width:5px;height:5px;border-radius:50%;background:#999;animation:td 1.2s ease-in-out infinite}
 .tdot:nth-child(2){animation-delay:.2s}.tdot:nth-child(3){animation-delay:.4s}
 @keyframes td{0%,100%{opacity:.2;transform:scale(.8)}50%{opacity:.9;transform:scale(1)}}
-.chart-wrap{margin-top:6px;position:relative;height:140px}
-
+.hist-item{padding:6px 0;border-bottom:0.5px solid #f5f5f5;cursor:pointer}
+.hist-item:hover .hist-q{color:#185FA5}
+.hist-q{font-size:11px;color:#333;margin-bottom:1px;line-height:1.4}
+.hist-t{font-size:9.5px;color:#aaa}
 .file-chip{background:#E6F1FB;border:0.5px solid #B5D4F4;border-radius:6px;
   padding:4px 8px;font-size:10px;color:#0C447C;display:flex;align-items:center;gap:4px;margin-bottom:5px}
-.chat-input-area{border-top:1px solid #f0f0f0;padding:12px 24px;display:flex;gap:7px;align-items:flex-end;flex-shrink:0;background:white;box-shadow:0 -4px 16px rgba(0,0,0,.04)}
+.chat-input-area{border-top:1px solid #f0f0f0;padding:12px 24px;display:flex;
+  gap:7px;align-items:flex-end;flex-shrink:0;background:white;box-shadow:0 -4px 16px rgba(0,0,0,.04)}
 .chat-textarea{width:100%;border:0.5px solid #ddd;border-radius:8px;padding:10px 14px;
   font-size:13px;resize:none;min-height:44px;max-height:160px;font-family:Arial,sans-serif;
   outline:none;color:#1a1a1a;line-height:1.5;overflow-y:auto}
 .chat-textarea:focus{border-color:#888}
-.attach-btn{width:32px;height:32px;border-radius:7px;background:#f5f5f5;
-  border:0.5px solid #ddd;cursor:pointer;display:flex;align-items:center;
-  justify-content:center;font-size:16px}
+.attach-btn{width:32px;height:32px;border-radius:7px;background:#f5f5f5;border:0.5px solid #ddd;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px}
 .attach-btn:hover{background:#ebebeb}
-.send-btn-lg{height:32px;border-radius:7px;background:#1B2A4A;border:none;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;
-  padding:0 14px;gap:5px;font-size:12px;font-weight:600;color:#C9A84C}
+.send-btn-lg{height:36px;border-radius:8px;background:#1B2A4A;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;padding:0 18px;
+  gap:5px;font-size:13px;font-weight:600;color:#C9A84C;white-space:nowrap}
 .send-btn-lg:hover{background:#243a5e}
 
-/* ── RIGHT PANEL ─────────────────────────────────────────────────────────── */
-.massi-right{display:none}
-.right-section{margin-bottom:18px}
-.right-section-title{font-size:10px;font-weight:700;text-transform:uppercase;
-  letter-spacing:.07em;color:#888;margin-bottom:8px;padding-bottom:5px;
-  border-bottom:0.5px solid #f0f0f0}
-
-.kpi-card{background:#f8f8f8;border-radius:8px;padding:10px 12px;margin-bottom:7px}
-.kpi-name{font-size:10.5px;font-weight:500;color:#444;margin-bottom:4px}
-.kpi-val-row{display:flex;align-items:baseline;gap:6px;margin-bottom:4px}
-.kpi-val{font-size:18px;font-weight:600;color:#1B2A4A}
-.kpi-target{font-size:10px;color:#888}
-.kpi-progress{height:5px;background:#e8e8e8;border-radius:3px;overflow:hidden;margin-bottom:4px}
-.kpi-prog-fill{height:100%;border-radius:3px;transition:width .4s ease}
-.kpi-status{font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:10px}
-
-.rec-item{background:#f8f8f8;border-radius:7px;padding:8px 10px;margin-bottom:6px;
-  border-left:3px solid #1B2A4A;cursor:pointer;transition:background .12s}
-.rec-item:hover{background:#f0f0f0}
-.rec-item-title{font-size:11px;font-weight:500;color:#1B2A4A;margin-bottom:2px}
-.rec-item-sub{font-size:10px;color:#888;line-height:1.4}
-
-.hist-item{padding:6px 0;border-bottom:0.5px solid #f5f5f5;cursor:pointer}
-.hist-item:last-child{border-bottom:none}
-.hist-item:hover .hist-q{color:#185FA5}
-.hist-q{font-size:11px;color:#333;margin-bottom:1px;line-height:1.4}
-.hist-t{font-size:9.5px;color:#aaa}
-
+/* Animations */
+@keyframes status-pulse{0%,100%{opacity:1}50%{opacity:.4}}
 @keyframes massi-blink{0%,90%,100%{transform:scaleY(1)}95%{transform:scaleY(0.05)}}
 @keyframes massi-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 @keyframes massi-nod{0%,100%{transform:translateY(0)}30%,70%{transform:translateY(-4px)}50%{transform:translateY(-7px)}}
@@ -214,70 +118,15 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0;overflow
 @keyframes massi-t1{0%,100%{opacity:.3;transform:scale(.7)}33%{opacity:1;transform:scale(1)}}
 @keyframes massi-t2{0%,100%{opacity:.3;transform:scale(.7)}66%{opacity:1;transform:scale(1)}}
 @keyframes massi-t3{0%,100%{opacity:.3;transform:scale(.7)}100%{opacity:1;transform:scale(1)}}
-
-@media(max-width:900px){
-  .massi-page{grid-template-columns:1fr;grid-template-rows:auto auto 1fr}
-  .massi-left,.massi-right{display:none}
-  .massi-centre{border:none}
-}
 </style>
-<style>.ims-abbr{border-bottom:1px dashed var(--gold,#C9A84C);cursor:help;color:inherit;text-decoration:none;}#ims-abbr-tip{display:none;position:fixed;z-index:199999;max-width:320px;background:var(--navy,#1B2A4A);color:#fff;border-radius:7px;padding:0;box-shadow:0 6px 28px rgba(0,0,0,.28);font-family:Arial,sans-serif;font-size:12px;pointer-events:none;}#ims-abbr-tip.visible{display:block}#ims-abbr-tip .at-code{background:var(--gold,#C9A84C);color:var(--navy,#1B2A4A);font-weight:700;font-size:11px;padding:6px 12px 5px;border-radius:7px 7px 0 0;letter-spacing:.04em;}#ims-abbr-tip .at-def{padding:8px 12px 10px;line-height:1.6;color:rgba(255,255,255,.92);}</style></head>
+</head>
 <body>
-<script src="./MASSI AI Copilot — SAGCO IMS_files/nav.js.download"></script>
-
-<div id="topbar-mount" style="display:none"><div class="topbar"><div class="topbar-left"><div class="topbar-title">MASSI AI Copilot</div><div class="topbar-sub">Your intelligent IMS digital assistant</div></div><div class="topbar-right"><button id="se-restore-btn" title="Show Edit button" onclick="restoreEditBtn()" style="display:none">✎ Edit</button><button id="massi-nav-btn" onclick="massINavOpen()" title="Open MASSI AI Copilot" style="display:flex;align-items:center;gap:5px;background:#1B2A4A;border:none;color:#C9A84C;border-radius:7px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:600"><span id="massi-nav-av" style="width:22px;height:29px;flex-shrink:0"><svg width="22" height="28.6" viewBox="0 0 22 28.6" xmlns="http://www.w3.org/2000/svg"><g style="animation:massi-float 3s ease-in-out infinite"><line x1="11" y1="0.879999999999999" x2="11" y2="0.879999999999999" stroke="#1B2A4A" stroke-width="0.55"></line><circle cx="11" cy="-9.992007221626409e-16" r="1.21" fill="#C9A84C"></circle><rect x="8.469999999999999" y="19.602" width="2.0240000000000005" height="4.554" rx="0.8096000000000001" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.39599999999999996"></rect><rect x="11.506" y="19.602" width="2.0240000000000005" height="4.554" rx="0.8096000000000001" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.39599999999999996"></rect><rect x="1.3859999999999992" y="9.988" width="2.8336000000000006" height="5.566000000000001" rx="1.0120000000000002" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.39599999999999996"></rect><rect x="17.7804" y="9.988" width="2.8336000000000006" height="5.566000000000001" rx="1.0120000000000002" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.39599999999999996"></rect><ellipse cx="11" cy="15.554" rx="7.2864" ry="5.2624" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.44"></ellipse><circle cx="11" cy="11" r="10.120000000000001" fill="#2A4A7A" stroke="#1B2A4A" stroke-width="0.55"></circle><g style="transform-origin:11px 9.68px;animation:massi-blink 4s ease-in-out infinite"><rect x="6.710000000000001" y="8.25" width="2.8600000000000003" height="2.8600000000000003" rx="0.7150000000000001" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.44"></rect><rect x="12.43" y="8.25" width="2.8600000000000003" height="2.8600000000000003" rx="0.7150000000000001" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.44"></rect><g><circle cx="8.14" cy="9.68" r="0.7865000000000002" fill="#1B2A4A"></circle><circle cx="13.86" cy="9.68" r="0.7865000000000002" fill="#1B2A4A"></circle><circle cx="8.375950000000001" cy="9.444049999999999" r="0.23595000000000005" fill="white"></circle><circle cx="14.09595" cy="9.444049999999999" r="0.23595000000000005" fill="white"></circle></g></g><path d="M8.8 14.3 Q11 15.620000000000001 13.2 14.3" stroke="#C9A84C" stroke-width="0.55" stroke-linecap="round" fill="none"></path><rect x="5.9399999999999995" y="13.8336" width="10.120000000000001" height="1.8216" rx="0.6072000000000001" fill="#1B2A4A" opacity=".35"></rect><rect x="7.964" y="14.1372" width="2.2264000000000004" height="1.2144000000000001" rx="0.40480000000000005" fill="#C9A84C" opacity=".7"></rect></g></svg></span>MASSI</button><button class="btn btn-ghost" onclick="printCurrentPage()" title="Print this page">🖨 Print</button><button class="btn btn-ghost" onclick="localStorage.clear();var u=location.href.split(&quot;?&quot;)[0]+&quot;?_cb=&quot;+Date.now();location.replace(u)">↻ Refresh</button></div></div></div>
+<div id="topbar-mount" style="display:none"></div>
 
 <div class="massi-page">
-
-<!-- ── LEFT PANEL ──────────────────────────────────────────────────────── -->
-<div class="massi-left">
-  <div class="massi-identity">
-    <div class="massi-av-large"><div id="massiLargeAv" style="width:90px;height:117px"><svg width="90" height="117" viewBox="0 0 90 117" xmlns="http://www.w3.org/2000/svg"><g style="animation:massi-float 3s ease-in-out infinite"><line x1="45" y1="3.6000000000000014" x2="45" y2="3.6000000000000014" stroke="#1B2A4A" stroke-width="2.25"></line><circle cx="45" cy="1.3322676295501878e-15" r="4.95" fill="#C9A84C"></circle><rect x="34.65" y="80.19" width="8.28" height="18.63" rx="3.312" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="1.6199999999999999"></rect><rect x="47.07" y="80.19" width="8.28" height="18.63" rx="3.312" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="1.6199999999999999"></rect><rect x="5.670000000000002" y="40.86" width="11.592" height="22.77" rx="4.14" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="1.6199999999999999"></rect><rect x="72.738" y="40.86" width="11.592" height="22.77" rx="4.14" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="1.6199999999999999"></rect><ellipse cx="45" cy="63.629999999999995" rx="29.807999999999996" ry="21.528" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="1.8"></ellipse><circle cx="45" cy="45" r="41.4" fill="#2A4A7A" stroke="#1B2A4A" stroke-width="2.25"></circle><g style="transform-origin:45px 39.6px;animation:massi-blink 4s ease-in-out infinite"><rect x="27.449999999999996" y="33.75" width="11.700000000000001" height="11.700000000000001" rx="2.9250000000000003" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="1.8"></rect><rect x="50.85" y="33.75" width="11.700000000000001" height="11.700000000000001" rx="2.9250000000000003" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="1.8"></rect><g><circle cx="33.3" cy="39.6" r="3.2175000000000007" fill="#1B2A4A"></circle><circle cx="56.7" cy="39.6" r="3.2175000000000007" fill="#1B2A4A"></circle><circle cx="34.265249999999995" cy="38.634750000000004" r="0.9652500000000002" fill="white"></circle><circle cx="57.66525" cy="38.634750000000004" r="0.9652500000000002" fill="white"></circle></g></g><path d="M36 58.5 Q45 63.9 54 58.5" stroke="#C9A84C" stroke-width="2.25" stroke-linecap="round" fill="none"></path><rect x="24.3" y="56.592" width="41.4" height="7.451999999999999" rx="2.484" fill="#1B2A4A" opacity=".35"></rect><rect x="32.58" y="57.834" width="9.108" height="4.968" rx="1.656" fill="#C9A84C" opacity=".7"></rect></g></svg></div></div>
-    <div class="massi-name">MASSI</div>
-    <div class="massi-tagline"><span class="ims-abbr">IMS</span> AI Copilot · SAGCO<br>ISO 9001 · 14001 · 45001 · 50001 · 37001</div>
-    <div class="massi-status"><div class="status-live"></div><span>Online · <span id="alertCount">6 alerts · Stage 1 in 53 days</span></span></div>
-  </div>
-  <div class="massi-left-scroll">
-
-    <div class="left-section">
-      <div class="left-section-title">Live alerts</div>
-      <div id="alertsList">
-        <div class="alert-item crit"><div class="alert-text"><span class="ims-abbr">CAPA</span>-2026-001 <span class="ims-abbr">PTW</span> discrepancy — OPEN</div><div class="alert-page">capa-register.html · <span class="ims-abbr">HSSE</span> Manager</div></div>
-        <div class="alert-item crit"><div class="alert-text"><span class="ims-abbr">CAPA</span>-2026-002 Emergency drill overdue</div><div class="alert-page">capa-register.html · <span class="ims-abbr">HSSE</span> Manager</div></div>
-        <div class="alert-item crit"><div class="alert-text"><span class="ims-abbr">HIRA</span> E-03 BEHIND — overdue since Jun 2026</div><div class="alert-page">hira.html · <span class="ims-abbr">HSSE</span> Manager</div></div>
-        <div class="alert-item high"><div class="alert-text">F4 <span class="ims-abbr">SHC</span> +119 kcal/kg above target — URGENT</div><div class="alert-page">furnace-monitoring.html · Furnace Manager</div></div>
-        <div class="alert-item high"><div class="alert-text">Stage 1 audit — 25-26 Aug 2026</div><div class="alert-page">audit-programme.html · <span class="ims-abbr">IMS</span> Manager</div></div>
-        <div class="alert-item high"><div class="alert-text">7 of 9 L1 policies pending <span class="ims-abbr">CEO</span> signature</div><div class="alert-page">policies-hub.html · <span class="ims-abbr">CEO</span></div></div>
-      </div>
-    </div>
-
-    <div class="left-section">
-      <div class="left-section-title">Quick actions</div>
-      <button class="quick-action" onclick="massIAsk(&#39;Show overdue CAPAs and Stage 2 blockers&#39;)">
-        <span class="qa-icon">⚠</span><div><div class="qa-text">Stage 2 blockers</div><div class="qa-sub">4 open CAPAs · audit in 83 days</div></div>
-      </button>
-      <button class="quick-action" onclick="massIAsk(&#39;Show KPI trends and which KPIs are AT RISK&#39;)">
-        <span class="qa-icon">📊</span><div><div class="qa-text">KPI performance</div><div class="qa-sub">4 KPIs AT RISK · compare periods</div></div>
-      </button>
-      <button class="quick-action" onclick="massIAsk(&#39;Show energy opportunity analysis F1 to F5&#39;)">
-        <span class="qa-icon">⚡</span><div><div class="qa-text">Energy analysis</div><div class="qa-sub">F4 SHC URGENT · ECM 1 pending</div></div>
-      </button>
-      <button class="quick-action" onclick="massIAsk(&#39;Calculate EcoVadis score and Silver gap&#39;)">
-        <span class="qa-icon">🏅</span><div><div class="qa-text">EcoVadis Silver path</div><div class="qa-sub">Deadline 31 Jul 2026</div></div>
-      </button>
-      <button class="quick-action" onclick="massIAsk(&#39;Which department requires most attention?&#39;)">
-        <span class="qa-icon">🏭</span><div><div class="qa-text">Department insights</div><div class="qa-sub">WG1 · WG2 · WG3 RAG status</div></div>
-      </button>
-      <button class="quick-action" onclick="document.getElementById(&#39;xlFile&#39;).click()">
-        <span class="qa-icon">📂</span><div><div class="qa-text">Upload Excel file</div><div class="qa-sub">Update any register from Excel</div></div>
-      </button>
-    </div>
-
-  </div>
-</div>
-
-<!-- ── CENTRE PANEL — CHAT ──────────────────────────────────────────────── -->
 <div class="massi-centre">
+
+  <!-- Header -->
   <div class="chat-header">
     <div class="chat-header-av-wrap">
       <div class="av-ring av-ring1"></div>
@@ -286,1029 +135,728 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0;overflow
     </div>
     <div class="chat-header-info">
       <div class="chat-header-title">iMASSI</div>
-      <div class="chat-header-sub">Intelligent IMS AI Copilot · SAGCO</div>
-      <div class="chat-header-live"><div class="ch-dot"></div>ISO 9001 · 14001 · 45001 · 50001 · 37001</div>
+      <div class="chat-header-sub">Intelligent IMS Copilot &middot; SAGCO</div>
+      <div class="chat-header-live"><div class="ch-dot"></div>ISO 9001 &middot; 14001 &middot; 45001 &middot; 50001 &middot; 37001</div>
     </div>
-    <div class="hdr-status-badge" id="hdrStatusBadge">
-      <div class="hdr-status-dot offline" id="hdrStatusDot"></div>
-      <span class="hdr-status-txt" id="hdrStatusTxt">Offline</span>
+    <div class="hdr-badge" id="hdrBadge">
+      <div class="hdr-badge-dot offline" id="hdrDot"></div>
+      <span class="hdr-badge-txt" id="hdrTxt">Offline</span>
     </div>
   </div>
 
   <!-- DB Status Strip -->
-  <div class="db-status-strip offline" id="dbStatusStrip">
-    <div class="db-status-icon offline" id="dbStatusIcon"></div>
-    <div class="db-status-label" id="dbStatusLabel">Offline</div>
-    <div class="db-status-detail" id="dbStatusDetail">Not connected</div>
-    <div class="db-progress-bar" id="dbProgressBarWrap" style="display:none">
-      <div class="db-progress-fill" id="dbProgressFill"></div>
+  <div class="db-strip offline" id="dbStrip">
+    <div class="db-dot offline" id="dbDot"></div>
+    <div class="db-label" id="dbLabel">Offline</div>
+    <div class="db-progress" id="dbProgress" style="display:none">
+      <div class="db-prog-fill" id="dbFill"></div>
     </div>
-    <div class="db-status-sync" id="dbStatusSync"></div>
-    <button class="db-retry-btn" id="dbRetryBtn" onclick="retryConnection()">↻ Retry</button>
+    <div class="db-detail" id="dbDetail">Not connected</div>
+    <div class="db-sync" id="dbSync"></div>
+    <button class="db-retry" id="dbRetry" onclick="retryConn()">&#8635; Retry</button>
   </div>
 
-  <!-- Queue Banner -->
-  <div class="queue-banner" id="queueBanner">
-    <div class="queue-spinner"></div>
-    <span id="queueBannerText">Your question is queued — answering once database finishes loading...</span>
-  </div>
-
+  <!-- Suggested chips -->
   <div class="suggested-chips" id="sugChips">
-    <div class="sug-chip" onclick="massIAsk(&#39;Show me all overdue items&#39;)">Overdue items</div>
-    <div class="sug-chip" onclick="massIAsk(&#39;Explain our Environmental Policy&#39;)">Environmental Policy</div>
-    <div class="sug-chip" onclick="massIAsk(&#39;Where is the Calibration Register?&#39;)">Calibration Register</div>
-    <div class="sug-chip" onclick="massIAsk(&#39;Show LTIFR trend&#39;)"><span class="ims-abbr">LTIFR</span> trend</div>
-    <div class="sug-chip" onclick="massIAsk(&#39;What are the top 5 risks?&#39;)">Top risks</div>
-    <div class="sug-chip" onclick="massIAsk(&#39;Which ISO clause covers Management Review?&#39;)">ISO clauses</div>
-    <div class="sug-chip" onclick="massIAsk(&#39;Show me our energy baseline&#39;)">Energy baseline</div>
-    <div class="sug-chip" onclick="massIAsk(&#39;Generate CAPA proposal from incidents&#39;)"><span class="ims-abbr">CAPA</span> proposal</div>
+    <div class="sug-chip" onclick="massISend_with('Show me all open CAPAs')">Open CAPAs</div>
+    <div class="sug-chip" onclick="massISend_with('Show KPI dashboard')">KPI Dashboard</div>
+    <div class="sug-chip" onclick="massISend_with('Show LTIFR trend')">LTIFR trend</div>
+    <div class="sug-chip" onclick="massISend_with('What are the Stage 2 audit blockers?')">Stage 2 blockers</div>
+    <div class="sug-chip" onclick="massISend_with('Show F4 furnace energy data')">F4 Energy</div>
+    <div class="sug-chip" onclick="massISend_with('Show objectives status')">Objectives</div>
+    <div class="sug-chip" onclick="massISend_with('Show training completion rate')">Training</div>
+    <div class="sug-chip" onclick="massISend_with('Explain our Environmental Policy')">Env Policy</div>
   </div>
 
-  <div class="chat-msgs" id="chatMsgs"><div class="msg ai"><div class="massi-msg-av"><svg width="28" height="36.4" viewBox="0 0 28 36.4" xmlns="http://www.w3.org/2000/svg"><g style="animation:massi-float 3s ease-in-out infinite"><line x1="14" y1="1.1199999999999992" x2="14" y2="1.1199999999999992" stroke="#1B2A4A" stroke-width="0.7000000000000001"></line><circle cx="14" cy="-8.881784197001252e-16" r="1.54" fill="#C9A84C"></circle><rect x="10.78" y="24.948" width="2.5760000000000005" height="5.796" rx="1.0304" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.504"></rect><rect x="14.644" y="24.948" width="2.5760000000000005" height="5.796" rx="1.0304" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.504"></rect><rect x="1.7639999999999993" y="12.712" width="3.6064000000000007" height="7.084000000000001" rx="1.2880000000000003" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.504"></rect><rect x="22.629600000000003" y="12.712" width="3.6064000000000007" height="7.084000000000001" rx="1.2880000000000003" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.504"></rect><ellipse cx="14" cy="19.796" rx="9.2736" ry="6.6976" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.56"></ellipse><circle cx="14" cy="14" r="12.88" fill="#2A4A7A" stroke="#1B2A4A" stroke-width="0.7000000000000001"></circle><g style="transform-origin:14px 12.32px;animation:massi-blink 4s ease-in-out infinite"><rect x="8.54" y="10.5" width="3.64" height="3.64" rx="0.91" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.56"></rect><rect x="15.82" y="10.5" width="3.64" height="3.64" rx="0.91" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.56"></rect><g><circle cx="10.36" cy="12.32" r="1.0010000000000001" fill="#1B2A4A"></circle><circle cx="17.64" cy="12.32" r="1.0010000000000001" fill="#1B2A4A"></circle><circle cx="10.6603" cy="12.0197" r="0.3003" fill="white"></circle><circle cx="17.9403" cy="12.0197" r="0.3003" fill="white"></circle></g></g><path d="M11.2 18.2 Q14 19.88 16.8 18.2" stroke="#C9A84C" stroke-width="0.7000000000000001" stroke-linecap="round" fill="none"></path><rect x="7.56" y="17.6064" width="12.88" height="2.3184" rx="0.7728" fill="#1B2A4A" opacity=".35"></rect><rect x="10.136" y="17.9928" width="2.8336" height="1.5456" rx="0.5152" fill="#C9A84C" opacity=".7"></rect></g></svg></div><div><div class="bubble">Hello! I'm MASSI, your <span class="ims-abbr">IMS</span> AI Copilot for SAGCO.<br><br>I'm monitoring <strong>6 active alerts</strong> today — including 2 overdue CAPAs that are Stage 2 blockers, F4 <span class="ims-abbr">SHC</span> running +119 kcal/kg above target, and Stage 1 audit in <strong>53 days</strong>.<br><br>I can help you analyse data, navigate the portal, answer questions about your ISO standards, update registers from Excel, and prepare for your TÜV Austria audit. What would you like to explore?</div><div class="msg-time">02:35</div></div></div></div>
+  <!-- Messages -->
+  <div class="chat-msgs" id="chatMsgs"></div>
 
+  <!-- Input -->
   <div class="chat-input-area">
     <div style="flex:1">
       <div class="file-chip" id="fileChip" style="display:none">
-        <span>📄</span><span id="fileChipName"></span><span id="fileChipInfo" style="color:#185FA5;margin-left:3px"></span>
+        <span>&#128196;</span>
+        <span id="fileChipName"></span>
+        <span id="fileChipInfo" style="color:#185FA5;margin-left:3px"></span>
       </div>
-      <textarea class="chat-textarea" id="chatInput" rows="2" placeholder="Ask MASSI anything about your IMS..." onkeydown="if(event.key===&#39;Enter&#39;&amp;&amp;!event.shiftKey){event.preventDefault();massISend()}" oninput="this.style.height=&#39;44px&#39;;this.style.height=this.scrollHeight+&#39;px&#39;"></textarea>
+      <textarea class="chat-textarea" id="chatInput" rows="2"
+        placeholder="Ask iMASSI anything about your IMS..."
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();massISend()}"
+        oninput="this.style.height='44px';this.style.height=this.scrollHeight+'px'"></textarea>
     </div>
-    <button class="attach-btn" onclick="document.getElementById(&#39;xlFile&#39;).click()" title="Upload Excel file">📎</button>
-    <button class="send-btn-lg" onclick="massISend()">➤ Ask MASSI</button>
+    <button class="attach-btn" onclick="document.getElementById('xlFile').click()" title="Upload Excel">&#128206;</button>
+    <button class="send-btn-lg" onclick="massISend()">&#10148; Ask MASSI</button>
     <input type="file" id="xlFile" accept=".xlsx,.xls,.csv" style="display:none">
   </div>
-</div>
 
-<!-- ── RIGHT PANEL ──────────────────────────────────────────────────────── -->
-<div class="massi-right">
-
-  <div class="right-section">
-    <div class="right-section-title"><span class="ims-abbr">KPI</span> summary</div>
-    <div id="kpiSummary">
-      <div class="kpi-card">
-        <div class="kpi-name">Facility <span class="ims-abbr">SPC</span> (<span class="ims-abbr">EnPI</span>)</div>
-        <div class="kpi-val-row"><span class="kpi-val">562.9</span><span class="kpi-target">target ≤565 kWh/t</span></div>
-        <div class="kpi-progress"><div class="kpi-prog-fill" style="width:99%;background:#27500A"></div></div>
-        <span class="kpi-status" style="background:#EAF3DE;color:#27500A">ON TRACK</span>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-name"><span class="ims-abbr">PTW</span> Compliance</div>
-        <div class="kpi-val-row"><span class="kpi-val" style="color:#791F1F">79%</span><span class="kpi-target">target 95%</span></div>
-        <div class="kpi-progress"><div class="kpi-prog-fill" style="width:83%;background:#E24B4A"></div></div>
-        <span class="kpi-status" style="background:#FCEBEB;color:#791F1F">AT RISK</span>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-name">Training Completion</div>
-        <div class="kpi-val-row"><span class="kpi-val" style="color:#633806">35%</span><span class="kpi-target">target 100%</span></div>
-        <div class="kpi-progress"><div class="kpi-prog-fill" style="width:35%;background:#EF9F27"></div></div>
-        <span class="kpi-status" style="background:#FAEEDA;color:#633806">IN PROGRESS</span>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-name">Legal Compliance</div>
-        <div class="kpi-val-row"><span class="kpi-val" style="color:#791F1F">68%</span><span class="kpi-target">target 95%</span></div>
-        <div class="kpi-progress"><div class="kpi-prog-fill" style="width:72%;background:#E24B4A"></div></div>
-        <span class="kpi-status" style="background:#FCEBEB;color:#791F1F">AT RISK</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="right-section">
-    <div class="right-section-title">MASSI recommendations</div>
-    <div id="recsList">
-      <div class="rec-item" onclick="massIAsk(&#39;What actions should management prioritize before Stage 2?&#39;)">
-        <div class="rec-item-title">Stage 2 audit — 83 days</div>
-        <div class="rec-item-sub">4 open CAPAs · 7 pending signatures · <span class="ims-abbr">HIRA</span> overdue</div>
-      </div>
-      <div class="rec-item" onclick="massIAsk(&#39;Show energy opportunity analysis F1 to F5&#39;)">
-        <div class="rec-item-title">F4 energy optimisation</div>
-        <div class="rec-item-sub">+119 kcal/kg above target · <span class="ims-abbr">ECM</span> 1 decision Aug 2026</div>
-      </div>
-      <div class="rec-item" onclick="massIAsk(&#39;Calculate EcoVadis score and Silver gap&#39;)">
-        <div class="rec-item-title">EcoVadis Silver deadline</div>
-        <div class="rec-item-sub">31 Jul 2026 · supplier <span class="ims-abbr">ESG</span> assessments pending</div>
-      </div>
-      <div class="rec-item" onclick="massIAsk(&#39;Show preventive actions from HIRA residual risk&#39;)">
-        <div class="rec-item-title"><span class="ims-abbr">HIRA</span> preventive actions</div>
-        <div class="rec-item-sub">HIGH residual risk items need PA proposals</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="right-section">
-    <div class="right-section-title">Recent conversations</div>
-    <div id="histList">
-      <div class="hist-item" onclick="massIAsk(&#39;Show KPI trends&#39;)"><div class="hist-q">Show <span class="ims-abbr">KPI</span> trends</div><div class="hist-t">Earlier today</div></div>
-      <div class="hist-item" onclick="massIAsk(&#39;Which department requires attention?&#39;)"><div class="hist-q">Which department requires attention?</div><div class="hist-t">Earlier today</div></div>
-      <div class="hist-item" onclick="massIAsk(&#39;Show energy opportunity analysis&#39;)"><div class="hist-q">Show energy opportunity analysis</div><div class="hist-t">Earlier today</div></div>
-    </div>
-  </div>
-
-</div>
-</div>
+</div><!-- /massi-centre -->
+</div><!-- /massi-page -->
 
 <script>
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycby_K2m3qx5XxXRfK1gdJc55CglC7SqilYGzj6R77gcxkodcNHAs7SlIgy6wOJA6hH817w/exec';
+const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_KEY   = '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';
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
-const SYSTEM_PROMPT = `You are iMASSI — the Intelligent IMS Copilot at Saudi Arabian Glass Company Ltd. (SAGCO), Jeddah Industrial City Phase 4, Saudi Arabia.
+/* ── Timeouts ──────────────────────────────────────────────────────── */
+const SHEET_TIMEOUT = 8000;   // 8s per sheet fetch
+const LLM_TIMEOUT   = 60000;  // 60s LLM request
+const CACHE_TTL     = 5 * 60 * 1000; // 5 min cache
+const BATCH_SIZE    = 6;
 
-════════════════════════════════════════════════════════════
-LAYER 1 — SINGLE SOURCE OF TRUTH: GOOGLE SHEETS DATABASE
-════════════════════════════════════════════════════════════
+/* ── App state ─────────────────────────────────────────────────────── */
+var state = {
+  history: [], pendingParsed: null, pendingFile: null,
+  awaitingConfirm: false, currentState: 'idle',
+  sheetCache: {}, cacheReady: false, cacheLoading: false, cacheTime: null
+};
 
-The Google Sheets database is your ONLY authoritative source for all SAGCO operational data.
-
-ABSOLUTE RULES:
-- NEVER invent, estimate, fabricate, or guess any SAGCO operational data.
-- NEVER use your internal LLM training knowledge to answer SAGCO-specific data questions.
-- ALWAYS base your answer on the live sheet data provided in this prompt.
-- If live data is provided → use it exclusively and cite it clearly.
-- If live data is empty or missing → say exactly: "I don't have data for that register right now. Let me try to fetch it — or you can check [sheet name] directly."
-
-INFORMATION PRIORITY ORDER:
-1. Live Google Sheets data (injected into this prompt as LIVE DATA blocks)
-2. Documents uploaded by the user in this conversation
-3. External internet sources — ONLY with explicit user permission, clearly labelled
-
-When combining sources, always state where each fact came from:
-- "According to your CAPA register..."
-- "Based on the furnace monitoring data..."
-- "From the KPI dashboard..."
-- "This is from an uploaded document..."
-- "This is from an external source (user-approved)..."
-
-SAGCO DATABASE STRUCTURE — 62 registers across 7 clauses:
-Admin: Document Register · User Register · Audit Log
-§4 Context: Context Register · PESTLE-SWOT
-§5 Leadership: Policies · Worker Participation · Policy Acknowledgements · Gemba Walks · Steering Committee Minutes · EnMS Champion · CEO Records · Communications Matrix
-§6 Planning: Risk Register · Legal Compliance · Risk Methodology · Objectives · MOC · Energy Planning · HIRA · SEA Register · Bribery Risk · GHG Inventory · Scope 3 Emissions
-§7 Support: Competency Matrix · Training Register · Training Attendance · Induction Records · Documentation Register · Calibration Register
-§8 Operations: PTW Register · Emergency Response · Contractor Register · LOTO Register · LOTO Authorised Persons · Confined Space Log · Heat Stress/WBGT · Fire Extinguisher Log · Fire Pump Log · OH Surveillance · Scaffold Inspection · NDT Permits · Chemical Inventory · Crane & Lifting · PPE Register · WAH Register · Hot Work Log · Electrical Safety · Furnace Leakage · First Aid Records · Forklift Log · Visitor Register · Waste Management · Chemical Storage · Furnace Monitoring · MEPS Compliance · Water & Waste Data · Product Release · Nonconforming Products · Incoming Inspection · Customer Register · In-Process Inspection
-§9 Performance: Compliance Evaluation · Audit Programme · Management Review · KPI Dashboard
-§10 Improvement: CAPA Register · Incident Register
-ESG/§37001: Supplier ESG · CoI Register · Gifts Register · Workforce Diversity · TPDD Register · Speak-Up Register · Supplier SCoC
-
-SAGCO FIXED FACTS (these never change — safe to use without sheet lookup):
-- Facility: Saudi Arabian Glass Company Ltd. · Jeddah Industrial City Phase 4 · Facility ID: S-SAU-PK-0001049
-- CEO: Rami Al Dobi · IMS Coordinator: Issam Ali Abdelkefi
-- Furnaces: 5 HFO-fired furnaces F1–F5 · 884 direct employees · 152 contractors
-- Standards: ISO 9001:2015 · ISO 14001:2015 · ISO 45001:2018 · ISO 50001:2018 · ISO 37001:2016
-- Certification body: TÜV Austria · Stage 1: 25–26 Aug 2026 · Stage 2: 22–26 Sep 2026
-- Energy baseline: Facility SPC 561.24 kWh/ton (2023)
-- Governance: IMS Steering Committee + WG1 (Plant & Quality) + WG2 (SHEE Energy & ENV) + WG3 (People Ethics & Procurement)
-
-════════════════════════════════════════════════════════════
-LAYER 2 — PERSONALITY & CONVERSATION RULES
-════════════════════════════════════════════════════════════
-
-You are an experienced IMS engineer and trusted colleague at SAGCO. Friendly, warm, confident, patient, professional. Never robotic.
-
-RULE 1 — ANSWER FIRST
-If the data is in the live sheet context, answer immediately. Never ask for details you already have.
-
-RULE 2 — ONE QUESTION AT A TIME
-If clarification is genuinely needed, ask exactly one question then stop. Never list multiple questions.
-
-RULE 3 — PROGRESSIVE
-Only ask for the next piece of information when it becomes necessary.
-
-RULE 4 — NATURAL LANGUAGE
-Use: "Sure." · "Absolutely." · "Good question — here's what I found." · "Based on your CAPA register..." · "That makes sense." · "Let me check that." · "Here's what the data shows..."
-
-RULE 5 — NEVER ROBOTIC
-Never say: "Please provide the following..." · "Input missing." · "I cannot proceed without..." · "Request incomplete."
-
-RULE 6 — REMEMBER CONTEXT
-If the user mentioned a department, standard, process, or location earlier, never ask again.
-
-RULE 7 — SHORT BY DEFAULT
-Give one clear answer unless the user asks for more detail. No walls of text unless requested.
-
-════════════════════════════════════════════════════════════
-LAYER 3 — FORMATTING INTELLIGENCE
-════════════════════════════════════════════════════════════
-
-CORE PRINCIPLE: Conversation is plain language. Business data is rich HTML.
-
-BEFORE EVERY RESPONSE ASK: "Would this be clearer as HTML?" → If yes, generate HTML.
-
-CONTENT TYPE → COMPONENT:
-
-Plain text only:
-- Explanations · Guidance · Recommendations · Discussion
-
-HTML components:
-- Multiple records → TABLE (with status badges, sortable, searchable)
-- KPI summaries → CARDS with progress bars
-- Status items → BADGES (color-coded)
-- Trends/numbers → CHART (Chart.js — already loaded)
-- Documents → DOCUMENT CARDS
-- Overdue/critical → ALERT BANNERS
-- Process steps → TIMELINE
-
-TABLE STYLE (always use this):
-- Header: background:#1B2A4A · color:#C9A84C · font-weight:600
-- Rows: alternating #ffffff / #f8f9fb
-- Borders: 0.5px solid #e8e8e8 · padding: 8px 12px
-- Status badges:
-  · OPEN/AT RISK/OVERDUE → background:#FCEBEB · color:#791F1F
-  · CLOSED/ON TRACK/COMPLETE → background:#EAF3DE · color:#27500A
-  · IN PROGRESS/PENDING → background:#FAEEDA · color:#633806
-  · INFO → background:#E6F1FB · color:#0C447C
-- Add search + pagination for tables with more than 8 rows
-
-CHARTS: Use Chart.js. Wrap in: <div style="max-width:480px;height:220px;margin:8px 0"><canvas id="chart-[unique-id]"></canvas></div>
-
-NEVER GENERATE: ASCII tables · Markdown tables (| --- |) · PRE blocks · Monospaced terminal output
-
-GOOD RESPONSE PATTERN:
-"Sure — here are the four open CAPAs from your register.
-[HTML TABLE]
-The PTW discrepancy CAPA is the most critical — it is overdue and a Stage 2 blocker."
-
-BAD RESPONSE PATTERN:
-"| CAPA# | Description | Status |
-| --- | --- | --- |
-| 001 | PTW | Open |"
-
-════════════════════════════════════════════════════════════
-LIVE DATA INJECTION
-════════════════════════════════════════════════════════════
-
-When live sheet data is provided below (as === LIVE DATA === blocks), it is your ONLY source for answering the question. Read it carefully, extract the relevant records, and present them using the appropriate HTML component from Layer 3.
-
-If a data block says "sheet exists but contains no data yet" → tell the user that register needs to be populated, and offer to help with that.`;
-
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const NAVY='#1B2A4A',GOLD='#C9A84C',FACE='#2A4A7A',LIGHT='#E8F0FB';
-
-let state={history:[], pendingParsed:null, pendingFile:null, awaitingConfirm:false, confirmData:null, currentState:'idle', sheetCache:{}, cacheTime:null, cacheLoading:false, cacheReady:false, questionQueue:[], connStatus:'offline'};
-let chartInst={};
-
-function buildMassi(size,st){
-  const s=size,cx=s/2,cy=s/2,r=s*0.46,eyeY=cy-s*0.06,eyeOff=s*0.13,eyeR=s*0.065,pupilR=eyeR*0.55,mouthY=cy+s*0.15,antY=cy-r-s*0.04;
-  let ring='',arm='',bA='',eA='',pA='',mouth='';
-  if(st==='idle'){eA='style="transform-origin:'+cx+'px '+eyeY+'px;animation:massi-blink 4s ease-in-out infinite"';mouth='<path d="M'+(cx-s*.1)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.06)+' '+(cx+s*.1)+' '+mouthY+'" stroke="'+GOLD+'" stroke-width="'+(s*.025)+'" stroke-linecap="round" fill="none"/>';bA='style="animation:massi-float 3s ease-in-out infinite"';}
-  else if(st==='greeting'){mouth='<path d="M'+(cx-s*.12)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.1)+' '+(cx+s*.12)+' '+mouthY+'" stroke="'+GOLD+'" stroke-width="'+(s*.025)+'" stroke-linecap="round" fill="none"/>';arm='<g style="transform-origin:'+(cx+r*.8)+'px '+(cy-r*.1)+'px;animation:massi-wave 1.5s ease-in-out 3"><rect x="'+(cx+r*.75)+'" y="'+(cy-r*.3)+'" width="'+(s*.09)+'" height="'+(s*.26)+'" rx="'+(s*.04)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><circle cx="'+(cx+r*.8)+'" cy="'+(cy-r*.28)+'" r="'+(s*.05)+'" fill="'+GOLD+'"/></g>';bA='style="animation:massi-nod .6s ease-in-out 2"';}
-  else if(st==='thinking'){pA='style="animation:massi-scan 1s ease-in-out infinite"';mouth='<path d="M'+(cx-s*.08)+' '+(mouthY+s*.01)+' Q'+cx+' '+(mouthY-s*.03)+' '+(cx+s*.08)+' '+(mouthY+s*.01)+'" stroke="'+GOLD+'" stroke-width="'+(s*.022)+'" stroke-linecap="round" fill="none"/>';ring='<circle cx="'+cx+'" cy="'+(cy+r*1.4)+'" r="3" fill="'+GOLD+'" style="animation:massi-t1 1.2s ease-in-out infinite"/><circle cx="'+(cx+s*.14)+'" cy="'+(cy+r*1.4)+'" r="3" fill="'+GOLD+'" style="animation:massi-t2 1.2s ease-in-out infinite"/><circle cx="'+(cx-s*.14)+'" cy="'+(cy+r*1.4)+'" r="3" fill="'+GOLD+'" style="animation:massi-t3 1.2s ease-in-out infinite"/>';}
-  else if(st==='success'){mouth='<path d="M'+(cx-s*.14)+' '+(mouthY-s*.02)+' Q'+cx+' '+(mouthY+s*.12)+' '+(cx+s*.14)+' '+(mouthY-s*.02)+'" stroke="'+GOLD+'" stroke-width="'+(s*.028)+'" stroke-linecap="round" fill="none"/>';bA='style="animation:massi-celebrate .8s ease-in-out 2"';ring='<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+s*.08)+'" fill="none" stroke="'+GOLD+'" stroke-width="'+(s*.04)+'" opacity=".3" style="animation:massi-ring 1s ease-out 2"/>';}
-  else if(st==='alert'){mouth='<path d="M'+(cx-s*.1)+' '+(mouthY+s*.02)+' Q'+cx+' '+(mouthY-s*.04)+' '+(cx+s*.1)+' '+(mouthY+s*.02)+'" stroke="'+GOLD+'" stroke-width="'+(s*.022)+'" stroke-linecap="round" fill="none"/>';ring='<path d="M'+cx+' '+(cy-r-s*.08)+' L'+(cx-s*.06)+' '+(cy-r-s*.18)+' L'+(cx+s*.06)+' '+(cy-r-s*.18)+' Z" fill="#E24B4A" opacity=".9"/><text x="'+cx+'" y="'+(cy-r-s*.1)+'" text-anchor="middle" font-size="'+(s*.09)+'" fill="white" font-weight="700">!</text>';}
-  else if(st==='happy'){mouth='<path d="M'+(cx-s*.14)+' '+(mouthY-s*.02)+' Q'+cx+' '+(mouthY+s*.12)+' '+(cx+s*.14)+' '+(mouthY-s*.02)+'" stroke="'+GOLD+'" stroke-width="'+(s*.028)+'" stroke-linecap="round" fill="none"/>';ring='<text x="'+(cx-r*1.1)+'" y="'+(cy-r*.6)+'" font-size="'+(s*.14)+'" fill="'+GOLD+'" opacity=".7">&#10022;</text><text x="'+(cx+r*.8)+'" y="'+(cy-r*.9)+'" font-size="'+(s*.1)+'" fill="'+GOLD+'" opacity=".5">&#10022;</text>';bA='style="animation:massi-float 1.5s ease-in-out infinite"';}
-  else if(st==='nod'){mouth='<path d="M'+(cx-s*.1)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.07)+' '+(cx+s*.1)+' '+mouthY+'" stroke="'+GOLD+'" stroke-width="'+(s*.025)+'" stroke-linecap="round" fill="none"/>';bA='style="animation:massi-nod .5s ease-in-out 3"';ring='<path d="M'+(cx+r*.6)+' '+(cy+r*.3)+' L'+(cx+r*.85)+' '+(cy+r*.6)+' L'+(cx+r*1.3)+' '+(cy-r*.1)+'" stroke="#27500A" stroke-width="'+(s*.05)+'" stroke-linecap="round" stroke-linejoin="round" fill="none"/>';}
-  const dm=mouth||'<path d="M'+(cx-s*.08)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.05)+' '+(cx+s*.08)+' '+mouthY+'" stroke="'+GOLD+'" stroke-width="'+(s*.022)+'" stroke-linecap="round" fill="none"/>';
-  const h=s*1.3;
-  return '<svg width="'+s+'" height="'+h+'" viewBox="0 0 '+s+' '+h+'" xmlns="http://www.w3.org/2000/svg">'+ring+'<g '+bA+'><line x1="'+cx+'" y1="'+(antY+s*.04)+'" x2="'+cx+'" y2="'+(cy-r)+'" stroke="'+NAVY+'" stroke-width="'+(s*.025)+'"/><circle cx="'+cx+'" cy="'+antY+'" r="'+(s*.055)+'" fill="'+GOLD+'"/><rect x="'+(cx-r*.25)+'" y="'+(cy+r*.85)+'" width="'+(r*.2)+'" height="'+(r*.45)+'" rx="'+(r*.08)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><rect x="'+(cx+r*.05)+'" y="'+(cy+r*.85)+'" width="'+(r*.2)+'" height="'+(r*.45)+'" rx="'+(r*.08)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><rect x="'+(cx-r*.95)+'" y="'+(cy-r*.1)+'" width="'+(r*.28)+'" height="'+(r*.55)+'" rx="'+(r*.1)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><rect x="'+(cx+r*.67)+'" y="'+(cy-r*.1)+'" width="'+(r*.28)+'" height="'+(r*.55)+'" rx="'+(r*.1)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><ellipse cx="'+cx+'" cy="'+(cy+r*.45)+'" rx="'+(r*.72)+'" ry="'+(r*.52)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.02)+'"/><circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+FACE+'" stroke="'+NAVY+'" stroke-width="'+(s*.025)+'"/><g '+eA+'><rect x="'+(cx-eyeOff-eyeR)+'" y="'+(eyeY-eyeR)+'" width="'+(eyeR*2)+'" height="'+(eyeR*2)+'" rx="'+(eyeR*.5)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.02)+'"/><rect x="'+(cx+eyeOff-eyeR)+'" y="'+(eyeY-eyeR)+'" width="'+(eyeR*2)+'" height="'+(eyeR*2)+'" rx="'+(eyeR*.5)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.02)+'"/><g '+pA+'><circle cx="'+(cx-eyeOff)+'" cy="'+eyeY+'" r="'+pupilR+'" fill="'+NAVY+'"/><circle cx="'+(cx+eyeOff)+'" cy="'+eyeY+'" r="'+pupilR+'" fill="'+NAVY+'"/><circle cx="'+(cx-eyeOff+pupilR*.3)+'" cy="'+(eyeY-pupilR*.3)+'" r="'+(pupilR*.3)+'" fill="white"/><circle cx="'+(cx+eyeOff+pupilR*.3)+'" cy="'+(eyeY-pupilR*.3)+'" r="'+(pupilR*.3)+'" fill="white"/></g></g>'+dm+'<rect x="'+(cx-r*.5)+'" y="'+(cy+r*.28)+'" width="'+r+'" height="'+(r*.18)+'" rx="'+(r*.06)+'" fill="'+NAVY+'" opacity=".35"/><rect x="'+(cx-r*.3)+'" y="'+(cy+r*.31)+'" width="'+(r*.22)+'" height="'+(r*.12)+'" rx="'+(r*.04)+'" fill="'+GOLD+'" opacity=".7"/></g>'+arm+'</svg>';
-}
-
-function setAvatarState(st){
-  state.currentState=st;
-  document.getElementById('massiLargeAv').innerHTML=buildMassi(90,st);
-  document.getElementById('chatHeaderAv').innerHTML=buildMassi(70,st);
-}
-
-async function fetchSheet(tab,limit){
-  try{const r=await fetch(SHEETS_URL+'?tab='+tab+(limit?'&limit='+limit:''));return await r.json();}catch(e){return null;}
-}
-
-function massIAsk(q){
-  document.getElementById('chatInput').value=q;
-  massISend();
-}
-
-function massISend(){
-  const inp=document.getElementById('chatInput');
-  const txt=inp.value.trim();
-  if(!txt&&!state.pendingParsed) return;
-  if(txt) appendUser(txt);
-  inp.value=''; inp.style.height='38px';
-  document.getElementById('sugChips').style.display='none';
-  if(state.awaitingConfirm){handleConfirm(txt);return;}
-  if(state.pendingParsed){processExcel(txt);return;}
-  if(/thank|great|excellent|good job|well done|perfect|amazing/i.test(txt)){
-    setAvatarState('happy');setTimeout(function(){setAvatarState('idle');},2500);
-  }
-
-  /* Queue if priority cache not yet ready */
-  if(!state.cacheReady && state.cacheLoading) {
-    console.log('[iMASSI] Question queued (cache loading): "' + txt + '"');
-    state.questionQueue = [txt]; // keep only latest question
-    showQueueBanner(txt);
-    return;
-  }
-
-  resolveQuery(txt);
-}
-
-/* ── DATA INTENT MAP ─────────────────────────────────────────────────── */
-/* ══════════════════════════════════════════════════════════════════════
-   ALL 62 GOOGLE SHEETS TAB KEYS
-══════════════════════════════════════════════════════════════════════ */
-const ALL_TABS = [
-  /* Admin */
+/* ── All 62 Google Sheets tabs ─────────────────────────────────────── */
+var ALL_TABS = [
   'documents','users','audit_log',
-  /* Clause 4 */
   'context','pestle',
-  /* Clause 5 */
   'policies','worker_part','policy_ack','gemba_walks','steering_team',
   'enms_champion','ceo_records','comms_matrix',
-  /* Clause 6 */
   'risks','compliance','methodology','objectives','moc','energy',
   'hira','sea','bribery_risk','ghg_inventory','scope3',
-  /* Clause 7 */
   'competency','training','training_attend','induction','documentation','calibration',
-  /* Clause 8 — Safety */
   'ptw_register','emergency','contractor','loto_register','loto_auth',
   'confined_space','heat_stress','fire_ext','fire_pump','oh_surveillance',
   'scaffold','ndt_permits','chemical_inv','crane_lifting','ppe_register',
   'wah_register','hot_work','electrical_safety','furnace_leakage',
   'first_aid','forklift_log','visitor_register',
-  /* Clause 8 — Environment */
   'waste_mgmt','chemical_store','furnace_monitor','meps','water_waste',
-  /* Clause 8 — Quality */
   'product_release','nonconforming','incoming_insp','customer_reg','inprocess_insp',
-  /* Clause 9 */
   'compliance_eval','audit_programme','mgmt_review','kpi_dashboard',
-  /* Clause 10 */
   'capa','incidents',
-  /* ESG / ISO 37001 */
   'supplier_esg','coi','gifts','diversity','tpdd','speak_up','supplier_scoc'
 ];
 
-/* ── TAB → KEYWORDS MAP (for smart context injection) ──────────────── */
-const TAB_KEYWORDS = {
-  documents:['document','procedure list','register list','dms','controlled','doc number'],
-  users:['user','portal user','access','login','permission'],
-  audit_log:['audit log','who changed','activity log','portal activity'],
-  context:['context','interested party','stakeholder','organizational context','clause 4'],
-  pestle:['pestle','swot','political','economic','social','technological','strength','weakness'],
-  policies:['policy','policies','po-0','integrated policy','environmental policy','energy policy','quality policy','anti-corruption','oh&s policy'],
-  worker_part:['worker participation','workforce engagement','consultation','clause 5.4'],
-  policy_ack:['policy acknowledgement','policy sign','who signed','acknowledgement'],
-  gemba_walks:['gemba','floor walk','site walk','leadership walk'],
-  steering_team:['steering','committee','ims meeting','committee minutes'],
-  enms_champion:['enms champion','energy champion','energy representative'],
-  ceo_records:['ceo record','ceo signed','rami','top management record'],
-  comms_matrix:['communication','comms matrix','who communicates','clause 7.4'],
-  risks:['risk register','strategic risk','operational risk','likelihood','risk score','clause 6.1'],
-  compliance:['legal','compliance','regulation','law','mewa','mhrsd','modon','legal register','m/51','m/36'],
-  methodology:['risk methodology','risk method','risk matrix','scoring'],
-  objectives:['objective','goal','s-0','q-0','e-0','p-0','wg1','wg2','wg3','annual target','clause 6.2'],
-  moc:['moc','management of change','change request','change control'],
-  energy:['energy plan','energy baseline','enb','enpi','seu','ecm','energy review','iso 50001'],
-  hira:['hira','hazard identification','risk assessment','jha','residual risk','control measure','e-03'],
-  sea:['sea','environmental aspect','environmental impact','aspect impact','iso 14001 clause 6.1'],
-  bribery_risk:['bribery risk','corruption risk','anti-bribery','iso 37001'],
-  ghg_inventory:['ghg','carbon','emission','co2','greenhouse','scope 1','scope 2','carbon footprint'],
-  scope3:['scope 3','upstream','downstream','value chain','indirect emission'],
-  competency:['competency','competence','skill','qualification','job requirement'],
-  training:['training','course','training plan','training need','learning','clause 7.2'],
-  training_attend:['attendance','who attended','trained','training completion','completion rate'],
-  induction:['induction','onboarding','new employee','orientation','new joiner'],
-  documentation:['documentation','document control','revision','version','clause 7.5'],
-  calibration:['calibration','instrument','gauge','measurement','equipment calibration'],
-  ptw_register:['ptw','permit to work','work permit','ptw compliance','capa-2026-001'],
-  emergency:['emergency','evacuation','drill','emergency plan','muster','capa-2026-002'],
-  contractor:['contractor','subcontractor','third party','external worker','contractor safety'],
-  loto_register:['loto','lockout','tagout','isolation','energy isolation'],
-  loto_auth:['loto authorised','authorised person','isolation authority'],
-  confined_space:['confined space','vessel entry','tank entry','pit entry'],
-  heat_stress:['heat stress','wbgt','thermal stress','heat illness','summer work'],
-  fire_ext:['fire extinguisher','extinguisher inspection','fire equipment','capa-2026-004'],
-  fire_pump:['fire pump','sprinkler','fire suppression','hydrant','pump test'],
-  oh_surveillance:['occupational health','oh surveillance','medical surveillance','health check','group a','capa-2026-003'],
-  scaffold:['scaffold','scaffolding','temporary structure','working platform'],
-  ndt_permits:['ndt','non-destructive testing','radiography','ultrasonic'],
-  chemical_inv:['chemical','hazardous substance','sds','msds','chemical inventory'],
-  crane_lifting:['crane','lifting','rigging','lift plan','lifting equipment'],
-  ppe_register:['ppe','personal protective equipment','helmet','glove','harness'],
-  wah_register:['work at height','wah','fall protection','elevated work'],
-  hot_work:['hot work','welding','cutting','grinding','spark','flame'],
-  electrical_safety:['electrical','live work','arc flash','electrical safety','switchgear'],
-  furnace_leakage:['furnace leak','glass leak','furnace leakage','molten glass leak'],
-  first_aid:['first aid','first aid record','injury treatment','first aider'],
-  forklift_log:['forklift','fork lift','material handling','forklift inspection'],
-  visitor_register:['visitor','guest','site visit','visitor log'],
-  waste_mgmt:['waste','waste management','hazardous waste','recycling','scrap'],
-  chemical_store:['chemical storage','hazmat storage','segregation','chemical store'],
-  furnace_monitor:['furnace','shc','specific heat','f1','f2','f3','f4','f5','spc','enpi','kcal','energy consumption','furnace energy'],
-  meps:['meps','minimum energy performance','appliance rating','equipment efficiency'],
-  water_waste:['water','wastewater','effluent','water consumption','water discharge'],
-  product_release:['product release','release record','quality release','finished goods','pack to melt'],
-  nonconforming:['nonconforming','non-conforming','held ware','heldware','rejection','defect'],
-  incoming_insp:['incoming inspection','goods received','raw material inspection','incoming quality'],
-  customer_reg:['customer','coca-cola','almarai','customer specification','customer requirement'],
-  inprocess_insp:['in-process','in process','process inspection','production quality','line inspection'],
-  compliance_eval:['compliance evaluation','legal evaluation','obligation evaluation','clause 9.1.2'],
-  audit_programme:['audit','internal audit','audit plan','audit programme','audit schedule','audit finding'],
-  mgmt_review:['management review','review meeting','annual review','mr-2026','clause 9.3'],
-  kpi_dashboard:['kpi','key performance','indicator','target','metric','on track','at risk','behind','ltifr','fatality','near miss','pack to melt','training completion','ghg intensity'],
-  capa:['capa','corrective action','preventive action','root cause','ncr','stage 2 blocker','capa-2026','open capa','closed capa'],
-  incidents:['incident','accident','injury','near miss','ltifr','fatality','lost time','incident register','unsafe act','investigation'],
-  supplier_esg:['supplier esg','supplier assessment','esg assessment','ecovadis supplier','vendor esg','p-07'],
-  coi:['conflict of interest','coi','coi declaration','p-02','undeclared conflict'],
-  gifts:['gift','hospitality','gift register','benefit','gratuity','gift log'],
-  diversity:['diversity','gender','saudization','female','male ratio','workforce diversity','p-06'],
-  tpdd:['tpdd','third party due diligence','supplier screening','vendor screening','p-05'],
-  speak_up:['speak up','whistleblow','report concern','grievance','anonymous report','p-04'],
-  supplier_scoc:['supplier code of conduct','scoc','supplier coc','code of conduct']
-};
-
-/* ══════════════════════════════════════════════════════════════════════
-   SHEET CACHE — fetches all 62 tabs on load, refreshes every 5 min
-══════════════════════════════════════════════════════════════════════ */
-/* ══════════════════════════════════════════════════════════════════════
-   CACHE ARCHITECTURE — non-blocking, background load, cache-first
-   ─────────────────────────────────────────────────────────────────────
-   STARTUP:  initSheetCache() fires immediately, never blocks UI
-   QUERIES:  resolveQuery() uses whatever is in cache right now
-             + fetches missing tabs on-demand with a 4s timeout
-   REFRESH:  background timer refreshes stale tabs every 5 min
-══════════════════════════════════════════════════════════════════════ */
-
-const CACHE_TTL     = 5 * 60 * 1000;   // 5 minutes per tab
-const FETCH_TIMEOUT = 4000;             // 4s on-demand tab timeout
-const BATCH_SIZE    = 6;                // parallel fetches per batch
-const PRIORITY_TABS = [
+var PRIORITY_TABS = [
   'capa','kpi_dashboard','objectives','hira','incidents',
   'furnace_monitor','compliance','training_attend','audit_programme','risks'
 ];
 
-/* ── fetchSheetWithTimeout ─────────────────────────────────────────── */
-function fetchSheetWithTimeout(tab, limit, timeoutMs) {
-  var t0 = performance.now();
-  var fetchPromise = fetchSheet(tab, limit || 100).then(function(data) {
-    var ms = Math.round(performance.now() - t0);
-    console.log('[iMASSI] Fetched ' + tab + ' in ' + ms + 'ms — ' +
-      (data && data.rows ? data.rows.length : 0) + ' rows');
-    return data;
-  });
-  var timeoutPromise = new Promise(function(_, reject) {
-    setTimeout(function() { reject(new Error('timeout:' + tab)); }, timeoutMs || FETCH_TIMEOUT);
-  });
-  return Promise.race([fetchPromise, timeoutPromise]);
-}
-
-/* ── storeCacheEntry ───────────────────────────────────────────────── */
-function storeCacheEntry(tab, data) {
-  state.sheetCache[tab] = { data: data, ts: Date.now() };
-}
-
-/* ── isCacheStale ──────────────────────────────────────────────────── */
-function isCacheStale(tab) {
-  var entry = state.sheetCache[tab];
-  if(!entry) return true;
-  return (Date.now() - entry.ts) > CACHE_TTL;
-}
-
-/* ── updateStatusBar ───────────────────────────────────────────────── */
-/* ══════════════════════════════════════════════════════════════════════
-   STATUS UI — updates strip, header badge, and alert count
-══════════════════════════════════════════════════════════════════════ */
-var DB_STATES = {
-  offline:     {label:'Offline',     detail:'Not connected',          cls:'offline'},
-  connecting:  {label:'Connecting',  detail:'Reaching Google Sheets…',cls:'connecting'},
-  loading:     {label:'Loading',     detail:'Fetching database…',     cls:'loading'},
-  syncing:     {label:'Syncing',     detail:'Refreshing data…',       cls:'syncing'},
-  ready:       {label:'Connected',   detail:'Database ready',         cls:'ready'},
-  error:       {label:'Error',       detail:'Connection failed',      cls:'error'},
+/* ── Keyword → tab map ─────────────────────────────────────────────── */
+var TAB_KEYWORDS = {
+  capa:            ['capa','corrective action','preventive action','root cause','ncr','stage 2 blocker'],
+  incidents:       ['incident','accident','injury','near miss','ltifr','fatality','lost time'],
+  hira:            ['hira','hazard','risk assessment','jha','residual risk','control measure'],
+  kpi_dashboard:   ['kpi','performance indicator','target','metric','on track','at risk','ltifr','fatality'],
+  objectives:      ['objective','goal','s-0','q-0','e-0','p-0','wg1','wg2','wg3','annual target'],
+  furnace_monitor: ['furnace','shc','specific heat','f1','f2','f3','f4','f5','spc','enpi','kcal','energy consumption'],
+  training:        ['training','course','training plan','training need','learning'],
+  training_attend: ['attendance','who attended','trained','training completion','completion rate'],
+  compliance:      ['legal','compliance','regulation','law','mewa','mhrsd','modon','legal register'],
+  audit_programme: ['audit','internal audit','audit plan','audit programme','audit schedule'],
+  risks:           ['risk register','strategic risk','operational risk','likelihood','risk score'],
+  energy:          ['energy plan','energy baseline','enb','enpi','seu','ecm','energy review','iso 50001'],
+  sea:             ['environmental aspect','environmental impact','aspect impact'],
+  ghg_inventory:   ['ghg','carbon','emission','co2','greenhouse','scope 1','scope 2'],
+  ptw_register:    ['ptw','permit to work','work permit'],
+  emergency:       ['emergency','evacuation','drill','emergency plan'],
+  fire_ext:        ['fire extinguisher','extinguisher inspection'],
+  oh_surveillance: ['occupational health','oh surveillance','medical surveillance','health check'],
+  calibration:     ['calibration','instrument','gauge','measurement equipment'],
+  waste_mgmt:      ['waste','waste management','hazardous waste','recycling'],
+  water_waste:     ['water','wastewater','effluent','water consumption'],
+  nonconforming:   ['nonconforming','non-conforming','heldware','held ware','rejection','defect'],
+  product_release: ['product release','finished goods','pack to melt'],
+  supplier_esg:    ['supplier esg','supplier assessment','ecovadis'],
+  coi:             ['conflict of interest','coi','coi declaration'],
+  diversity:       ['diversity','gender','saudization'],
+  tpdd:            ['tpdd','third party due diligence','supplier screening'],
+  speak_up:        ['speak up','whistleblow','grievance'],
+  mgmt_review:     ['management review','review meeting','annual review'],
+  policies:        ['policy','policies','integrated policy','environmental policy','energy policy'],
+  documents:       ['document register','procedure list','dms','document number'],
+  customer_reg:    ['customer','coca-cola','almarai','customer specification']
 };
 
-function setConnStatus(status, detail, progress) {
-  state.connStatus = status;
-  var cfg = DB_STATES[status] || DB_STATES.offline;
+/* ══════════════════════════════════════════════════════════════
+   SYSTEM PROMPT — 3 layers
+══════════════════════════════════════════════════════════════ */
+var SYSTEM_PROMPT = [
+  'You are iMASSI — the Intelligent IMS Copilot at Saudi Arabian Glass Company Ltd. (SAGCO), Jeddah Industrial City Phase 4.',
+  '',
+  'SAGCO FACTS: 5 HFO-fired furnaces F1-F5 | 884 employees | 152 contractors',
+  'Standards: ISO 9001:2015, ISO 14001:2015, ISO 45001:2018, ISO 50001:2018, ISO 37001:2016',
+  'TUV Austria Stage 1: 25-26 Aug 2026 | Stage 2: 22-26 Sep 2026',
+  'Facility SPC baseline: 561.24 kWh/ton | F4 SHC URGENT +119 kcal/kg above target',
+  '4 open CAPAs (001-004) are Stage 2 blockers | CEO signatures pending on 7 of 9 L1 policies',
+  '',
+  'LAYER 1 - GOOGLE SHEETS IS YOUR SINGLE SOURCE OF TRUTH:',
+  'When LIVE DATA blocks are provided in this prompt, use them exclusively.',
+  'NEVER invent or fabricate SAGCO operational data.',
+  'If a sheet is empty, say so honestly.',
+  'Always cite your source: "According to your CAPA register..." / "From the KPI dashboard..."',
+  '',
+  'LAYER 2 - PERSONALITY:',
+  '1. ANSWER FIRST. If you have data, answer immediately.',
+  '2. ONE QUESTION AT A TIME if clarification needed.',
+  '3. NATURAL: "Sure." / "Good question." / "Here is what I found." / "Let me check that."',
+  '4. NEVER say "Please provide the following..." or "Input missing."',
+  '5. Remember context — never re-ask what was already stated.',
+  '6. SHORT by default unless detail is requested.',
+  '',
+  'LAYER 3 - FORMATTING:',
+  'Conversation = plain text. Business data = rich HTML.',
+  'NEVER output ASCII or markdown tables (| --- |).',
+  'Multiple records → HTML table with SAGCO styling:',
+  '  Header: background #1B2A4A, color #C9A84C, font-weight 600',
+  '  Alternating rows: #ffffff / #f8f9fb',
+  '  Status badges: OPEN/AT RISK → #FCEBEB/#791F1F | CLOSED/ON TRACK → #EAF3DE/#27500A | IN PROGRESS → #FAEEDA/#633806',
+  'KPI summaries → cards with progress bars',
+  'Trends → Chart.js charts (already loaded)',
+  'Good pattern: "Sure — here are the open CAPAs. [HTML TABLE] The PTW CAPA is most critical."'
+].join('\n');
 
-  // Strip
-  var strip = document.getElementById('dbStatusStrip');
-  var icon  = document.getElementById('dbStatusIcon');
-  var label = document.getElementById('dbStatusLabel');
-  var det   = document.getElementById('dbStatusDetail');
-  var bar   = document.getElementById('dbProgressBarWrap');
-  var fill  = document.getElementById('dbProgressFill');
-  var sync  = document.getElementById('dbStatusSync');
-  var retry = document.getElementById('dbRetryBtn');
+/* ══════════════════════════════════════════════════════════════
+   STATUS UI
+══════════════════════════════════════════════════════════════ */
+function setStatus(status, detail, pct) {
+  var cfg = {
+    offline:    {label:'Offline',     cls:'offline'},
+    connecting: {label:'Connecting',  cls:'connecting'},
+    loading:    {label:'Loading',     cls:'loading'},
+    syncing:    {label:'Syncing',     cls:'syncing'},
+    ready:      {label:'Connected',   cls:'ready'},
+    error:      {label:'Error',       cls:'error'}
+  }[status] || {label:'Offline', cls:'offline'};
 
-  if(strip){ strip.className = 'db-status-strip ' + cfg.cls; }
-  if(icon) { icon.className  = 'db-status-icon '  + cfg.cls; }
-  if(label){ label.textContent = cfg.label; }
-  if(det)  { det.textContent   = detail || cfg.detail; }
+  var strip  = document.getElementById('dbStrip');
+  var dot    = document.getElementById('dbDot');
+  var label  = document.getElementById('dbLabel');
+  var detEl  = document.getElementById('dbDetail');
+  var prog   = document.getElementById('dbProgress');
+  var fill   = document.getElementById('dbFill');
+  var sync   = document.getElementById('dbSync');
+  var retry  = document.getElementById('dbRetry');
+  var hdrDot = document.getElementById('hdrDot');
+  var hdrTxt = document.getElementById('hdrTxt');
 
-  // Progress bar
-  if(bar){
-    if(progress !== undefined && progress !== null && status !== 'ready' && status !== 'error'){
-      bar.style.display = 'block';
-      if(fill){ fill.style.width = progress + '%'; fill.className = 'db-progress-fill'; }
-    } else if(status === 'ready'){
-      bar.style.display = 'block';
-      if(fill){ fill.style.width = '100%'; fill.className = 'db-progress-fill ready'; }
-    } else if(status === 'error'){
-      bar.style.display = 'block';
-      if(fill){ fill.style.width = '100%'; fill.className = 'db-progress-fill error'; }
+  if (strip)  strip.className  = 'db-strip ' + cfg.cls;
+  if (dot)    dot.className    = 'db-dot '   + cfg.cls;
+  if (label)  label.textContent  = cfg.label;
+  if (detEl)  detEl.textContent  = detail || '';
+  if (hdrDot) hdrDot.className   = 'hdr-badge-dot ' + cfg.cls;
+  if (hdrTxt) hdrTxt.textContent = cfg.label;
+
+  if (prog) {
+    if (pct !== undefined && status !== 'ready' && status !== 'error') {
+      prog.style.display = 'block';
+      if (fill) { fill.style.width = pct + '%'; fill.className = 'db-prog-fill'; }
+    } else if (status === 'ready') {
+      prog.style.display = 'block';
+      if (fill) { fill.style.width = '100%'; fill.className = 'db-prog-fill done'; }
     } else {
-      bar.style.display = 'none';
+      prog.style.display = 'none';
     }
   }
 
-  // Sync time
-  if(sync && status === 'ready'){
+  if (sync && status === 'ready') {
     var now = new Date();
-    sync.textContent = 'Synced ' + now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    sync.textContent = 'Synced ' + now.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
   }
+  if (retry) retry.style.display = (status === 'error') ? 'inline-block' : 'none';
 
-  // Retry button
-  if(retry){ retry.style.display = status === 'error' ? 'block' : 'none'; }
-
-  // Header badge
-  var hdrDot = document.getElementById('hdrStatusDot');
-  var hdrTxt = document.getElementById('hdrStatusTxt');
-  if(hdrDot){ hdrDot.className = 'hdr-status-dot ' + cfg.cls; }
-  if(hdrTxt){ hdrTxt.textContent = cfg.label; }
-
-  // Alert count (legacy)
-  var alertEl = document.getElementById('alertCount');
-  if(alertEl) alertEl.textContent = detail || cfg.detail;
-
-  console.log('[iMASSI] Status: ' + status + ' | ' + (detail || cfg.detail));
+  console.log('[iMASSI] Status:', status, '|', detail || '');
 }
 
-function setProgressBar(loaded, total) {
-  var pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
-  setConnStatus('loading', 'Loading ' + loaded + ' of ' + total + ' registers…', pct);
-}
-
-function retryConnection() {
-  console.log('[iMASSI] Retry connection triggered');
-  setConnStatus('connecting', 'Retrying connection…');
+function retryConn() {
   state.cacheLoading = false;
   state.cacheReady   = false;
   state.sheetCache   = {};
-  initSheetCache();
+  initCache();
 }
 
-function updateStatusBar(msg) {
-  // Legacy compatibility
-  var el = document.getElementById('alertCount');
-  if(el) el.textContent = msg;
+/* ══════════════════════════════════════════════════════════════
+   SHEET CACHE — background, non-blocking
+══════════════════════════════════════════════════════════════ */
+function fetchWithTimeout(url, ms) {
+  return new Promise(function(resolve, reject) {
+    var tid = setTimeout(function() { reject(new Error('timeout')); }, ms);
+    fetch(url).then(function(r) {
+      clearTimeout(tid);
+      return r.json();
+    }).then(resolve).catch(function(e) {
+      clearTimeout(tid);
+      reject(e);
+    });
+  });
 }
 
-/* ── Queue banner ──────────────────────────────────────────────────── */
-function showQueueBanner(question) {
-  var banner = document.getElementById('queueBanner');
-  var txt    = document.getElementById('queueBannerText');
-  if(banner){ banner.classList.add('visible'); }
-  if(txt){ txt.textContent = '"' + question.substring(0,60) + (question.length>60?'…':'') + '" — queued, answering once database loads…'; }
-}
-function hideQueueBanner() {
-  var banner = document.getElementById('queueBanner');
-  if(banner){ banner.classList.remove('visible'); }
+function loadTab(tab) {
+  var url = SHEETS_URL + '?tab=' + tab + '&limit=100';
+  console.log('[iMASSI][SHEETS] Fetching: ' + tab);
+  var t0 = performance.now();
+  return fetchWithTimeout(url, SHEET_TIMEOUT)
+    .then(function(data) {
+      var ms = Math.round(performance.now() - t0);
+      var rows = (data && data.rows) ? data.rows.length : 0;
+      console.log('[iMASSI][SHEETS] OK: ' + tab + ' — ' + rows + ' rows in ' + ms + 'ms');
+      if (data) state.sheetCache[tab] = { data: data, ts: Date.now() };
+      return data;
+    })
+    .catch(function(err) {
+      console.warn('[iMASSI][SHEETS] FAIL: ' + tab + ' — ' + err.message);
+      return null;
+    });
 }
 
-/* ══════════════════════════════════════════════════════════════════════
-   initSheetCache — fires at startup, NEVER blocks UI
-══════════════════════════════════════════════════════════════════════ */
-async function initSheetCache() {
-  if(state.cacheLoading) { console.log('[iMASSI] Cache already loading — skip'); return; }
+async function initCache() {
+  if (state.cacheLoading) return;
   state.cacheLoading = true;
   state.cacheReady   = false;
   var t0 = performance.now();
-
-  console.log('[iMASSI] ══ STARTUP BEGIN ══ ' + new Date().toISOString());
+  console.log('[iMASSI] === CACHE INIT START === ' + new Date().toISOString());
   console.log('[iMASSI] Target: ' + ALL_TABS.length + ' sheets');
 
-  setConnStatus('connecting', 'Connecting to Google Sheets…');
+  setStatus('connecting', 'Connecting to Google Sheets...');
 
-  /* Phase 1: priority tabs ─────────────────────────────────────────── */
-  setConnStatus('loading', 'Loading priority registers…', 0);
-  console.log('[iMASSI] Phase 1 start: ' + PRIORITY_TABS.length + ' priority tabs');
+  /* Phase 1: priority tabs */
+  setStatus('loading', 'Loading priority registers...', 0);
+  console.log('[iMASSI] Phase 1: ' + PRIORITY_TABS.length + ' priority tabs');
   var t1 = performance.now();
+  await Promise.allSettled(PRIORITY_TABS.map(function(t) { return loadTab(t); }));
+  var p1n = Object.keys(state.sheetCache).length;
+  var p1ms = Math.round(performance.now() - t1);
+  console.log('[iMASSI] Phase 1 done: ' + p1n + ' loaded in ' + p1ms + 'ms');
 
-  var phase1Results = await Promise.allSettled(
-    PRIORITY_TABS.map(function(tab) {
-      var tTab = performance.now();
-      return fetchSheetWithTimeout(tab, 100, 6000)
-        .then(function(data) {
-          if(data){ storeCacheEntry(tab, data); }
-          var loaded = Object.keys(state.sheetCache).length;
-          setProgressBar(loaded, ALL_TABS.length);
-        })
-        .catch(function(err) {
-          console.warn('[iMASSI] Phase1 timeout/fail: ' + tab + ' (' + err.message + ')');
-        });
-    })
-  );
+  state.cacheReady = true; /* can answer questions from now on */
+  setStatus('loading', 'Priority data ready — loading ' + (ALL_TABS.length - PRIORITY_TABS.length) + ' more...', Math.round(p1n / ALL_TABS.length * 100));
 
-  var p1Loaded  = Object.keys(state.sheetCache).length;
-  var p1Elapsed = Math.round(performance.now() - t1);
-  console.log('[iMASSI] Phase 1 done: ' + p1Loaded + '/' + PRIORITY_TABS.length + ' loaded in ' + p1Elapsed + 'ms');
-
-  /* Mark ready after phase 1 — user can now get meaningful answers ── */
-  state.cacheReady = true;
-  setConnStatus('loading', 'Priority data ready · Loading remaining registers…', Math.round(p1Loaded/ALL_TABS.length*100));
-
-  /* Answer any queued question immediately ─────────────────────────── */
-  if(state.questionQueue.length > 0) {
-    var queued = state.questionQueue.shift();
-    hideQueueBanner();
-    console.log('[iMASSI] Answering queued question: "' + queued + '"');
-    appendAI('Database ready — answering your question now.');
-    resolveQuery(queued);
-  }
-
-  /* Phase 2: remaining tabs in batches ────────────────────────────── */
-  var remaining = ALL_TABS.filter(function(t){ return PRIORITY_TABS.indexOf(t) < 0; });
+  /* Phase 2: remaining in batches */
+  var remaining = ALL_TABS.filter(function(t) { return PRIORITY_TABS.indexOf(t) < 0; });
   var t2 = performance.now();
-  console.log('[iMASSI] Phase 2 start: ' + remaining.length + ' remaining tabs in batches of ' + BATCH_SIZE);
-
-  for(var i = 0; i < remaining.length; i += BATCH_SIZE) {
+  for (var i = 0; i < remaining.length; i += BATCH_SIZE) {
     var batch = remaining.slice(i, i + BATCH_SIZE);
-    setConnStatus('syncing',
-      'Building knowledge cache… (' + Object.keys(state.sheetCache).length + ' / ' + ALL_TABS.length + ')',
-      Math.round(Object.keys(state.sheetCache).length / ALL_TABS.length * 100)
-    );
-    await Promise.allSettled(
-      batch.map(function(tab) {
-        return fetchSheetWithTimeout(tab, 100, 8000)
-          .then(function(data) { if(data) storeCacheEntry(tab, data); })
-          .catch(function(err) { console.warn('[iMASSI] Phase2 fail: ' + tab); });
-      })
-    );
+    await Promise.allSettled(batch.map(function(t) { return loadTab(t); }));
+    var n = Object.keys(state.sheetCache).length;
+    setStatus('syncing', 'Building cache: ' + n + ' / ' + ALL_TABS.length + ' registers', Math.round(n / ALL_TABS.length * 100));
   }
 
-  var t2Elapsed = Math.round(performance.now() - t2);
-  var totalLoaded = Object.keys(state.sheetCache).length;
-  var totalElapsed = Math.round(performance.now() - t0);
-
+  var total   = Object.keys(state.sheetCache).length;
+  var elapsed = Math.round(performance.now() - t0);
   state.cacheTime    = Date.now();
   state.cacheLoading = false;
   state.cacheReady   = true;
 
-  /* Final status ─────────────────────────────────────────────────── */
+  /* Count open CAPAs */
   var openCapas = 0;
   var capaEntry = state.sheetCache['capa'];
-  if(capaEntry && capaEntry.data && capaEntry.data.rows){
-    var hdr  = capaEntry.data.headers || [];
-    var sIdx = hdr.findIndex(function(h){ return /status/i.test(h); });
-    if(sIdx >= 0) openCapas = capaEntry.data.rows.filter(function(r){
-      return /open/i.test(String(r[sIdx]||''));
-    }).length;
+  if (capaEntry && capaEntry.data && capaEntry.data.rows) {
+    var hdr = capaEntry.data.headers || [];
+    var si  = hdr.findIndex(function(h) { return /status/i.test(h); });
+    if (si >= 0) openCapas = capaEntry.data.rows.filter(function(r) { return /open/i.test(String(r[si] || '')); }).length;
   }
 
-  var readyDetail = totalLoaded + ' of ' + ALL_TABS.length + ' registers loaded'
-    + (openCapas > 0 ? ' · ' + openCapas + ' open CAPA' + (openCapas>1?'s':'') : '');
+  var readyMsg = total + ' of ' + ALL_TABS.length + ' registers loaded' + (openCapas > 0 ? ' — ' + openCapas + ' open CAPAs' : '');
+  setStatus('ready', readyMsg);
 
-  setConnStatus('ready', readyDetail);
+  console.log('[iMASSI] === CACHE INIT COMPLETE ===');
+  console.log('[iMASSI] Loaded:  ' + total + ' / ' + ALL_TABS.length);
+  console.log('[iMASSI] Phase 1: ' + p1ms + 'ms');
+  console.log('[iMASSI] Phase 2: ' + Math.round(performance.now() - t2) + 'ms');
+  console.log('[iMASSI] Total:   ' + elapsed + 'ms');
 
-  console.log('[iMASSI] ══ STARTUP COMPLETE ══');
-  console.log('[iMASSI] Total loaded : ' + totalLoaded + '/' + ALL_TABS.length);
-  console.log('[iMASSI] Phase 1 time : ' + p1Elapsed + 'ms');
-  console.log('[iMASSI] Phase 2 time : ' + t2Elapsed + 'ms');
-  console.log('[iMASSI] Total time   : ' + totalElapsed + 'ms');
-}
-
-
-/* ══════════════════════════════════════════════════════════════════════
-   backgroundRefresh — runs every 5 min, never blocks UI
-══════════════════════════════════════════════════════════════════════ */
-function backgroundRefresh() {
-  setInterval(function() {
-    if(state.cacheLoading) return;
-    var stale = ALL_TABS.filter(function(t){ return isCacheStale(t); });
-    if(!stale.length) return;
-    console.log('[iMASSI] Background refresh: ' + stale.length + ' stale tabs');
-    setConnStatus('syncing', 'Refreshing ' + stale.length + ' register' + (stale.length>1?'s':'') + '…');
-    var refreshed = 0;
-    stale.forEach(function(tab) {
-      fetchSheetWithTimeout(tab, 100, 8000)
-        .then(function(data) {
-          if(data){ storeCacheEntry(tab, data); }
-          refreshed++;
-          if(refreshed === stale.length) {
-            var total = Object.keys(state.sheetCache).length;
-            setConnStatus('ready', total + ' of ' + ALL_TABS.length + ' registers · refreshed');
-            console.log('[iMASSI] Background refresh complete');
-          }
-        })
-        .catch(function(e) { refreshed++; });
+  /* Refresh every 5 min */
+  setTimeout(function bgRefresh() {
+    var stale = ALL_TABS.filter(function(t) {
+      var e = state.sheetCache[t];
+      return !e || (Date.now() - e.ts) > CACHE_TTL;
     });
+    if (stale.length) {
+      console.log('[iMASSI] BG refresh: ' + stale.length + ' stale tabs');
+      setStatus('syncing', 'Refreshing ' + stale.length + ' registers...');
+      Promise.allSettled(stale.map(function(t) { return loadTab(t); })).then(function() {
+        setStatus('ready', Object.keys(state.sheetCache).length + ' registers — refreshed');
+      });
+    }
+    setTimeout(bgRefresh, CACHE_TTL);
   }, CACHE_TTL);
 }
 
-/* ══════════════════════════════════════════════════════════════════════
-   resolveQuery — NEVER blocks; cache-first, on-demand fallback
-══════════════════════════════════════════════════════════════════════ */
-async function resolveQuery(txt) {
-  var t0 = performance.now();
-  console.log('[iMASSI] resolveQuery start: "' + txt.substring(0,60) + '"');
-
-  /* Detect relevant tabs */
-  var tabs = detectRelevantTabs(txt);
-
-  /* Fallback for general data queries */
-  if(tabs.length === 0) {
-    var isDataQ = /show|list|find|what|how many|status|give me|display|check|tell me|report|overview|summary|audit|performance|update|current|latest|today/i.test(txt);
-    if(isDataQ) tabs = ['kpi_dashboard','capa','objectives','hira','compliance','incidents','furnace_monitor'];
+/* ══════════════════════════════════════════════════════════════
+   CONTEXT BUILDER — uses cache
+══════════════════════════════════════════════════════════════ */
+function getRelevantTabs(txt) {
+  var lower = txt.toLowerCase();
+  var matched = [];
+  Object.keys(TAB_KEYWORDS).forEach(function(tab) {
+    var keys = TAB_KEYWORDS[tab];
+    for (var i = 0; i < keys.length; i++) {
+      if (lower.indexOf(keys[i]) >= 0) {
+        if (matched.indexOf(tab) < 0) matched.push(tab);
+        break;
+      }
+    }
+  });
+  if (matched.length === 0) {
+    var isData = /show|list|find|what|how many|status|report|overview|summary|check|display/i.test(txt);
+    var isSagco = /sagco|ims|iso|audit|capa|kpi|furnace|energy|safety|quality|environment|hsse/i.test(txt);
+    if (isData || isSagco) matched = ['kpi_dashboard','capa','objectives','hira','compliance'];
   }
-  var isSagcoQ = /sagco|ims|iso|audit|capa|kpi|furnace|energy|safety|quality|environment|hsse|wg1|wg2|wg3/i.test(txt);
-  if(tabs.length === 0 && isSagcoQ) tabs = ['kpi_dashboard','capa','objectives'];
+  return matched;
+}
 
-  console.log('[iMASSI] Relevant tabs: [' + tabs.join(', ') + ']');
+function buildContext(tabs) {
+  if (!tabs || !tabs.length) return '';
+  var parts = [];
+  tabs.forEach(function(tab) {
+    var entry = state.sheetCache[tab];
+    if (!entry || !entry.data) { parts.push('[' + tab + ': not loaded yet]'); return; }
+    var d = entry.data;
+    var rows = (d.rows || []).slice(0, 50);
+    var headers = d.headers || [];
+    if (!rows.length) { parts.push('[' + tab + ': sheet is empty — needs data entry]'); return; }
+    var age = Math.round((Date.now() - entry.ts) / 1000);
+    var lines = ['=== LIVE DATA: ' + tab.toUpperCase() + ' (' + rows.length + ' records, ' + age + 's ago) ==='];
+    lines.push('Columns: ' + headers.join(' | '));
+    rows.forEach(function(row) {
+      var obj = {};
+      headers.forEach(function(h, j) { if (h && row[j] !== undefined && row[j] !== '') obj[h] = row[j]; });
+      if (Object.keys(obj).length) lines.push(JSON.stringify(obj));
+    });
+    parts.push(lines.join('\n'));
+  });
+  return parts.join('\n\n');
+}
 
-  /* ── CACHE-FIRST: use what we have immediately ──────────────────── */
-  var cachedTabs   = tabs.filter(function(t){ return !!state.sheetCache[t]; });
-  var missingTabs  = tabs.filter(function(t){ return !state.sheetCache[t]; });
+/* ══════════════════════════════════════════════════════════════
+   MASSI AVATAR
+══════════════════════════════════════════════════════════════ */
+var NAVY='#1B2A4A', GOLD='#C9A84C', FACE='#2A4A7A', LIGHT='#E8F0FB';
 
-  console.log('[iMASSI] Cached: ' + cachedTabs.length + ' | Missing: ' + missingTabs.length);
-
-  /* ── ON-DEMAND FETCH: only for missing tabs, with tight timeout ─── */
-  if(missingTabs.length > 0) {
-    console.log('[iMASSI] On-demand fetching: ' + missingTabs.join(', '));
-    var onDemandResults = await Promise.allSettled(
-      missingTabs.map(function(tab) {
-        return fetchSheetWithTimeout(tab, 100, FETCH_TIMEOUT)
-          .then(function(data) { if(data) storeCacheEntry(tab, data); return tab; })
-          .catch(function(err) { console.warn('[iMASSI] On-demand failed: ' + tab); return null; });
-      })
-    );
-    console.log('[iMASSI] On-demand complete in ' + Math.round(performance.now()-t0) + 'ms');
+function buildMassi(size, st) {
+  var s=size, cx=s/2, cy=s/2, r=s*0.46, eyeY=cy-s*0.06, eyeOff=s*0.13;
+  var eyeR=s*0.065, pupilR=eyeR*0.55, mouthY=cy+s*0.15, antY=cy-r-s*0.04;
+  var ring='', arm='', bA='', eA='', pA='', mouth='';
+  if (st==='idle') {
+    eA='style="transform-origin:'+cx+'px '+eyeY+'px;animation:massi-blink 4s ease-in-out infinite"';
+    mouth='<path d="M'+(cx-s*.1)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.06)+' '+(cx+s*.1)+' '+mouthY+'" stroke="'+GOLD+'" stroke-width="'+(s*.025)+'" stroke-linecap="round" fill="none"/>';
+    bA='style="animation:massi-float 3s ease-in-out infinite"';
+  } else if (st==='greeting') {
+    mouth='<path d="M'+(cx-s*.12)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.1)+' '+(cx+s*.12)+' '+mouthY+'" stroke="'+GOLD+'" stroke-width="'+(s*.025)+'" stroke-linecap="round" fill="none"/>';
+    arm='<g style="transform-origin:'+(cx+r*.8)+'px '+(cy-r*.1)+'px;animation:massi-wave 1.5s ease-in-out 3"><rect x="'+(cx+r*.75)+'" y="'+(cy-r*.3)+'" width="'+(s*.09)+'" height="'+(s*.26)+'" rx="'+(s*.04)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><circle cx="'+(cx+r*.8)+'" cy="'+(cy-r*.28)+'" r="'+(s*.05)+'" fill="'+GOLD+'"/></g>';
+    bA='style="animation:massi-nod .6s ease-in-out 2"';
+  } else if (st==='thinking') {
+    pA='style="animation:massi-scan 1s ease-in-out infinite"';
+    mouth='<path d="M'+(cx-s*.08)+' '+(mouthY+s*.01)+' Q'+cx+' '+(mouthY-s*.03)+' '+(cx+s*.08)+' '+(mouthY+s*.01)+'" stroke="'+GOLD+'" stroke-width="'+(s*.022)+'" stroke-linecap="round" fill="none"/>';
+    ring='<circle cx="'+cx+'" cy="'+(cy+r*1.4)+'" r="3" fill="'+GOLD+'" style="animation:massi-t1 1.2s ease-in-out infinite"/><circle cx="'+(cx+s*.14)+'" cy="'+(cy+r*1.4)+'" r="3" fill="'+GOLD+'" style="animation:massi-t2 1.2s ease-in-out infinite"/><circle cx="'+(cx-s*.14)+'" cy="'+(cy+r*1.4)+'" r="3" fill="'+GOLD+'" style="animation:massi-t3 1.2s ease-in-out infinite"/>';
+  } else if (st==='success') {
+    mouth='<path d="M'+(cx-s*.14)+' '+(mouthY-s*.02)+' Q'+cx+' '+(mouthY+s*.12)+' '+(cx+s*.14)+' '+(mouthY-s*.02)+'" stroke="'+GOLD+'" stroke-width="'+(s*.028)+'" stroke-linecap="round" fill="none"/>';
+    bA='style="animation:massi-celebrate .8s ease-in-out 2"';
+    ring='<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+s*.08)+'" fill="none" stroke="'+GOLD+'" stroke-width="'+(s*.04)+'" opacity=".3" style="animation:massi-ring 1s ease-out 2"/>';
+  } else if (st==='happy') {
+    mouth='<path d="M'+(cx-s*.14)+' '+(mouthY-s*.02)+' Q'+cx+' '+(mouthY+s*.12)+' '+(cx+s*.14)+' '+(mouthY-s*.02)+'" stroke="'+GOLD+'" stroke-width="'+(s*.028)+'" stroke-linecap="round" fill="none"/>';
+    bA='style="animation:massi-float 1.5s ease-in-out infinite"';
   }
-
-  /* ── BUILD CONTEXT from cache ───────────────────────────────────── */
-  var liveContext = buildLiveContext(tabs);
-
-  /* ── PRIORITY 2: Uploaded document context ──────────────────────── */
-  var docContext = '';
-  if(state.pendingParsed) {
-    docContext = '
-
-=== UPLOADED DOCUMENT DATA ===
-Headers: ' +
-      state.pendingParsed.headers.join(' | ') + '
-' +
-      state.pendingParsed.rows.slice(0,30).map(function(r){ return JSON.stringify(r); }).join('
-');
-  }
-
-  /* ── SOURCE TRANSPARENCY ────────────────────────────────────────── */
-  var loadedTabs = tabs.filter(function(t){
-    return state.sheetCache[t] && state.sheetCache[t].data && (state.sheetCache[t].data.rows||[]).length > 0;
-  });
-  var emptyTabs = tabs.filter(function(t){
-    return !state.sheetCache[t] || !(state.sheetCache[t].data && (state.sheetCache[t].data.rows||[]).length > 0);
-  });
-  var sourceNote = '';
-  if(loadedTabs.length) sourceNote += '
-
-[DATA SOURCES: ' + loadedTabs.join(', ') + ']';
-  if(emptyTabs.length)  sourceNote += '
-[EMPTY SHEETS: ' + emptyTabs.join(', ') + ']';
-
-  var fullContext = liveContext + docContext + sourceNote;
-  console.log('[iMASSI] Context built in ' + Math.round(performance.now()-t0) + 'ms — ' + fullContext.length + ' chars');
-
-  callMassi(txt, fullContext);
+  var dm = mouth || '<path d="M'+(cx-s*.08)+' '+mouthY+' Q'+cx+' '+(mouthY+s*.05)+' '+(cx+s*.08)+' '+mouthY+'" stroke="'+GOLD+'" stroke-width="'+(s*.022)+'" stroke-linecap="round" fill="none"/>';
+  var h = s * 1.3;
+  return '<svg width="'+s+'" height="'+h+'" viewBox="0 0 '+s+' '+h+'" xmlns="http://www.w3.org/2000/svg">'+ring+'<g '+bA+'><line x1="'+cx+'" y1="'+(antY+s*.04)+'" x2="'+cx+'" y2="'+(cy-r)+'" stroke="'+NAVY+'" stroke-width="'+(s*.025)+'"/><circle cx="'+cx+'" cy="'+antY+'" r="'+(s*.055)+'" fill="'+GOLD+'"/><rect x="'+(cx-r*.25)+'" y="'+(cy+r*.85)+'" width="'+(r*.2)+'" height="'+(r*.45)+'" rx="'+(r*.08)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><rect x="'+(cx+r*.05)+'" y="'+(cy+r*.85)+'" width="'+(r*.2)+'" height="'+(r*.45)+'" rx="'+(r*.08)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><rect x="'+(cx-r*.95)+'" y="'+(cy-r*.1)+'" width="'+(r*.28)+'" height="'+(r*.55)+'" rx="'+(r*.1)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><rect x="'+(cx+r*.67)+'" y="'+(cy-r*.1)+'" width="'+(r*.28)+'" height="'+(r*.55)+'" rx="'+(r*.1)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.018)+'"/><ellipse cx="'+cx+'" cy="'+(cy+r*.45)+'" rx="'+(r*.72)+'" ry="'+(r*.52)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.02)+'"/><circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+FACE+'" stroke="'+NAVY+'" stroke-width="'+(s*.025)+'"/><g '+eA+'><rect x="'+(cx-eyeOff-eyeR)+'" y="'+(eyeY-eyeR)+'" width="'+(eyeR*2)+'" height="'+(eyeR*2)+'" rx="'+(eyeR*.5)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.02)+'"/><rect x="'+(cx+eyeOff-eyeR)+'" y="'+(eyeY-eyeR)+'" width="'+(eyeR*2)+'" height="'+(eyeR*2)+'" rx="'+(eyeR*.5)+'" fill="'+LIGHT+'" stroke="'+NAVY+'" stroke-width="'+(s*.02)+'"/><g '+pA+'><circle cx="'+(cx-eyeOff)+'" cy="'+eyeY+'" r="'+pupilR+'" fill="'+NAVY+'"/><circle cx="'+(cx+eyeOff)+'" cy="'+eyeY+'" r="'+pupilR+'" fill="'+NAVY+'"/><circle cx="'+(cx-eyeOff+pupilR*.3)+'" cy="'+(eyeY-pupilR*.3)+'" r="'+(pupilR*.3)+'" fill="white"/><circle cx="'+(cx+eyeOff+pupilR*.3)+'" cy="'+(eyeY-pupilR*.3)+'" r="'+(pupilR*.3)+'" fill="white"/></g></g>'+dm+'<rect x="'+(cx-r*.5)+'" y="'+(cy+r*.28)+'" width="'+r+'" height="'+(r*.18)+'" rx="'+(r*.06)+'" fill="'+NAVY+'" opacity=".35"/><rect x="'+(cx-r*.3)+'" y="'+(cy+r*.31)+'" width="'+(r*.22)+'" height="'+(r*.12)+'" rx="'+(r*.04)+'" fill="'+GOLD+'" opacity=".7"/></g>'+arm+'</svg>';
 }
 
-function rowsToContext(data, tab) {
-  if(!data || !data.rows || !data.rows.length) return '[' + tab + ': no data]';
-  var headers = data.headers || [];
-  var rows = data.rows.slice(0, 40);
-  var lines = ['LIVE DATA: ' + tab + ' (' + rows.length + ' records)'];
-  lines.push('Columns: ' + headers.join(' | '));
-  rows.forEach(function(row) {
-    var obj = {};
-    headers.forEach(function(h, j) { if(h && row[j]) obj[h] = row[j]; });
-    lines.push(JSON.stringify(obj));
-  });
-  return lines.join('
-');
+function setAvatar(st) {
+  state.currentState = st;
+  var el = document.getElementById('chatHeaderAv');
+  if (el) el.innerHTML = buildMassi(70, st);
 }
 
-function callMassi(txt, liveContext){
-  var t0 = performance.now();
-  console.log('[iMASSI] callMassi start | context: ' + (liveContext ? liveContext.length : 0) + ' chars');
-  if(!document.getElementById('massi-typing')) { setAvatarState('thinking'); showTyping(); }
-  var groqUserMsg = liveContext ? txt + '\n\n' + liveContext : txt;
-  state.history.push({role:'user',content:groqUserMsg});
-  if(state.history.length>20) state.history=state.history.slice(-20);
-
-  /* Groq — free tier, llama-3.3-70b-versatile */
-  var groqKey='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';
-  var groqUrl='https://api.groq.com/openai/v1/chat/completions';
-
-  var messages=[{role:'system',content:SYSTEM_PROMPT}];
-  state.history.forEach(function(m){messages.push({role:m.role,content:m.content});});
-
-  fetch(groqUrl,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
-    body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:messages,max_tokens:800,temperature:0.7})
-  }).then(function(r){return r.json();}).then(function(d){
-    var elapsed = Math.round(performance.now() - t0);
-    console.log('[iMASSI] Groq response received in ' + elapsed + 'ms');
-    removeTyping();
-    var resp='I could not get a response. Please try again.';
-    if(d.choices&&d.choices[0])resp=d.choices[0].message.content;
-    else if(d.error)resp='API error: '+d.error.message;
-    state.history.push({role:'assistant',content:resp});
-    setAvatarState('idle');
-    appendAI(resp);
-    addHistory(txt);
-  }).catch(function(){
-    removeTyping();setAvatarState('idle');
-    appendAI('Connection issue. Check your internet connection.');
-  });
+/* ══════════════════════════════════════════════════════════════
+   CHAT UI
+══════════════════════════════════════════════════════════════ */
+function showTyping() {
+  if (document.getElementById('massi-typing')) return;
+  var msgs = document.getElementById('chatMsgs');
+  if (!msgs) return;
+  var div = document.createElement('div');
+  div.className = 'msg ai'; div.id = 'massi-typing';
+  div.innerHTML = '<div class="massi-msg-av">' + buildMassi(28,'thinking') + '</div><div class="bubble typing-b"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>';
+  msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight;
 }
 
-document.getElementById('xlFile').addEventListener('change',function(e){
-  const file=e.target.files[0];if(!file)return;
-  state.pendingFile=file;
-  const reader=new FileReader();
-  reader.onload=function(ev){
-    try{
-      const wb=XLSX.read(ev.target.result,{type:'array'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-      if(data.length<2){appendAI('That file appears empty.');return;}
-      state.pendingParsed={headers:data[0].map(String),rows:data.slice(1).filter(function(r){return r.some(function(c){return String(c).trim();});})};
-      const chip=document.getElementById('fileChip');
-      chip.style.display='flex';
-      document.getElementById('fileChipName').textContent=file.name;
-      document.getElementById('fileChipInfo').textContent=' · '+state.pendingParsed.rows.length+' rows';
-      document.getElementById('chatInput').focus();
-    }catch(err){appendAI('Could not read that file — ensure it is a valid .xlsx or .csv.');}
-  };
-  reader.readAsArrayBuffer(file);
-  e.target.value='';
-});
-
-function processExcel(hint){
-  setAvatarState('thinking');showTyping();
-  setTimeout(function(){
-    removeTyping();
-    appendAI('Excel file detected with '+state.pendingParsed.rows.length+' rows and '+state.pendingParsed.headers.length+' columns: '+state.pendingParsed.headers.slice(0,4).join(', ')+'...\n\nI have detected the structure. Which register should this update? Or describe what this file contains and I will identify the target register automatically.');
-    setAvatarState('idle');
-    state.pendingParsed=null;
-    document.getElementById('fileChip').style.display='none';
-  },1200);
+function removeTyping() {
+  var el = document.getElementById('massi-typing');
+  if (el) el.remove();
 }
 
-function handleConfirm(txt){
-  if(/yes|y|confirm|proceed|ok/i.test(txt.trim())){state.awaitingConfirm=false;appendAI('Confirmed. Processing update...');setAvatarState('success');setTimeout(function(){setAvatarState('idle');},2500);}
-  else if(/no|n|cancel/i.test(txt.trim())){state.awaitingConfirm=false;appendAI('Cancelled. No changes made.');}
-  else{appendAI('Type yes to confirm or no to cancel.');}
+function appendUser(txt) {
+  var msgs = document.getElementById('chatMsgs');
+  if (!msgs) return;
+  var t = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  var div = document.createElement('div'); div.className = 'msg user';
+  div.innerHTML = '<div class="msg-av user">U</div><div><div class="bubble">' +
+    txt.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>') +
+    '</div><div class="msg-time">' + t + '</div></div>';
+  msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight;
 }
 
-function showTyping(){
-  if(document.getElementById('massi-typing')) return;
-  const msgs=document.getElementById('chatMsgs');
-  const div=document.createElement('div');
-  div.className='msg ai';div.id='massi-typing';
-  div.innerHTML='<div class="massi-msg-av">'+buildMassi(28,'thinking')+'</div><div class="bubble typing-b"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>';
-  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
-}
-function removeTyping(){const el=document.getElementById('massi-typing');if(el)el.remove();}
-
-function appendUser(txt){
-  const msgs=document.getElementById('chatMsgs');
-  const t=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-  const div=document.createElement('div');div.className='msg user';
-  div.innerHTML='<div class="msg-av user">U</div><div><div class="bubble">'+txt.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><div class="msg-time">'+t+'</div></div>';
-  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
-}
-
-function formatMassiText(txt){
-  // Convert markdown tables to HTML
+function formatText(txt) {
+  /* Convert markdown tables to HTML */
   var lines = txt.split('\n');
-  var out = [];
-  var inTable = false;
-  var tableRows = [];
-  for(var i=0;i<lines.length;i++){
+  var out = [], inTable = false, tableRows = [];
+  for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
-    if(line.startsWith('|') && line.endsWith('|')){
-      if(!inTable){ inTable=true; tableRows=[]; }
+    if (line.charAt(0) === '|' && line.charAt(line.length-1) === '|') {
+      if (!inTable) { inTable = true; tableRows = []; }
       tableRows.push(line);
     } else {
-      if(inTable){
-        out.push(renderMdTable(tableRows));
-        tableRows=[]; inTable=false;
-      }
+      if (inTable) { out.push(renderTable(tableRows)); tableRows = []; inTable = false; }
       out.push(line);
     }
   }
-  if(inTable && tableRows.length) out.push(renderMdTable(tableRows));
-  var joined = out.join('\n');
-  // Bold, italic, line breaks
-  return joined
-    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g,'<em>$1</em>')
-    .replace(/\n/g,'<br>');
+  if (inTable && tableRows.length) out.push(renderTable(tableRows));
+  return out.join('\n')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br>');
 }
 
-function renderMdTable(rows){
-  var html='<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin:8px 0">';
-  rows.forEach(function(row,idx){
-    // Skip separator row (--- | ---)
-    if(/^\|[\s\-|]+\|$/.test(row)) return;
-    var cells = row.split('|').filter(function(c,i,a){return i>0&&i<a.length-1;});
-    var tag = idx===0 ? 'th' : 'td';
-    var bg = idx===0 ? 'background:#1B2A4A;color:#C9A84C;font-weight:600;' : (idx%2===0?'background:#f8f8f8;':'');
-    html+='<tr>';
-    cells.forEach(function(cell){
-      html+='<'+tag+' style="padding:6px 10px;border:0.5px solid #e0e0e0;'+bg+'text-align:left">'+cell.trim()+'</'+tag+'>';
+function renderTable(rows) {
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin:8px 0">';
+  rows.forEach(function(row, idx) {
+    if (/^\|[\s\-|]+\|$/.test(row)) return;
+    var cells = row.split('|').filter(function(c, i, a) { return i > 0 && i < a.length-1; });
+    var isHdr = idx === 0;
+    html += '<tr>';
+    cells.forEach(function(cell) {
+      if (isHdr) {
+        html += '<th style="background:#1B2A4A;color:#C9A84C;padding:7px 10px;text-align:left;font-weight:600;font-size:11px">' + cell.trim() + '</th>';
+      } else {
+        var bg = (idx % 2 === 0) ? '#f8f9fb' : '#ffffff';
+        html += '<td style="padding:7px 10px;border-bottom:0.5px solid #e8e8e8;background:' + bg + '">' + cell.trim() + '</td>';
+      }
     });
-    html+='</tr>';
+    html += '</tr>';
   });
-  html+='</table>';
-  return html;
+  return html + '</table>';
 }
 
-function appendAI(txt,card){
-  var t0r = performance.now();
-  const msgs=document.getElementById('chatMsgs');
-  const t=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-  const div=document.createElement('div');div.className='msg ai';
-  let content='';
-  if(txt) content+='<div class="bubble">'+formatMassiText(txt)+'</div>';
-  if(card) content+=card;
-  div.innerHTML='<div class="massi-msg-av">'+buildMassi(28,'idle')+'</div><div>'+content+'<div class="msg-time">'+t+'</div></div>';
-  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
-  console.log('[iMASSI] Response rendered in ' + Math.round(performance.now()-t0r) + 'ms');
+function appendAI(txt, card) {
+  var msgs = document.getElementById('chatMsgs');
+  if (!msgs) return;
+  var t = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  var div = document.createElement('div'); div.className = 'msg ai';
+  var content = '';
+  if (txt) content += '<div class="bubble">' + formatText(txt) + '</div>';
+  if (card) content += card;
+  div.innerHTML = '<div class="massi-msg-av">' + buildMassi(28,'idle') + '</div><div>' + content + '<div class="msg-time">' + t + '</div></div>';
+  msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight;
+  console.log('[iMASSI] Response rendered');
 }
 
-function addHistory(q){
-  const hist=document.getElementById('histList');
-  const div=document.createElement('div');div.className='hist-item';
-  div.onclick=function(){massIAsk(q);};
-  div.innerHTML='<div class="hist-q">'+q+'</div><div class="hist-t">Just now</div>';
-  hist.insertBefore(div,hist.firstChild);
-  if(hist.children.length>6) hist.removeChild(hist.lastChild);
+function addHistory(q) {
+  var hist = document.getElementById('histList');
+  if (!hist) return;
+  var div = document.createElement('div'); div.className = 'hist-item';
+  div.onclick = function() { massISend_with(q); };
+  div.innerHTML = '<div class="hist-q">' + q + '</div><div class="hist-t">Just now</div>';
+  hist.insertBefore(div, hist.firstChild);
+  if (hist.children.length > 6) hist.removeChild(hist.lastChild);
 }
 
-/* Init */
+/* ══════════════════════════════════════════════════════════════
+   CORE SEND FLOW — always immediate, never blocking
+══════════════════════════════════════════════════════════════ */
+function massISend() {
+  var inp = document.getElementById('chatInput');
+  if (!inp) { console.error('[iMASSI] chatInput not found'); return; }
+  var txt = inp.value.trim();
+  console.log('[iMASSI] massISend called, txt="' + txt.substring(0,60) + '"');
+  if (!txt && !state.pendingParsed) return;
+  if (txt) appendUser(txt);
+  inp.value = ''; inp.style.height = '38px';
+  var chips = document.getElementById('sugChips');
+  if (chips) chips.style.display = 'none';
+  if (state.awaitingConfirm) { handleConfirm(txt); return; }
+  if (state.pendingParsed)   { processExcel(txt); return; }
+  if (/thank|great|excellent|good job|well done|perfect|amazing/i.test(txt)) {
+    setAvatar('happy'); setTimeout(function() { setAvatar('idle'); }, 2500);
+  }
+  sendToMassi(txt);
+}
+
+function massISend_with(txt) {
+  var inp = document.getElementById('chatInput');
+  if (inp) { inp.value = txt; }
+  massISend();
+}
+
+function sendToMassi(txt) {
+  console.log('[iMASSI] sendToMassi: "' + txt.substring(0,60) + '"');
+
+  /* Show typing immediately — never delay */
+  setAvatar('thinking');
+  showTyping();
+
+  /* Build context from cache (synchronous — no await) */
+  var tabs       = getRelevantTabs(txt);
+  var context    = buildContext(tabs);
+  var sourceInfo = tabs.length > 0 ? '\n[Sheets queried: ' + tabs.join(', ') + ']' : '';
+
+  console.log('[iMASSI] Tabs: [' + tabs.join(', ') + '] | Context: ' + context.length + ' chars');
+
+  /* Build messages */
+  var fullMsg = context ? (txt + '\n\n' + context + sourceInfo) : txt;
+  state.history.push({role:'user', content: fullMsg});
+  if (state.history.length > 20) state.history = state.history.slice(-20);
+
+  var messages = [{role:'system', content: SYSTEM_PROMPT}];
+  state.history.forEach(function(m) { messages.push({role: m.role, content: m.content}); });
+
+  console.log('[iMASSI] LLM request start — ' + messages.length + ' messages');
+  var t0 = performance.now();
+
+  /* LLM request with timeout */
+  var llmDone = false;
+  var llmTimeout = setTimeout(function() {
+    if (!llmDone) {
+      llmDone = true;
+      removeTyping(); setAvatar('idle');
+      appendAI('Sorry, the AI took too long to respond (60s timeout). Please try again.');
+      console.error('[iMASSI] LLM timeout after 60s');
+    }
+  }, LLM_TIMEOUT);
+
+  fetch(GROQ_URL, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json', 'Authorization':'Bearer ' + GROQ_KEY},
+    body: JSON.stringify({model: GROQ_MODEL, messages: messages, max_tokens: 1200, temperature: 0.7})
+  })
+  .then(function(r) {
+    console.log('[iMASSI] Groq HTTP status: ' + r.status);
+    return r.json();
+  })
+  .then(function(d) {
+    if (llmDone) return;
+    llmDone = true;
+    clearTimeout(llmTimeout);
+    var elapsed = Math.round(performance.now() - t0);
+    console.log('[iMASSI] Groq response in ' + elapsed + 'ms');
+    removeTyping();
+    var resp = 'I could not get a response. Please try again.';
+    if (d.choices && d.choices[0]) resp = d.choices[0].message.content;
+    else if (d.error) resp = 'AI error: ' + d.error.message;
+    else console.warn('[iMASSI] Unexpected Groq response:', JSON.stringify(d).substring(0,200));
+    state.history.push({role:'assistant', content: resp});
+    setAvatar('idle');
+    appendAI(resp);
+    addHistory(txt);
+  })
+  .catch(function(err) {
+    if (llmDone) return;
+    llmDone = true;
+    clearTimeout(llmTimeout);
+    removeTyping(); setAvatar('idle');
+    var msg = 'Connection error: ' + err.message + '. Check your internet connection.';
+    appendAI(msg);
+    console.error('[iMASSI] Groq fetch error:', err);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════
+   EXCEL UPLOAD
+══════════════════════════════════════════════════════════════ */
+function processExcel(hint) {
+  setAvatar('thinking'); showTyping();
+  setTimeout(function() {
+    removeTyping();
+    appendAI('Excel file loaded: ' + state.pendingParsed.rows.length + ' rows, columns: ' + state.pendingParsed.headers.slice(0,4).join(', ') + '...\n\nWhich register should this update?');
+    setAvatar('idle');
+    state.pendingParsed = null;
+    var chip = document.getElementById('fileChip');
+    if (chip) chip.style.display = 'none';
+  }, 800);
+}
+
+function handleConfirm(txt) {
+  if (/yes|y|confirm|proceed|ok/i.test(txt.trim())) {
+    state.awaitingConfirm = false; appendAI('Confirmed. Processing update...'); setAvatar('success');
+    setTimeout(function() { setAvatar('idle'); }, 2500);
+  } else if (/no|n|cancel/i.test(txt.trim())) {
+    state.awaitingConfirm = false; appendAI('Cancelled. No changes made.');
+  } else {
+    appendAI('Type yes to confirm or no to cancel.');
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════════ */
 window.addEventListener('DOMContentLoaded', function() {
-  if(typeof renderTopbar==='function'){
-    document.getElementById('topbar-mount').innerHTML = renderTopbar('MASSI AI Copilot','Your intelligent IMS digital assistant');
+  console.log('[iMASSI] === PAGE LOAD === ' + new Date().toISOString());
+
+  if (typeof renderTopbar === 'function') {
+    document.getElementById('topbar-mount').innerHTML = renderTopbar('iMASSI Copilot', 'SAGCO IMS');
   }
 
-  var tStart = performance.now();
-  console.log('[iMASSI] ══ PAGE LOAD ══ ' + new Date().toISOString());
+  /* Wire Excel file input */
+  var xlFile = document.getElementById('xlFile');
+  if (xlFile) {
+    xlFile.addEventListener('change', function(e) {
+      var file = e.target.files[0]; if (!file) return;
+      state.pendingFile = file;
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        try {
+          var wb = XLSX.read(ev.target.result, {type:'array'});
+          var ws = wb.Sheets[wb.SheetNames[0]];
+          var data = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+          if (data.length < 2) { appendAI('That file appears empty.'); return; }
+          state.pendingParsed = {
+            headers: data[0].map(String),
+            rows: data.slice(1).filter(function(r) { return r.some(function(c) { return String(c).trim(); }); })
+          };
+          var chip = document.getElementById('fileChip');
+          if (chip) chip.style.display = 'flex';
+          document.getElementById('fileChipName').textContent = file.name;
+          document.getElementById('fileChipInfo').textContent = ' — ' + state.pendingParsed.rows.length + ' rows';
+          var inp = document.getElementById('chatInput');
+          if (inp) inp.focus();
+        } catch(err) { appendAI('Could not read that file — ensure it is a valid .xlsx or .csv.'); }
+      };
+      reader.readAsArrayBuffer(file);
+      e.target.value = '';
+    });
+  }
 
-  /* Set initial status */
-  setConnStatus('connecting', 'Connecting to Google Sheets…');
+  /* Use requestAnimationFrame to ensure DOM is painted before touching status elements */
+  requestAnimationFrame(function() {
+    setStatus('connecting', 'Connecting to Google Sheets...');
+    setAvatar('greeting');
+    setTimeout(function() { setAvatar('idle'); }, 2500);
 
-  /* Greet user immediately — UI stays responsive */
-  setTimeout(function() {
-    setAvatarState('greeting');
-    setTimeout(function(){ setAvatarState('idle'); }, 2500);
     var daysToS1 = Math.max(0, Math.floor((new Date('2026-08-25') - new Date()) / 86400000));
     appendAI(
-      'Hello! I\'m iMASSI, your IMS Copilot for SAGCO.<br><br>' +
-      'I\'m connecting to your Google Sheets database now. You can ask me anything — if the data is still loading, I\'ll queue your question and answer the moment it\'s ready.<br><br>' +
+      'Hello! I\'m iMASSI, your IMS Copilot for SAGCO.' +
+      '<br><br>Connecting to your Google Sheets database now — you can ask me anything immediately. ' +
       'Stage 1 audit is in <strong>' + daysToS1 + ' days</strong>.'
     );
-  }, 300);
 
-  /* Load all sheets in background — never blocks UI */
-  setConnStatus('loading', 'Loading priority registers…', 0);
-  console.log('[iMASSI] Starting background cache load');
-
-  initSheetCache()
-    .then(function() {
-      var elapsed = Math.round(performance.now() - tStart);
-      var loaded  = Object.keys(state.sheetCache).length;
-      console.log('[iMASSI] Page fully ready in ' + elapsed + 'ms — ' + loaded + ' sheets cached');
-
+    /* Load cache in background */
+    initCache().then(function() {
+      var n = Object.keys(state.sheetCache).length;
       var openCapas = 0;
-      var capaEntry = state.sheetCache['capa'];
-      if(capaEntry && capaEntry.data && capaEntry.data.rows){
-        var hdr  = capaEntry.data.headers || [];
-        var sIdx = hdr.findIndex(function(h){ return /status/i.test(h); });
-        if(sIdx >= 0) openCapas = capaEntry.data.rows.filter(function(r){
-          return /open/i.test(String(r[sIdx]||''));
-        }).length;
+      var ce = state.sheetCache['capa'];
+      if (ce && ce.data && ce.data.rows) {
+        var hdr = ce.data.headers || [];
+        var si  = hdr.findIndex(function(h) { return /status/i.test(h); });
+        if (si >= 0) openCapas = ce.data.rows.filter(function(r) { return /open/i.test(String(r[si] || '')); }).length;
       }
-
       appendAI(
-        'Connected. <strong>' + loaded + ' of ' + ALL_TABS.length + ' registers loaded</strong> in ' + (elapsed/1000).toFixed(1) + 's.' +
-        (openCapas > 0
-          ? ' I can see <strong>' + openCapas + ' open CAPA' + (openCapas>1?'s':'') + '</strong> in your register — including Stage 2 blockers.'
-          : '') +
-        ' Every answer I give comes directly from your live data. What would you like to check?'
+        'Connected. <strong>' + n + ' of ' + ALL_TABS.length + ' registers loaded</strong> from Google Sheets.' +
+        (openCapas > 0 ? ' I can see <strong>' + openCapas + ' open CAPA' + (openCapas > 1 ? 's' : '') + '</strong> in your register.' : '') +
+        ' Every answer I give comes directly from your live data.'
       );
-    })
-    .catch(function(err) {
-      console.error('[iMASSI] Cache init failed: ' + err);
-      setConnStatus('error', 'Connection failed — ' + err.message);
-      appendAI(
-        '⚠ I couldn\'t connect to the Google Sheets database.<br><br>' +
-        '<strong>Error:</strong> ' + err.message + '<br><br>' +
-        'Please check your internet connection and click <strong>↻ Retry</strong> in the status bar above.'
-      );
+    }).catch(function(err) {
+      console.error('[iMASSI] Cache init error:', err);
+      setStatus('error', 'Connection failed: ' + err.message);
+      appendAI('Warning: Could not connect to Google Sheets (' + err.message + '). I can still answer general IMS questions, but live register data will not be available. Click Retry in the status bar.');
     });
-
-  /* Start background refresh timer */
-  backgroundRefresh();
-  console.log('[iMASSI] Background refresh timer started');
+  });
 });
+
 </script>
-
-
-<div id="ims-abbr-tip" class="" style="left: 1038px; top: 463.188px;"><div class="at-code">HIRA</div><div class="at-def">Hazard Identification and Risk Assessment</div></div></body></html>
+</body>
+</html>
