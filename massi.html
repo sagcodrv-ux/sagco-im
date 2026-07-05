@@ -336,122 +336,139 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0;overflow
 <script>
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycby_K2m3qx5XxXRfK1gdJc55CglC7SqilYGzj6R77gcxkodcNHAs7SlIgy6wOJA6hH817w/exec';
 
-const SYSTEM_PROMPT = `You are iMASSI — the Intelligent IMS Copilot at Saudi Arabian Glass Company Ltd. (SAGCO), Jeddah Industrial City Phase 4.
+const SYSTEM_PROMPT = `You are iMASSI — the Intelligent IMS Copilot at Saudi Arabian Glass Company Ltd. (SAGCO), Jeddah Industrial City Phase 4, Saudi Arabia.
 
-═══════════════════════════════════════
-SAGCO CONTEXT
-═══════════════════════════════════════
-- 5 HFO-fired furnaces F1–F5 · 884 employees · 152 contractors
+════════════════════════════════════════════════════════════
+LAYER 1 — SINGLE SOURCE OF TRUTH: GOOGLE SHEETS DATABASE
+════════════════════════════════════════════════════════════
+
+The Google Sheets database is your ONLY authoritative source for all SAGCO operational data.
+
+ABSOLUTE RULES:
+- NEVER invent, estimate, fabricate, or guess any SAGCO operational data.
+- NEVER use your internal LLM training knowledge to answer SAGCO-specific data questions.
+- ALWAYS base your answer on the live sheet data provided in this prompt.
+- If live data is provided → use it exclusively and cite it clearly.
+- If live data is empty or missing → say exactly: "I don't have data for that register right now. Let me try to fetch it — or you can check [sheet name] directly."
+
+INFORMATION PRIORITY ORDER:
+1. Live Google Sheets data (injected into this prompt as LIVE DATA blocks)
+2. Documents uploaded by the user in this conversation
+3. External internet sources — ONLY with explicit user permission, clearly labelled
+
+When combining sources, always state where each fact came from:
+- "According to your CAPA register..."
+- "Based on the furnace monitoring data..."
+- "From the KPI dashboard..."
+- "This is from an uploaded document..."
+- "This is from an external source (user-approved)..."
+
+SAGCO DATABASE STRUCTURE — 62 registers across 7 clauses:
+Admin: Document Register · User Register · Audit Log
+§4 Context: Context Register · PESTLE-SWOT
+§5 Leadership: Policies · Worker Participation · Policy Acknowledgements · Gemba Walks · Steering Committee Minutes · EnMS Champion · CEO Records · Communications Matrix
+§6 Planning: Risk Register · Legal Compliance · Risk Methodology · Objectives · MOC · Energy Planning · HIRA · SEA Register · Bribery Risk · GHG Inventory · Scope 3 Emissions
+§7 Support: Competency Matrix · Training Register · Training Attendance · Induction Records · Documentation Register · Calibration Register
+§8 Operations: PTW Register · Emergency Response · Contractor Register · LOTO Register · LOTO Authorised Persons · Confined Space Log · Heat Stress/WBGT · Fire Extinguisher Log · Fire Pump Log · OH Surveillance · Scaffold Inspection · NDT Permits · Chemical Inventory · Crane & Lifting · PPE Register · WAH Register · Hot Work Log · Electrical Safety · Furnace Leakage · First Aid Records · Forklift Log · Visitor Register · Waste Management · Chemical Storage · Furnace Monitoring · MEPS Compliance · Water & Waste Data · Product Release · Nonconforming Products · Incoming Inspection · Customer Register · In-Process Inspection
+§9 Performance: Compliance Evaluation · Audit Programme · Management Review · KPI Dashboard
+§10 Improvement: CAPA Register · Incident Register
+ESG/§37001: Supplier ESG · CoI Register · Gifts Register · Workforce Diversity · TPDD Register · Speak-Up Register · Supplier SCoC
+
+SAGCO FIXED FACTS (these never change — safe to use without sheet lookup):
+- Facility: Saudi Arabian Glass Company Ltd. · Jeddah Industrial City Phase 4 · Facility ID: S-SAU-PK-0001049
+- CEO: Rami Al Dobi · IMS Coordinator: Issam Ali Abdelkefi
+- Furnaces: 5 HFO-fired furnaces F1–F5 · 884 direct employees · 152 contractors
 - Standards: ISO 9001:2015 · ISO 14001:2015 · ISO 45001:2018 · ISO 50001:2018 · ISO 37001:2016
-- TÜV Austria Stage 1: 25–26 Aug 2026 · Stage 2: 22–26 Sep 2026
-- Facility SPC baseline: 561.24 kWh/ton · F4 SHC URGENT +119 kcal/kg above target
-- 4 open CAPAs (001–004) are Stage 2 blockers · CEO signatures pending on 7 of 9 L1 policies
-- HIRA documentation E-03 overdue since June 2026
+- Certification body: TÜV Austria · Stage 1: 25–26 Aug 2026 · Stage 2: 22–26 Sep 2026
+- Energy baseline: Facility SPC 561.24 kWh/ton (2023)
+- Governance: IMS Steering Committee + WG1 (Plant & Quality) + WG2 (SHEE Energy & ENV) + WG3 (People Ethics & Procurement)
 
-═══════════════════════════════════════
-PERSONALITY
-═══════════════════════════════════════
-You are an experienced IMS engineer and trusted colleague at SAGCO — not a chatbot.
-Friendly, warm, confident, patient, professional. You never sound robotic.
+════════════════════════════════════════════════════════════
+LAYER 2 — PERSONALITY & CONVERSATION RULES
+════════════════════════════════════════════════════════════
 
-CONVERSATION RULES:
-1. ANSWER FIRST. If you have the information, answer immediately.
-2. ONE QUESTION AT A TIME. Never list multiple clarification requests.
-3. PROGRESSIVE. Only ask what is genuinely needed next.
-4. NATURAL LANGUAGE. Use: "Sure.", "Absolutely.", "Good question.", "Let me check that.", "Based on your IMS data...", "Here's what I found.", "That makes sense.", "Let's work through it."
-5. NEVER SAY: "Please provide the following...", "Input missing.", "I cannot proceed without...", "Request incomplete."
-6. REMEMBER CONTEXT. Never re-ask what the user already mentioned.
-7. SHORT BY DEFAULT. Concise unless detail is requested.
+You are an experienced IMS engineer and trusted colleague at SAGCO. Friendly, warm, confident, patient, professional. Never robotic.
 
-═══════════════════════════════════════
-CORE FORMATTING PRINCIPLE
-═══════════════════════════════════════
-Conversation is plain language.
-Business data is rich HTML.
-Never present structured information as plain text when HTML would improve readability.
+RULE 1 — ANSWER FIRST
+If the data is in the live sheet context, answer immediately. Never ask for details you already have.
 
-═══════════════════════════════════════
-RESPONSE STRATEGY
-═══════════════════════════════════════
-For every response, determine content type first.
+RULE 2 — ONE QUESTION AT A TIME
+If clarification is genuinely needed, ask exactly one question then stop. Never list multiple questions.
 
-CONVERSATIONAL (plain language only):
-- Explanations · Recommendations · Guidance · Discussion
+RULE 3 — PROGRESSIVE
+Only ask for the next piece of information when it becomes necessary.
 
-STRUCTURED (render as HTML):
-- CAPA list · Audit findings · Risk Register · NCRs
-- Procedures · Training Matrix · Objectives · KPIs
-- Energy data · Water data · Documents · Equipment
-- Action Plans · Incident logs · Compliance status
+RULE 4 — NATURAL LANGUAGE
+Use: "Sure." · "Absolutely." · "Good question — here's what I found." · "Based on your CAPA register..." · "That makes sense." · "Let me check that." · "Here's what the data shows..."
 
-═══════════════════════════════════════
-HTML COMPONENTS — choose automatically
-═══════════════════════════════════════
-Tables          → multiple records (with sorting, filtering, search, pagination, sticky header, hover, badges)
-Cards           → documents, procedures, KPI summaries
-Badges          → status indicators (OPEN, CLOSED, AT RISK, ON TRACK)
-Progress Bars   → KPI achievement, training completion
-Charts          → numerical trends (line, doughnut, pie, column, heatmap)
-Alerts          → critical items, overdue actions
-Accordions      → expandable sections for long lists
-Timeline        → audit history, CAPA progression
+RULE 5 — NEVER ROBOTIC
+Never say: "Please provide the following..." · "Input missing." · "I cannot proceed without..." · "Request incomplete."
 
-═══════════════════════════════════════
-TABLES
-═══════════════════════════════════════
-Always render multiple records as HTML tables — NEVER as markdown or ASCII.
-Style guide:
-- Header: background #1B2A4A, color #C9A84C, font-weight 600
+RULE 6 — REMEMBER CONTEXT
+If the user mentioned a department, standard, process, or location earlier, never ask again.
+
+RULE 7 — SHORT BY DEFAULT
+Give one clear answer unless the user asks for more detail. No walls of text unless requested.
+
+════════════════════════════════════════════════════════════
+LAYER 3 — FORMATTING INTELLIGENCE
+════════════════════════════════════════════════════════════
+
+CORE PRINCIPLE: Conversation is plain language. Business data is rich HTML.
+
+BEFORE EVERY RESPONSE ASK: "Would this be clearer as HTML?" → If yes, generate HTML.
+
+CONTENT TYPE → COMPONENT:
+
+Plain text only:
+- Explanations · Guidance · Recommendations · Discussion
+
+HTML components:
+- Multiple records → TABLE (with status badges, sortable, searchable)
+- KPI summaries → CARDS with progress bars
+- Status items → BADGES (color-coded)
+- Trends/numbers → CHART (Chart.js — already loaded)
+- Documents → DOCUMENT CARDS
+- Overdue/critical → ALERT BANNERS
+- Process steps → TIMELINE
+
+TABLE STYLE (always use this):
+- Header: background:#1B2A4A · color:#C9A84C · font-weight:600
 - Rows: alternating #ffffff / #f8f9fb
-- Borders: 0.5px solid #e8e8e8
-- Padding: 8px 12px
-- Status cells: use inline badges with color coding
-  - OPEN / AT RISK / OVERDUE → background #FCEBEB, color #791F1F
-  - CLOSED / ON TRACK → background #EAF3DE, color #27500A
-  - IN PROGRESS / PENDING → background #FAEEDA, color #633806
-  - INFO → background #E6F1FB, color #0C447C
-- Add search input and pagination for tables with more than 8 rows
+- Borders: 0.5px solid #e8e8e8 · padding: 8px 12px
+- Status badges:
+  · OPEN/AT RISK/OVERDUE → background:#FCEBEB · color:#791F1F
+  · CLOSED/ON TRACK/COMPLETE → background:#EAF3DE · color:#27500A
+  · IN PROGRESS/PENDING → background:#FAEEDA · color:#633806
+  · INFO → background:#E6F1FB · color:#0C447C
+- Add search + pagination for tables with more than 8 rows
 
-═══════════════════════════════════════
-CHARTS
-═══════════════════════════════════════
-Use Chart.js (already loaded). Examples:
-- Energy trend → Line chart
-- CAPA status → Doughnut chart
-- Incident distribution → Pie chart
-- Monthly audits → Bar chart
-- Risk distribution → Heat map
-Wrap in: <div style="max-width:480px;height:220px;margin:8px 0"><canvas id="chart-[unique-id]"></canvas></div>
-Initialize with: new Chart(document.getElementById('chart-[unique-id]'), {...})
+CHARTS: Use Chart.js. Wrap in: <div style="max-width:480px;height:220px;margin:8px 0"><canvas id="chart-[unique-id]"></canvas></div>
 
-═══════════════════════════════════════
-GOOD RESPONSE EXAMPLE
-═══════════════════════════════════════
-User: Show me the open CAPAs.
+NEVER GENERATE: ASCII tables · Markdown tables (| --- |) · PRE blocks · Monospaced terminal output
 
-iMASSI: Sure — here are the four open CAPAs currently tracked as Stage 2 blockers.
+GOOD RESPONSE PATTERN:
+"Sure — here are the four open CAPAs from your register.
+[HTML TABLE]
+The PTW discrepancy CAPA is the most critical — it is overdue and a Stage 2 blocker."
 
-[HTML TABLE with CAPA#, Description, Owner, Due Date, Status badge]
+BAD RESPONSE PATTERN:
+"| CAPA# | Description | Status |
+| --- | --- | --- |
+| 001 | PTW | Open |"
 
-The PTW discrepancy CAPA is the most critical — it is overdue and directly linked to Stage 2 certification.
+════════════════════════════════════════════════════════════
+LIVE DATA INJECTION
+════════════════════════════════════════════════════════════
 
-═══════════════════════════════════════
-NEVER GENERATE
-═══════════════════════════════════════
-- ASCII tables (| --- | --- |)
-- Markdown tables
-- PRE blocks
-- Monospaced layouts
-- Terminal-style output
+When live sheet data is provided below (as === LIVE DATA === blocks), it is your ONLY source for answering the question. Read it carefully, extract the relevant records, and present them using the appropriate HTML component from Layer 3.
 
-ALWAYS GENERATE HTML for any structured data.
-
-FINAL CHECK: Before every answer ask — "Would this be clearer as HTML?" If yes, generate HTML.`;
+If a data block says "sheet exists but contains no data yet" → tell the user that register needs to be populated, and offer to help with that.`;
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const NAVY='#1B2A4A',GOLD='#C9A84C',FACE='#2A4A7A',LIGHT='#E8F0FB';
 
-let state={history:[], pendingParsed:null, pendingFile:null, awaitingConfirm:false, confirmData:null, currentState:'idle'};
+let state={history:[], pendingParsed:null, pendingFile:null, awaitingConfirm:false, confirmData:null, currentState:'idle', sheetCache:{}, cacheTime:null, cacheLoading:false};
 let chartInst={};
 
 function buildMassi(size,st){
@@ -496,13 +513,292 @@ function massISend(){
   if(/thank|great|excellent|good job|well done|perfect|amazing/i.test(txt)){
     setAvatarState('happy');setTimeout(function(){setAvatarState('idle');},2500);
   }
-  callMassi(txt);
+  resolveQuery(txt);
 }
 
-function callMassi(txt){
-  setAvatarState('thinking');
-  showTyping();
-  state.history.push({role:'user',content:txt});
+/* ── DATA INTENT MAP ─────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════
+   ALL 62 GOOGLE SHEETS TAB KEYS
+══════════════════════════════════════════════════════════════════════ */
+const ALL_TABS = [
+  /* Admin */
+  'documents','users','audit_log',
+  /* Clause 4 */
+  'context','pestle',
+  /* Clause 5 */
+  'policies','worker_part','policy_ack','gemba_walks','steering_team',
+  'enms_champion','ceo_records','comms_matrix',
+  /* Clause 6 */
+  'risks','compliance','methodology','objectives','moc','energy',
+  'hira','sea','bribery_risk','ghg_inventory','scope3',
+  /* Clause 7 */
+  'competency','training','training_attend','induction','documentation','calibration',
+  /* Clause 8 — Safety */
+  'ptw_register','emergency','contractor','loto_register','loto_auth',
+  'confined_space','heat_stress','fire_ext','fire_pump','oh_surveillance',
+  'scaffold','ndt_permits','chemical_inv','crane_lifting','ppe_register',
+  'wah_register','hot_work','electrical_safety','furnace_leakage',
+  'first_aid','forklift_log','visitor_register',
+  /* Clause 8 — Environment */
+  'waste_mgmt','chemical_store','furnace_monitor','meps','water_waste',
+  /* Clause 8 — Quality */
+  'product_release','nonconforming','incoming_insp','customer_reg','inprocess_insp',
+  /* Clause 9 */
+  'compliance_eval','audit_programme','mgmt_review','kpi_dashboard',
+  /* Clause 10 */
+  'capa','incidents',
+  /* ESG / ISO 37001 */
+  'supplier_esg','coi','gifts','diversity','tpdd','speak_up','supplier_scoc'
+];
+
+/* ── TAB → KEYWORDS MAP (for smart context injection) ──────────────── */
+const TAB_KEYWORDS = {
+  documents:['document','procedure list','register list','dms','controlled','doc number'],
+  users:['user','portal user','access','login','permission'],
+  audit_log:['audit log','who changed','activity log','portal activity'],
+  context:['context','interested party','stakeholder','organizational context','clause 4'],
+  pestle:['pestle','swot','political','economic','social','technological','strength','weakness'],
+  policies:['policy','policies','po-0','integrated policy','environmental policy','energy policy','quality policy','anti-corruption','oh&s policy'],
+  worker_part:['worker participation','workforce engagement','consultation','clause 5.4'],
+  policy_ack:['policy acknowledgement','policy sign','who signed','acknowledgement'],
+  gemba_walks:['gemba','floor walk','site walk','leadership walk'],
+  steering_team:['steering','committee','ims meeting','committee minutes'],
+  enms_champion:['enms champion','energy champion','energy representative'],
+  ceo_records:['ceo record','ceo signed','rami','top management record'],
+  comms_matrix:['communication','comms matrix','who communicates','clause 7.4'],
+  risks:['risk register','strategic risk','operational risk','likelihood','risk score','clause 6.1'],
+  compliance:['legal','compliance','regulation','law','mewa','mhrsd','modon','legal register','m/51','m/36'],
+  methodology:['risk methodology','risk method','risk matrix','scoring'],
+  objectives:['objective','goal','s-0','q-0','e-0','p-0','wg1','wg2','wg3','annual target','clause 6.2'],
+  moc:['moc','management of change','change request','change control'],
+  energy:['energy plan','energy baseline','enb','enpi','seu','ecm','energy review','iso 50001'],
+  hira:['hira','hazard identification','risk assessment','jha','residual risk','control measure','e-03'],
+  sea:['sea','environmental aspect','environmental impact','aspect impact','iso 14001 clause 6.1'],
+  bribery_risk:['bribery risk','corruption risk','anti-bribery','iso 37001'],
+  ghg_inventory:['ghg','carbon','emission','co2','greenhouse','scope 1','scope 2','carbon footprint'],
+  scope3:['scope 3','upstream','downstream','value chain','indirect emission'],
+  competency:['competency','competence','skill','qualification','job requirement'],
+  training:['training','course','training plan','training need','learning','clause 7.2'],
+  training_attend:['attendance','who attended','trained','training completion','completion rate'],
+  induction:['induction','onboarding','new employee','orientation','new joiner'],
+  documentation:['documentation','document control','revision','version','clause 7.5'],
+  calibration:['calibration','instrument','gauge','measurement','equipment calibration'],
+  ptw_register:['ptw','permit to work','work permit','ptw compliance','capa-2026-001'],
+  emergency:['emergency','evacuation','drill','emergency plan','muster','capa-2026-002'],
+  contractor:['contractor','subcontractor','third party','external worker','contractor safety'],
+  loto_register:['loto','lockout','tagout','isolation','energy isolation'],
+  loto_auth:['loto authorised','authorised person','isolation authority'],
+  confined_space:['confined space','vessel entry','tank entry','pit entry'],
+  heat_stress:['heat stress','wbgt','thermal stress','heat illness','summer work'],
+  fire_ext:['fire extinguisher','extinguisher inspection','fire equipment','capa-2026-004'],
+  fire_pump:['fire pump','sprinkler','fire suppression','hydrant','pump test'],
+  oh_surveillance:['occupational health','oh surveillance','medical surveillance','health check','group a','capa-2026-003'],
+  scaffold:['scaffold','scaffolding','temporary structure','working platform'],
+  ndt_permits:['ndt','non-destructive testing','radiography','ultrasonic'],
+  chemical_inv:['chemical','hazardous substance','sds','msds','chemical inventory'],
+  crane_lifting:['crane','lifting','rigging','lift plan','lifting equipment'],
+  ppe_register:['ppe','personal protective equipment','helmet','glove','harness'],
+  wah_register:['work at height','wah','fall protection','elevated work'],
+  hot_work:['hot work','welding','cutting','grinding','spark','flame'],
+  electrical_safety:['electrical','live work','arc flash','electrical safety','switchgear'],
+  furnace_leakage:['furnace leak','glass leak','furnace leakage','molten glass leak'],
+  first_aid:['first aid','first aid record','injury treatment','first aider'],
+  forklift_log:['forklift','fork lift','material handling','forklift inspection'],
+  visitor_register:['visitor','guest','site visit','visitor log'],
+  waste_mgmt:['waste','waste management','hazardous waste','recycling','scrap'],
+  chemical_store:['chemical storage','hazmat storage','segregation','chemical store'],
+  furnace_monitor:['furnace','shc','specific heat','f1','f2','f3','f4','f5','spc','enpi','kcal','energy consumption','furnace energy'],
+  meps:['meps','minimum energy performance','appliance rating','equipment efficiency'],
+  water_waste:['water','wastewater','effluent','water consumption','water discharge'],
+  product_release:['product release','release record','quality release','finished goods','pack to melt'],
+  nonconforming:['nonconforming','non-conforming','held ware','heldware','rejection','defect'],
+  incoming_insp:['incoming inspection','goods received','raw material inspection','incoming quality'],
+  customer_reg:['customer','coca-cola','almarai','customer specification','customer requirement'],
+  inprocess_insp:['in-process','in process','process inspection','production quality','line inspection'],
+  compliance_eval:['compliance evaluation','legal evaluation','obligation evaluation','clause 9.1.2'],
+  audit_programme:['audit','internal audit','audit plan','audit programme','audit schedule','audit finding'],
+  mgmt_review:['management review','review meeting','annual review','mr-2026','clause 9.3'],
+  kpi_dashboard:['kpi','key performance','indicator','target','metric','on track','at risk','behind','ltifr','fatality','near miss','pack to melt','training completion','ghg intensity'],
+  capa:['capa','corrective action','preventive action','root cause','ncr','stage 2 blocker','capa-2026','open capa','closed capa'],
+  incidents:['incident','accident','injury','near miss','ltifr','fatality','lost time','incident register','unsafe act','investigation'],
+  supplier_esg:['supplier esg','supplier assessment','esg assessment','ecovadis supplier','vendor esg','p-07'],
+  coi:['conflict of interest','coi','coi declaration','p-02','undeclared conflict'],
+  gifts:['gift','hospitality','gift register','benefit','gratuity','gift log'],
+  diversity:['diversity','gender','saudization','female','male ratio','workforce diversity','p-06'],
+  tpdd:['tpdd','third party due diligence','supplier screening','vendor screening','p-05'],
+  speak_up:['speak up','whistleblow','report concern','grievance','anonymous report','p-04'],
+  supplier_scoc:['supplier code of conduct','scoc','supplier coc','code of conduct']
+};
+
+/* ══════════════════════════════════════════════════════════════════════
+   SHEET CACHE — fetches all 62 tabs on load, refreshes every 5 min
+══════════════════════════════════════════════════════════════════════ */
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const PRIORITY_TABS = ['capa','kpi_dashboard','objectives','hira','incidents','furnace_monitor','compliance','training_attend','audit_programme','risks'];
+
+async function initSheetCache() {
+  if(state.cacheLoading) return;
+  state.cacheLoading = true;
+
+  // Phase 1: fetch priority tabs immediately (user sees these first)
+  updateCacheStatus('Loading priority data...');
+  var phase1 = PRIORITY_TABS.map(tab =>
+    fetchSheet(tab, 100).then(data => { if(data) state.sheetCache[tab] = {data, ts: Date.now()}; })
+  );
+  await Promise.allSettled(phase1);
+  updateCacheStatus('Priority data loaded. Loading remaining sheets...');
+
+  // Phase 2: fetch remaining tabs in background batches of 8
+  var remaining = ALL_TABS.filter(t => !PRIORITY_TABS.includes(t));
+  var batchSize = 8;
+  for(var i = 0; i < remaining.length; i += batchSize) {
+    var batch = remaining.slice(i, i + batchSize);
+    var fetches = batch.map(tab =>
+      fetchSheet(tab, 100).then(data => { if(data) state.sheetCache[tab] = {data, ts: Date.now()}; })
+    );
+    await Promise.allSettled(fetches);
+  }
+
+  state.cacheTime = Date.now();
+  state.cacheLoading = false;
+  var loaded = Object.keys(state.sheetCache).length;
+  updateCacheStatus('Connected · ' + loaded + ' registers loaded');
+  console.log('[iMASSI] Sheet cache loaded: ' + loaded + ' / ' + ALL_TABS.length + ' tabs');
+}
+
+async function refreshCacheIfStale() {
+  if(!state.cacheTime || (Date.now() - state.cacheTime) > CACHE_TTL) {
+    state.cacheLoading = false; // allow refresh
+    await initSheetCache();
+  }
+}
+
+function updateCacheStatus(msg) {
+  var el = document.getElementById('alertCount');
+  if(el) el.textContent = msg;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   QUERY RESOLVER — always uses live sheet data
+══════════════════════════════════════════════════════════════════════ */
+function detectRelevantTabs(txt) {
+  var lower = txt.toLowerCase();
+  var matched = [];
+  // Check each tab's keywords
+  Object.entries(TAB_KEYWORDS).forEach(function(entry) {
+    var tab = entry[0], keys = entry[1];
+    for(var i = 0; i < keys.length; i++) {
+      if(lower.includes(keys[i])) {
+        if(matched.indexOf(tab) < 0) matched.push(tab);
+        break;
+      }
+    }
+  });
+  return matched;
+}
+
+function buildLiveContext(tabs) {
+  if(!tabs || !tabs.length) return '';
+  var parts = [];
+  tabs.forEach(function(tab) {
+    var cached = state.sheetCache[tab];
+    if(!cached || !cached.data) {
+      parts.push('[' + tab + ': not yet loaded — will refresh]');
+      return;
+    }
+    var d = cached.data;
+    var headers = d.headers || [];
+    var rows = (d.rows || []).slice(0, 50);
+    if(!rows.length) {
+      parts.push('[' + tab + ': sheet exists but contains no data yet]');
+      return;
+    }
+    var age = Math.round((Date.now() - cached.ts) / 1000);
+    var lines = ['=== LIVE DATA: ' + tab.toUpperCase() + ' (' + rows.length + ' records, ' + age + 's ago) ==='];
+    lines.push('Columns: ' + headers.join(' | '));
+    rows.forEach(function(row, i) {
+      var obj = {};
+      headers.forEach(function(h, j) { if(h && row[j] !== undefined && row[j] !== '') obj[h] = row[j]; });
+      if(Object.keys(obj).length) lines.push(JSON.stringify(obj));
+    });
+    parts.push(lines.join('
+'));
+  });
+  return parts.join('
+
+');
+}
+
+async function resolveQuery(txt) {
+  // ── PRIORITY 1: Google Sheets (always first) ──────────────────────
+  await refreshCacheIfStale();
+
+  var tabs = detectRelevantTabs(txt);
+
+  // Fallback: inject core registers for general IMS queries
+  if(tabs.length === 0) {
+    var isDataQuery = /show|list|find|what|how many|status|give me|display|check|tell me|report|overview|summary|audit|performance|update|current|latest|today/i.test(txt);
+    if(isDataQuery) {
+      tabs = ['kpi_dashboard','capa','objectives','hira','compliance','incidents','furnace_monitor'];
+    }
+  }
+
+  // Always inject at least core context for any SAGCO question
+  var isSagcoQuery = /sagco|ims|iso|audit|capa|kpi|furnace|energy|safety|quality|environment|hsse|wg1|wg2|wg3/i.test(txt);
+  if(tabs.length === 0 && isSagcoQuery) {
+    tabs = ['kpi_dashboard','capa','objectives'];
+  }
+
+  var liveContext = buildLiveContext(tabs);
+
+  // ── PRIORITY 2: Uploaded documents in conversation ─────────────────
+  var docContext = '';
+  if(state.pendingParsed) {
+    docContext = '
+
+=== UPLOADED DOCUMENT DATA ===
+' +
+      'Headers: ' + state.pendingParsed.headers.join(' | ') + '
+' +
+      state.pendingParsed.rows.slice(0,30).map(function(r){return JSON.stringify(r);}).join('
+');
+  }
+
+  // ── Build source summary for transparency ─────────────────────────
+  var sourceNote = '';
+  if(tabs.length > 0) {
+    var loadedTabs = tabs.filter(function(t){ return state.sheetCache[t] && state.sheetCache[t].data && (state.sheetCache[t].data.rows||[]).length > 0; });
+    var emptyTabs  = tabs.filter(function(t){ return !state.sheetCache[t] || !(state.sheetCache[t].data && (state.sheetCache[t].data.rows||[]).length > 0); });
+    if(loadedTabs.length > 0) sourceNote += '
+
+[DATA SOURCES USED: ' + loadedTabs.join(', ') + ']';
+    if(emptyTabs.length > 0)  sourceNote += '
+[EMPTY/MISSING SHEETS: ' + emptyTabs.join(', ') + ']';
+  }
+
+  var fullContext = liveContext + docContext + sourceNote;
+  callMassi(txt, fullContext);
+}
+
+function rowsToContext(data, tab) {
+  if(!data || !data.rows || !data.rows.length) return '[' + tab + ': no data]';
+  var headers = data.headers || [];
+  var rows = data.rows.slice(0, 40);
+  var lines = ['LIVE DATA: ' + tab + ' (' + rows.length + ' records)'];
+  lines.push('Columns: ' + headers.join(' | '));
+  rows.forEach(function(row) {
+    var obj = {};
+    headers.forEach(function(h, j) { if(h && row[j]) obj[h] = row[j]; });
+    lines.push(JSON.stringify(obj));
+  });
+  return lines.join('
+');
+}
+
+function callMassi(txt, liveContext){
+  if(!document.getElementById('massi-typing')) { setAvatarState('thinking'); showTyping(); }
+  var groqUserMsg = liveContext ? txt + '\n\n' + liveContext : txt;
+  state.history.push({role:'user',content:groqUserMsg});
   if(state.history.length>20) state.history=state.history.slice(-20);
 
   /* Groq — free tier, llama-3.3-70b-versatile */
@@ -659,14 +955,31 @@ window.addEventListener('DOMContentLoaded',function(){
   if(typeof renderTopbar==='function'){
     document.getElementById('topbar-mount').innerHTML=renderTopbar('MASSI AI Copilot','Your intelligent IMS digital assistant');
   }
+
+  // Greet immediately
   setTimeout(function(){
     setAvatarState('greeting');
     setTimeout(function(){setAvatarState('idle');},2500);
     const daysToS1=Math.max(0,Math.floor((new Date('2026-08-25')-new Date())/86400000));
-    const daysToS2=Math.max(0,Math.floor((new Date('2026-09-22')-new Date())/86400000));
-    document.getElementById('alertCount').textContent='6 alerts · Stage 1 in '+daysToS1+' days';
-    appendAI('Hello! I\'m MASSI, your IMS AI Copilot for SAGCO.\n\nI\'m monitoring <strong>6 active alerts</strong> today — including 2 overdue CAPAs that are Stage 2 blockers, F4 SHC running +119 kcal/kg above target, and Stage 1 audit in <strong>'+daysToS1+' days</strong>.\n\nI can help you analyse data, navigate the portal, answer questions about your ISO standards, update registers from Excel, and prepare for your TÜV Austria audit. What would you like to explore?');
+    document.getElementById('alertCount').textContent='Connecting to Google Sheets...';
+    appendAI('Hello! I\'m iMASSI, your IMS Copilot for SAGCO.<br><br>I\'m connecting to your Google Sheets database now — just a moment while I load your live IMS data. Stage 1 audit is in <strong>'+daysToS1+' days</strong>.');
   },300);
+
+  // Load all 62 sheets in background
+  initSheetCache().then(function(){
+    var loaded = Object.keys(state.sheetCache).length;
+    var daysToS1=Math.max(0,Math.floor((new Date('2026-08-25')-new Date())/86400000));
+    var openCapas = 0;
+    var capaSheet = state.sheetCache['capa'];
+    if(capaSheet && capaSheet.data && capaSheet.data.rows){
+      var hdr = capaSheet.data.headers || [];
+      var sIdx = hdr.findIndex(function(h){return /status/i.test(h);});
+      if(sIdx>=0) openCapas = capaSheet.data.rows.filter(function(r){return /open/i.test(String(r[sIdx]||''));}).length;
+    }
+    appendAI('Connected to Google Sheets. <strong>'+loaded+' of '+ALL_TABS.length+' registers loaded.</strong>'
+      +(openCapas>0?' I can see <strong>'+openCapas+' open CAPA'+(openCapas>1?'s':'')+'</strong> in your register.':'')
+      +' Every answer I give comes directly from your live data. What would you like to check?');
+  });
 });
 </script>
 
