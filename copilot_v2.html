@@ -3,25 +3,18 @@
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MASSI AI Copilot — SAGCO IMS</title>
+<title>iMASSI Copilot — SAGCO IMS</title>
 <link rel="stylesheet" href="./MASSI AI Copilot — SAGCO IMS_files/style.css">
 <script src="./MASSI AI Copilot — SAGCO IMS_files/xlsx.full.min.js.download"></script>
 <script src="./MASSI AI Copilot — SAGCO IMS_files/chart.umd.min.js.download"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0;overflow:hidden;height:100vh}
 
-.massi-page{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;overflow:hidden;z-index:9998}
-.massi-inner{display:grid;grid-template-columns:320px 1fr 280px;gap:0;flex:1;min-height:0;overflow:hidden}
-.massi-topbar{background:#1B2A4A;color:#C9A84C;padding:8px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;font-family:Arial,sans-serif}
-.massi-topbar-title{font-size:13px;font-weight:700;letter-spacing:.5px}
-.massi-topbar-sub{font-size:10px;color:rgba(255,255,255,.5);margin-left:8px}
-.massi-topbar-btns{display:flex;gap:8px}
-.massi-topbar-btns button{background:rgba(255,255,255,.1);border:0.5px solid rgba(255,255,255,.2);color:white;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer}
-.massi-topbar-btns button:hover{background:rgba(255,255,255,.2)}
+.massi-page{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:row;overflow:hidden;z-index:9998}
 
 /* ── LEFT PANEL ──────────────────────────────────────────────────────────── */
-.massi-left{background:#1B2A4A;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.massi-left{display:none}
 .massi-identity{padding:24px 20px 16px;text-align:center;border-bottom:0.5px solid rgba(255,255,255,.1)}
 .massi-av-large{display:flex;justify-content:center;margin-bottom:10px}
 .massi-name{font-size:22px;font-weight:700;color:#C9A84C;letter-spacing:1px}
@@ -62,12 +55,23 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0}
 .kpi-fill{height:100%;border-radius:2px;transition:width .4s ease}
 
 /* ── CENTRE PANEL — CHAT ─────────────────────────────────────────────────── */
-.massi-centre{display:flex;flex-direction:column;min-height:0;background:white;border-left:0.5px solid #e0e0e0;border-right:0.5px solid #e0e0e0}
-.chat-header{background:white;border-bottom:1px solid #f0f0f0;padding:10px 16px;
-  display:flex;align-items:center;gap:10px;flex-shrink:0}
-.chat-header-title{font-size:15px;font-weight:600;color:#1B2A4A}
-.chat-header-sub{font-size:11px;color:#888;margin-top:1px}
-.chat-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+.massi-centre{display:flex;flex-direction:column;flex:1;min-height:0;background:white;border:none}
+.chat-header{background:linear-gradient(135deg,#1B2A4A 0%,#243a5e 100%);border-bottom:none;
+  padding:18px 28px;display:flex;align-items:center;gap:20px;flex-shrink:0;position:relative;overflow:hidden}
+.chat-header::before{content:'';position:absolute;top:-60px;right:-40px;width:220px;height:220px;border-radius:50%;
+  background:radial-gradient(circle,rgba(201,168,76,.12) 0%,transparent 70%);animation:hpulse 3s ease-in-out infinite}
+@keyframes hpulse{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.3);opacity:1}}
+.chat-header-av-wrap{position:relative;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:90px;height:117px}
+.av-ring{position:absolute;border-radius:50%;border:1.5px solid rgba(201,168,76,.3);animation:avring 2.5s ease-in-out infinite;pointer-events:none}
+.av-ring1{width:96px;height:96px}
+.av-ring2{width:116px;height:116px;animation-delay:.5s}
+@keyframes avring{0%,100%{transform:scale(.9);opacity:.6}50%{transform:scale(1.08);opacity:.15}}
+.chat-header-info{flex:1;z-index:1}
+.chat-header-title{font-size:24px;font-weight:700;color:#C9A84C;letter-spacing:1.5px}
+.chat-header-sub{font-size:11px;color:rgba(255,255,255,.5);margin-top:3px}
+.chat-header-live{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:10.5px;color:rgba(255,255,255,.5)}
+.ch-dot{width:7px;height:7px;border-radius:50%;background:#4ade80;animation:status-pulse 2s ease-in-out infinite}
+.chat-msgs{flex:1;overflow-y:auto;padding:16px 24px;display:flex;flex-direction:column;gap:10px}
 
 .suggested-chips{padding:0 16px 8px;display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0}
 .sug-chip{background:#f5f5f5;border:0.5px solid #e0e0e0;border-radius:16px;
@@ -107,10 +111,9 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0}
 
 .file-chip{background:#E6F1FB;border:0.5px solid #B5D4F4;border-radius:6px;
   padding:4px 8px;font-size:10px;color:#0C447C;display:flex;align-items:center;gap:4px;margin-bottom:5px}
-.chat-input-area{border-top:1px solid #f0f0f0;padding:10px 12px;display:flex;
-  gap:7px;align-items:flex-end;flex-shrink:0;background:white}
+.chat-input-area{border-top:1px solid #f0f0f0;padding:12px 24px;display:flex;gap:7px;align-items:flex-end;flex-shrink:0;background:white;box-shadow:0 -4px 16px rgba(0,0,0,.04)}
 .chat-textarea{width:100%;border:0.5px solid #ddd;border-radius:8px;padding:10px 14px;
-  width:100%;font-size:13px;resize:none;min-height:44px;max-height:160px;font-family:Arial,sans-serif;
+  font-size:13px;resize:none;min-height:44px;max-height:160px;font-family:Arial,sans-serif;
   outline:none;color:#1a1a1a;line-height:1.5;overflow-y:auto}
 .chat-textarea:focus{border-color:#888}
 .attach-btn{width:32px;height:32px;border-radius:7px;background:#f5f5f5;
@@ -123,7 +126,7 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0}
 .send-btn-lg:hover{background:#243a5e}
 
 /* ── RIGHT PANEL ─────────────────────────────────────────────────────────── */
-.massi-right{background:white;border-left:0.5px solid #e0e0e0;overflow-y:auto;padding:14px;min-height:0}
+.massi-right{display:none}
 .right-section{margin-bottom:18px}
 .right-section-title{font-size:10px;font-weight:700;text-transform:uppercase;
   letter-spacing:.07em;color:#888;margin-bottom:8px;padding-bottom:5px;
@@ -174,18 +177,6 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0}
 <div id="topbar-mount" style="display:none"><div class="topbar"><div class="topbar-left"><div class="topbar-title">MASSI AI Copilot</div><div class="topbar-sub">Your intelligent IMS digital assistant</div></div><div class="topbar-right"><button id="se-restore-btn" title="Show Edit button" onclick="restoreEditBtn()" style="display:none">✎ Edit</button><button id="massi-nav-btn" onclick="massINavOpen()" title="Open MASSI AI Copilot" style="display:flex;align-items:center;gap:5px;background:#1B2A4A;border:none;color:#C9A84C;border-radius:7px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:600"><span id="massi-nav-av" style="width:22px;height:29px;flex-shrink:0"><svg width="22" height="28.6" viewBox="0 0 22 28.6" xmlns="http://www.w3.org/2000/svg"><g style="animation:massi-float 3s ease-in-out infinite"><line x1="11" y1="0.879999999999999" x2="11" y2="0.879999999999999" stroke="#1B2A4A" stroke-width="0.55"></line><circle cx="11" cy="-9.992007221626409e-16" r="1.21" fill="#C9A84C"></circle><rect x="8.469999999999999" y="19.602" width="2.0240000000000005" height="4.554" rx="0.8096000000000001" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.39599999999999996"></rect><rect x="11.506" y="19.602" width="2.0240000000000005" height="4.554" rx="0.8096000000000001" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.39599999999999996"></rect><rect x="1.3859999999999992" y="9.988" width="2.8336000000000006" height="5.566000000000001" rx="1.0120000000000002" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.39599999999999996"></rect><rect x="17.7804" y="9.988" width="2.8336000000000006" height="5.566000000000001" rx="1.0120000000000002" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.39599999999999996"></rect><ellipse cx="11" cy="15.554" rx="7.2864" ry="5.2624" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.44"></ellipse><circle cx="11" cy="11" r="10.120000000000001" fill="#2A4A7A" stroke="#1B2A4A" stroke-width="0.55"></circle><g style="transform-origin:11px 9.68px;animation:massi-blink 4s ease-in-out infinite"><rect x="6.710000000000001" y="8.25" width="2.8600000000000003" height="2.8600000000000003" rx="0.7150000000000001" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.44"></rect><rect x="12.43" y="8.25" width="2.8600000000000003" height="2.8600000000000003" rx="0.7150000000000001" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.44"></rect><g><circle cx="8.14" cy="9.68" r="0.7865000000000002" fill="#1B2A4A"></circle><circle cx="13.86" cy="9.68" r="0.7865000000000002" fill="#1B2A4A"></circle><circle cx="8.375950000000001" cy="9.444049999999999" r="0.23595000000000005" fill="white"></circle><circle cx="14.09595" cy="9.444049999999999" r="0.23595000000000005" fill="white"></circle></g></g><path d="M8.8 14.3 Q11 15.620000000000001 13.2 14.3" stroke="#C9A84C" stroke-width="0.55" stroke-linecap="round" fill="none"></path><rect x="5.9399999999999995" y="13.8336" width="10.120000000000001" height="1.8216" rx="0.6072000000000001" fill="#1B2A4A" opacity=".35"></rect><rect x="7.964" y="14.1372" width="2.2264000000000004" height="1.2144000000000001" rx="0.40480000000000005" fill="#C9A84C" opacity=".7"></rect></g></svg></span>MASSI</button><button class="btn btn-ghost" onclick="printCurrentPage()" title="Print this page">🖨 Print</button><button class="btn btn-ghost" onclick="localStorage.clear();var u=location.href.split(&quot;?&quot;)[0]+&quot;?_cb=&quot;+Date.now();location.replace(u)">↻ Refresh</button></div></div></div>
 
 <div class="massi-page">
-<div class="massi-topbar">
-  <div style="display:flex;align-items:center;gap:8px">
-    <span class="massi-topbar-title">MASSI AI Copilot</span>
-    <span class="massi-topbar-sub">· SAGCO IMS · ISO 9001 · 14001 · 45001 · 50001 · 37001</span>
-  </div>
-  <div class="massi-topbar-btns">
-    <button onclick="window.print()">🖨 Print</button>
-    <button onclick="localStorage.clear();location.reload()">↻ Refresh</button>
-    <button onclick="window.history.back()">← Back</button>
-  </div>
-</div>
-<div class="massi-inner">
 
 <!-- ── LEFT PANEL ──────────────────────────────────────────────────────── -->
 <div class="massi-left">
@@ -237,10 +228,15 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0}
 <!-- ── CENTRE PANEL — CHAT ──────────────────────────────────────────────── -->
 <div class="massi-centre">
   <div class="chat-header">
-    <div id="chatHeaderAv" style="width:32px;height:42px;flex-shrink:0"><svg width="32" height="41.6" viewBox="0 0 32 41.6" xmlns="http://www.w3.org/2000/svg"><g style="animation:massi-float 3s ease-in-out infinite"><line x1="16" y1="1.2799999999999994" x2="16" y2="1.2799999999999994" stroke="#1B2A4A" stroke-width="0.8"></line><circle cx="16" cy="-6.661338147750939e-16" r="1.76" fill="#C9A84C"></circle><rect x="12.32" y="28.512" width="2.9440000000000004" height="6.6240000000000006" rx="1.1776" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.576"></rect><rect x="16.736" y="28.512" width="2.9440000000000004" height="6.6240000000000006" rx="1.1776" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.576"></rect><rect x="2.016" y="14.528" width="4.121600000000001" height="8.096000000000002" rx="1.4720000000000002" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.576"></rect><rect x="25.8624" y="14.528" width="4.121600000000001" height="8.096000000000002" rx="1.4720000000000002" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.576"></rect><ellipse cx="16" cy="22.624000000000002" rx="10.5984" ry="7.654400000000001" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.64"></ellipse><circle cx="16" cy="16" r="14.72" fill="#2A4A7A" stroke="#1B2A4A" stroke-width="0.8"></circle><g style="transform-origin:16px 14.08px;animation:massi-blink 4s ease-in-out infinite"><rect x="9.76" y="12" width="4.16" height="4.16" rx="1.04" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.64"></rect><rect x="18.08" y="12" width="4.16" height="4.16" rx="1.04" fill="#E8F0FB" stroke="#1B2A4A" stroke-width="0.64"></rect><g><circle cx="11.84" cy="14.08" r="1.1440000000000001" fill="#1B2A4A"></circle><circle cx="20.16" cy="14.08" r="1.1440000000000001" fill="#1B2A4A"></circle><circle cx="12.1832" cy="13.7368" r="0.3432" fill="white"></circle><circle cx="20.5032" cy="13.7368" r="0.3432" fill="white"></circle></g></g><path d="M12.8 20.8 Q16 22.72 19.2 20.8" stroke="#C9A84C" stroke-width="0.8" stroke-linecap="round" fill="none"></path><rect x="8.64" y="20.1216" width="14.72" height="2.6496" rx="0.8832" fill="#1B2A4A" opacity=".35"></rect><rect x="11.584" y="20.563200000000002" width="3.2384" height="1.7664" rx="0.5888" fill="#C9A84C" opacity=".7"></rect></g></svg></div>
-    <div>
-      <div class="chat-header-title">Chat with MASSI</div>
-      <div class="chat-header-sub">Ask anything about your <span class="ims-abbr">IMS</span> — data, policies, registers, analysis, navigation</div>
+    <div class="chat-header-av-wrap">
+      <div class="av-ring av-ring1"></div>
+      <div class="av-ring av-ring2"></div>
+      <div id="chatHeaderAv" style="width:70px;height:91px;position:relative;z-index:1"></div>
+    </div>
+    <div class="chat-header-info">
+      <div class="chat-header-title">iMASSI</div>
+      <div class="chat-header-sub">Intelligent IMS AI Copilot · SAGCO</div>
+      <div class="chat-header-live"><div class="ch-dot"></div>Online · ISO 9001 · 14001 · 45001 · 50001 · 37001</div>
     </div>
   </div>
 
@@ -335,13 +331,54 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0}
   </div>
 
 </div>
-</div><!-- end massi-inner -->
-</div><!-- end massi-page -->
+</div>
 
 <script>
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycby_K2m3qx5XxXRfK1gdJc55CglC7SqilYGzj6R77gcxkodcNHAs7SlIgy6wOJA6hH817w/exec';
 
-const SYSTEM_PROMPT = `You are MASSI — the IMS AI Copilot for Saudi Arabian Glass Company Ltd. (SAGCO), Jeddah Industrial City Phase 4. You are operating on the dedicated MASSI AI Copilot workspace page. The user has full access to all MASSI capabilities. You are an intelligent digital colleague serving as IMS Manager, ISO Consultant, ESG Advisor, Data Analyst, Internal Auditor, and Knowledge Assistant. Standards: ISO 9001:2015, ISO 14001:2015, ISO 45001:2018, ISO 50001:2018, ISO 37001:2016. Stage 1 TÜV Austria audit: 25-26 August 2026. Stage 2: 22-26 September 2026. SAGCO operates 5 HFO-fired furnaces F1-F5 with 884 employees and 152 contractors. Energy baseline: Facility SPC 561.24 kWh/ton. F4 SHC URGENT at +119 kcal/kg above target. 4 open CAPAs (001-004) are Stage 2 blockers. CEO signatures pending on 7 of 9 L1 policies. Be concise, specific, data-grounded. Always reference ISO clauses and portal page links.`;
+const SYSTEM_PROMPT = `You are MASSI — the IMS AI Copilot at Saudi Arabian Glass Company Ltd. (SAGCO), Jeddah Industrial City Phase 4.
+
+SAGCO CONTEXT:
+- 5 HFO-fired furnaces F1–F5, 884 employees, 152 contractors
+- Standards: ISO 9001:2015, ISO 14001:2015, ISO 45001:2018, ISO 50001:2018, ISO 37001:2016
+- TÜV Austria Stage 1 audit: 25–26 August 2026 · Stage 2: 22–26 September 2026
+- Facility SPC baseline: 561.24 kWh/ton · F4 SHC URGENT +119 kcal/kg above target
+- 4 open CAPAs (001–004) are Stage 2 blockers · CEO signatures pending on 7 of 9 L1 policies
+- HIRA documentation E-03 overdue since June 2026
+
+YOUR PERSONALITY:
+You are an experienced IMS engineer and trusted colleague at SAGCO — not a chatbot. You sit next to the user. You are friendly, warm, confident, patient, and professional. You never sound robotic.
+
+YOUR CONVERSATION RULES — STRICTLY FOLLOW THESE:
+
+1. ANSWER FIRST. If you have the information, answer immediately. Never ask for details you already know.
+
+2. ONE QUESTION AT A TIME. If you genuinely need clarification, ask exactly one question, then stop. Never list multiple questions.
+
+3. PROGRESSIVE. Only ask for the next piece of information when it becomes necessary. Never ask for everything upfront.
+
+4. NATURAL LANGUAGE. Use human expressions:
+   - "Sure, let me check that."
+   - "Absolutely."
+   - "Good question — here's what I found."
+   - "Based on your IMS data..."
+   - "That makes sense."
+   - "Let's work through it."
+   - "I understand."
+
+5. NEVER USE ROBOTIC PHRASES like:
+   - "Please provide the following information..."
+   - "Input missing."
+   - "I cannot proceed without..."
+   - "Request incomplete."
+
+6. REMEMBER CONTEXT. If the user already mentioned a department, standard, process, or location earlier in the conversation, never ask again.
+
+7. KEEP RESPONSES SHORT unless the user asks for detail. One clear answer is better than a wall of text.
+
+8. NO BULLET DUMPS. Never respond to a simple question with a long bulleted list of sub-questions or requirements.
+
+GOAL: Every interaction should feel like talking to an experienced IMS professional colleague — efficient, natural, and human.`;
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const NAVY='#1B2A4A',GOLD='#C9A84C',FACE='#2A4A7A',LIGHT='#E8F0FB';
@@ -367,7 +404,7 @@ function buildMassi(size,st){
 function setAvatarState(st){
   state.currentState=st;
   document.getElementById('massiLargeAv').innerHTML=buildMassi(90,st);
-  document.getElementById('chatHeaderAv').innerHTML=buildMassi(32,st);
+  document.getElementById('chatHeaderAv').innerHTML=buildMassi(70,st);
 }
 
 async function fetchSheet(tab,limit){
