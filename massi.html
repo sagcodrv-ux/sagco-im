@@ -58,6 +58,57 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0;overflow
 .massi-centre{display:flex;flex-direction:column;flex:1;min-height:0;background:white;border:none}
 .chat-header{background:linear-gradient(135deg,#1B2A4A 0%,#243a5e 100%);border-bottom:none;
   padding:18px 28px;display:flex;align-items:center;gap:20px;flex-shrink:0;position:relative;overflow:hidden}
+
+/* ── DB STATUS STRIP ─────────────────────────────────────────────── */
+.db-status-strip{flex-shrink:0;padding:8px 24px;display:flex;align-items:center;gap:10px;
+  font-size:11px;font-family:Arial,sans-serif;border-bottom:0.5px solid #e8e8e8;
+  background:#f8f9fb;transition:background .3s}
+.db-status-strip.connecting{background:#FFF8E7}
+.db-status-strip.loading{background:#EEF5FF}
+.db-status-strip.syncing{background:#EEF5FF}
+.db-status-strip.ready{background:#F0FAF0}
+.db-status-strip.error{background:#FFF0F0}
+.db-status-strip.offline{background:#f5f5f5}
+
+.db-status-icon{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.db-status-icon.connecting,.db-status-icon.loading,.db-status-icon.syncing{
+  background:#EF9F27;animation:status-pulse 1s ease-in-out infinite}
+.db-status-icon.ready{background:#4ade80}
+.db-status-icon.error{background:#E24B4A;animation:status-pulse .6s ease-in-out infinite}
+.db-status-icon.offline{background:#aaa}
+
+.db-status-label{font-weight:600;color:#333;min-width:80px}
+.db-status-detail{color:#666;flex:1}
+.db-status-sync{font-size:10px;color:#aaa;margin-left:auto;white-space:nowrap}
+.db-retry-btn{margin-left:8px;background:#E24B4A;color:white;border:none;border-radius:4px;
+  padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;display:none}
+.db-retry-btn:hover{background:#c03030}
+
+.db-progress-bar{height:3px;background:#e0e0e0;border-radius:2px;overflow:hidden;width:120px;flex-shrink:0}
+.db-progress-fill{height:100%;border-radius:2px;background:#378ADD;width:0%;
+  transition:width .4s ease}
+.db-progress-fill.ready{background:#4ade80}
+.db-progress-fill.error{background:#E24B4A}
+
+/* ── HEADER STATUS BADGE ─────────────────────────────────────────── */
+.hdr-status-badge{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;
+  font-size:10px;font-weight:600;background:rgba(255,255,255,.1);margin-left:auto;flex-shrink:0;
+  border:0.5px solid rgba(255,255,255,.15)}
+.hdr-status-dot{width:6px;height:6px;border-radius:50%}
+.hdr-status-dot.connecting,.hdr-status-dot.loading,.hdr-status-dot.syncing{
+  background:#EF9F27;animation:status-pulse 1s ease-in-out infinite}
+.hdr-status-dot.ready{background:#4ade80}
+.hdr-status-dot.error{background:#E24B4A}
+.hdr-status-dot.offline{background:#aaa}
+.hdr-status-txt{color:rgba(255,255,255,.8)}
+
+/* ── QUEUE BANNER ────────────────────────────────────────────────── */
+.queue-banner{background:#1B2A4A;color:rgba(255,255,255,.8);font-size:11px;padding:6px 24px;
+  display:none;align-items:center;gap:8px;flex-shrink:0}
+.queue-banner.visible{display:flex}
+.queue-spinner{width:12px;height:12px;border:2px solid rgba(255,255,255,.2);
+  border-top-color:#C9A84C;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
 .chat-header::before{content:'';position:absolute;top:-60px;right:-40px;width:220px;height:220px;border-radius:50%;
   background:radial-gradient(circle,rgba(201,168,76,.12) 0%,transparent 70%);animation:hpulse 3s ease-in-out infinite}
 @keyframes hpulse{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.3);opacity:1}}
@@ -236,8 +287,30 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0;overflow
     <div class="chat-header-info">
       <div class="chat-header-title">iMASSI</div>
       <div class="chat-header-sub">Intelligent IMS AI Copilot · SAGCO</div>
-      <div class="chat-header-live"><div class="ch-dot"></div>Online · ISO 9001 · 14001 · 45001 · 50001 · 37001</div>
+      <div class="chat-header-live"><div class="ch-dot"></div>ISO 9001 · 14001 · 45001 · 50001 · 37001</div>
     </div>
+    <div class="hdr-status-badge" id="hdrStatusBadge">
+      <div class="hdr-status-dot offline" id="hdrStatusDot"></div>
+      <span class="hdr-status-txt" id="hdrStatusTxt">Offline</span>
+    </div>
+  </div>
+
+  <!-- DB Status Strip -->
+  <div class="db-status-strip offline" id="dbStatusStrip">
+    <div class="db-status-icon offline" id="dbStatusIcon"></div>
+    <div class="db-status-label" id="dbStatusLabel">Offline</div>
+    <div class="db-status-detail" id="dbStatusDetail">Not connected</div>
+    <div class="db-progress-bar" id="dbProgressBarWrap" style="display:none">
+      <div class="db-progress-fill" id="dbProgressFill"></div>
+    </div>
+    <div class="db-status-sync" id="dbStatusSync"></div>
+    <button class="db-retry-btn" id="dbRetryBtn" onclick="retryConnection()">↻ Retry</button>
+  </div>
+
+  <!-- Queue Banner -->
+  <div class="queue-banner" id="queueBanner">
+    <div class="queue-spinner"></div>
+    <span id="queueBannerText">Your question is queued — answering once database finishes loading...</span>
   </div>
 
   <div class="suggested-chips" id="sugChips">
@@ -468,7 +541,7 @@ If a data block says "sheet exists but contains no data yet" → tell the user t
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const NAVY='#1B2A4A',GOLD='#C9A84C',FACE='#2A4A7A',LIGHT='#E8F0FB';
 
-let state={history:[], pendingParsed:null, pendingFile:null, awaitingConfirm:false, confirmData:null, currentState:'idle', sheetCache:{}, cacheTime:null, cacheLoading:false};
+let state={history:[], pendingParsed:null, pendingFile:null, awaitingConfirm:false, confirmData:null, currentState:'idle', sheetCache:{}, cacheTime:null, cacheLoading:false, cacheReady:false, questionQueue:[], connStatus:'offline'};
 let chartInst={};
 
 function buildMassi(size,st){
@@ -513,6 +586,15 @@ function massISend(){
   if(/thank|great|excellent|good job|well done|perfect|amazing/i.test(txt)){
     setAvatarState('happy');setTimeout(function(){setAvatarState('idle');},2500);
   }
+
+  /* Queue if priority cache not yet ready */
+  if(!state.cacheReady && state.cacheLoading) {
+    console.log('[iMASSI] Question queued (cache loading): "' + txt + '"');
+    state.questionQueue = [txt]; // keep only latest question
+    showQueueBanner(txt);
+    return;
+  }
+
   resolveQuery(txt);
 }
 
@@ -633,150 +715,354 @@ const TAB_KEYWORDS = {
 /* ══════════════════════════════════════════════════════════════════════
    SHEET CACHE — fetches all 62 tabs on load, refreshes every 5 min
 ══════════════════════════════════════════════════════════════════════ */
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-const PRIORITY_TABS = ['capa','kpi_dashboard','objectives','hira','incidents','furnace_monitor','compliance','training_attend','audit_programme','risks'];
+/* ══════════════════════════════════════════════════════════════════════
+   CACHE ARCHITECTURE — non-blocking, background load, cache-first
+   ─────────────────────────────────────────────────────────────────────
+   STARTUP:  initSheetCache() fires immediately, never blocks UI
+   QUERIES:  resolveQuery() uses whatever is in cache right now
+             + fetches missing tabs on-demand with a 4s timeout
+   REFRESH:  background timer refreshes stale tabs every 5 min
+══════════════════════════════════════════════════════════════════════ */
 
-async function initSheetCache() {
-  if(state.cacheLoading) return;
-  state.cacheLoading = true;
+const CACHE_TTL     = 5 * 60 * 1000;   // 5 minutes per tab
+const FETCH_TIMEOUT = 4000;             // 4s on-demand tab timeout
+const BATCH_SIZE    = 6;                // parallel fetches per batch
+const PRIORITY_TABS = [
+  'capa','kpi_dashboard','objectives','hira','incidents',
+  'furnace_monitor','compliance','training_attend','audit_programme','risks'
+];
 
-  // Phase 1: fetch priority tabs immediately (user sees these first)
-  updateCacheStatus('Loading priority data...');
-  var phase1 = PRIORITY_TABS.map(tab =>
-    fetchSheet(tab, 100).then(data => { if(data) state.sheetCache[tab] = {data, ts: Date.now()}; })
-  );
-  await Promise.allSettled(phase1);
-  updateCacheStatus('Priority data loaded. Loading remaining sheets...');
+/* ── fetchSheetWithTimeout ─────────────────────────────────────────── */
+function fetchSheetWithTimeout(tab, limit, timeoutMs) {
+  var t0 = performance.now();
+  var fetchPromise = fetchSheet(tab, limit || 100).then(function(data) {
+    var ms = Math.round(performance.now() - t0);
+    console.log('[iMASSI] Fetched ' + tab + ' in ' + ms + 'ms — ' +
+      (data && data.rows ? data.rows.length : 0) + ' rows');
+    return data;
+  });
+  var timeoutPromise = new Promise(function(_, reject) {
+    setTimeout(function() { reject(new Error('timeout:' + tab)); }, timeoutMs || FETCH_TIMEOUT);
+  });
+  return Promise.race([fetchPromise, timeoutPromise]);
+}
 
-  // Phase 2: fetch remaining tabs in background batches of 8
-  var remaining = ALL_TABS.filter(t => !PRIORITY_TABS.includes(t));
-  var batchSize = 8;
-  for(var i = 0; i < remaining.length; i += batchSize) {
-    var batch = remaining.slice(i, i + batchSize);
-    var fetches = batch.map(tab =>
-      fetchSheet(tab, 100).then(data => { if(data) state.sheetCache[tab] = {data, ts: Date.now()}; })
-    );
-    await Promise.allSettled(fetches);
+/* ── storeCacheEntry ───────────────────────────────────────────────── */
+function storeCacheEntry(tab, data) {
+  state.sheetCache[tab] = { data: data, ts: Date.now() };
+}
+
+/* ── isCacheStale ──────────────────────────────────────────────────── */
+function isCacheStale(tab) {
+  var entry = state.sheetCache[tab];
+  if(!entry) return true;
+  return (Date.now() - entry.ts) > CACHE_TTL;
+}
+
+/* ── updateStatusBar ───────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════
+   STATUS UI — updates strip, header badge, and alert count
+══════════════════════════════════════════════════════════════════════ */
+var DB_STATES = {
+  offline:     {label:'Offline',     detail:'Not connected',          cls:'offline'},
+  connecting:  {label:'Connecting',  detail:'Reaching Google Sheets…',cls:'connecting'},
+  loading:     {label:'Loading',     detail:'Fetching database…',     cls:'loading'},
+  syncing:     {label:'Syncing',     detail:'Refreshing data…',       cls:'syncing'},
+  ready:       {label:'Connected',   detail:'Database ready',         cls:'ready'},
+  error:       {label:'Error',       detail:'Connection failed',      cls:'error'},
+};
+
+function setConnStatus(status, detail, progress) {
+  state.connStatus = status;
+  var cfg = DB_STATES[status] || DB_STATES.offline;
+
+  // Strip
+  var strip = document.getElementById('dbStatusStrip');
+  var icon  = document.getElementById('dbStatusIcon');
+  var label = document.getElementById('dbStatusLabel');
+  var det   = document.getElementById('dbStatusDetail');
+  var bar   = document.getElementById('dbProgressBarWrap');
+  var fill  = document.getElementById('dbProgressFill');
+  var sync  = document.getElementById('dbStatusSync');
+  var retry = document.getElementById('dbRetryBtn');
+
+  if(strip){ strip.className = 'db-status-strip ' + cfg.cls; }
+  if(icon) { icon.className  = 'db-status-icon '  + cfg.cls; }
+  if(label){ label.textContent = cfg.label; }
+  if(det)  { det.textContent   = detail || cfg.detail; }
+
+  // Progress bar
+  if(bar){
+    if(progress !== undefined && progress !== null && status !== 'ready' && status !== 'error'){
+      bar.style.display = 'block';
+      if(fill){ fill.style.width = progress + '%'; fill.className = 'db-progress-fill'; }
+    } else if(status === 'ready'){
+      bar.style.display = 'block';
+      if(fill){ fill.style.width = '100%'; fill.className = 'db-progress-fill ready'; }
+    } else if(status === 'error'){
+      bar.style.display = 'block';
+      if(fill){ fill.style.width = '100%'; fill.className = 'db-progress-fill error'; }
+    } else {
+      bar.style.display = 'none';
+    }
   }
 
-  state.cacheTime = Date.now();
+  // Sync time
+  if(sync && status === 'ready'){
+    var now = new Date();
+    sync.textContent = 'Synced ' + now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  }
+
+  // Retry button
+  if(retry){ retry.style.display = status === 'error' ? 'block' : 'none'; }
+
+  // Header badge
+  var hdrDot = document.getElementById('hdrStatusDot');
+  var hdrTxt = document.getElementById('hdrStatusTxt');
+  if(hdrDot){ hdrDot.className = 'hdr-status-dot ' + cfg.cls; }
+  if(hdrTxt){ hdrTxt.textContent = cfg.label; }
+
+  // Alert count (legacy)
+  var alertEl = document.getElementById('alertCount');
+  if(alertEl) alertEl.textContent = detail || cfg.detail;
+
+  console.log('[iMASSI] Status: ' + status + ' | ' + (detail || cfg.detail));
+}
+
+function setProgressBar(loaded, total) {
+  var pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
+  setConnStatus('loading', 'Loading ' + loaded + ' of ' + total + ' registers…', pct);
+}
+
+function retryConnection() {
+  console.log('[iMASSI] Retry connection triggered');
+  setConnStatus('connecting', 'Retrying connection…');
   state.cacheLoading = false;
-  var loaded = Object.keys(state.sheetCache).length;
-  updateCacheStatus('Connected · ' + loaded + ' registers loaded');
-  console.log('[iMASSI] Sheet cache loaded: ' + loaded + ' / ' + ALL_TABS.length + ' tabs');
+  state.cacheReady   = false;
+  state.sheetCache   = {};
+  initSheetCache();
 }
 
-async function refreshCacheIfStale() {
-  if(!state.cacheTime || (Date.now() - state.cacheTime) > CACHE_TTL) {
-    state.cacheLoading = false; // allow refresh
-    await initSheetCache();
-  }
-}
-
-function updateCacheStatus(msg) {
+function updateStatusBar(msg) {
+  // Legacy compatibility
   var el = document.getElementById('alertCount');
   if(el) el.textContent = msg;
 }
 
+/* ── Queue banner ──────────────────────────────────────────────────── */
+function showQueueBanner(question) {
+  var banner = document.getElementById('queueBanner');
+  var txt    = document.getElementById('queueBannerText');
+  if(banner){ banner.classList.add('visible'); }
+  if(txt){ txt.textContent = '"' + question.substring(0,60) + (question.length>60?'…':'') + '" — queued, answering once database loads…'; }
+}
+function hideQueueBanner() {
+  var banner = document.getElementById('queueBanner');
+  if(banner){ banner.classList.remove('visible'); }
+}
+
 /* ══════════════════════════════════════════════════════════════════════
-   QUERY RESOLVER — always uses live sheet data
+   initSheetCache — fires at startup, NEVER blocks UI
 ══════════════════════════════════════════════════════════════════════ */
-function detectRelevantTabs(txt) {
-  var lower = txt.toLowerCase();
-  var matched = [];
-  // Check each tab's keywords
-  Object.entries(TAB_KEYWORDS).forEach(function(entry) {
-    var tab = entry[0], keys = entry[1];
-    for(var i = 0; i < keys.length; i++) {
-      if(lower.includes(keys[i])) {
-        if(matched.indexOf(tab) < 0) matched.push(tab);
-        break;
-      }
-    }
-  });
-  return matched;
+async function initSheetCache() {
+  if(state.cacheLoading) { console.log('[iMASSI] Cache already loading — skip'); return; }
+  state.cacheLoading = true;
+  state.cacheReady   = false;
+  var t0 = performance.now();
+
+  console.log('[iMASSI] ══ STARTUP BEGIN ══ ' + new Date().toISOString());
+  console.log('[iMASSI] Target: ' + ALL_TABS.length + ' sheets');
+
+  setConnStatus('connecting', 'Connecting to Google Sheets…');
+
+  /* Phase 1: priority tabs ─────────────────────────────────────────── */
+  setConnStatus('loading', 'Loading priority registers…', 0);
+  console.log('[iMASSI] Phase 1 start: ' + PRIORITY_TABS.length + ' priority tabs');
+  var t1 = performance.now();
+
+  var phase1Results = await Promise.allSettled(
+    PRIORITY_TABS.map(function(tab) {
+      var tTab = performance.now();
+      return fetchSheetWithTimeout(tab, 100, 6000)
+        .then(function(data) {
+          if(data){ storeCacheEntry(tab, data); }
+          var loaded = Object.keys(state.sheetCache).length;
+          setProgressBar(loaded, ALL_TABS.length);
+        })
+        .catch(function(err) {
+          console.warn('[iMASSI] Phase1 timeout/fail: ' + tab + ' (' + err.message + ')');
+        });
+    })
+  );
+
+  var p1Loaded  = Object.keys(state.sheetCache).length;
+  var p1Elapsed = Math.round(performance.now() - t1);
+  console.log('[iMASSI] Phase 1 done: ' + p1Loaded + '/' + PRIORITY_TABS.length + ' loaded in ' + p1Elapsed + 'ms');
+
+  /* Mark ready after phase 1 — user can now get meaningful answers ── */
+  state.cacheReady = true;
+  setConnStatus('loading', 'Priority data ready · Loading remaining registers…', Math.round(p1Loaded/ALL_TABS.length*100));
+
+  /* Answer any queued question immediately ─────────────────────────── */
+  if(state.questionQueue.length > 0) {
+    var queued = state.questionQueue.shift();
+    hideQueueBanner();
+    console.log('[iMASSI] Answering queued question: "' + queued + '"');
+    appendAI('Database ready — answering your question now.');
+    resolveQuery(queued);
+  }
+
+  /* Phase 2: remaining tabs in batches ────────────────────────────── */
+  var remaining = ALL_TABS.filter(function(t){ return PRIORITY_TABS.indexOf(t) < 0; });
+  var t2 = performance.now();
+  console.log('[iMASSI] Phase 2 start: ' + remaining.length + ' remaining tabs in batches of ' + BATCH_SIZE);
+
+  for(var i = 0; i < remaining.length; i += BATCH_SIZE) {
+    var batch = remaining.slice(i, i + BATCH_SIZE);
+    setConnStatus('syncing',
+      'Building knowledge cache… (' + Object.keys(state.sheetCache).length + ' / ' + ALL_TABS.length + ')',
+      Math.round(Object.keys(state.sheetCache).length / ALL_TABS.length * 100)
+    );
+    await Promise.allSettled(
+      batch.map(function(tab) {
+        return fetchSheetWithTimeout(tab, 100, 8000)
+          .then(function(data) { if(data) storeCacheEntry(tab, data); })
+          .catch(function(err) { console.warn('[iMASSI] Phase2 fail: ' + tab); });
+      })
+    );
+  }
+
+  var t2Elapsed = Math.round(performance.now() - t2);
+  var totalLoaded = Object.keys(state.sheetCache).length;
+  var totalElapsed = Math.round(performance.now() - t0);
+
+  state.cacheTime    = Date.now();
+  state.cacheLoading = false;
+  state.cacheReady   = true;
+
+  /* Final status ─────────────────────────────────────────────────── */
+  var openCapas = 0;
+  var capaEntry = state.sheetCache['capa'];
+  if(capaEntry && capaEntry.data && capaEntry.data.rows){
+    var hdr  = capaEntry.data.headers || [];
+    var sIdx = hdr.findIndex(function(h){ return /status/i.test(h); });
+    if(sIdx >= 0) openCapas = capaEntry.data.rows.filter(function(r){
+      return /open/i.test(String(r[sIdx]||''));
+    }).length;
+  }
+
+  var readyDetail = totalLoaded + ' of ' + ALL_TABS.length + ' registers loaded'
+    + (openCapas > 0 ? ' · ' + openCapas + ' open CAPA' + (openCapas>1?'s':'') : '');
+
+  setConnStatus('ready', readyDetail);
+
+  console.log('[iMASSI] ══ STARTUP COMPLETE ══');
+  console.log('[iMASSI] Total loaded : ' + totalLoaded + '/' + ALL_TABS.length);
+  console.log('[iMASSI] Phase 1 time : ' + p1Elapsed + 'ms');
+  console.log('[iMASSI] Phase 2 time : ' + t2Elapsed + 'ms');
+  console.log('[iMASSI] Total time   : ' + totalElapsed + 'ms');
 }
 
-function buildLiveContext(tabs) {
-  if(!tabs || !tabs.length) return '';
-  var parts = [];
-  tabs.forEach(function(tab) {
-    var cached = state.sheetCache[tab];
-    if(!cached || !cached.data) {
-      parts.push('[' + tab + ': not yet loaded — will refresh]');
-      return;
-    }
-    var d = cached.data;
-    var headers = d.headers || [];
-    var rows = (d.rows || []).slice(0, 50);
-    if(!rows.length) {
-      parts.push('[' + tab + ': sheet exists but contains no data yet]');
-      return;
-    }
-    var age = Math.round((Date.now() - cached.ts) / 1000);
-    var lines = ['=== LIVE DATA: ' + tab.toUpperCase() + ' (' + rows.length + ' records, ' + age + 's ago) ==='];
-    lines.push('Columns: ' + headers.join(' | '));
-    rows.forEach(function(row, i) {
-      var obj = {};
-      headers.forEach(function(h, j) { if(h && row[j] !== undefined && row[j] !== '') obj[h] = row[j]; });
-      if(Object.keys(obj).length) lines.push(JSON.stringify(obj));
+
+/* ══════════════════════════════════════════════════════════════════════
+   backgroundRefresh — runs every 5 min, never blocks UI
+══════════════════════════════════════════════════════════════════════ */
+function backgroundRefresh() {
+  setInterval(function() {
+    if(state.cacheLoading) return;
+    var stale = ALL_TABS.filter(function(t){ return isCacheStale(t); });
+    if(!stale.length) return;
+    console.log('[iMASSI] Background refresh: ' + stale.length + ' stale tabs');
+    setConnStatus('syncing', 'Refreshing ' + stale.length + ' register' + (stale.length>1?'s':'') + '…');
+    var refreshed = 0;
+    stale.forEach(function(tab) {
+      fetchSheetWithTimeout(tab, 100, 8000)
+        .then(function(data) {
+          if(data){ storeCacheEntry(tab, data); }
+          refreshed++;
+          if(refreshed === stale.length) {
+            var total = Object.keys(state.sheetCache).length;
+            setConnStatus('ready', total + ' of ' + ALL_TABS.length + ' registers · refreshed');
+            console.log('[iMASSI] Background refresh complete');
+          }
+        })
+        .catch(function(e) { refreshed++; });
     });
-    parts.push(lines.join('
-'));
-  });
-  return parts.join('
-
-');
+  }, CACHE_TTL);
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   resolveQuery — NEVER blocks; cache-first, on-demand fallback
+══════════════════════════════════════════════════════════════════════ */
 async function resolveQuery(txt) {
-  // ── PRIORITY 1: Google Sheets (always first) ──────────────────────
-  await refreshCacheIfStale();
+  var t0 = performance.now();
+  console.log('[iMASSI] resolveQuery start: "' + txt.substring(0,60) + '"');
 
+  /* Detect relevant tabs */
   var tabs = detectRelevantTabs(txt);
 
-  // Fallback: inject core registers for general IMS queries
+  /* Fallback for general data queries */
   if(tabs.length === 0) {
-    var isDataQuery = /show|list|find|what|how many|status|give me|display|check|tell me|report|overview|summary|audit|performance|update|current|latest|today/i.test(txt);
-    if(isDataQuery) {
-      tabs = ['kpi_dashboard','capa','objectives','hira','compliance','incidents','furnace_monitor'];
-    }
+    var isDataQ = /show|list|find|what|how many|status|give me|display|check|tell me|report|overview|summary|audit|performance|update|current|latest|today/i.test(txt);
+    if(isDataQ) tabs = ['kpi_dashboard','capa','objectives','hira','compliance','incidents','furnace_monitor'];
+  }
+  var isSagcoQ = /sagco|ims|iso|audit|capa|kpi|furnace|energy|safety|quality|environment|hsse|wg1|wg2|wg3/i.test(txt);
+  if(tabs.length === 0 && isSagcoQ) tabs = ['kpi_dashboard','capa','objectives'];
+
+  console.log('[iMASSI] Relevant tabs: [' + tabs.join(', ') + ']');
+
+  /* ── CACHE-FIRST: use what we have immediately ──────────────────── */
+  var cachedTabs   = tabs.filter(function(t){ return !!state.sheetCache[t]; });
+  var missingTabs  = tabs.filter(function(t){ return !state.sheetCache[t]; });
+
+  console.log('[iMASSI] Cached: ' + cachedTabs.length + ' | Missing: ' + missingTabs.length);
+
+  /* ── ON-DEMAND FETCH: only for missing tabs, with tight timeout ─── */
+  if(missingTabs.length > 0) {
+    console.log('[iMASSI] On-demand fetching: ' + missingTabs.join(', '));
+    var onDemandResults = await Promise.allSettled(
+      missingTabs.map(function(tab) {
+        return fetchSheetWithTimeout(tab, 100, FETCH_TIMEOUT)
+          .then(function(data) { if(data) storeCacheEntry(tab, data); return tab; })
+          .catch(function(err) { console.warn('[iMASSI] On-demand failed: ' + tab); return null; });
+      })
+    );
+    console.log('[iMASSI] On-demand complete in ' + Math.round(performance.now()-t0) + 'ms');
   }
 
-  // Always inject at least core context for any SAGCO question
-  var isSagcoQuery = /sagco|ims|iso|audit|capa|kpi|furnace|energy|safety|quality|environment|hsse|wg1|wg2|wg3/i.test(txt);
-  if(tabs.length === 0 && isSagcoQuery) {
-    tabs = ['kpi_dashboard','capa','objectives'];
-  }
-
+  /* ── BUILD CONTEXT from cache ───────────────────────────────────── */
   var liveContext = buildLiveContext(tabs);
 
-  // ── PRIORITY 2: Uploaded documents in conversation ─────────────────
+  /* ── PRIORITY 2: Uploaded document context ──────────────────────── */
   var docContext = '';
   if(state.pendingParsed) {
     docContext = '
 
 === UPLOADED DOCUMENT DATA ===
+Headers: ' +
+      state.pendingParsed.headers.join(' | ') + '
 ' +
-      'Headers: ' + state.pendingParsed.headers.join(' | ') + '
-' +
-      state.pendingParsed.rows.slice(0,30).map(function(r){return JSON.stringify(r);}).join('
+      state.pendingParsed.rows.slice(0,30).map(function(r){ return JSON.stringify(r); }).join('
 ');
   }
 
-  // ── Build source summary for transparency ─────────────────────────
+  /* ── SOURCE TRANSPARENCY ────────────────────────────────────────── */
+  var loadedTabs = tabs.filter(function(t){
+    return state.sheetCache[t] && state.sheetCache[t].data && (state.sheetCache[t].data.rows||[]).length > 0;
+  });
+  var emptyTabs = tabs.filter(function(t){
+    return !state.sheetCache[t] || !(state.sheetCache[t].data && (state.sheetCache[t].data.rows||[]).length > 0);
+  });
   var sourceNote = '';
-  if(tabs.length > 0) {
-    var loadedTabs = tabs.filter(function(t){ return state.sheetCache[t] && state.sheetCache[t].data && (state.sheetCache[t].data.rows||[]).length > 0; });
-    var emptyTabs  = tabs.filter(function(t){ return !state.sheetCache[t] || !(state.sheetCache[t].data && (state.sheetCache[t].data.rows||[]).length > 0); });
-    if(loadedTabs.length > 0) sourceNote += '
+  if(loadedTabs.length) sourceNote += '
 
-[DATA SOURCES USED: ' + loadedTabs.join(', ') + ']';
-    if(emptyTabs.length > 0)  sourceNote += '
-[EMPTY/MISSING SHEETS: ' + emptyTabs.join(', ') + ']';
-  }
+[DATA SOURCES: ' + loadedTabs.join(', ') + ']';
+  if(emptyTabs.length)  sourceNote += '
+[EMPTY SHEETS: ' + emptyTabs.join(', ') + ']';
 
   var fullContext = liveContext + docContext + sourceNote;
+  console.log('[iMASSI] Context built in ' + Math.round(performance.now()-t0) + 'ms — ' + fullContext.length + ' chars');
+
   callMassi(txt, fullContext);
 }
 
@@ -796,6 +1082,8 @@ function rowsToContext(data, tab) {
 }
 
 function callMassi(txt, liveContext){
+  var t0 = performance.now();
+  console.log('[iMASSI] callMassi start | context: ' + (liveContext ? liveContext.length : 0) + ' chars');
   if(!document.getElementById('massi-typing')) { setAvatarState('thinking'); showTyping(); }
   var groqUserMsg = liveContext ? txt + '\n\n' + liveContext : txt;
   state.history.push({role:'user',content:groqUserMsg});
@@ -813,6 +1101,8 @@ function callMassi(txt, liveContext){
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
     body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:messages,max_tokens:800,temperature:0.7})
   }).then(function(r){return r.json();}).then(function(d){
+    var elapsed = Math.round(performance.now() - t0);
+    console.log('[iMASSI] Groq response received in ' + elapsed + 'ms');
     removeTyping();
     var resp='I could not get a response. Please try again.';
     if(d.choices&&d.choices[0])resp=d.choices[0].message.content;
@@ -931,6 +1221,7 @@ function renderMdTable(rows){
 }
 
 function appendAI(txt,card){
+  var t0r = performance.now();
   const msgs=document.getElementById('chatMsgs');
   const t=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
   const div=document.createElement('div');div.className='msg ai';
@@ -939,6 +1230,7 @@ function appendAI(txt,card){
   if(card) content+=card;
   div.innerHTML='<div class="massi-msg-av">'+buildMassi(28,'idle')+'</div><div>'+content+'<div class="msg-time">'+t+'</div></div>';
   msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+  console.log('[iMASSI] Response rendered in ' + Math.round(performance.now()-t0r) + 'ms');
 }
 
 function addHistory(q){
@@ -951,35 +1243,70 @@ function addHistory(q){
 }
 
 /* Init */
-window.addEventListener('DOMContentLoaded',function(){
+window.addEventListener('DOMContentLoaded', function() {
   if(typeof renderTopbar==='function'){
-    document.getElementById('topbar-mount').innerHTML=renderTopbar('MASSI AI Copilot','Your intelligent IMS digital assistant');
+    document.getElementById('topbar-mount').innerHTML = renderTopbar('MASSI AI Copilot','Your intelligent IMS digital assistant');
   }
 
-  // Greet immediately
-  setTimeout(function(){
-    setAvatarState('greeting');
-    setTimeout(function(){setAvatarState('idle');},2500);
-    const daysToS1=Math.max(0,Math.floor((new Date('2026-08-25')-new Date())/86400000));
-    document.getElementById('alertCount').textContent='Connecting to Google Sheets...';
-    appendAI('Hello! I\'m iMASSI, your IMS Copilot for SAGCO.<br><br>I\'m connecting to your Google Sheets database now — just a moment while I load your live IMS data. Stage 1 audit is in <strong>'+daysToS1+' days</strong>.');
-  },300);
+  var tStart = performance.now();
+  console.log('[iMASSI] ══ PAGE LOAD ══ ' + new Date().toISOString());
 
-  // Load all 62 sheets in background
-  initSheetCache().then(function(){
-    var loaded = Object.keys(state.sheetCache).length;
-    var daysToS1=Math.max(0,Math.floor((new Date('2026-08-25')-new Date())/86400000));
-    var openCapas = 0;
-    var capaSheet = state.sheetCache['capa'];
-    if(capaSheet && capaSheet.data && capaSheet.data.rows){
-      var hdr = capaSheet.data.headers || [];
-      var sIdx = hdr.findIndex(function(h){return /status/i.test(h);});
-      if(sIdx>=0) openCapas = capaSheet.data.rows.filter(function(r){return /open/i.test(String(r[sIdx]||''));}).length;
-    }
-    appendAI('Connected to Google Sheets. <strong>'+loaded+' of '+ALL_TABS.length+' registers loaded.</strong>'
-      +(openCapas>0?' I can see <strong>'+openCapas+' open CAPA'+(openCapas>1?'s':'')+'</strong> in your register.':'')
-      +' Every answer I give comes directly from your live data. What would you like to check?');
-  });
+  /* Set initial status */
+  setConnStatus('connecting', 'Connecting to Google Sheets…');
+
+  /* Greet user immediately — UI stays responsive */
+  setTimeout(function() {
+    setAvatarState('greeting');
+    setTimeout(function(){ setAvatarState('idle'); }, 2500);
+    var daysToS1 = Math.max(0, Math.floor((new Date('2026-08-25') - new Date()) / 86400000));
+    appendAI(
+      'Hello! I\'m iMASSI, your IMS Copilot for SAGCO.<br><br>' +
+      'I\'m connecting to your Google Sheets database now. You can ask me anything — if the data is still loading, I\'ll queue your question and answer the moment it\'s ready.<br><br>' +
+      'Stage 1 audit is in <strong>' + daysToS1 + ' days</strong>.'
+    );
+  }, 300);
+
+  /* Load all sheets in background — never blocks UI */
+  setConnStatus('loading', 'Loading priority registers…', 0);
+  console.log('[iMASSI] Starting background cache load');
+
+  initSheetCache()
+    .then(function() {
+      var elapsed = Math.round(performance.now() - tStart);
+      var loaded  = Object.keys(state.sheetCache).length;
+      console.log('[iMASSI] Page fully ready in ' + elapsed + 'ms — ' + loaded + ' sheets cached');
+
+      var openCapas = 0;
+      var capaEntry = state.sheetCache['capa'];
+      if(capaEntry && capaEntry.data && capaEntry.data.rows){
+        var hdr  = capaEntry.data.headers || [];
+        var sIdx = hdr.findIndex(function(h){ return /status/i.test(h); });
+        if(sIdx >= 0) openCapas = capaEntry.data.rows.filter(function(r){
+          return /open/i.test(String(r[sIdx]||''));
+        }).length;
+      }
+
+      appendAI(
+        'Connected. <strong>' + loaded + ' of ' + ALL_TABS.length + ' registers loaded</strong> in ' + (elapsed/1000).toFixed(1) + 's.' +
+        (openCapas > 0
+          ? ' I can see <strong>' + openCapas + ' open CAPA' + (openCapas>1?'s':'') + '</strong> in your register — including Stage 2 blockers.'
+          : '') +
+        ' Every answer I give comes directly from your live data. What would you like to check?'
+      );
+    })
+    .catch(function(err) {
+      console.error('[iMASSI] Cache init failed: ' + err);
+      setConnStatus('error', 'Connection failed — ' + err.message);
+      appendAI(
+        '⚠ I couldn\'t connect to the Google Sheets database.<br><br>' +
+        '<strong>Error:</strong> ' + err.message + '<br><br>' +
+        'Please check your internet connection and click <strong>↻ Retry</strong> in the status bar above.'
+      );
+    });
+
+  /* Start background refresh timer */
+  backgroundRefresh();
+  console.log('[iMASSI] Background refresh timer started');
 });
 </script>
 
