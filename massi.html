@@ -520,12 +520,58 @@ function appendUser(txt){
   msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
 }
 
+function formatMassiText(txt){
+  // Convert markdown tables to HTML
+  var lines = txt.split('\n');
+  var out = [];
+  var inTable = false;
+  var tableRows = [];
+  for(var i=0;i<lines.length;i++){
+    var line = lines[i].trim();
+    if(line.startsWith('|') && line.endsWith('|')){
+      if(!inTable){ inTable=true; tableRows=[]; }
+      tableRows.push(line);
+    } else {
+      if(inTable){
+        out.push(renderMdTable(tableRows));
+        tableRows=[]; inTable=false;
+      }
+      out.push(line);
+    }
+  }
+  if(inTable && tableRows.length) out.push(renderMdTable(tableRows));
+  var joined = out.join('\n');
+  // Bold, italic, line breaks
+  return joined
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g,'<em>$1</em>')
+    .replace(/\n/g,'<br>');
+}
+
+function renderMdTable(rows){
+  var html='<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin:8px 0">';
+  rows.forEach(function(row,idx){
+    // Skip separator row (--- | ---)
+    if(/^\|[\s\-|]+\|$/.test(row)) return;
+    var cells = row.split('|').filter(function(c,i,a){return i>0&&i<a.length-1;});
+    var tag = idx===0 ? 'th' : 'td';
+    var bg = idx===0 ? 'background:#1B2A4A;color:#C9A84C;font-weight:600;' : (idx%2===0?'background:#f8f8f8;':'');
+    html+='<tr>';
+    cells.forEach(function(cell){
+      html+='<'+tag+' style="padding:6px 10px;border:0.5px solid #e0e0e0;'+bg+'text-align:left">'+cell.trim()+'</'+tag+'>';
+    });
+    html+='</tr>';
+  });
+  html+='</table>';
+  return html;
+}
+
 function appendAI(txt,card){
   const msgs=document.getElementById('chatMsgs');
   const t=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
   const div=document.createElement('div');div.className='msg ai';
   let content='';
-  if(txt) content+='<div class="bubble">'+txt.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>')+'</div>';
+  if(txt) content+='<div class="bubble">'+formatMassiText(txt)+'</div>';
   if(card) content+=card;
   div.innerHTML='<div class="massi-msg-av">'+buildMassi(28,'idle')+'</div><div>'+content+'<div class="msg-time">'+t+'</div></div>';
   msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
