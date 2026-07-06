@@ -195,8 +195,8 @@ body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:0}
 <script>
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycby_K2m3qx5XxXRfK1gdJc55CglC7SqilYGzj6R77gcxkodcNHAs7SlIgy6wOJA6hH817w/exec';
 const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_KEY   = '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';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
+var   GROQ_KEY   = ''; /* loaded securely from Apps Script on startup — never stored in this file */
 
 /* ── Timeouts ──────────────────────────────────────────────────────── */
 const SHEET_TIMEOUT = 8000;   // 8s per sheet fetch
@@ -686,6 +686,14 @@ function massISend_with(txt) {
 function sendToMassi(txt) {
   console.log('[iMASSI] sendToMassi: "' + txt.substring(0,60) + '"');
 
+  /* If key not yet loaded, retry in 1s */
+  if (!GROQ_KEY) {
+    console.warn('[iMASSI] Groq key not loaded yet — retrying in 1s');
+    appendAI('Just a moment — still loading the AI configuration...');
+    setTimeout(function() { sendToMassi(txt); }, 1000);
+    return;
+  }
+
   /* Show typing immediately — never delay */
   setAvatar('thinking');
   showTyping();
@@ -833,6 +841,21 @@ window.addEventListener('DOMContentLoaded', function() {
       '<br><br>Connecting to your Google Sheets database now — you can ask me anything immediately. ' +
       'Stage 1 audit is in <strong>' + daysToS1 + ' days</strong>.'
     );
+
+    /* Load Groq key securely from Apps Script */
+    fetch(SHEETS_URL + '?action=getConfig')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d && d.groqKey) {
+          GROQ_KEY = d.groqKey;
+          console.log('[iMASSI] Groq key loaded securely from Apps Script');
+        } else {
+          console.error('[iMASSI] getConfig: no key returned', JSON.stringify(d));
+        }
+      })
+      .catch(function(err) {
+        console.error('[iMASSI] Failed to load Groq key:', err.message);
+      });
 
     /* Load cache in background */
     initCache().then(function() {
