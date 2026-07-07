@@ -287,7 +287,7 @@ function doPost(e) {
 function callClaude(system, messages, maxTokens) {
   /* Uses Google Gemini 1.5 Flash — free tier, no billing required */
   try {
-    var GEMINI_KEY = 'AIzaSyAQ.Ab8RN6Jg9J7QGAjLEr9KUSIiIVsjzwSrvcX54LBNFyijJHlFvg';
+    var GEMINI_KEY = 'AIzaSyAQ.Ab8RN6ID_qkJ7Wgldhoyb9dEzFn4zqkqM3ng1hKaQLoqxLqRuQ';
     var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + GEMINI_KEY;
 
     /* Convert message history to Gemini format */
@@ -295,8 +295,7 @@ function callClaude(system, messages, maxTokens) {
 
     /* Add system prompt as first user turn */
     if (system) {
-      contents.push({ role: 'user', parts: [{ text: 'SYSTEM INSTRUCTIONS:
-' + system }] });
+      contents.push({ role: 'user', parts: [{ text: 'SYSTEM INSTRUCTIONS:\n' + system }] });
       contents.push({ role: 'model', parts: [{ text: 'Understood. I will follow these instructions.' }] });
     }
 
