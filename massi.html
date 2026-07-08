@@ -829,31 +829,26 @@ function loadMoreListRows(tid) {
 var CACHE_TTL_MS = 10 * 60 * 1000;   /* reuse cached registers for 10 minutes */
 
 function initIdentity() {
+  /* Identity overlay removed per user request — writes are stamped with the
+     stored name if one exists, otherwise the default IMS Coordinator identity. */
   try {
-    state.userName   = localStorage.getItem('imassi_user')  || '';
+    state.userName   = localStorage.getItem('imassi_user')  || 'Issam Ali Abdelkefi';
     state.writeToken = localStorage.getItem('imassi_token') || '';
-  } catch(e) { state.userName=''; state.writeToken=''; }
-  if (state.userName) { sessionSummary.session_information.user = state.userName + ' — SAGCO IMS'; return; }
-  var ov = document.createElement('div');
-  ov.id = 'idOverlay';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(27,42,74,.55);z-index:900;display:flex;align-items:center;justify-content:center';
-  ov.innerHTML = '<div style="background:white;border-radius:10px;padding:22px 26px;width:320px;box-shadow:0 8px 32px rgba(0,0,0,.25)">' +
-    '<div style="font-size:15px;font-weight:700;color:#1B2A4A;margin-bottom:4px">Welcome to iMASSI</div>' +
-    '<div style="font-size:11.5px;color:#666;margin-bottom:14px">Your name is stamped on every record change for the ISO audit trail.</div>' +
-    '<input id="idName" placeholder="Your name (e.g. Issam Ali Abdelkefi)" style="width:100%;box-sizing:border-box;border:0.5px solid #ccc;border-radius:6px;padding:8px 10px;font-size:12.5px;margin-bottom:8px">' +
-    '<input id="idToken" placeholder="Write-access code (optional)" style="width:100%;box-sizing:border-box;border:0.5px solid #ccc;border-radius:6px;padding:8px 10px;font-size:12.5px;margin-bottom:14px">' +
-    '<button onclick="saveIdentity()" style="width:100%;background:#1B2A4A;color:#C9A84C;border:none;border-radius:6px;padding:9px;font-size:13px;font-weight:700;cursor:pointer">Start working</button></div>';
-  document.body.appendChild(ov);
-  var nameEl = document.getElementById('idName'); if (nameEl) nameEl.focus();
+  } catch(e) { state.userName='Issam Ali Abdelkefi'; state.writeToken=''; }
+  try { sessionSummary.session_information.user = state.userName + ' — SAGCO IMS'; } catch(e){}
 }
+
 function saveIdentity() {
-  var n = (document.getElementById('idName')||{}).value || '';
-  var t = (document.getElementById('idToken')||{}).value || '';
-  if (!n.trim()) { var el=document.getElementById('idName'); if(el){el.style.border='1px solid #E24B4A';el.placeholder='Name is required for the audit trail';} return; }
-  state.userName = n.trim(); state.writeToken = t.trim();
-  try { localStorage.setItem('imassi_user', state.userName); localStorage.setItem('imassi_token', state.writeToken); } catch(e){}
-  sessionSummary.session_information.user = state.userName + ' — SAGCO IMS';
+  try {
+    var n = (document.getElementById('idName')||{}).value || '';
+    var t = (document.getElementById('idToken')||{}).value || '';
+    if (!n.trim()) { var el=document.getElementById('idName'); if(el){el.style.border='1px solid #E24B4A';el.placeholder='Name is required for the audit trail';} return; }
+    state.userName = n.trim(); state.writeToken = t.trim();
+    try { localStorage.setItem('imassi_user', state.userName); localStorage.setItem('imassi_token', state.writeToken); } catch(e){ console.warn('[iMASSI] Storage blocked — identity kept for this session only'); }
+    try { sessionSummary.session_information.user = state.userName + ' — SAGCO IMS'; } catch(e){}
+  } catch(err) { console.error('[iMASSI] saveIdentity:', err.message); }
   var ov = document.getElementById('idOverlay'); if (ov) ov.remove();
+  try { appendAI('Welcome, <strong>' + escHtml(state.userName || 'colleague') + '</strong> — your name is now stamped on every record change. What are we working on?', null, false); } catch(e){}
 }
 
 function persistCache() {
