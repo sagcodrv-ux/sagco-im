@@ -42,6 +42,10 @@ body{font-family:Arial,sans-serif;margin:0;padding:0}
 .db-detail{color:#666;flex:1;font-size:10.5px}
 .db-sync{font-size:10px;color:#aaa;margin-left:auto;white-space:nowrap}
 .db-retry{margin-left:8px;background:#E24B4A;color:white;border:none;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;cursor:pointer;display:none}
+.ds-btn{margin-left:8px;background:#1B2A4A;color:#C9A84C;border:none;border-radius:4px;padding:3px 9px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap}
+.ds-btn:hover{background:#243a5e}
+.ds-btn.ds-drive{background:white;color:#1B2A4A;border:0.5px solid #1B2A4A}
+.ds-btn.ds-drive:hover{background:#f0f3f8}
 .db-progress{height:2px;width:100px;background:#ddd;border-radius:1px;overflow:hidden;flex-shrink:0}
 .db-prog-fill{height:100%;background:#378ADD;width:0%;transition:width .3s ease;border-radius:1px}
 .db-prog-fill.done{background:#4ade80}
@@ -126,6 +130,8 @@ body{font-family:Arial,sans-serif;margin:0;padding:0}
       <div class="db-progress" id="dbProgress" style="display:none"><div class="db-prog-fill" id="dbFill"></div></div>
       <div class="db-detail" id="dbDetail">Not connected</div>
       <div class="db-sync" id="dbSync"></div>
+      <button class="ds-btn" onclick="downloadSummary()" title="Download session summary as Markdown">&#128221; Summary .md</button>
+      <button class="ds-btn ds-drive" onclick="saveSummaryToDrive()" title="Save session summary to Google Drive">&#9729; Save to Drive</button>
       <button class="db-retry" id="dbRetry" onclick="retryConn()">&#8635; Retry</button>
     </div>
 
@@ -269,6 +275,11 @@ var PROMPT_BASE = [
   '',
   'ANALYTICS OUTPUT: When generating charts, output:',
   '[CHART]{"type":"<bar|line|pie|doughnut>","title":"<title>","labels":[...],"datasets":[{"label":"<name>","data":[...],"color":"<hex>"}]}[/CHART]',
+  '[KPI_CARDS]{"title":"<title>","cards":[{"label":"<metric>","value":"<value>","target":"<target>","status":"<ON TRACK|AT RISK|...>","trend":"<▲0.4|▼2>"}]}[/KPI_CARDS]',
+  '[TIMELINE]{"title":"<title>","items":[{"date":"<date>","label":"<event>","detail":"<short detail>","status":"<status>"}]}[/TIMELINE]',
+  '[ACCORDION]{"title":"<title>","sections":[{"heading":"<heading>","content":"<text>"}]}[/ACCORDION]',
+  'PRESENTATION RULES — pick the component that fits the data, always instead of plain lists: metric snapshots or status overviews → [KPI_CARDS]; deadlines, schedules, audit milestones → [TIMELINE]; trends and comparisons → [CHART]; long structured detail (procedures, clause explanations) → [ACCORDION]; record sets → an HTML <table>. Never ASCII/markdown tables, never terminal formatting. Keep any prose around a component within the 80/20 rule.',
+  'When a note marked VERIFIED ANALYTICS appears in the message, those figures were computed exactly by the analytics engine — narrate them as given, never recompute, never invent numbers.',
   '',
   'HEALTH OUTPUT: When reporting register health, output:',
   '[HEALTH]{"registers":["<tab_key>","..."]}[/HEALTH]'
@@ -514,7 +525,7 @@ var TAB_KEYWORDS = {
 ══════════════════════════════════════════════════════════════ */
 var state = {
   /* Conversation */
-  history: [], pendingParsed: null, awaitingConfirm: false, currentState: 'idle',
+  history: [], pendingParsed: null, pendingImport: null, userName: '', writeToken: '', awaitingConfirm: false, currentState: 'idle',
   /* Cache */
   sheetCache: {}, cacheReady: false, cacheLoading: false, cacheTime: null,
   /* Health */
@@ -785,6 +796,7 @@ function renderFullRegisterTable(tab) {
   }
   card += '</div>';
   appendAI(null, card, false);
+  slLogArtifact('Full register table — ' + tab + ' (' + rows.length + ' records)');
   return true;
 }
 
@@ -805,6 +817,636 @@ function loadMoreListRows(tid) {
     if (remaining <= 0) btn.parentElement.remove();
     else btn.textContent = 'Load ' + Math.min(LIST_PAGE_SIZE, remaining) + ' more (' + remaining + ' remaining)';
   }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   PHASE 4 · ENTERPRISE HARDENING
+   Identity (audit stamps on every write) · optional write-access
+   code (enforced server-side if configured) · cache persistence
+   with TTL so page reloads stop re-fetching all 75 registers.
+══════════════════════════════════════════════════════════════ */
+var CACHE_TTL_MS = 10 * 60 * 1000;   /* reuse cached registers for 10 minutes */
+
+function initIdentity() {
+  try {
+    state.userName   = localStorage.getItem('imassi_user')  || '';
+    state.writeToken = localStorage.getItem('imassi_token') || '';
+  } catch(e) { state.userName=''; state.writeToken=''; }
+  if (state.userName) { sessionSummary.session_information.user = state.userName + ' — SAGCO IMS'; return; }
+  var ov = document.createElement('div');
+  ov.id = 'idOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(27,42,74,.55);z-index:900;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML = '<div style="background:white;border-radius:10px;padding:22px 26px;width:320px;box-shadow:0 8px 32px rgba(0,0,0,.25)">' +
+    '<div style="font-size:15px;font-weight:700;color:#1B2A4A;margin-bottom:4px">Welcome to iMASSI</div>' +
+    '<div style="font-size:11.5px;color:#666;margin-bottom:14px">Your name is stamped on every record change for the ISO audit trail.</div>' +
+    '<input id="idName" placeholder="Your name (e.g. Issam Ali Abdelkefi)" style="width:100%;box-sizing:border-box;border:0.5px solid #ccc;border-radius:6px;padding:8px 10px;font-size:12.5px;margin-bottom:8px">' +
+    '<input id="idToken" placeholder="Write-access code (optional)" style="width:100%;box-sizing:border-box;border:0.5px solid #ccc;border-radius:6px;padding:8px 10px;font-size:12.5px;margin-bottom:14px">' +
+    '<button onclick="saveIdentity()" style="width:100%;background:#1B2A4A;color:#C9A84C;border:none;border-radius:6px;padding:9px;font-size:13px;font-weight:700;cursor:pointer">Start working</button></div>';
+  document.body.appendChild(ov);
+  var nameEl = document.getElementById('idName'); if (nameEl) nameEl.focus();
+}
+function saveIdentity() {
+  var n = (document.getElementById('idName')||{}).value || '';
+  var t = (document.getElementById('idToken')||{}).value || '';
+  if (!n.trim()) { var el=document.getElementById('idName'); if(el){el.style.border='1px solid #E24B4A';el.placeholder='Name is required for the audit trail';} return; }
+  state.userName = n.trim(); state.writeToken = t.trim();
+  try { localStorage.setItem('imassi_user', state.userName); localStorage.setItem('imassi_token', state.writeToken); } catch(e){}
+  sessionSummary.session_information.user = state.userName + ' — SAGCO IMS';
+  var ov = document.getElementById('idOverlay'); if (ov) ov.remove();
+}
+
+function persistCache() {
+  try {
+    var payload = JSON.stringify({ts:Date.now(), sheetCache:state.sheetCache, health:state.health});
+    if (payload.length < 3800000) localStorage.setItem('imassi_cache', payload);
+  } catch(e) { console.warn('[iMASSI] Cache persist skipped:', e.message); }
+}
+function hydrateCache() {
+  try {
+    var raw = localStorage.getItem('imassi_cache'); if (!raw) return false;
+    var c = JSON.parse(raw);
+    if (!c.ts || Date.now() - c.ts > CACHE_TTL_MS) return false;
+    state.sheetCache = c.sheetCache || {}; state.health = c.health || {};
+    var n = Object.keys(state.sheetCache).length;
+    if (n < 5) return false;
+    state.cacheReady = true; state.cacheTime = c.ts;
+    var age = Math.round((Date.now()-c.ts)/60000);
+    setStatus('ready', n + ' registers — from local cache (' + (age<1?'moments':age+' min') + ' old)');
+    updateHealthPanel();
+    console.log('[iMASSI] Cache hydrated from localStorage: ' + n + ' tabs, age ' + age + ' min');
+    return true;
+  } catch(e) { return false; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   PHASE 3 · EXCEL INTELLIGENCE
+   Upload → structure detection → register inference (confidence)
+   → column mapping → validation → duplicate check vs LIVE cache
+   → preview → approval → batch sync with audit trail.
+══════════════════════════════════════════════════════════════ */
+function normHeader(h){ return String(h).toLowerCase().replace(/[^a-z0-9]/g,''); }
+
+function inferRegister(upHeaders) {
+  var results = [];
+  Object.keys(state.sheetCache).forEach(function(tab){
+    var e = state.sheetCache[tab]; if (!e||!e.data||!e.data.headers) return;
+    var regNorm = e.data.headers.map(normHeader);
+    var matched = 0;
+    upHeaders.forEach(function(h){ var nh = normHeader(h); if (nh && regNorm.indexOf(nh) >= 0) matched++; });
+    if (matched >= 2) results.push({tab:tab, matched:matched,
+      confidence: Math.round(matched / Math.max(regNorm.length, upHeaders.length) * 100),
+      coverage:   Math.round(matched / upHeaders.length * 100)});
+  });
+  results.sort(function(a,b){ return b.matched - a.matched || b.confidence - a.confidence; });
+  return results;
+}
+
+function mapColumns(upHeaders, regHeaders) {
+  var regNorm = regHeaders.map(normHeader);
+  return upHeaders.map(function(h, i){
+    var idx = regNorm.indexOf(normHeader(h));
+    return {uploadCol:String(h), registerCol: idx >= 0 ? regHeaders[idx] : null, index:i, regIndex:idx};
+  });
+}
+
+function validateImport(parsed, tab) {
+  var e = state.sheetCache[tab];
+  var regHeaders = e.data.headers;
+  var mapping = mapColumns(parsed.headers, regHeaders);
+  var mapped  = mapping.filter(function(m){ return m.registerCol; });
+  var idRegIdx = regHeaders.findIndex(function(h){ return /^id$|record.?id|^ref/i.test(String(h).trim()); });
+  var idUpIdx = -1;
+  mapping.forEach(function(m){ if (m.regIndex === idRegIdx && idRegIdx >= 0) idUpIdx = m.index; });
+  var existingIds = {};
+  if (idRegIdx >= 0) e.data.rows.forEach(function(r){ var v = String(r[idRegIdx]||'').trim(); if (v) existingIds[v] = 1; });
+  var issues = [], duplicates = [], newRows = [];
+  parsed.rows.forEach(function(row, ri){
+    var allEmpty = mapped.every(function(m){ return !String(row[m.index]||'').trim(); });
+    if (allEmpty) return;
+    var id = idUpIdx >= 0 ? String(row[idUpIdx]||'').trim() : '';
+    if (id && existingIds[id]) { duplicates.push({row: ri+2, id: id}); return; }
+    if (idUpIdx >= 0 && !id) issues.push('Row ' + (ri+2) + ': missing ID — will be imported without one');
+    newRows.push(row);
+  });
+  return {mapping:mapping, mappedCount:mapped.length, unmapped:mapping.filter(function(m){return !m.registerCol;}).map(function(m){return m.uploadCol;}),
+          duplicates:duplicates, issues:issues, newRows:newRows, regHeaders:regHeaders};
+}
+
+function renderImportPreview(tab, parsed, val, confidence) {
+  var mapped = val.mapping.filter(function(m){ return m.registerCol; });
+  var html = CARD_SHELL_OPEN + componentHeader('Import preview — ' + tab + ' register', (confidence?confidence+'% match · ':'') + val.newRows.length + ' new records');
+  html += '<div style="padding:10px 12px;font-size:11.5px">';
+  html += '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px">' +
+    '<span style="color:#27500A;font-weight:700">&#10003; ' + val.newRows.length + ' new record' + (val.newRows.length===1?'':'s') + '</span>' +
+    (val.duplicates.length ? '<span style="color:#633806;font-weight:700">&#8856; ' + val.duplicates.length + ' duplicate' + (val.duplicates.length===1?'':'s') + ' skipped (' + val.duplicates.slice(0,4).map(function(d){return d.id;}).join(', ') + (val.duplicates.length>4?'…':'') + ')</span>' : '') +
+    (val.unmapped.length ? '<span style="color:#791F1F">&#9888; unmapped columns: ' + val.unmapped.map(escHtml).join(', ') + '</span>' : '') +
+    '</div>';
+  if (val.issues.length) html += '<div style="color:#633806;margin-bottom:6px">' + val.issues.slice(0,5).map(escHtml).join('<br>') + '</div>';
+  html += '<div style="color:#666;margin-bottom:8px">Mapping: ' + mapped.map(function(m){ return escHtml(m.uploadCol) + ' &rarr; <strong>' + escHtml(m.registerCol) + '</strong>'; }).join(' · ') + '</div>';
+  html += '<div style="max-height:220px;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr>';
+  mapped.forEach(function(m){ html += '<th style="background:#f4f5f7;text-align:left;padding:4px 7px;position:sticky;top:0">' + escHtml(m.registerCol) + '</th>'; });
+  html += '</tr></thead><tbody>';
+  val.newRows.slice(0,8).forEach(function(row){
+    html += '<tr>';
+    mapped.forEach(function(m){ html += '<td style="padding:4px 7px;border-bottom:0.5px solid #eee">' + escHtml(String(row[m.index]||'')) + '</td>'; });
+    html += '</tr>';
+  });
+  html += '</tbody></table>' + (val.newRows.length > 8 ? '<div style="color:#999;padding:4px 7px">…and ' + (val.newRows.length-8) + ' more</div>' : '') + '</div>';
+  html += '<div style="margin-top:10px"><input id="importReason" placeholder="Reason for import (required — ISO audit trail)" style="width:100%;box-sizing:border-box;border:0.5px solid #ccc;border-radius:5px;padding:6px 9px;font-size:11.5px"></div>';
+  html += '<div style="margin-top:8px;display:flex;gap:8px">' +
+    '<button onclick="approveImport()" style="background:#27500A;color:white;border:none;border-radius:5px;padding:6px 16px;font-size:11.5px;font-weight:700;cursor:pointer">Approve import (' + val.newRows.length + ')</button>' +
+    '<button onclick="dismissImport()" style="background:white;color:#791F1F;border:0.5px solid #791F1F;border-radius:5px;padding:6px 16px;font-size:11.5px;cursor:pointer">Cancel</button>' +
+    '<span id="importProg" style="font-size:11px;color:#666;align-self:center"></span></div>';
+  html += '</div></div>';
+  return html;
+}
+
+function dismissImport(){ state.pendingImport = null; appendAI('Import cancelled. Nothing was written to the live IMS database.', null, false); }
+
+function approveImport() {
+  var pi = state.pendingImport; if (!pi) return;
+  var reasonEl = document.getElementById('importReason');
+  if (!reasonEl || !reasonEl.value.trim()) { if(reasonEl){reasonEl.style.border='1px solid #E24B4A'; reasonEl.placeholder='Reason is required for ISO audit trail';} return; }
+  var reason = reasonEl.value.trim();
+  var mapped = pi.val.mapping.filter(function(m){ return m.registerCol; });
+  var prog = document.getElementById('importProg');
+  var rows = pi.val.newRows;
+  var done = 0, failed = 0;
+  setAvatar('thinking');
+  function writeNext(i) {
+    if (i >= rows.length) {
+      setAvatar(failed ? 'idle' : 'success'); setTimeout(function(){setAvatar('idle');}, 3000);
+      loadTab(pi.tab);
+      slLogWrite(pi.tab + ' register', pi.tab, 'BULK IMPORT', done + ' records', reason);
+      slLogArtifact('Excel import — ' + pi.tab + ' (' + done + ' records' + (failed?', '+failed+' failed':'') + ')');
+      appendAI('Import complete: <strong>' + done + ' record' + (done===1?'':'s') + ' written</strong> to the ' + pi.tab + ' register' +
+        (failed ? ', ' + failed + ' failed (see console)' : '') +
+        (pi.val.duplicates.length ? ' ' + pi.val.duplicates.length + ' duplicates were skipped.' : ''), null, false);
+      state.pendingImport = null;
+      return;
+    }
+    var record = {};
+    mapped.forEach(function(m){ record[m.registerCol] = String(rows[i][m.index]||''); });
+    var url = SHEETS_URL + '?action=writeRow&tab=' + pi.tab +
+      '&data=' + encodeURIComponent(JSON.stringify(record)) +
+      '&reason=' + encodeURIComponent(reason + ' [bulk import ' + (i+1) + '/' + rows.length + ']') +
+      '&user=' + encodeURIComponent(state.userName || 'IMS Coordinator') + (state.writeToken ? '&token=' + encodeURIComponent(state.writeToken) : '') + '&session=' + state.sessionId;
+    fetchWithTimeout(url, 20000)
+      .then(function(r){ if (r && (r.success || r.ok)) done++; else failed++; })
+      .catch(function(){ failed++; })
+      .then(function(){
+        if (prog) prog.textContent = 'Writing ' + (done+failed) + ' / ' + rows.length + '…';
+        setTimeout(function(){ writeNext(i+1); }, 300);
+      });
+  }
+  if (prog) prog.textContent = 'Writing 0 / ' + rows.length + '…';
+  writeNext(0);
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   PHASE 2 · DISCUSSION SUMMARY — incremental, zero-token.
+   A structured session object is updated deterministically as the
+   session evolves (no AI calls). "Generate" = pure extraction to
+   Markdown. Chat stays HTML; only this artifact is Markdown.
+══════════════════════════════════════════════════════════════ */
+var sessionSummary = {
+  session_information: { date: new Date().toISOString().slice(0,10),
+    startTime: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+    startMs: Date.now(), user: 'SAGCO IMS user', model: '' },
+  discussion_sections: [],   /* {time, question, responseGist, registers} */
+  key_findings: [],
+  decisions: [],
+  recommendations: [],
+  ims_records: [],           /* {record, module, action, reason, time} */
+  analytics: [],             /* {type, source, results} */
+  generated_artifacts: [],   /* strings */
+  pending_actions: [],
+  next_steps: []
+};
+
+function slPush(arr, item, max) {           /* dedup + cap */
+  var key = JSON.stringify(item);
+  for (var i=0;i<arr.length;i++) if (JSON.stringify(arr[i])===key) return;
+  arr.push(item); if (arr.length > (max||60)) arr.shift();
+}
+
+function slLogTurn(question, responseText, intent) {
+  var gist = String(responseText||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,220);
+  slPush(sessionSummary.discussion_sections, {
+    time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+    question: String(question||'').slice(0,200),
+    responseGist: gist,
+    registers: (intent && intent.primary_registers || []).slice(0,3).join(', ')
+  }, 80);
+  /* light deterministic extraction */
+  var plain = String(responseText||'').replace(/<[^>]+>/g,' ');
+  plain.split(/[.!?]\s+/).forEach(function(sen){
+    var s = sen.trim(); if (s.length < 15 || s.length > 240) return;
+    if (/\b(overdue|remains open|still open|behind schedule|pending (approval|signature))\b/i.test(s)) slPush(sessionSummary.pending_actions, s, 25);
+    if (/\b(I (would|recommend)|recommendation|should (be|start|close|prioriti)|worth (a|doing)|suggest)\b/i.test(s)) slPush(sessionSummary.recommendations, s, 25);
+    if (/\b(drives|exceed|above target|below target|trending|deviation|at risk|non.?conform|gap of)\b/i.test(s)) slPush(sessionSummary.key_findings, s, 30);
+  });
+}
+
+function slLogAnalytics(type, source, results) {
+  slPush(sessionSummary.analytics, {type:type, source:source, results:String(results).slice(0,300)}, 20);
+  slPush(sessionSummary.generated_artifacts, 'Chart — ' + type + ' (' + source + ')', 40);
+}
+function slLogArtifact(desc) { slPush(sessionSummary.generated_artifacts, desc, 40); }
+function slLogWrite(register, tab, action, recordId, reason) {
+  slPush(sessionSummary.ims_records, {record: recordId||'(new)', module: register + ' (' + tab + ')', action: action,
+    reason: String(reason||'').slice(0,160), time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}, 30);
+  slPush(sessionSummary.decisions, 'Approved ' + action + ' to ' + register + (recordId?(' — '+recordId):''), 25);
+}
+
+function mdEscape(s){ return String(s||'').replace(/\|/g,'\\|').replace(/\r?\n/g,' '); }
+
+function buildSummaryMarkdown() {
+  var S = sessionSummary, si = S.session_information;
+  var end = new Date();
+  var durMin = Math.max(1, Math.round((Date.now()-si.startMs)/60000));
+  var dur = durMin >= 60 ? Math.floor(durMin/60)+'h '+(durMin%60)+'m' : durMin+' min';
+  var model = (typeof CEREBRAS_KEY!=='undefined' && CEREBRAS_KEY) ? (CEREBRAS_MODEL+' (Cerebras) / '+GROQ_MODEL+' (Groq fallback)') : GROQ_MODEL+' (Groq)';
+  var topics = {}; S.discussion_sections.forEach(function(t){ (t.registers||'').split(', ').forEach(function(r){ if(r) topics[r]=1; }); });
+  var topicList = Object.keys(topics).join(', ') || 'general IMS';
+  var L = [];
+  L.push('# iMASSI Discussion Summary');
+  L.push('');
+  L.push('## Session Information');
+  L.push('');
+  L.push('| Item | Details |');
+  L.push('|---|---|');
+  L.push('| Date | ' + si.date + ' |');
+  L.push('| Start Time | ' + si.startTime + ' |');
+  L.push('| End Time | ' + end.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + ' |');
+  L.push('| Duration | ' + dur + ' |');
+  L.push('| User | ' + si.user + ' |');
+  L.push('| AI Model | ' + model + ' |');
+  L.push('');
+  L.push('---');
+  L.push('');
+  L.push('## Executive Summary');
+  L.push('');
+  L.push('Working session covering ' + S.discussion_sections.length + ' exchange' + (S.discussion_sections.length===1?'':'s') +
+    ' on ' + topicList + '.' +
+    (S.analytics.length ? ' ' + S.analytics.length + ' analytical stud' + (S.analytics.length===1?'y':'ies') + ' performed.' : '') +
+    (S.ims_records.length ? ' ' + S.ims_records.length + ' IMS record' + (S.ims_records.length===1?'':'s') + ' created/updated with documented approval.' : '') +
+    (S.key_findings.length ? ' ' + S.key_findings.length + ' key finding' + (S.key_findings.length===1?'':'s') + ' identified.' : '') +
+    (S.pending_actions.length ? ' ' + S.pending_actions.length + ' item' + (S.pending_actions.length===1?'':'s') + ' remain pending follow-up.' : ''));
+  L.push('');
+  L.push('---');
+  L.push('');
+  L.push('## Discussion Summary');
+  L.push('');
+  if (S.discussion_sections.length) S.discussion_sections.forEach(function(t,i){
+    L.push('**' + (i+1) + '. [' + t.time + '] ' + mdEscape(t.question) + '**' + (t.registers?('  \n_Registers: ' + t.registers + '_'):''));
+    if (t.responseGist) L.push('  \n' + mdEscape(t.responseGist) + (t.responseGist.length>=220?'…':''));
+    L.push('');
+  }); else L.push('_No exchanges recorded._\n');
+  L.push('---');
+  L.push('');
+  function section(title, arr, formatter, empty) {
+    L.push('## ' + title); L.push('');
+    if (arr.length) arr.forEach(function(x){ L.push('- ' + formatter(x)); });
+    else L.push('_' + (empty||'None recorded in this session.') + '_');
+    L.push(''); L.push('---'); L.push('');
+  }
+  section('Key Findings', S.key_findings, mdEscape);
+  section('Decisions Made', S.decisions, mdEscape);
+  section('Recommendations', S.recommendations, mdEscape);
+  L.push('## IMS Records Created or Updated'); L.push('');
+  if (S.ims_records.length) {
+    L.push('| Record | Module | Action | Reason | Time |');
+    L.push('|---|---|---|---|---|');
+    S.ims_records.forEach(function(r){ L.push('| ' + mdEscape(r.record) + ' | ' + mdEscape(r.module) + ' | ' + mdEscape(r.action) + ' | ' + mdEscape(r.reason) + ' | ' + r.time + ' |'); });
+  } else L.push('_No records were created or updated in this session._');
+  L.push(''); L.push('---'); L.push('');
+  L.push('## Analytics Performed'); L.push('');
+  if (S.analytics.length) {
+    L.push('| Analysis Type | Data Source | Main Results |');
+    L.push('|---|---|---|');
+    S.analytics.forEach(function(a){ L.push('| ' + mdEscape(a.type) + ' | ' + mdEscape(a.source) + ' | ' + mdEscape(a.results) + ' |'); });
+  } else L.push('_No analytics were performed in this session._');
+  L.push(''); L.push('---'); L.push('');
+  section('Generated Artifacts', S.generated_artifacts, mdEscape);
+  section('Pending Actions', S.pending_actions, mdEscape, 'No pending items were flagged in this session.');
+  section('Next Steps', S.next_steps.length ? S.next_steps : S.pending_actions.slice(0,5), mdEscape, 'To be defined at the next session.');
+  L.push('## Data Source'); L.push('');
+  L.push('Live Google Sheets IMS Database'); L.push('');
+  L.push('---'); L.push('');
+  L.push('## Generation Information'); L.push('');
+  L.push('Generated by: iMASSI — AI Digital IMS Manager, SAGCO  ');
+  L.push('Generation Timestamp: ' + si.date + ' ' + end.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
+  L.push('');
+  return L.join('\n');
+}
+
+function summaryFilename() {
+  return 'iMASSI_Discussion_Summary_' + sessionSummary.session_information.date + '_' +
+    new Date().toTimeString().slice(0,5).replace(':','') + '.md';
+}
+
+function downloadSummary() {
+  var md = buildSummaryMarkdown();
+  var blob = new Blob([md], {type:'text/markdown'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = summaryFilename();
+  a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);}, 2000);
+  appendAI('Session summary downloaded — <strong>' + summaryFilename() + '</strong> (' + sessionSummary.discussion_sections.length + ' exchanges, ' + sessionSummary.ims_records.length + ' record changes, ' + sessionSummary.analytics.length + ' analyses).', null, false);
+}
+
+function saveSummaryToDrive() {
+  var md = buildSummaryMarkdown();
+  appendAI('Saving the session summary to Google Drive…', null, false);
+  fetch(SHEETS_URL, { method:'POST',
+    body: JSON.stringify({action:'saveSummary', filename: summaryFilename(), content: md,
+      meta:{ date: sessionSummary.session_information.date,
+             user: sessionSummary.session_information.user,
+             title: 'iMASSI session — ' + (sessionSummary.discussion_sections[0] ? sessionSummary.discussion_sections[0].question.slice(0,60) : 'general'),
+             duration: Math.max(1,Math.round((Date.now()-sessionSummary.session_information.startMs)/60000)) + ' min',
+             model: (typeof CEREBRAS_KEY!=='undefined'&&CEREBRAS_KEY)?CEREBRAS_MODEL:GROQ_MODEL }})})
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if (d && d.link) appendAI('Saved to Google Drive: <a href="'+d.link+'" target="_blank" style="color:#185FA5">'+summaryFilename()+'</a>', null, false);
+    else appendAI('Drive save is not enabled yet on the backend' + (d&&d.error?(' ('+d.error+')'):'') + '. The summary is unchanged — use <strong>Summary .md</strong> to download it locally, or add the saveSummary handler to Apps Script.', null, false);
+  })
+  .catch(function(err){
+    appendAI('Could not reach Google Drive ('+err.message+'). Use <strong>Summary .md</strong> to download locally.', null, false);
+  });
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   PHASE 1 · VISUAL COMPONENT KIT — SAGCO design system
+   Rendered from LLM block tags or directly by the router.
+══════════════════════════════════════════════════════════════ */
+var CARD_SHELL_OPEN = '<div class="ic-card" style="border:0.5px solid #e0e0e0;border-radius:8px;margin-top:5px;overflow:hidden;background:white">';
+
+function componentHeader(title, sub) {
+  return '<div style="background:#1B2A4A;padding:8px 12px;display:flex;align-items:center;gap:8px">' +
+    '<span style="color:#C9A84C;font-size:12px;font-weight:700">' + escHtml(title||'') + '</span>' +
+    (sub ? '<span style="color:rgba(255,255,255,.6);font-size:10.5px;margin-left:auto">' + escHtml(sub) + '</span>' : '') + '</div>';
+}
+
+function statusColors(status) {
+  var l = String(status||'').toLowerCase();
+  if (/open|risk|overdue|behind|fail|urgent|red|critical/.test(l)) return {bg:'#FCEBEB', fg:'#791F1F', bar:'#E24B4A'};
+  if (/track|closed|complete|pass|ok|green|good|achieved/.test(l))  return {bg:'#EAF3DE', fg:'#27500A', bar:'#27500A'};
+  return {bg:'#FAEEDA', fg:'#633806', bar:'#EF9F27'};
+}
+
+/* KPI cards grid — cfg: {title, cards:[{label,value,target,status,trend}]} */
+function renderKpiCards(cfg) {
+  var cards = (cfg.cards||[]).slice(0,12);
+  var html = CARD_SHELL_OPEN + componentHeader(cfg.title||'KPI snapshot', cards.length + ' metrics');
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;padding:10px">';
+  cards.forEach(function(c) {
+    var sc = statusColors(c.status);
+    html += '<div style="background:#f8f9fb;border-radius:7px;padding:9px 11px;border-left:3px solid ' + sc.bar + '">' +
+      '<div style="font-size:10px;color:#666;margin-bottom:3px">' + escHtml(c.label||'') + '</div>' +
+      '<div style="display:flex;align-items:baseline;gap:5px"><span style="font-size:19px;font-weight:700;color:#1B2A4A">' + escHtml(c.value) + '</span>' +
+      (c.trend ? '<span style="font-size:11px;color:' + (/^[-▼↓]/.test(String(c.trend))?'#791F1F':'#27500A') + '">' + escHtml(c.trend) + '</span>' : '') + '</div>' +
+      (c.target ? '<div style="font-size:9.5px;color:#999;margin-top:2px">target ' + escHtml(c.target) + '</div>' : '') +
+      (c.status ? '<span style="display:inline-block;margin-top:4px;font-size:9px;font-weight:700;border-radius:3px;padding:1px 6px;background:' + sc.bg + ';color:' + sc.fg + '">' + escHtml(c.status) + '</span>' : '') +
+      '</div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+
+/* Timeline — cfg: {title, items:[{date,label,detail,status}]} — sorted, deadline-oriented */
+function renderTimeline(cfg) {
+  var items = (cfg.items||[]).slice(0,20);
+  var html = CARD_SHELL_OPEN + componentHeader(cfg.title||'Timeline', items.length + ' items');
+  html += '<div style="padding:12px 14px">';
+  items.forEach(function(it, i) {
+    var sc = statusColors(it.status);
+    html += '<div style="display:flex;gap:10px;position:relative">' +
+      '<div style="display:flex;flex-direction:column;align-items:center">' +
+        '<div style="width:11px;height:11px;border-radius:50%;background:' + sc.bar + ';border:2px solid white;box-shadow:0 0 0 1.5px ' + sc.bar + ';flex-shrink:0;margin-top:2px"></div>' +
+        (i < items.length-1 ? '<div style="width:2px;flex:1;background:#e5e5e5;min-height:18px"></div>' : '') +
+      '</div>' +
+      '<div style="padding-bottom:' + (i < items.length-1 ? '12px' : '0') + '">' +
+        '<div style="font-size:10px;color:#999">' + escHtml(it.date||'') + (it.status ? ' · <span style="color:' + sc.fg + ';font-weight:700">' + escHtml(it.status) + '</span>' : '') + '</div>' +
+        '<div style="font-size:12px;font-weight:600;color:#1B2A4A">' + escHtml(it.label||'') + '</div>' +
+        (it.detail ? '<div style="font-size:11px;color:#555;line-height:1.5">' + escHtml(it.detail) + '</div>' : '') +
+      '</div></div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+
+/* Accordion — cfg: {title, sections:[{heading,content}]} — native <details>, printable */
+function renderAccordion(cfg) {
+  var secs = (cfg.sections||[]).slice(0,15);
+  var html = CARD_SHELL_OPEN + componentHeader(cfg.title||'Details', secs.length + ' sections');
+  html += '<div style="padding:6px 10px 10px">';
+  secs.forEach(function(s, i) {
+    html += '<details' + (i===0?' open':'') + ' style="border-bottom:0.5px solid #f0f0f0;padding:6px 2px">' +
+      '<summary style="font-size:12px;font-weight:600;color:#1B2A4A;cursor:pointer;outline:none">' + escHtml(s.heading||'') + '</summary>' +
+      '<div style="font-size:11.5px;color:#444;line-height:1.6;padding:6px 2px 2px">' + formatText(String(s.content||'')) + '</div></details>';
+  });
+  html += '</div></div>';
+  return html;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   PHASE 1 · ANALYTICS ENGINE — deterministic math, never the LLM.
+   Computes on cached register data; the LLM only narrates results.
+══════════════════════════════════════════════════════════════ */
+var Analytics = {
+  regression: function(ys) {                    /* x = 0..n-1 */
+    var n = ys.length; if (n < 2) return null;
+    var sx=0, sy=0, sxy=0, sxx=0;
+    for (var i=0;i<n;i++){sx+=i;sy+=ys[i];sxy+=i*ys[i];sxx+=i*i;}
+    var slope=(n*sxy-sx*sy)/(n*sxx-sx*sx), intercept=(sy-slope*sx)/n;
+    var mean=sy/n, ssTot=0, ssRes=0;
+    for (i=0;i<n;i++){var p=slope*i+intercept; ssTot+=(ys[i]-mean)*(ys[i]-mean); ssRes+=(ys[i]-p)*(ys[i]-p);}
+    var r2 = ssTot===0 ? 1 : 1-ssRes/ssTot;
+    return {slope:+slope.toFixed(4), intercept:+intercept.toFixed(4), r2:+r2.toFixed(3),
+            predict:function(x){return +(slope*x+intercept).toFixed(2);}};
+  },
+  forecast: function(ys, periods) {
+    var reg = Analytics.regression(ys); if (!reg) return null;
+    var out=[]; for (var k=0;k<periods;k++) out.push(reg.predict(ys.length+k));
+    return {values:out, reg:reg};
+  },
+  stats: function(ys) {
+    if (!ys.length) return null;
+    var min=Math.min.apply(null,ys), max=Math.max.apply(null,ys);
+    var mean=ys.reduce(function(a,b){return a+b;},0)/ys.length;
+    var v=ys.reduce(function(a,b){return a+(b-mean)*(b-mean);},0)/ys.length;
+    return {n:ys.length, min:min, max:max, mean:+mean.toFixed(2), stdev:+Math.sqrt(v).toFixed(2),
+            first:ys[0], last:ys[ys.length-1], delta:+(ys[ys.length-1]-ys[0]).toFixed(2)};
+  },
+  pareto: function(counts) {                    /* counts: {label:n} → sorted with cumulative % */
+    var entries = Object.keys(counts).map(function(k){return {label:k, count:counts[k]};})
+      .sort(function(a,b){return b.count-a.count;});
+    var total = entries.reduce(function(a,e){return a+e.count;},0) || 1;
+    var cum = 0;
+    entries.forEach(function(e){cum+=e.count; e.pct=+(e.count/total*100).toFixed(1); e.cumPct=+(cum/total*100).toFixed(1);});
+    return {items:entries, total:total};
+  }
+};
+
+/* Extract a numeric time series from a register: month columns if present, else the
+   first column where most values are numeric. Returns {labels, values, seriesName} or null. */
+var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function extractSeries(tab, rowFilter) {
+  var e = state.sheetCache[tab]; if (!e || !e.data) return null;
+  var headers = e.data.headers||[], rows = e.data.rows||[];
+  if (rowFilter) rows = rows.filter(rowFilter);
+  if (!rows.length) return null;
+  var mCols = []; headers.forEach(function(h,i){ if (MONTH_NAMES.indexOf(String(h).trim())>=0) mCols.push(i); });
+  if (mCols.length >= 3) {           /* month-structured register: first row with enough data */
+    for (var r=0;r<rows.length;r++) {
+      var vals=[], labs=[];
+      mCols.forEach(function(ci){ var v=parseFloat(String(rows[r][ci]).replace(/[^0-9.\-]/g,'')); if(!isNaN(v)){vals.push(v);labs.push(headers[ci]);} });
+      if (vals.length >= 3) return {labels:labs, values:vals, seriesName:String(rows[r][0]||tab)};
+    }
+  }
+  /* fallback: first mostly-numeric column, rows as sequence */
+  for (var c=1;c<headers.length;c++) {
+    var vals2=[], ok=0;
+    rows.forEach(function(row){ var v=parseFloat(String(row[c]).replace(/[^0-9.\-]/g,'')); if(!isNaN(v)){vals2.push(v);ok++;} });
+    if (ok >= Math.max(3, rows.length*0.6)) {
+      return {labels: vals2.map(function(_,i){return '#'+(i+1);}), values: vals2, seriesName: headers[c]};
+    }
+  }
+  return null;
+}
+
+/* Categorical counts for Pareto: pick the named column or the best repeating text column */
+function extractCounts(tab, preferRe) {
+  var e = state.sheetCache[tab]; if (!e || !e.data) return null;
+  var headers = e.data.headers||[], rows = e.data.rows||[];
+  var col = -1;
+  if (preferRe) col = headers.findIndex(function(h){return preferRe.test(h);});
+  if (col < 0) {          /* best column: text values that repeat */
+    var best=-1, bestScore=0;
+    for (var c=1;c<headers.length;c++) {
+      var seen={}, reps=0, nonEmpty=0;
+      rows.forEach(function(row){ var v=String(row[c]||'').trim(); if(!v)return; nonEmpty++; if(seen[v])reps++; seen[v]=1; });
+      var uniq=Object.keys(seen).length;
+      if (nonEmpty>=3 && uniq>1 && uniq<=Math.max(2,nonEmpty*0.7) && reps>bestScore){bestScore=reps;best=c;}
+    }
+    col = best;
+  }
+  if (col < 0) return null;
+  var counts={};
+  rows.forEach(function(row){ var v=String(row[col]||'').trim(); if(v) counts[v]=(counts[v]||0)+1; });
+  return {counts:counts, column:headers[col]};
+}
+
+/* Router detection + orchestration: returns a note for the LLM, or '' */
+function detectAnalytics(txt) {
+  var t = txt.toLowerCase();
+  if (/pareto/.test(t)) return 'pareto';
+  if (/forecast|predict|projection|extrapolat/.test(t)) return 'forecast';
+  if (/regression|correlat|r2|r-squared/.test(t)) return 'regression';
+  if (/trend analysis|statistical|std ?dev|standard deviation|variance|analy[sz]e the trend/.test(t)) return 'stats';
+  return '';
+}
+
+function runAnalytics(kind, tab) {
+  if (!tab || !state.sheetCache[tab]) return '';
+  var note = '';
+  if (kind === 'pareto') {
+    var pc = null;
+    var prefs = [/root.?cause/i, /\bcause\b/i, /category|classification/i, /\btype\b/i];
+    for (var pi2 = 0; pi2 < prefs.length && !pc; pi2++) pc = extractCounts(tab, prefs[pi2]);
+    if (!pc) pc = extractCounts(tab, null);
+    if (!pc) return '';
+    var p = Analytics.pareto(pc.counts);
+    var top = p.items.slice(0,10);
+    renderChart({type:'bar', title:'Pareto — ' + tab + ' by ' + pc.column,
+      labels: top.map(function(i){return i.label;}),
+      datasets:[{label:'Count', data: top.map(function(i){return i.count;})}]});
+    var vitalFew = p.items.filter(function(i){return i.cumPct <= 80;});
+    note = '[VERIFIED ANALYTICS — Pareto of ' + tab + ' by "' + pc.column + '" (' + p.total + ' records): ' +
+      top.map(function(i){return i.label + '=' + i.count + ' (' + i.pct + '%, cum ' + i.cumPct + '%)';}).join('; ') +
+      '. Vital few (≤80% cumulative): ' + (vitalFew.map(function(i){return i.label;}).join(', ')||top[0].label) +
+      '. A Pareto chart is already displayed. Narrate these exact figures in 2-4 sentences with one practical recommendation. Do not recompute or invent numbers.]';
+  } else {
+    var s = extractSeries(tab);
+    if (!s) return '';
+    var st = Analytics.stats(s.values);
+    var reg = Analytics.regression(s.values);
+    if (kind === 'forecast') {
+      var fc = Analytics.forecast(s.values, 3);
+      renderChart({type:'line', title:'Forecast — ' + s.seriesName,
+        labels: s.labels.concat(['+1','+2','+3']),
+        datasets:[{label:s.seriesName, data:s.values.concat([null,null,null])},
+                  {label:'Forecast', data:s.values.map(function(){return null;}).concat(fc.values), color:'#C9A84C'}]});
+      note = '[VERIFIED ANALYTICS — forecast for "' + s.seriesName + '" (' + tab + '): history ' + s.values.join(', ') +
+        '; linear trend slope ' + reg.slope + '/period, R²=' + reg.r2 + '; next 3 periods ≈ ' + fc.values.join(', ') +
+        '. Chart already displayed. Narrate these exact figures briefly, note forecast confidence based on R², one recommendation. Do not recompute.]';
+    } else {
+      renderChart({type:'line', title:'Trend — ' + s.seriesName, labels:s.labels,
+        datasets:[{label:s.seriesName, data:s.values}]});
+      note = '[VERIFIED ANALYTICS — "' + s.seriesName + '" (' + tab + '): values ' + s.values.join(', ') +
+        '; mean ' + st.mean + ', stdev ' + st.stdev + ', min ' + st.min + ', max ' + st.max + ', overall change ' + st.delta +
+        '; regression slope ' + reg.slope + '/period, R²=' + reg.r2 +
+        '. Chart already displayed. Narrate these exact figures in 2-4 sentences. Do not recompute.]';
+    }
+  }
+  if (note) {
+    var kindName = {pareto:'Pareto analysis', forecast:'Forecast (linear regression)', regression:'Regression analysis', stats:'Trend & statistical analysis'}[kind]||kind;
+    slLogAnalytics(kindName, tab, note.replace(/^\[VERIFIED ANALYTICS — /,'').split('. Chart')[0].split('. A Pareto')[0].slice(0,280));
+  }
+  return note;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   PHASE 1 · EXPORT — any answer with visual components downloads
+   as a standalone, printable HTML report in the SAGCO design.
+══════════════════════════════════════════════════════════════ */
+function exportAnswer(msgId) {
+  var node = document.getElementById(msgId); if (!node) return;
+  var clone = node.cloneNode(true);
+  /* charts: replace live canvases with images */
+  var liveCanvases = node.querySelectorAll('canvas');
+  var cloneCanvases = clone.querySelectorAll('canvas');
+  for (var i=0;i<cloneCanvases.length;i++) {
+    try {
+      var img = document.createElement('img');
+      img.src = liveCanvases[i].toDataURL('image/png');
+      img.style.cssText = 'max-width:100%;height:auto';
+      cloneCanvases[i].parentNode.replaceChild(img, cloneCanvases[i]);
+    } catch(e) {}
+  }
+  /* strip avatar, time row and export link from the clone */
+  var av = clone.querySelector('.massi-msg-av'); if (av) av.remove();
+  var tm = clone.querySelector('.msg-time'); if (tm) tm.remove();
+  var ts = new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  var doc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>iMASSI Report — SAGCO IMS</title><style>' +
+    'body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0;padding:24px;color:#1a1a1a}' +
+    '.rpt{max-width:820px;margin:0 auto;background:white;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)}' +
+    '.rpt-head{background:#1B2A4A;color:white;padding:18px 24px}' +
+    '.rpt-head h1{margin:0;font-size:18px;color:#C9A84C}.rpt-head div{font-size:11px;color:rgba(255,255,255,.6);margin-top:4px}' +
+    '.rpt-body{padding:20px 24px;font-size:13px;line-height:1.65}' +
+    'table{width:100%;border-collapse:collapse;font-size:11.5px}th{background:#f4f5f7;text-align:left;padding:6px 8px;color:#1B2A4A}td{padding:6px 8px;border-bottom:0.5px solid #eee}' +
+    '.rpt-foot{padding:12px 24px;font-size:10px;color:#999;border-top:0.5px solid #eee}' +
+    '@media print{body{background:white;padding:0}.rpt{box-shadow:none}}' +
+    '</style></head><body><div class="rpt">' +
+    '<div class="rpt-head"><h1>iMASSI — IMS Report</h1><div>Saudi Arabian Glass Company Ltd. · Generated ' + ts + ' · Source: live IMS database</div></div>' +
+    '<div class="rpt-body">' + clone.innerHTML + '</div>' +
+    '<div class="rpt-foot">Generated by iMASSI, AI Digital IMS Manager · ISO 9001 · 14001 · 45001 · 50001 · 37001 · SAGCO IMS Portal</div>' +
+    '</div></body></html>';
+  var blob = new Blob([doc], {type:'text/html'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'iMASSI_report_' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.html';
+  a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);}, 2000);
 }
 
 
@@ -1097,7 +1739,7 @@ function approveWrite() {
     register:  w.register,
     record:    w.record,
     reason:    reason.value.trim(),
-    user:      'IMS Coordinator',
+    user:      state.userName || 'IMS Coordinator',
     session:   state.sessionId,
     timestamp: new Date().toISOString(),
     iso_clause: w.iso_clause || ''
@@ -1107,7 +1749,7 @@ function approveWrite() {
   var url = SHEETS_URL + '?action=writeRow&tab=' + w.tab +
     '&data=' + encodeURIComponent(JSON.stringify(w.record)) +
     '&reason=' + encodeURIComponent(reason.value.trim()) +
-    '&user=IMS_Coordinator&session=' + state.sessionId;
+    '&user=' + encodeURIComponent(state.userName || 'IMS Coordinator') + (state.writeToken ? '&token=' + encodeURIComponent(state.writeToken) : '') + '&session=' + state.sessionId;
 
   fetchWithTimeout(url, 15000)
     .then(function(result) {
@@ -1118,6 +1760,7 @@ function approveWrite() {
       appendAI(msg);
       /* Refresh the cached tab */
       loadTab(w.tab);
+      slLogWrite(w.register, w.tab, w.action, (w.record&&(w.record.ID||w.record.Id||w.record.id))||'', auditRecord.reason);
       state.pendingWrite = null;
       removeWriteCard();
     })
@@ -1243,6 +1886,17 @@ function parseResponseBlocks(text) {
   var hm = text.match(/\[HEALTH\]([\s\S]*?)\[\/HEALTH\]/);
   if(hm){try{result.healthTabs=JSON.parse(hm[1].trim()).registers;}catch(e){} result.text=result.text.replace(hm[0],'').trim();}
 
+  /* Component blocks: KPI_CARDS / TIMELINE / ACCORDION */
+  result.components = [];
+  [['KPI_CARDS',renderKpiCards],['TIMELINE',renderTimeline],['ACCORDION',renderAccordion]].forEach(function(def){
+    var re = new RegExp('\\['+def[0]+'\\]([\\s\\S]*?)\\[\\/'+def[0]+'\\]');
+    var m2;
+    while((m2 = result.text.match(re))){
+      try{result.components.push(def[1](JSON.parse(m2[1].trim())));}catch(e){}
+      result.text = result.text.replace(m2[0],'').trim();
+    }
+  });
+
   return result;
 }
 
@@ -1254,15 +1908,20 @@ function appendAI(txt, card, parse) {
     if(blocks.writeData)  { initiateWrite(blocks.writeData); }
     if(blocks.chartData)  { renderChart(blocks.chartData); }
     if(blocks.healthTabs) { renderHealthInline(blocks.healthTabs); }
+    if(blocks.components && blocks.components.length) { card = (card||'') + blocks.components.join(''); }
   }
 
   var msgs=document.getElementById('chatMsgs');if(!msgs)return;
   var t=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
   var div=document.createElement('div');div.className='msg ai';
+  var msgId='aimsg-'+Date.now()+'-'+Math.floor(Math.random()*1000);
+  div.id=msgId;
   var content='';
   if(txt) content+='<div class="bubble">'+formatText(txt)+'</div>';
   if(card) content+=card;
-  div.innerHTML='<div class="massi-msg-av">'+buildMassi(28,'idle')+'</div><div>'+content+'<div class="msg-time">'+t+'</div></div>';
+  var hasVisual = !!card || /<table|<canvas/i.test(content);
+  var exportLink = hasVisual ? ' · <a href="#" onclick="exportAnswer(\''+msgId+'\');return false" style="color:#185FA5;text-decoration:none">⬇ Export</a>' : '';
+  div.innerHTML='<div class="massi-msg-av">'+buildMassi(28,'idle')+'</div><div>'+content+'<div class="msg-time">'+t+exportLink+'</div></div>';
   msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
   console.log('[iMASSI] Response rendered');
 }
@@ -1328,6 +1987,29 @@ async function sendToMassi(txt) {
       renderFullRegisterTable(listTab);
       showTyping();
       listNote = '\n\n[INTERFACE NOTE: The complete ' + listTab + ' register (' + totalRows + ' records) is already displayed to the user as a full scrollable table. Do NOT list the records again and do NOT repeat or mention this note. Give a brief professional read of this data instead: 2-4 sentences on what stands out — open/overdue items, patterns, risks — and one concrete suggested next step.]';
+    }
+  }
+
+  /* Deterministic analytics path: exact math computed client-side, chart rendered,
+     verified figures handed to the LLM to narrate — it never does arithmetic.
+     Tries every candidate register until one yields a usable series. */
+  if (!listNote) {
+    var aKind = detectAnalytics(txt);
+    if (aKind) {
+      var candidates = [];
+      var rt = resolveListTab(txt, intent);
+      if (rt) candidates.push(rt);
+      (intent.primary_registers||[]).forEach(function(t){ if (candidates.indexOf(t) < 0 && state.sheetCache[t]) candidates.push(t); });
+      /* domain fallbacks: numeric series questions land on the KPI/energy registers,
+         pareto questions on incidents/CAPA — so a mis-mapped register never dead-ends */
+      var fallbacks = (aKind === 'pareto') ? ['incidents','capa','nonconforming'] : ['kpi_dashboard','furnace_monitor','energy'];
+      fallbacks.forEach(function(t){ if (candidates.indexOf(t) < 0 && state.sheetCache[t]) candidates.push(t); });
+      for (var ci = 0; ci < candidates.length && !listNote; ci++) {
+        removeTyping();
+        var aNote = runAnalytics(aKind, candidates[ci]);
+        showTyping();
+        if (aNote) listNote = '\n\n' + aNote;
+      }
     }
   }
 
@@ -1424,6 +2106,7 @@ async function sendToMassi(txt) {
       setAvatar('idle');
       appendAI(resp);
       addHistory(txt);
+      slLogTurn(txt, resp, intent);
     })
     .catch(function(err){
       if(llmDone)return;
@@ -1442,14 +2125,36 @@ async function sendToMassi(txt) {
 
 /* Excel processing */
 function processExcel(hint) {
-  setAvatar('thinking');showTyping();
+  setAvatar('thinking'); showTyping();
+  var p = state.pendingParsed;
+  state.pendingParsed = null;
+  var chip = document.getElementById('fileChip'); if (chip) chip.style.display = 'none';
   setTimeout(function(){
-    removeTyping();
-    var p=state.pendingParsed;
-    appendAI('Excel file loaded: <strong>'+p.rows.length+' rows</strong>, '+p.headers.length+' columns: '+p.headers.slice(0,5).join(', ')+'...<br><br>Analyzing structure to identify the target register. Which register should this update, or shall I infer it automatically?');
-    setAvatar('idle');state.pendingParsed=null;
-    var chip=document.getElementById('fileChip');if(chip)chip.style.display='none';
-  },800);
+    removeTyping(); setAvatar('idle');
+    if (!p || !p.rows.length) { appendAI('That file has no data rows.', null, false); return; }
+    /* 1. register: named in the hint, else inferred from column structure */
+    var tab = null, confidence = null;
+    if (hint) tab = resolveListTab(hint, null);
+    var candidates = inferRegister(p.headers);
+    if (!tab && candidates.length) { tab = candidates[0].tab; confidence = candidates[0].coverage; }
+    if (!tab) {
+      state.pendingParsed = p;   /* keep the file, ask once */
+      appendAI('I read the file — <strong>' + p.rows.length + ' rows</strong>, columns: ' + p.headers.slice(0,6).map(escHtml).join(', ') + (p.headers.length>6?'…':'') +
+        '. The column structure does not clearly match any register. Which register should this go into?', null, false);
+      return;
+    }
+    /* 2-4. map, validate, duplicate-check against LIVE cache */
+    var val = validateImport(p, tab);
+    if (!val.newRows.length && !val.duplicates.length) { appendAI('No usable rows found for the ' + tab + ' register — the mapped columns are empty.', null, false); return; }
+    if (!val.newRows.length) { appendAI('All ' + val.duplicates.length + ' rows already exist in the ' + tab + ' register (matched by ID). Nothing new to import.', null, false); return; }
+    /* 5-6. preview + approval */
+    state.pendingImport = {tab:tab, parsed:p, val:val};
+    var ambig = (candidates.length > 1 && !hint && candidates[1].matched === candidates[0].matched) ?
+      ' If ' + tab + ' is not the right register, cancel and tell me which one (also matched: ' + candidates[1].tab + ').' : '';
+    appendAI('This looks like data for the <strong>' + tab + '</strong> register' + (confidence?(' (' + confidence + '% column match)'):'') + '. Review the preview — nothing is written until you approve.' + ambig,
+      renderImportPreview(tab, p, val, confidence), false);
+    slLogArtifact('Import preview — ' + tab + ' (' + val.newRows.length + ' new, ' + val.duplicates.length + ' duplicates)');
+  }, 400);
 }
 function handleConfirm(txt){
   if(/yes|y|confirm|proceed|ok/i.test(txt.trim())){state.awaitingConfirm=false;appendAI('Confirmed.');setAvatar('success');setTimeout(function(){setAvatar('idle');},2500);}
@@ -1488,11 +2193,14 @@ window.addEventListener('DOMContentLoaded', function() {
   }
 
   requestAnimationFrame(function() {
-    setStatus('connecting','Connecting to Google Sheets...');
+    initIdentity();
+    var hydrated = hydrateCache();
+    if (!hydrated) setStatus('connecting','Connecting to Google Sheets...');
     setAvatar('greeting');
     setTimeout(function(){setAvatar('idle');},2500);
 
-    appendAI('Hello! Connecting to the live IMS database now — you can ask me anything while it loads.', null, false);
+    appendAI(hydrated ? 'Hello! Connected — the live IMS data is ready. What are we working on?'
+                      : 'Hello! Connecting to the live IMS database now — you can ask me anything while it loads.', null, false);
 
     /* Fetch AI keys securely from Apps Script config (never stored in this file).
        groqKey is required; cerebrasKey is optional and enables the 70B fallback. */
@@ -1506,8 +2214,10 @@ window.addEventListener('DOMContentLoaded', function() {
       })
       .catch(function(err){console.error('[iMASSI] Key fetch error:',err.message);});
 
-    /* Load all 62 sheets in background */
+    /* Load all sheets in background (skipped when the local cache is fresh) */
+    if (hydrated) { return; }
     initCache().then(function() {
+      persistCache();
       var n=Object.keys(state.sheetCache).length;
       var openCapas=0;
       var ce=state.sheetCache['capa'];
