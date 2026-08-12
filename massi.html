@@ -2203,6 +2203,18 @@ window.addEventListener('DOMContentLoaded', function() {
     appendAI(hydrated ? 'Hello! Connected — the live IMS data is ready. What are we working on?'
                       : 'Hello! Connecting to the live IMS database now — you can ask me anything while it loads.', null, false);
 
+    /* Link guard: any link clicked inside the chat opens in a NEW tab, always.
+       The conversation can never be lost to a navigation, regardless of how
+       the link was produced (AI text, cards, tables, summaries). */
+    var msgsEl = document.getElementById('chatMsgs');
+    if (msgsEl) msgsEl.addEventListener('click', function(ev){
+      var a = ev.target.closest ? ev.target.closest('a') : null;
+      if (a && a.href && !/^javascript:|^#/.test(a.getAttribute('href')||'')) {
+        ev.preventDefault();
+        window.open(a.href, '_blank', 'noopener');
+      }
+    });
+
     /* Fetch AI keys securely from Apps Script config (never stored in this file).
        groqKey is required; cerebrasKey is optional and enables the 70B fallback. */
     fetch(SHEETS_URL+'?action=getConfig')
