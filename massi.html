@@ -229,7 +229,7 @@ const LLM_TIMEOUT    = 60000;
 const INTENT_TIMEOUT = 10000;
 const CACHE_TTL      = 5 * 60 * 1000;
 const BATCH_SIZE     = 6;
-const MAX_CTX_TOKENS = 3500;   /* register-context budget per message — keeps total request under every provider TPM limit incl. Groq 8B (6k) */
+const MAX_CTX_TOKENS = 30000;
 const AVG_CHARS_PER_TOKEN = 4;
 
 
@@ -1973,19 +1973,6 @@ async function sendToMassi(txt) {
   console.log('[iMASSI] Intent:', JSON.stringify(intent));
 
   /* Step 2: Build targeted context from cache */
-  /* SELF-HEALING (Rev.21): if a register this question depends on is missing
-     or empty in the cache (failed load, stale hydration), re-fetch that one
-     tab live before answering — so the AI never claims "no data" because of
-     a cache accident. Costs one small request only when actually needed. */
-  var needsRefetch = (intent.primary_registers || []).filter(function(t){
-    var e = state.sheetCache[t];
-    return !e || !e.data || !(e.data.rows && e.data.rows.length);
-  });
-  if (needsRefetch.length) {
-    console.log('[iMASSI] Self-heal: re-fetching ' + needsRefetch.join(',') + ' before answering');
-    try { await Promise.all(needsRefetch.map(function(t){ return loadTab(t); })); } catch(e){}
-  }
-
   var context = buildSmartContext(intent);
   console.log('[iMASSI] Context built: '+context.length+' chars | tabs: '+(intent.primary_registers||[]).join(','));
 
@@ -2036,21 +2023,17 @@ async function sendToMassi(txt) {
     data_manager: PROMPT_DATA_MANAGER
   }[intent.role] || PROMPT_ADVISOR;
 
-  /* Build full message array. TOKEN-SNOWBALL FIX: stored history keeps ONLY the
-     clean question text — the heavy register context (and any INTERFACE NOTE)
-     ride exclusively on the OUTGOING message, rebuilt fresh each turn. This
-     keeps requests at ~4-5k tokens no matter how long the conversation gets
-     (previously each stored turn carried its context → 20k+ tokens → HTTP 413). */
+  /* Build full message array — the INTERFACE NOTE goes only into the outgoing
+     message, never into stored history, so the model can't learn to echo it. */
   var systemContent = PROMPT_BASE + '\n\n' + specialistPrompt;
+  var userContent   = context ? (txt + '\n\n' + context) : txt;
 
-  state.history.push({role:'user', content: txt});
+  state.history.push({role:'user', content: userContent});
   if(state.history.length > 16) state.history = state.history.slice(-16);
 
   var messages = [{role:'system', content:systemContent}];
   state.history.forEach(function(m){messages.push({role:m.role, content:m.content});});
-  var outgoing = context ? (txt + '\n\n' + context) : txt;
-  if (listNote) outgoing += listNote;
-  messages[messages.length-1] = {role:'user', content: outgoing};
+  if (listNote) messages[messages.length-1] = {role:'user', content: userContent + listNote};
 
   console.log('[iMASSI] LLM call: role='+intent.role+' messages='+messages.length+' systemTokens~'+Math.round(systemContent.length/4));
   var t0 = performance.now();
@@ -2064,11 +2047,11 @@ async function sendToMassi(txt) {
   function isQuotaError(err) {
     if (!err) return false;
     var code = err.code;
-    if (code === 413 || code === 429 || code === 500 || code === 502 || code === 503) return true;
+    if (code === 429 || code === 500 || code === 502 || code === 503) return true;
     if (String(code||'').match(/rate_limit|capacity|unavailable|overload/i)) return true;
     if (err.type && /rate_limit|capacity|unavailable|overload/i.test(err.type)) return true;
-    /* message-based: rate limits, size limits AND temporary capacity problems */
-    return /rate.?limit|quota|too many|too large|request too|high demand|over.?capacit|capacity|unavailable|overload|try again later|temporar/i.test(err.message || '');
+    /* message-based: rate limits AND temporary capacity problems ("high demand") */
+    return /rate.?limit|quota|too many|high demand|over.?capacit|capacity|unavailable|overload|try again later|temporar/i.test(err.message || '');
   }
   function retrySeconds(err) {
     var msg = (err && err.message) || '';
