@@ -137,12 +137,12 @@ body{font-family:Arial,sans-serif;margin:0;padding:0}
 
     <!-- Suggested chips -->
     <div class="suggested-chips" id="sugChips">
-      <div class="sug-chip" onclick="massISend_with('Show all open CAPAs and Stage 2 blockers')">Open CAPAs</div>
-      <div class="sug-chip" onclick="massISend_with('Am I ready for Stage 1 audit?')">Audit readiness</div>
+      <div class="sug-chip" onclick="massISend_with('Show all open CAPAs and Certification Audit blockers')">Open CAPAs</div>
+      <div class="sug-chip" onclick="massISend_with('Am I ready for Pre-Certification Audit?')">Audit readiness</div>
       <div class="sug-chip" onclick="massISend_with('Show KPI dashboard status')">KPI status</div>
       <div class="sug-chip" onclick="massISend_with('Analyse F4 furnace energy trend')">F4 energy</div>
       <div class="sug-chip" onclick="massISend_with('Show register health across all 62 sheets')">Register health</div>
-      <div class="sug-chip" onclick="massISend_with('What are my top 5 risks before Stage 2?')">Top risks</div>
+      <div class="sug-chip" onclick="massISend_with('What are my top 5 risks before the Certification Audit?')">Top risks</div>
       <div class="sug-chip" onclick="massISend_with('Show training completion status')">Training</div>
       <div class="sug-chip" onclick="massISend_with('Analyse incident trends and recommend CAPAs')">Incidents</div>
     </div>
@@ -243,11 +243,11 @@ var PROMPT_BASE = [
   'SAGCO FACTS:',
   '- 5 HFO-fired furnaces F1-F5 | 884 direct employees | 152 contractors',
   '- Standards: ISO 9001:2015 | ISO 14001:2015 | ISO 45001:2018 | ISO 50001:2018 | ISO 37001:2016',
-  '- TUV Austria Stage 1: 25-26 Aug 2026 | Stage 2: 22-26 Sep 2026',
+  '- TUV Austria Pre-Certification: last week of Sep 2026 | Certification: last week of Oct 2026',
   '- CEO: Rami Al Dobi | IMS Coordinator: Issam Ali Abdelkefi',
-  '- Governance: Steering Committee | WG1 Plant & Quality | WG2 SHEE Energy & ENV | WG3 People Ethics & Procurement',
+  '- Governance: Steering Team | WG1 Plant & Quality | WG2 SHEE Energy & ENV | WG3 People Ethics & Procurement',
   '- Facility SPC baseline: 561.24 kWh/ton | F4 SHC URGENT +119 kcal/kg above target',
-  '- 4 open CAPAs (001-004) Stage 2 blockers | 7 of 9 L1 policies pending CEO signature',
+  '- 4 open CAPAs (001-004) Certification Audit blockers | 7 of 9 L1 policies pending CEO signature',
   '- HIRA E-03 overdue since June 2026',
   '',
   'SINGLE SOURCE OF TRUTH: The live Google Sheets database.',
@@ -279,6 +279,7 @@ var PROMPT_BASE = [
   '[TIMELINE]{"title":"<title>","items":[{"date":"<date>","label":"<event>","detail":"<short detail>","status":"<status>"}]}[/TIMELINE]',
   '[ACCORDION]{"title":"<title>","sections":[{"heading":"<heading>","content":"<text>"}]}[/ACCORDION]',
   'PRESENTATION RULES — pick the component that fits the data, always instead of plain lists: metric snapshots or status overviews → [KPI_CARDS]; deadlines, schedules, audit milestones → [TIMELINE]; trends and comparisons → [CHART]; long structured detail (procedures, clause explanations) → [ACCORDION]; record sets → an HTML <table>. Never ASCII/markdown tables, never terminal formatting. Keep any prose around a component within the 80/20 rule.',
+  'PORTAL NAVIGATION: the clause_map register maps every ISO clause to the portal page(s) covering it, with URLs. When asked where a clause, requirement or topic is covered on the portal/website, answer from clause_map: name the page title and give the plain URL on its own (it renders as a clickable link automatically) — never invent URLs, only use those from clause_map. If several pages match, list the 2-3 most specific ones.',
   'When a note marked VERIFIED ANALYTICS appears in the message, those figures were computed exactly by the analytics engine — narrate them as given, never recompute, never invent numbers.',
   '',
   'HEALTH OUTPUT: When reporting register health, output:',
@@ -316,7 +317,7 @@ var PROMPT_ADVISOR = [
   '',
   'Reason across multiple registers to identify systemic issues.',
   'Follow register relationships: CAPA links to incidents, incidents link to HIRA, etc.',
-  'Prioritise recommendations by: (1) Stage 2 audit impact, (2) safety criticality, (3) business risk.',
+  'Prioritise recommendations by: (1) Certification Audit impact, (2) safety criticality, (3) business risk.',
   'The 80/20 rule applies here too: give the insight and the one recommended action in 2-4 sentences by default.',
   'ONLY when the user explicitly asks for a full analysis, report, or formal recommendation, structure it as:',
   'OBSERVATION: what the data shows',
@@ -380,6 +381,7 @@ var INTENT_CLASSIFIER_PROMPT = [
    ALL 62 TABS
 ══════════════════════════════════════════════════════════════ */
 var ALL_TABS = [
+  'clause_map',
   'documents','users','audit_log',
   'context','pestle',
   'policies','worker_part','policy_ack','gemba_walks','steering_team',
@@ -470,6 +472,7 @@ var DATE_FIELDS = {
    KEYWORD → TAB DETECTION
 ══════════════════════════════════════════════════════════════ */
 var TAB_KEYWORDS = {
+  clause_map:['clause','which page','what page','where is','covered on','portal page','navigate','link to','url'],
   capa:['capa','corrective action','preventive action','ncr','nonconformance','stage 2 blocker'],
   incidents:['incident','accident','injury','near miss','ltifr','fatality','lost time'],
   hira:['hira','hazard','risk assessment','residual risk','control measure','jha'],
@@ -722,7 +725,7 @@ function resolveListTab(txt, intent) {
     if (t.indexOf(k) >= 0 || t.indexOf(k.replace(/_/g,' ')) >= 0) return k;
   }
   /* common aliases */
-  var aliases = {capa:'capa', capas:'capa', incident:'incidents', hira:'hira', risk:'risks', risks:'risks',
+  var aliases = {clause:'clause_map', clauses:'clause_map', capa:'capa', capas:'capa', incident:'incidents', hira:'hira', risk:'risks', risks:'risks',
                  kpi:'kpi_dashboard', kpis:'kpi_dashboard', objective:'objectives', policy:'policies', policies:'policies',
                  training:'training', calibration:'calibration', audit:'audit_programme', ptw:'ptw_register',
                  nonconformity:'nonconforming', ncr:'nonconforming', supplier:'supplier_esg', coi:'coi', tpdd:'tpdd'};
@@ -1845,7 +1848,10 @@ function formatText(txt) {
     else{if(inTable){out.push(renderMdTable(tableRows));tableRows=[];inTable=false;}out.push(lines[i]);}
   }
   if(inTable&&tableRows.length)out.push(renderMdTable(tableRows));
-  return out.join('\n').replace(/[*][*](.*?)[*][*]/g,'<strong>$1</strong>').replace(/[*](.*?)[*]/g,'<em>$1</em>').replace(/\n/g,'<br>');
+  return out.join('\n')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" style="color:#185FA5">$1</a>')
+    .replace(/(^|[^"'>=\]])(https?:\/\/[^\s<>"')\]]+)/g,'$1<a href="$2" target="_blank" style="color:#185FA5">$2</a>')
+    .replace(/[*][*](.*?)[*][*]/g,'<strong>$1</strong>').replace(/[*](.*?)[*]/g,'<em>$1</em>').replace(/\n/g,'<br>');
 }
 function renderMdTable(rows){
   var html='<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin:8px 0">';
