@@ -1973,6 +1973,19 @@ async function sendToMassi(txt) {
   console.log('[iMASSI] Intent:', JSON.stringify(intent));
 
   /* Step 2: Build targeted context from cache */
+  /* SELF-HEALING (Rev.21): if a register this question depends on is missing
+     or empty in the cache (failed load, stale hydration), re-fetch that one
+     tab live before answering — so the AI never claims "no data" because of
+     a cache accident. Costs one small request only when actually needed. */
+  var needsRefetch = (intent.primary_registers || []).filter(function(t){
+    var e = state.sheetCache[t];
+    return !e || !e.data || !(e.data.rows && e.data.rows.length);
+  });
+  if (needsRefetch.length) {
+    console.log('[iMASSI] Self-heal: re-fetching ' + needsRefetch.join(',') + ' before answering');
+    try { await Promise.all(needsRefetch.map(function(t){ return loadTab(t); })); } catch(e){}
+  }
+
   var context = buildSmartContext(intent);
   console.log('[iMASSI] Context built: '+context.length+' chars | tabs: '+(intent.primary_registers||[]).join(','));
 
