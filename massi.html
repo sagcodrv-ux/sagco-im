@@ -229,7 +229,7 @@ const LLM_TIMEOUT    = 60000;
 const INTENT_TIMEOUT = 10000;
 const CACHE_TTL      = 5 * 60 * 1000;
 const BATCH_SIZE     = 6;
-const MAX_CTX_TOKENS = 30000;
+const MAX_CTX_TOKENS = 3500;   /* register-context budget per message — keeps total request under every provider TPM limit incl. Groq 8B (6k) */
 const AVG_CHARS_PER_TOKEN = 4;
 
 
@@ -2023,17 +2023,21 @@ async function sendToMassi(txt) {
     data_manager: PROMPT_DATA_MANAGER
   }[intent.role] || PROMPT_ADVISOR;
 
-  /* Build full message array — the INTERFACE NOTE goes only into the outgoing
-     message, never into stored history, so the model can't learn to echo it. */
+  /* Build full message array. TOKEN-SNOWBALL FIX: stored history keeps ONLY the
+     clean question text — the heavy register context (and any INTERFACE NOTE)
+     ride exclusively on the OUTGOING message, rebuilt fresh each turn. This
+     keeps requests at ~4-5k tokens no matter how long the conversation gets
+     (previously each stored turn carried its context → 20k+ tokens → HTTP 413). */
   var systemContent = PROMPT_BASE + '\n\n' + specialistPrompt;
-  var userContent   = context ? (txt + '\n\n' + context) : txt;
 
-  state.history.push({role:'user', content: userContent});
+  state.history.push({role:'user', content: txt});
   if(state.history.length > 16) state.history = state.history.slice(-16);
 
   var messages = [{role:'system', content:systemContent}];
   state.history.forEach(function(m){messages.push({role:m.role, content:m.content});});
-  if (listNote) messages[messages.length-1] = {role:'user', content: userContent + listNote};
+  var outgoing = context ? (txt + '\n\n' + context) : txt;
+  if (listNote) outgoing += listNote;
+  messages[messages.length-1] = {role:'user', content: outgoing};
 
   console.log('[iMASSI] LLM call: role='+intent.role+' messages='+messages.length+' systemTokens~'+Math.round(systemContent.length/4));
   var t0 = performance.now();
@@ -2047,11 +2051,11 @@ async function sendToMassi(txt) {
   function isQuotaError(err) {
     if (!err) return false;
     var code = err.code;
-    if (code === 429 || code === 500 || code === 502 || code === 503) return true;
+    if (code === 413 || code === 429 || code === 500 || code === 502 || code === 503) return true;
     if (String(code||'').match(/rate_limit|capacity|unavailable|overload/i)) return true;
     if (err.type && /rate_limit|capacity|unavailable|overload/i.test(err.type)) return true;
-    /* message-based: rate limits AND temporary capacity problems ("high demand") */
-    return /rate.?limit|quota|too many|high demand|over.?capacit|capacity|unavailable|overload|try again later|temporar/i.test(err.message || '');
+    /* message-based: rate limits, size limits AND temporary capacity problems */
+    return /rate.?limit|quota|too many|too large|request too|high demand|over.?capacit|capacity|unavailable|overload|try again later|temporar/i.test(err.message || '');
   }
   function retrySeconds(err) {
     var msg = (err && err.message) || '';
