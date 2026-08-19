@@ -1924,6 +1924,21 @@ function renderMdTable(rows){
   return html+'</table>';
 }
 
+/* Rev.23 fix: extracts the first balanced {...} JSON object from a string,
+   correctly handling nested braces (e.g. the "record":{...} field inside a
+   WRITE_PREVIEW payload) — a plain non-greedy regex stops at the first "}"
+   it sees, which breaks on nested objects. */
+function extractFirstBalancedJson(str) {
+  var start = str.indexOf('{');
+  if (start < 0) return null;
+  var depth = 0;
+  for (var i = start; i < str.length; i++) {
+    if (str[i] === '{') depth++;
+    else if (str[i] === '}') { depth--; if (depth === 0) return str.slice(start, i + 1); }
+  }
+  return null;
+}
+
 function parseResponseBlocks(text) {
   var result = {text:text, writeData:null, chartData:null, healthTabs:null};
 
@@ -1932,7 +1947,24 @@ function parseResponseBlocks(text) {
 
   /* WRITE_PREVIEW block */
   var wm = text.match(/\[WRITE_PREVIEW\]([\s\S]*?)\[\/WRITE_PREVIEW\]/);
-  if(wm){try{result.writeData=JSON.parse(wm[1].trim());}catch(e){} result.text=text.replace(wm[0],'').trim();}
+  if(wm){
+    try{result.writeData=JSON.parse(wm[1].trim());}catch(e){}
+    result.text=text.replace(wm[0],'').trim();
+  } else if (/\[\/?WRITE_PREVIEW\]/.test(text)) {
+    /* Rev.23 fix (silly-reply guard): the model sometimes emits a malformed
+       tag pair — e.g. only "[/WRITE_PREVIEW]" with no matching opening tag —
+       while still writing valid record JSON. Previously this left the raw
+       "[/WRITE_PREVIEW]{...}" text visible to the user instead of a clean
+       confirmation card. Now: recover the JSON if it's there, render it
+       properly, and strip every stray tag + the JSON blob from what the
+       user sees either way, so a malformed tag never leaks onto screen. */
+    var jsonGuess = extractFirstBalancedJson(text);
+    if (jsonGuess) { try { result.writeData = JSON.parse(jsonGuess); } catch(e) {} }
+    result.text = text
+      .replace(/\[\/?WRITE_PREVIEW\]/g, '')
+      .replace(jsonGuess || '', '')
+      .trim();
+  }
 
   /* CHART block */
   var cm = text.match(/\[CHART\]([\s\S]*?)\[\/CHART\]/);
@@ -1952,6 +1984,13 @@ function parseResponseBlocks(text) {
       result.text = result.text.replace(m2[0],'').trim();
     }
   });
+
+  /* Rev.23 catch-all (silly-reply guard): if the model still leaves any
+     stray/malformed component tag behind -- [CHART], [/KPI_CARDS], etc. with
+     no matching pair -- strip the bare tags so raw markup never reaches the
+     chat. This never touches correctly-matched blocks above; it only mops up
+     leftovers from a malformed response. */
+  result.text = result.text.replace(/\[\/?(CHART|KPI_CARDS|TIMELINE|ACCORDION|HEALTH|WRITE_PREVIEW)\]/g, '').trim();
 
   return result;
 }
