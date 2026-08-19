@@ -530,6 +530,10 @@ console.log('%c[iMASSI] Build R21c — token-fix + self-heal + fit-not-drop','co
 var state = {
   /* Conversation */
   history: [], pendingParsed: null, pendingImport: null, userName: '', writeToken: '', awaitingConfirm: false, currentState: 'idle',
+  /* Rev.22 fix: distinguishes "still loading" from "getConfig came back with no key"
+     so sendToMassi() can give an honest, specific message instead of an endless
+     "still connecting" that never resolves when the backend truly isn't configured. */
+  configFailed: false,
   /* Cache */
   sheetCache: {}, cacheReady: false, cacheLoading: false, cacheTime: null,
   /* Health */
@@ -1974,7 +1978,14 @@ function massISend() {
 function massISend_with(txt){var inp=document.getElementById('chatInput');if(inp)inp.value=txt;massISend();}
 
 async function sendToMassi(txt) {
-  if(!GROQ_KEY){appendAI('Still connecting to the AI service (the key loads from Google Sheets config). Give it a second and try again.',null,false);return;}
+  if(!GROQ_KEY){
+    if (state.configFailed) {
+      appendAI('The AI service is not configured on the backend (no Groq/Cerebras key set in the Apps Script Script Properties), so I cannot generate a real answer right now. Please tell your IMS administrator — this is a setup issue, not a data or understanding problem.', null, false);
+    } else {
+      appendAI('Still connecting to the AI service (the key loads from Google Sheets config). Give it a second and try again.', null, false);
+    }
+    return;
+  }
   console.log('[iMASSI] sendToMassi: "'+txt.substring(0,60)+'"');
 
   /* Show typing immediately */
@@ -2255,11 +2266,19 @@ window.addEventListener('DOMContentLoaded', function() {
       .then(function(r){return r.json();})
       .then(function(d){
         if(d&&d.groqKey){GROQ_KEY=d.groqKey;console.log('[iMASSI] Groq key loaded');}
-        else console.error('[iMASSI] getConfig returned no groqKey:',JSON.stringify(d));
+        else {
+          console.error('[iMASSI] getConfig returned no groqKey:',JSON.stringify(d));
+          state.configFailed = true;
+          setStatus('error','AI not configured — see console / ask IMS admin to set GROQ_API_KEY');
+        }
         if(d&&d.cerebrasKey){CEREBRAS_KEY=d.cerebrasKey;console.log('[iMASSI] Cerebras key loaded');discoverCerebrasModel();}
         else console.log('[iMASSI] No cerebrasKey in config — fallback will use Groq 8B');
       })
-      .catch(function(err){console.error('[iMASSI] Key fetch error:',err.message);});
+      .catch(function(err){
+        console.error('[iMASSI] Key fetch error:',err.message);
+        state.configFailed = true;
+        setStatus('error','Could not reach the AI config endpoint — '+err.message);
+      });
 
     /* Load all sheets in background (skipped when the local cache is fresh) */
     if (hydrated) { return; }
