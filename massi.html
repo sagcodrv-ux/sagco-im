@@ -174,8 +174,17 @@ body{font-family:Arial,sans-serif;margin:0;padding:0}
 
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzpMxyCTh6J-qH-rwPwux6J9bzwEwHYQPNxTI-IRrWX6vhXRlZYESaZdUeWiTqdNIPKoQ/exec';
 const GROQ_URL            = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL          = 'llama-3.3-70b-versatile';
-const GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant';   /* separate rate-limit bucket, very high free limits */
+const GROQ_MODELS_URL     = 'https://api.groq.com/openai/v1/models';
+/* Rev.22 fix: these two were hardcoded to 'llama-3.3-70b-versatile' and
+   'llama-3.1-8b-instant', which Groq has since deprecated/renamed (confirmed
+   Aug 2026 — Groq's current lineup is built around openai/gpt-oss-120b and
+   openai/gpt-oss-20b instead). That mismatch is exactly why iMASSI returned
+   "AI error: the model ... does not exist" on every message even after the
+   getConfig fix. These are now auto-corrected at startup the same way
+   Cerebras already was, so a future Groq rename can't silently break this
+   again. The values below are only the pre-discovery fallback. */
+var   GROQ_MODEL          = 'llama-3.3-70b-versatile';
+var   GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant';   /* separate rate-limit bucket, very high free limits */
 var   GROQ_KEY            = '';                        /* loaded from Apps Script getConfig at startup */
 
 const CEREBRAS_URL        = 'https://api.cerebras.ai/v1/chat/completions';
@@ -186,6 +195,11 @@ var   CEREBRAS_KEY        = '';                        /* optional — loaded fr
 /* Preferred Cerebras models, best first — the startup check picks the first one
    that actually exists on the account, so lineup changes never break iMASSI. */
 var CEREBRAS_PREFERRED = ['llama-3.3-70b','llama3.3-70b','gpt-oss-120b','qwen-3-235b-a22b-instruct-2507','qwen-3-32b','llama-4-scout-17b-16e-instruct','llama3.1-8b'];
+
+/* Preferred Groq models, best first — large/versatile and small/fast lists,
+   in case the account's lineup differs from Groq's own recommended defaults. */
+var GROQ_PREFERRED_LARGE = ['llama-3.3-70b-versatile','openai/gpt-oss-120b','llama-3.1-70b-versatile','groq/compound','mixtral-8x7b-32768'];
+var GROQ_PREFERRED_SMALL = ['llama-3.1-8b-instant','openai/gpt-oss-20b','groq/compound-mini','gemma2-9b-it'];
 
 function discoverCerebrasModel(){
   if (!CEREBRAS_KEY) return;
@@ -201,6 +215,26 @@ function discoverCerebrasModel(){
       console.log('[iMASSI] Cerebras models available: ' + ids.join(', ') + ' — using: ' + CEREBRAS_MODEL);
     })
     .catch(function(e){console.warn('[iMASSI] Cerebras model discovery failed ('+e.message+') — keeping default');});
+}
+
+function discoverGroqModel(){
+  if (!GROQ_KEY) return;
+  fetch(GROQ_MODELS_URL, {headers:{'Authorization':'Bearer '+GROQ_KEY}})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var ids = (d && d.data ? d.data : []).map(function(m){return m.id;});
+      if (!ids.length) { console.warn('[iMASSI] Groq model list empty — keeping default (likely to fail)'); return; }
+      var pickFrom = function(preferred, current){
+        for (var i = 0; i < preferred.length; i++) {
+          if (ids.indexOf(preferred[i]) >= 0) return preferred[i];
+        }
+        return ids.indexOf(current) >= 0 ? current : ids[0];
+      };
+      GROQ_MODEL          = pickFrom(GROQ_PREFERRED_LARGE, GROQ_MODEL);
+      GROQ_FALLBACK_MODEL = pickFrom(GROQ_PREFERRED_SMALL, GROQ_FALLBACK_MODEL);
+      console.log('[iMASSI] Groq models available: ' + ids.join(', ') + ' — using: ' + GROQ_MODEL + ' / ' + GROQ_FALLBACK_MODEL);
+    })
+    .catch(function(e){console.warn('[iMASSI] Groq model discovery failed ('+e.message+') — keeping default (likely to fail)');});
 }
 
 /* Provider chain — biggest quota first, weakest model last:
@@ -2265,7 +2299,7 @@ window.addEventListener('DOMContentLoaded', function() {
     fetch(SHEETS_URL+'?action=getConfig')
       .then(function(r){return r.json();})
       .then(function(d){
-        if(d&&d.groqKey){GROQ_KEY=d.groqKey;console.log('[iMASSI] Groq key loaded');}
+        if(d&&d.groqKey){GROQ_KEY=d.groqKey;console.log('[iMASSI] Groq key loaded');discoverGroqModel();}
         else {
           console.error('[iMASSI] getConfig returned no groqKey:',JSON.stringify(d));
           state.configFailed = true;
