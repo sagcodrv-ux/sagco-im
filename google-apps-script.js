@@ -113,6 +113,7 @@ var TABS = {
 
   /* Clause 10 */
   'capa':            ' CAPA Register',
+  'capa_log':        'CAPA Progress Log', /* NEW — must be created as a real tab on the live sheet; row 3 headers: Log ID, CAPA ID, Date, Note, Photo URL, Logged By, Status Change */
   'incidents':       ' Incidents',
 
   /* ESG */
@@ -238,6 +239,16 @@ function doPost(e) {
       var wRows = JSON.parse(e.postData ? e.postData.contents : '[]');
       return ContentService
         .createTextOutput(writeRows(wTab, wRows))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (pAction === 'update') {
+      var uTab     = e.parameter.tab   || '';
+      var uIdCol   = e.parameter.idCol || 'CAPA ID';
+      var uId      = e.parameter.id    || '';
+      var uUpdates = JSON.parse(e.postData ? e.postData.contents : '{}');
+      return ContentService
+        .createTextOutput(updateRowById(uTab, uIdCol, uId, uUpdates))
         .setMimeType(ContentService.MimeType.JSON);
     }
   } catch(routeErr) { /* fall through to existing doPost */ }
@@ -380,6 +391,58 @@ function writeRows(tabKey, rows) {
   }
 }
 
+/* -- updateRowById ----------------------------------------------
+   Finds one row in a tab by matching idColumnHeader's value, and
+   overwrites only the fields present in `updates` (partial patch —
+   fields not included are left as they were). Added so the CAPA
+   wizard can save partial progress (e.g. NC raised, containment
+   and corrective action still pending) and resume later without
+   writeRows()'s append-only behaviour creating a duplicate row for
+   the same CAPA ID.
+   Called via POST action=update.
+   ------------------------------------------------------------- */
+function updateRowById(tabKey, idColumnHeader, idValue, updates) {
+  try {
+    var sheetName = TABS[tabKey];
+    if (!sheetName) return JSON.stringify({ status: 'error', message: 'Unknown tabKey: ' + tabKey });
+
+    var sheet = findSheet(sheetName);
+    if (!sheet) return JSON.stringify({ status: 'error', message: 'Sheet not found: ' + sheetName });
+
+    var headerRow = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var idColIdx  = headerRow.indexOf(idColumnHeader);
+    if (idColIdx < 0) return JSON.stringify({ status: 'error', message: 'ID column not found: ' + idColumnHeader });
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 4) return JSON.stringify({ status: 'error', message: 'No data rows to update', notFound: true });
+
+    var idValues  = sheet.getRange(4, idColIdx + 1, lastRow - 3, 1).getValues();
+    var targetRow = -1;
+    for (var i = 0; i < idValues.length; i++) {
+      if (String(idValues[i][0]) === String(idValue)) { targetRow = i + 4; break; }
+    }
+    if (targetRow < 0) {
+      return JSON.stringify({ status: 'error', message: 'No row found with ' + idColumnHeader + ' = ' + idValue, notFound: true });
+    }
+
+    var existingRow = sheet.getRange(targetRow, 1, 1, headerRow.length).getValues()[0];
+    var newRow = headerRow.map(function(header, idx) {
+      return updates[header] !== undefined ? updates[header] : existingRow[idx];
+    });
+    sheet.getRange(targetRow, 1, 1, headerRow.length).setValues([newRow]);
+
+    appendAuditLog(
+      'CAPA_UPDATE',
+      'updateRowById: row ' + targetRow + ' in ' + sheetName + ' updated (' + idColumnHeader + '=' + idValue + ')',
+      'wizard', 'CAPA Wizard'
+    );
+
+    return JSON.stringify({ status: 'ok', row: targetRow, sheet: sheetName });
+  } catch (err) {
+    return JSON.stringify({ status: 'error', message: err.toString() });
+  }
+}
+
 /* -- scanAlerts -----------------------------------------------
    Scans date-bearing registers for overdue / upcoming items.
    Called by massi.html and copilot_v2.html on session open.
@@ -387,6 +450,7 @@ function writeRows(tabKey, rows) {
 function scanAlerts() {
   var today  = new Date();
   var alerts = [];
+
 
   var DATE_RULES = [
     { tab: 'calibration',    dateField: 'Next Due',            warnDays: 30, label: 'Calibration',     page: 'calibration-register.html'  },
