@@ -45,17 +45,21 @@
     create_admin:['superadmin'],
   };
 
-  /* ── Seed users (runs once if store empty) ────────────────── */
-  function seedUsers() {
-    if (localStorage.getItem(USER_STORE)) return;
+  /* ── Seed users — module-scope, always current ──────────────
+     Hoisted out of seedUsers() so login can check THIS array live,
+     every time, rather than a frozen copy from whenever this browser
+     first visited. This is what makes editing a password (or any
+     seeded field) here actually take effect everywhere immediately,
+     instead of needing every browser to clear its local storage. */
+  var SEED_USERS = (function () {
     var today = new Date().toISOString().split('T')[0];
-    var users = [
-      { id:'USR-001', username:'admin',         password:'Admin@2026',    role:'superadmin',  name:'Issam Abdelkafi',     title:'IMS Coordinator',         department:'IMS',               email:'Issam.Abdelkefi@sagco.net',         status:'Active',  lastLogin:null, created:today, createdBy:'system',  notes:'System superadmin — IMS Coordinator' },
+    return [
+      { id:'USR-001', username:'admin',         password:'Admin@2026',    role:'superadmin',  name:'Issam Abdelkafi',      title:'IMS Coordinator',         department:'IMS',               email:'ims@sagco.com.sa',         status:'Active',  lastLogin:null, created:today, createdBy:'system',  notes:'System superadmin — IMS Coordinator' },
       { id:'USR-002', username:'ceo',            password:'CEO@SAGCO26',   role:'admin',       name:'Abdullah Al-Qahtani',  title:'Chief Executive Officer', department:'Executive',         email:'ceo@sagco.com.sa',         status:'Active',  lastLogin:null, created:today, createdBy:'USR-001', notes:'CEO — approves all L1/L2 documents' },
       { id:'USR-003', username:'shee.head',      password:'SHEE@2026!',    role:'editor',      name:'Mohammed Al-Harbi',    title:'SHEE Head',               department:'SHEE',              email:'shee@sagco.com.sa',        status:'Active',  lastLogin:null, created:today, createdBy:'USR-001', notes:'Safety, Health, Environment & Energy Head' },
       { id:'USR-004', username:'ims.manager',    password:'IMS@Mgr2026',   role:'editor',      name:'Sara Al-Otaibi',       title:'IMS Manager',             department:'IMS',               email:'imsmanager@sagco.com.sa',  status:'Active',  lastLogin:null, created:today, createdBy:'USR-001', notes:'IMS Manager — checks all L2 procedures' },
       { id:'USR-005', username:'qa.manager',     password:'QA@SAGCO26',    role:'editor',      name:'Khalid Al-Dosari',     title:'QA Manager',              department:'Quality',           email:'qa@sagco.com.sa',          status:'Active',  lastLogin:null, created:today, createdBy:'USR-001', notes:'Quality Assurance Manager' },
-      { id:'USR-006', username:'utility.mgr',     password:'Energy@26!',    role:'editor',      name:'Faisal Al-Mutairi',    title:'Energy Manager',          department:'Operations',        email:'energy@sagco.com.sa',      status:'Active',  lastLogin:null, created:today, createdBy:'USR-001', notes:'EnMS Management Representative' },
+      { id:'USR-006', username:'energy.mgr',     password:'Energy@26!',    role:'editor',      name:'Faisal Al-Mutairi',    title:'Energy Manager',          department:'Operations',        email:'energy@sagco.com.sa',      status:'Active',  lastLogin:null, created:today, createdBy:'USR-001', notes:'EnMS Management Representative' },
       { id:'USR-007', username:'procurement',    password:'Proc@2026!',    role:'contributor', name:'Nour Al-Zahrawi',      title:'Procurement Manager',     department:'Procurement',       email:'proc@sagco.com.sa',        status:'Active',  lastLogin:null, created:today, createdBy:'USR-001', notes:'Procurement & supplier management' },
       { id:'USR-008', username:'hr.manager',     password:'HR@SAGCO26',    role:'contributor', name:'Tariq Al-Shehri',      title:'HR Manager',              department:'Human Resources',   email:'hr@sagco.com.sa',          status:'Active',  lastLogin:null, created:today, createdBy:'USR-001', notes:'HR Manager — training records access' },
       { id:'USR-009', username:'legal',          password:'Legal@2026',    role:'contributor', name:'Reem Al-Ghamdi',       title:'Legal Officer',           department:'Legal',             email:'legal@sagco.com.sa',       status:'Active',  lastLogin:null, created:today, createdBy:'USR-001', notes:'Legal Officer — compliance & ethics' },
@@ -66,12 +70,51 @@
       { id:'USR-014', username:'finance.mgr',    password:'Finance@26',    role:'contributor', name:'Walid Al-Rasheed',     title:'Finance Manager',         department:'Finance',           email:'finance@sagco.com.sa',     status:'Active',  lastLogin:null, created:today, createdBy:'USR-001', notes:'Finance Manager — CoI declaration required' },
       { id:'USR-015', username:'contractor.ext', password:'Ext@SAGCO26',   role:'viewer',      name:'External Contractor',  title:'Contractor',              department:'External',          email:'',                         status:'Inactive',lastLogin:null, created:today, createdBy:'USR-001', notes:'Generic external contractor account — activate as needed' },
     ];
-    localStorage.setItem(USER_STORE, JSON.stringify(users));
+  })();
+
+  /* ── Seed users: now a no-op, kept only so init()'s existing call
+     doesn't need to change. getUsers() below merges SEED_USERS live
+     on every call regardless of localStorage's contents, so there's
+     nothing left for this to actually do — it used to copy the seed
+     array into localStorage once, but getUsers() would ignore that
+     copy anyway now (it always prefers the live SEED_USERS array for
+     matching ids), so writing it would just be pointless clutter. ── */
+  function seedUsers() { /* intentionally empty */ }
+
+  /* ── User store helpers ───────────────────────────────────────
+     getUsers() is where the seed-priority merge actually lives —
+     every other function (getUserById, getUserByUsername, and every
+     page's table/KPI rendering) reads through this one function, so
+     they all agree, instead of some showing fresh seed data and
+     others showing a stale local copy.
+
+     For the original 15 seeded accounts, SEED_USERS in this file is
+     now the single source of truth for EVERY field, not just the
+     password — editing one of them means editing this file, not the
+     User Management UI. That's a deliberate, simple line to avoid a
+     confusing split where, say, a name edited through the UI keeps
+     reverting because the password half of the same account still
+     comes from here. Any account NOT in SEED_USERS (added later
+     through the UI) is unaffected — fully editable there as before,
+     synced to the live sheet exactly like the previous build. ─── */
+  function getUsers() {
+    var local = [];
+    try { local = JSON.parse(localStorage.getItem(USER_STORE)||'[]'); } catch(e) { local = []; }
+    var seedIds = SEED_USERS.map(function(u){ return u.id; });
+    var localExtra = local.filter(function(u){ return seedIds.indexOf(u.id) < 0; });
+    return SEED_USERS.concat(localExtra);
   }
 
-  /* ── User store helpers ───────────────────────────────────── */
-  function getUsers()    { try { return JSON.parse(localStorage.getItem(USER_STORE)||'[]'); } catch(e){ return []; } }
-  function saveUsers(a)  { localStorage.setItem(USER_STORE, JSON.stringify(a)); }
+  /* Never persists a seed-matching id — it would just be ignored by
+     getUsers() above anyway, so this keeps localStorage limited to
+     genuinely local-only accounts instead of quietly accumulating
+     stale, unused copies of the 15 seeded ones. */
+  function saveUsers(a) {
+    var seedIds = SEED_USERS.map(function(u){ return u.id; });
+    var localOnly = a.filter(function(u){ return seedIds.indexOf(u.id) < 0; });
+    localStorage.setItem(USER_STORE, JSON.stringify(localOnly));
+  }
+
   function getUserById(id) { return getUsers().find(function(u){ return u.id===id; })||null; }
   function getUserByUsername(un) { return getUsers().find(function(u){ return u.username.toLowerCase()===un.toLowerCase(); })||null; }
 
@@ -162,34 +205,102 @@
       var un = (document.getElementById('auth-un').value||'').trim();
       var pw = (document.getElementById('auth-pw').value||'');
       var err = document.getElementById('auth-err');
+      var btn = document.getElementById('auth-btn');
       err.style.display = 'none';
 
       if (!un || !pw) { err.textContent='Please enter your username and password.'; err.style.display=''; return; }
 
-      var user = getUserByUsername(un);
-      if (!user) { err.textContent='Username not found. Check spelling and try again.'; err.style.display=''; auditLog('LOGIN_FAIL','Unknown username: '+un,null); return; }
-      if (user.status !== 'Active') { err.textContent='This account is inactive. Contact the IMS Administrator.'; err.style.display=''; auditLog('LOGIN_FAIL','Inactive account: '+un, user.id); return; }
+      if (typeof SHEETS_URL === 'undefined') {
+        err.textContent = 'Cannot reach the login server (data.js not loaded on this page). Contact the IMS Administrator.';
+        err.style.display = '';
+        return;
+      }
 
-      /* Accept plain-text password (stored in demo) */
-      var pwMatch = (pw === user.password);
-      if (!pwMatch) { err.textContent='Incorrect password. Please try again.'; err.style.display=''; auditLog('LOGIN_FAIL','Wrong password for: '+un, user.id); return; }
+      btn.disabled = true;
+      var origLabel = btn.textContent;
+      btn.textContent = 'Signing in…';
 
-      /* Success */
-      var session = { userId:user.id, username:user.username, name:user.name, role:user.role, loginTs:new Date().toISOString() };
-      setSession(session);
+      function trySeedFallback() {
+        var seedUser = getUserByUsername(un); /* getUsers() prefers SEED_USERS for these 15 — see the merge logic above */
+        var isOriginalSeed = seedUser && SEED_USERS.some(function(s){ return s.id===seedUser.id; });
+        if (!isOriginalSeed || pw !== seedUser.password) return false;
 
-      /* Update lastLogin */
-      var users = getUsers();
-      var u2 = users.find(function(x){ return x.id===user.id; });
-      if (u2) { u2.lastLogin = new Date().toISOString(); saveUsers(users); }
+        btn.disabled = false; btn.textContent = origLabel;
+        var session2 = { userId:seedUser.id, username:seedUser.username, name:seedUser.name, role:seedUser.role, loginTs:new Date().toISOString() };
+        setSession(session2);
+        auditLog('LOGIN_OK','Successful login (local fallback — server unreachable or sheet not yet populated for this account)', seedUser.id);
+        sessionStorage.setItem('sagco_dms_role', mapRoleToDMS(seedUser.role));
+        wall.remove();
+        if (onSuccess) onSuccess(session2);
+        return true;
+      }
 
-      auditLog('LOGIN_OK','Successful login', user.id);
+      fetch(SHEETS_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'login', username: un, password: pw }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (result) {
+          btn.disabled = false;
+          btn.textContent = origLabel;
 
-      /* Also sync DMS role pill if present */
-      sessionStorage.setItem('sagco_dms_role', mapRoleToDMS(user.role));
+          if (!result || result.status !== 'ok') {
+            /* Bootstrap safety net: before the sheet has ever been
+               populated (no Password Hash column/data yet), NOBODY could
+               log in anywhere, including admin — and populating the
+               sheet requires being logged in to reach the Sync All
+               button. That's a deadlock. So: fall back to checking the
+               ORIGINAL 15 seeded accounts locally (their real password
+               lives in this file's SEED_USERS regardless of the sheet's
+               state) — but ONLY for those 15, never for anyone added
+               later, since the entire point of a later account is that
+               it must actually reach the server to be usable elsewhere. */
+            if (trySeedFallback()) return;
 
-      wall.remove();
-      if (onSuccess) onSuccess(session);
+            btn.disabled = false;
+            btn.textContent = origLabel;
+            var msg = (result && result.message) || 'Login failed. Please try again.';
+            err.textContent = msg;
+            err.style.display = '';
+            auditLog('LOGIN_FAIL', msg + ' (' + un + ')', null);
+            return;
+          }
+
+          var user = result.user;
+
+          /* Success */
+          var session = { userId:user.id, username:user.username, name:user.name, role:user.role, loginTs:new Date().toISOString() };
+          setSession(session);
+
+          /* Write-through cache: keep a local copy of this user's directory
+             fields, so getUserById/getUsers() (used elsewhere for display,
+             e.g. dropdowns) has something reasonable even before any other
+             sync happens. This never stores the password — login itself
+             never trusts this local copy again, only the server does. */
+          try {
+            var localUsers = getUsers();
+            var idx = localUsers.findIndex(function(x){ return x.id===user.id; });
+            var cached = Object.assign({}, user, { status:'Active', lastLogin:new Date().toISOString() });
+            if (idx>=0) localUsers[idx] = Object.assign({}, localUsers[idx], cached);
+            else localUsers.push(cached);
+            saveUsers(localUsers);
+          } catch(e) { /* non-critical — login already succeeded server-side regardless */ }
+
+          auditLog('LOGIN_OK','Successful login', user.id);
+
+          /* Also sync DMS role pill if present */
+          sessionStorage.setItem('sagco_dms_role', mapRoleToDMS(user.role));
+
+          wall.remove();
+          if (onSuccess) onSuccess(session);
+        })
+        .catch(function (netErr) {
+          if (trySeedFallback()) return;
+          btn.disabled = false;
+          btn.textContent = origLabel;
+          err.textContent = 'Could not reach the login server: ' + netErr + '. Check your connection and try again.';
+          err.style.display = '';
+        });
     }
 
     document.getElementById('auth-btn').addEventListener('click', tryLogin);

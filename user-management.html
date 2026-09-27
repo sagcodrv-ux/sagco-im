@@ -120,6 +120,7 @@
     <div class="sec-banner" style="display:flex;justify-content:space-between;align-items:center">
       <span>👥 USER REGISTER — L4-IMS-750-UR-01</span>
       <div style="display:flex;gap:6px;align-items:center">
+        <button id="um-sync-all" title="Pushes every user in THIS browser to the live sheet — updates a user's row if they're already there, adds them if not. Names/emails/roles only — never passwords. Safe to click any time, including repeatedly." style="background:#EBF3FB;color:#1565C0;border:1px solid #B5D4F4;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;height:26px">↑ Sync All to Live Sheet</button>
         <input type="text" id="um-search" class="dms-search" placeholder="🔍  Search name, username, department…" style="min-width:220px;height:26px">
         <select class="dms-sel" id="um-frole" style="height:26px">
           <option value="">All Roles</option>
@@ -218,9 +219,51 @@ function statusBadge(s){
 function fmtTs(ts){ if(!ts)return'Never'; try{ return new Date(ts).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){return ts;} }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+/* ── Live sheet merge ──────────────────────────────────────────
+   Pulls the 'User Register' sheet tab so this page shows the SAME
+   full list on every computer, not just whoever's been locally
+   added/edited in this one browser. Users found only in the sheet
+   (added/edited elsewhere) are shown as view-only here — they can't
+   safely be edited from this browser because their password never
+   left the browser that created them; editing them here would
+   silently create a passwordless local duplicate rather than
+   actually update the real account. */
+var remoteUsers = [];
+function loadRemoteUsers(cb) {
+  fetch(SHEETS_URL + '?tab=users&action=read')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var headers = data.headers || [];
+      var idIdx = headers.indexOf('User ID'), nameIdx = headers.indexOf('Full Name');
+      var unIdx = headers.indexOf('Username'), roleIdx = headers.indexOf('Role');
+      var titleIdx = headers.indexOf('Job Title'), deptIdx = headers.indexOf('Department');
+      var emailIdx = headers.indexOf('Email'), statusIdx = headers.indexOf('Account Status');
+      remoteUsers = (data.rows || []).map(function (r) {
+        return {
+          id: r[idIdx], name: r[nameIdx], username: unIdx >= 0 ? r[unIdx] : '', role: roleIdx >= 0 ? r[roleIdx] : 'viewer',
+          title: titleIdx >= 0 ? r[titleIdx] : '', department: deptIdx >= 0 ? r[deptIdx] : '',
+          email: emailIdx >= 0 ? r[emailIdx] : '', status: statusIdx >= 0 ? r[statusIdx] : 'Active',
+          _remoteOnly: true,
+        };
+      });
+      cb();
+    })
+    .catch(function () { remoteUsers = []; cb(); }); /* sheet unreachable — just show the local list, same as before this feature existed */
+}
+
+/* Local users are authoritative (they have real passwords behind
+   them); a sheet row is added on top ONLY if its ID isn't already
+   local — never lets remote data shadow or duplicate a local one. */
+function getMergedUsers() {
+  var local = IMS_AUTH.getUsers();
+  var localIds = local.map(function (u) { return u.id; });
+  var remoteExtra = remoteUsers.filter(function (r) { return localIds.indexOf(r.id) < 0; });
+  return local.concat(remoteExtra);
+}
+
 /* ── KPI update ────────────────────────────────────────────── */
 function updateKPIs(){
-  var users=IMS_AUTH.getUsers();
+  var users=getMergedUsers();
   var active=users.filter(function(u){return u.status==='Active';}).length;
   var inactive=users.filter(function(u){return u.status!=='Active';}).length;
   var admins=users.filter(function(u){return ['admin','superadmin'].includes(u.role);}).length;
@@ -243,7 +286,7 @@ function renderTable(){
   var session=IMS_AUTH.getUser();
   var isAdmin=IMS_AUTH.can('manage_users');
 
-  var users=IMS_AUTH.getUsers().filter(function(u){
+  var users=getMergedUsers().filter(function(u){
     var hay=(u.name+' '+u.username+' '+u.department+' '+u.title).toLowerCase();
     return(!q||hay.includes(q))&&(!fr||u.role===fr)&&(!fs||u.status===fs);
   });
@@ -257,10 +300,11 @@ function renderTable(){
 
   tbody.innerHTML=users.map(function(u){
     var isSelf=session&&session.userId===u.id;
-    var canModify=isAdmin && !(u.role==='superadmin' && IMS_AUTH.getRole()!=='superadmin');
+    var canModify=isAdmin && !u._remoteOnly && !(u.role==='superadmin' && IMS_AUTH.getRole()!=='superadmin');
     var acts='<button class="btn btn-teal btn-xs" data-ua="view" data-uid="'+u.id+'" title="View profile">🔍</button>';
     if(canModify) acts+='<button class="btn btn-navy btn-xs" data-ua="edit" data-uid="'+u.id+'" title="Edit user"'+(isSelf?' style="outline:2px solid var(--gold)"':'')+'>✏️</button>';
     if(canModify&&!isSelf) acts+='<button class="btn btn-red btn-xs" data-ua="toggle" data-uid="'+u.id+'" title="'+(u.status==='Active'?'Deactivate':'Activate')+'">'+( u.status==='Active'?'🚫':'✅')+'</button>';
+    if(u._remoteOnly) acts+='<span title="Added/edited on another computer — view only here; their password never left that browser" style="font-size:10px;color:#7a869a;margin-left:4px">🌐 synced</span>';
     return '<tr>'
       +'<td><span class="um-avatar" style="background:'+avatarBg(u.role)+'">'+initials(u.name)+'</span></td>'
       +'<td class="mono" style="font-size:9px;color:var(--text-lt)">'+u.id+'</td>'
@@ -283,7 +327,12 @@ function renderTable(){
 /* ── Action dispatcher ─────────────────────────────────────── */
 function dispatchAction(action,id){
   var user=IMS_AUTH.getUserById(id);
+  if(!user) user = remoteUsers.find(function(r){ return r.id===id; });
   if(!user)return;
+  if(user._remoteOnly && (action==='edit'||action==='toggle')){
+    alert('This user was added or edited on another computer — their password never left that browser, so editing or deactivating them here isn\'t safe from this one. Ask them (or whoever manages that browser) to make the change there instead.');
+    return;
+  }
   if(action==='view')   openUserModal(user,true);
   if(action==='edit')   openUserModal(user,false);
   if(action==='toggle') toggleStatus(user);
@@ -339,7 +388,7 @@ function openUserModal(user, readOnly){
     +'</div>'
     +'<div class="dms-modal-ftr">'
     +(!readOnly?'<button class="btn btn-ghost-dk" id="um-cancel">Cancel</button><button class="btn btn-gold" id="um-save">'+(isNew?'Create User':'Save Changes')+'</button>':'')
-    +(readOnly&&IMS_AUTH.can('manage_users')&&!isSelf?'<button class="btn btn-navy" id="um-go-edit">✏️ Edit</button>':'')
+    +(readOnly&&IMS_AUTH.can('manage_users')&&!isSelf&&!u._remoteOnly?'<button class="btn btn-navy" id="um-go-edit">✏️ Edit</button>':'')
     +'<button class="btn btn-gold" id="um-close">Close</button>'
     +'</div>'
   );
@@ -394,9 +443,47 @@ function openUserModal(user, readOnly){
     if(idx>=0)users[idx]=upd; else users.push(upd);
     IMS_AUTH.saveUsers(users);
     IMS_AUTH.auditLog(isNew?'USER_CREATED':'USER_EDITED', upd.username+(isNew?'  created':' edited'), (IMS_AUTH.getUser()||{}).userId);
+    syncUserToSheet(upd, pwVal); /* pwVal only passed when actually typed — preserves the existing password on an edit that doesn't touch it */
     closeOverlay(); renderTable();
     toast(isNew?'User created.':'Changes saved.','ok');
   });
+}
+
+/* Pushes one user's directory fields AND (when provided) their
+   password to the live 'User Register' sheet — this is what actually
+   lets a brand-new user log in from ANY computer immediately, not
+   just this one. The password is hashed server-side (SHA-256) before
+   ever touching the sheet; this browser never sends or stores a
+   plaintext password anywhere but its own local copy.
+
+   Header names match the real live sheet: User ID, Full Name,
+   Username, Role, Job Title, Department, Email, Account Status,
+   Password Hash. The Can Add / Can Edit / Can Upload Files / Can
+   Manage Users columns are deliberately left untouched — this sync
+   has no reliable way to know what they should be for a brand-new
+   user, so it doesn't guess.
+
+   One call does create-or-update atomically server-side (see
+   serverSetUser() in google-apps-script.js) — no separate read-first
+   step needed here, unlike the earlier directory-only version. */
+function syncUserToSheet(user, plainPassword) {
+  var payload = {
+    id: user.id, name: user.name, username: user.username, role: user.role,
+    title: user.title || '', department: user.department || '', email: user.email || '',
+    status: user.status || 'Active',
+  };
+  if (plainPassword) payload.password = plainPassword;
+
+  fetch(SHEETS_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action: 'setUser' }, payload)) })
+    .then(function (r) { return r.json(); })
+    .then(function (result) {
+      if (!(result && result.status === 'ok')) {
+        console.warn('User sync to server did not confirm success for ' + user.id + ':', result);
+      }
+    })
+    .catch(function (err) {
+      console.warn('User sync to server failed for ' + user.id + ' (this browser still saved the user locally): ' + err);
+    });
 }
 
 function buildProfileView(u){
@@ -541,6 +628,37 @@ function toast(msg,type){
   clearTimeout(el._t); el._t=setTimeout(function(){el.className='';},3500);
 }
 
+/* Pushes every user currently in this browser's directory to the live
+   sheet in one pass — the bridge for existing/seeded users that
+   predate syncUserToSheet(). Sequential (one at a time), not
+   parallel, to avoid hammering the Apps Script backend with a burst
+   of simultaneous writes. */
+function syncAllUsersToSheet() {
+  var users = IMS_AUTH.getUsers();
+  var btn = document.getElementById('um-sync-all');
+  if (btn) { btn.disabled = true; btn.textContent = 'Syncing 0/' + users.length + '…'; }
+
+  var i = 0;
+  function next() {
+    if (i >= users.length) {
+      if (btn) { btn.disabled = false; btn.textContent = '↑ Sync All to Live Sheet'; }
+      toast('Synced ' + users.length + ' user(s) to the live sheet.', 'ok');
+      return;
+    }
+    syncUserToSheet(users[i], users[i].password);
+    i++;
+    if (btn) btn.textContent = 'Syncing ' + i + '/' + users.length + '…';
+    setTimeout(next, 300); /* small gap between requests */
+  }
+  next();
+}
+
+document.getElementById('um-sync-all')?.addEventListener('click', function () {
+  if (confirm('This pushes all ' + IMS_AUTH.getUsers().length + ' users from THIS browser to the live sheet — updating anyone already there, adding anyone missing. Safe to run. Continue?')) {
+    syncAllUsersToSheet();
+  }
+});
+
 /* ── Init ──────────────────────────────────────────────────── */
 IMS_AUTH.init({
   onReady: function(session){
@@ -553,6 +671,7 @@ IMS_AUTH.init({
     applyRoleGate();
     renderTable();
     renderPermMatrix();
+    loadRemoteUsers(renderTable); /* re-render once the live sheet's users are in, so users added/edited on other computers show up too */
   }
 });
 </script>

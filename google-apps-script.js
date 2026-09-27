@@ -279,6 +279,10 @@ function doPost(e) {
     if (action === 'uploadFilePicker') {
       result = uploadFileFromPicker(
         params.docId, params.fileName, params.mimeType, params.b64, params.username);
+    } else if (action === 'login') {
+      result = serverLogin(params.username, params.password);
+    } else if (action === 'setUser') {
+      result = serverSetUser(params);
     } else if (action === 'deleteFile') {
       result = deleteFileFromDrive(params.fileId);
     } else if (action === 'saveDocumentRecord' || action === 'saveDocument') {
@@ -452,6 +456,108 @@ function updateRowById(tabKey, idColumnHeader, idValue, updates) {
   } catch (err) {
     return JSON.stringify({ status: 'error', message: err.toString() });
   }
+}
+
+/* ── Server-side login (full version) ─────────────────────────
+   Person's requirement: a user added anywhere should be able to log
+   in from ANY computer immediately, not just the one that created
+   them. Passwords are never stored in plaintext on the sheet — only
+   a SHA-256 hash, so anyone with view access to the spreadsheet
+   still can't read actual passwords directly.
+
+   REQUIRES a new column on the 'User Register' sheet, row 3 header:
+   "Password Hash". This is separate from, and in addition to, the
+   existing directory columns (User ID, Full Name, Username, Role,
+   Job Title, Department, Email, Account Status) already in use. ── */
+
+function hashPassword_(pw) {
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(pw), Utilities.Charset.UTF_8);
+  return bytes.map(function (b) {
+    var v = (b < 0 ? b + 256 : b);
+    return (v < 16 ? '0' : '') + v.toString(16);
+  }).join('');
+}
+
+function serverLogin(username, password) {
+  var sheet = findSheet(TABS['users']);
+  if (!sheet) return { status: 'error', message: 'User Register sheet not found on the server.' };
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 4) return { status: 'error', message: 'No users found in the sheet.' };
+
+  var headers = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var unIdx = headers.indexOf('Username'), pwIdx = headers.indexOf('Password Hash');
+  var statusIdx = headers.indexOf('Account Status'), idIdx = headers.indexOf('User ID');
+  var nameIdx = headers.indexOf('Full Name'), roleIdx = headers.indexOf('Role');
+  var titleIdx = headers.indexOf('Job Title'), deptIdx = headers.indexOf('Department'), emailIdx = headers.indexOf('Email');
+
+  if (unIdx < 0 || pwIdx < 0) {
+    return { status: 'error', message: 'Sheet is missing the Username or Password Hash column — add "Password Hash" to row 3 first.' };
+  }
+
+  var data = sheet.getRange(4, 1, lastRow - 3, headers.length).getValues();
+  var hash = hashPassword_(password);
+
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][unIdx]).toLowerCase() === String(username).toLowerCase()) {
+      if (statusIdx >= 0 && String(data[i][statusIdx]) !== 'Active') {
+        return { status: 'error', message: 'This account is inactive. Contact the IMS Administrator.' };
+      }
+      if (String(data[i][pwIdx]) !== hash) {
+        return { status: 'error', message: 'Incorrect password. Please try again.' };
+      }
+      return {
+        status: 'ok',
+        user: {
+          id: data[i][idIdx], name: data[i][nameIdx], username: data[i][unIdx], role: data[i][roleIdx],
+          title: titleIdx >= 0 ? data[i][titleIdx] : '', department: deptIdx >= 0 ? data[i][deptIdx] : '',
+          email: emailIdx >= 0 ? data[i][emailIdx] : '',
+        },
+      };
+    }
+  }
+  return { status: 'error', message: 'Username not found. Check spelling and try again.' };
+}
+
+/* Creates a new row or updates an existing one (matched by User ID)
+   in one atomic step — payload.password is optional; when present
+   it's hashed and written, when absent the existing hash (if any) is
+   left untouched so an edit that doesn't touch the password doesn't
+   accidentally wipe it. */
+function serverSetUser(payload) {
+  var sheet = findSheet(TABS['users']);
+  if (!sheet) return { status: 'error', message: 'User Register sheet not found on the server.' };
+
+  var headers = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var idIdx = headers.indexOf('User ID');
+  if (idIdx < 0) return { status: 'error', message: 'Sheet is missing the User ID column.' };
+
+  var lastRow = sheet.getLastRow();
+  var targetRow = -1;
+  if (lastRow >= 4) {
+    var ids = sheet.getRange(4, idIdx + 1, lastRow - 3, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(payload.id)) { targetRow = i + 4; break; }
+    }
+  }
+
+  var rowObj = {
+    'User ID': payload.id, 'Full Name': payload.name, 'Username': payload.username, 'Role': payload.role,
+    'Job Title': payload.title || '', 'Department': payload.department || '', 'Email': payload.email || '',
+    'Account Status': payload.status || 'Active',
+  };
+  if (payload.password) rowObj['Password Hash'] = hashPassword_(payload.password);
+
+  if (targetRow > 0) {
+    var existingRow = sheet.getRange(targetRow, 1, 1, headers.length).getValues()[0];
+    var newRow = headers.map(function (h, idx) { return rowObj[h] !== undefined ? rowObj[h] : existingRow[idx]; });
+    sheet.getRange(targetRow, 1, 1, headers.length).setValues([newRow]);
+  } else {
+    if (!payload.password) return { status: 'error', message: 'A password is required when creating a brand-new user.' };
+    var newRow2 = headers.map(function (h) { return rowObj[h] !== undefined ? rowObj[h] : ''; });
+    sheet.appendRow(newRow2);
+  }
+  return { status: 'ok' };
 }
 
 /* ── Overdue CAPA notifications ───────────────────────────────

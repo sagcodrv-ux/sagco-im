@@ -323,6 +323,54 @@ try {
   }
 
   /* ── Login ───────────────────────────────────────────────── */
+  /* ── Login ───────────────────────────────────────────────── */
+  /* Server-side login (mirrors auth.js's tryLogin — this page has
+     its own separate copy of the login logic, so it needed the same
+     fix independently): checks the live 'User Register' sheet first,
+     so any account added anywhere works from any computer. A local
+     fallback covers ONLY the 15 original seeded accounts, purely so
+     there's no lockout before the sheet has ever been populated —
+     any account created later has no such fallback, by design. */
+  var SHEETS_URL_LOGIN = 'https://script.google.com/macros/s/AKfycbzpMxyCTh6J-qH-rwPwux6J9bzwEwHYQPNxTI-IRrWX6vhXRlZYESaZdUeWiTqdNIPKoQ/exec'; /* keep in sync with SHEETS_URL in data.js if ever redeployed */
+  var SEED_FALLBACK = [
+    { id:'USR-001', username:'admin',         password:'Admin@2026',  role:'superadmin', name:'Issam Abdelkafi' },
+    { id:'USR-002', username:'ceo',           password:'CEO@SAGCO26', role:'admin',      name:'Abdullah Al-Qahtani' },
+    { id:'USR-003', username:'shee.head',     password:'SHEE@2026!',  role:'editor',     name:'Mohammed Al-Harbi' },
+    { id:'USR-004', username:'ims.manager',   password:'IMS@Mgr2026', role:'editor',     name:'Sara Al-Otaibi' },
+    { id:'USR-005', username:'qa.manager',    password:'QA@SAGCO26',  role:'editor',     name:'Khalid Al-Dosari' },
+    { id:'USR-006', username:'energy.mgr',    password:'Energy@26!',  role:'editor',     name:'Faisal Al-Mutairi' },
+    { id:'USR-007', username:'procurement',   password:'Proc@2026!',  role:'contributor',name:'Nour Al-Zahrawi' },
+    { id:'USR-008', username:'hr.manager',    password:'HR@SAGCO26',  role:'contributor',name:'Tariq Al-Shehri' },
+    { id:'USR-009', username:'legal',         password:'Legal@2026',  role:'contributor',name:'Reem Al-Ghamdi' },
+    { id:'USR-010', username:'auditor.tuv',   password:'TUV@Audit26', role:'viewer',     name:'Hans Weber' },
+    { id:'USR-011', username:'auditor.sgs',   password:'SGS@Audit26', role:'viewer',     name:'Ahmed Mansour' },
+    { id:'USR-012', username:'public',        password:'Public@IMS',  role:'viewer',     name:'Public Access' },
+    { id:'USR-013', username:'furnace.mgr',   password:'Furnace@26',  role:'contributor',name:'Ibrahim Al-Anazi' },
+    { id:'USR-014', username:'finance.mgr',   password:'Finance@26',  role:'contributor',name:'Walid Al-Rasheed' },
+    { id:'USR-015', username:'contractor.ext',password:'Ext@SAGCO26', role:'viewer',     name:'External Contractor' },
+  ];
+
+  function completeLogin(user) {
+    var session = { userId:user.id, username:user.username, name:user.name, role:user.role, loginTs:new Date().toISOString() };
+    try {
+      sessionStorage.setItem('sagco_ims_session', JSON.stringify(session));
+      var dmsMap = {superadmin:'admin',admin:'admin',editor:'editor',contributor:'contributor',viewer:'viewer'};
+      sessionStorage.setItem('sagco_dms_role', dmsMap[user.role] || 'viewer');
+    } catch(e) {}
+    try { sessionStorage.setItem('landing_just_logged_in', '1'); } catch(e) {}
+    setTimeout(function() { window.location.replace(loginDest); }, 150);
+  }
+
+  function tryLocalSeedFallback(u, p) {
+    for (var i = 0; i < SEED_FALLBACK.length; i++) {
+      if (SEED_FALLBACK[i].username.toLowerCase() === u && SEED_FALLBACK[i].password === p) {
+        completeLogin(SEED_FALLBACK[i]);
+        return true;
+      }
+    }
+    return false;
+  }
+
   function doLogin() {
     var u = userInput.value.trim().toLowerCase();
     var p = passInput.value;
@@ -337,58 +385,29 @@ try {
 
     btn.textContent = 'Signing in...';
 
-    /* Read users from localStorage (seeded by auth.js or by this page) */
-    var users = [];
-    try { users = JSON.parse(localStorage.getItem('sagco_ims_users') || '[]'); } catch(e) {}
-
-    var user = null;
-    for (var i = 0; i < users.length; i++) {
-      if (users[i].username.toLowerCase() === u && users[i].password === p) {
-        user = users[i]; break;
-      }
-    }
-
-    if (!user) {
-      errEl.textContent   = 'Incorrect username or password. Please try again.';
-      errEl.style.display = 'block';
-      btn.textContent     = 'Sign in →';
-      passInput.value     = '';
-      passInput.focus();
-      return;
-    }
-
-    if (user.status !== 'Active') {
-      errEl.textContent   = 'This account is inactive. Contact the IMS Administrator.';
-      errEl.style.display = 'block';
-      btn.textContent     = 'Sign in →';
-      return;
-    }
-
-    /* Build session in exact auth.js format */
-    var session = {
-      userId:  user.id,
-      username: user.username,
-      name:    user.name,
-      role:    user.role,
-      loginTs: new Date().toISOString()
-    };
-
-    try {
-      sessionStorage.setItem('sagco_ims_session', JSON.stringify(session));
-      /* Set DMS role — same as auth.js does */
-      var dmsMap = {superadmin:'admin',admin:'admin',editor:'editor',contributor:'contributor',viewer:'viewer'};
-      sessionStorage.setItem('sagco_dms_role', dmsMap[user.role] || 'viewer');
-      /* Update lastLogin */
-      user.lastLogin = new Date().toISOString();
-      localStorage.setItem('sagco_ims_users', JSON.stringify(users));
-    } catch(e) {}
-
-    /* Set flag so landing page doesn't clear session if browser returns here */
-    try { sessionStorage.setItem('landing_just_logged_in', '1'); } catch(e) {}
-    /* Small delay then redirect — use replace() to remove landing from history */
-    setTimeout(function() {
-      window.location.replace(loginDest);
-    }, 150);
+    fetch(SHEETS_URL_LOGIN, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'login', username: u, password: p }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (result) {
+        if (!result || result.status !== 'ok') {
+          if (tryLocalSeedFallback(u, p)) return;
+          errEl.textContent   = (result && result.message) || 'Incorrect username or password. Please try again.';
+          errEl.style.display = 'block';
+          btn.textContent     = 'Sign in →';
+          passInput.value     = '';
+          passInput.focus();
+          return;
+        }
+        completeLogin(result.user);
+      })
+      .catch(function () {
+        if (tryLocalSeedFallback(u, p)) return;
+        errEl.textContent   = 'Could not reach the login server. Check your connection and try again.';
+        errEl.style.display = 'block';
+        btn.textContent     = 'Sign in →';
+      });
   }
 
   /* ── Wire up card buttons ────────────────────────────────── */
