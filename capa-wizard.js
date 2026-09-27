@@ -414,9 +414,22 @@
     var saveLater = document.getElementById('cw-save-later'); if (saveLater) saveLater.addEventListener('click', onSaveLater);
   }
 
+  /* Captures the Step 1 fields NOT already handled by whichever
+     specific listener is about to trigger a re-render (score, owner
+     select, evidence file) — without this, typing something into
+     Description/Source/Date and then touching any of those three
+     would silently wipe it, since a full re-render always rebuilds
+     from state, and state was never updated except on Next/Save. */
+  function syncStep1UntouchedFields() {
+    if (document.getElementById('cw-desc')) state.description = val('cw-desc');
+    if (document.getElementById('cw-source')) state.source = val('cw-source');
+    if (document.getElementById('cw-date')) state.dateRaised = val('cw-date');
+  }
+
   function bindStepEvents() {
     var score = document.getElementById('cw-score');
     if (score) score.addEventListener('input', function () {
+      syncStep1UntouchedFields();
       state.score = score.value;
       state.severity = classify(score.value);
       render();
@@ -426,6 +439,7 @@
 
     var ownerSelect = document.getElementById('cw-owner-select');
     if (ownerSelect) ownerSelect.addEventListener('change', function () {
+      syncStep1UntouchedFields();
       var opt = ownerSelect.options[ownerSelect.selectedIndex];
       state.caOwner = ownerSelect.value;
       state.caOwnerEmail = ownerSelect.value ? (opt.getAttribute('data-email') || '') : '';
@@ -435,6 +449,7 @@
     var evidenceInput = document.getElementById('cw-evidence-file');
     if (evidenceInput) evidenceInput.addEventListener('change', function () {
       if (evidenceInput.files && evidenceInput.files[0]) {
+        syncStep1UntouchedFields();
         state.initialEvidenceFile = evidenceInput.files[0];
         state.initialEvidenceUploaded = false; /* a newly chosen file always needs (re-)uploading */
         render(); /* shows the persistent confirmation line immediately */
