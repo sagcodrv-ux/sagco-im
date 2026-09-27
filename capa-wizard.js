@@ -637,9 +637,16 @@
           severity: state.severity ? state.severity.key : '',
           dueDate: state.caDueDate,
         }),
-      }).catch(function (err) {
-        console.warn('New-CAPA owner notification failed to send for ' + state.capaId + ': ' + err);
-      });
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (result) {
+          if (!(result && result.status === 'ok')) {
+            alert('The CAPA was saved successfully, but the new-owner notification did NOT send:\n\n' + ((result && result.message) || JSON.stringify(result)));
+          }
+        })
+        .catch(function (err) {
+          alert('The CAPA was saved successfully, but could not reach the server to notify the owner:\n\n' + err);
+        });
     }
 
     /* Uploads the Step 1 evidence file (if any) using the same
