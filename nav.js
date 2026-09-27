@@ -46,10 +46,10 @@ var TREE = [
       children:[
         { id:'p02-pol',  label:'IMS Policies Register',       file:'policies.html',               level:'L4', tag:'Sh.11' },
         { id:'p02-wkp',  label:'Worker Participation',         file:'worker-participation.html',   level:'L4', tag:'Sh.12' },
-        { id:'p02-pack', label:'Policy Acknowledgement',       file:'policy-acknowledgement.html', level:'L4', tag:'Sh.56', badge:'URGENT', bc:'red' },
+        { id:'p02-pack', label:'Policy Acknowledgement',       file:'policy-acknowledgement.html', level:'L4', tag:'Sh.56', badge:'PLANNED', bc:'amb' },
         { id:'p02-gmb',  label:'Gemba Walk Log',               file:'gemba-walk-log.html',         level:'L4', tag:'Sh.62' },
         { id:'p02-stm',  label:'Steering Committee Minutes',   file:'steering-team-minutes.html',  level:'L4', tag:'Sh.63' },
-        { id:'p02-ceo',  label:'CEO-Signed Records Tracker',   file:'ceo-signed-records.html',     level:'L4', tag:'Sh.67', badge:'URGENT', bc:'red' },
+        { id:'p02-ceo',  label:'CEO-Signed Records Tracker',   file:'ceo-signed-records.html',     level:'L4', tag:'Sh.67' },
         { id:'p02-enc',  label:'EnMS Champion Record',         file:'enms-champion.html',          level:'L4', tag:'Sh.66', badge:'PENDING', bc:'amb' },
         { id:'p02-com',  label:'Communication Matrix',         file:'communication-matrix.html',   level:'L4', tag:'Sh.68' },
       ]
@@ -79,7 +79,7 @@ var TREE = [
         { id:'p04-tra', label:'Training Attendance Records',  file:'training-attendance.html', level:'L4', tag:'Sh.60' },
         { id:'p04-ind', label:'Induction Records Register',   file:'induction-records.html',   level:'L4', tag:'Sh.55', badge:'URGENT', bc:'red' },
         { id:'p04-doc', label:'Documentation Register',       file:'documentation.html',       level:'L4', tag:'Sh.17' },
-        { id:'p04-cal', label:'Calibration Register',         file:'calibration-register.html',level:'L4', tag:'Sh.54', badge:'URGENT', bc:'red' },
+        { id:'p04-cal', label:'Calibration Register',         file:'calibration-register.html',level:'L4', tag:'Sh.54', badge:'PENDING PROCUREMENT', bc:'amb' },
       ]
     },
 
@@ -88,14 +88,14 @@ var TREE = [
 
       { id:'p05-hub', label:'Operational Control Overview', file:'operational-control.html', level:'L3', badge:'Hub' },
       { id:'oc1', label:'OC-01 Safety & Emergency', file:'oc01-safety.html', level:'L3', badge:'L3', children:[
-        { id:'oc1-ptw',  label:'PTW Register',              file:'ptw-register.html',          level:'L4', tag:'Sh.36', badge:'CAPA-001', bc:'red' },
-        { id:'oc1-eme',  label:'Emergency Response Plan',   file:'emergency-response.html',    level:'L4', tag:'Sh.34b',badge:'DRILL!',   bc:'red' },
+        { id:'oc1-ptw',  label:'PTW Register',              file:'ptw-register.html',          level:'L4', tag:'Sh.36' },
+        { id:'oc1-eme',  label:'Emergency Response Plan',   file:'emergency-response.html',    level:'L4', tag:'Sh.34b' },
         { id:'oc1-con',  label:'Contractor Register',        file:'contractor-register.html',   level:'L4', tag:'Sh.35' },
         { id:'oc1-lot',  label:'LOTO Device Register',       file:'loto-register.html',         level:'L4', tag:'Sh.37' },
         { id:'oc1-lta',  label:'LOTO Authorised Persons',    file:'loto-auth-persons.html',     level:'L4', tag:'Sh.59' },
         { id:'oc1-csl',  label:'Confined Space Entry Log',   file:'confined-space-log.html',    level:'L4', tag:'Sh.38' },
         { id:'oc1-hts',  label:'Heat Stress / WBGT Log',     file:'heat-stress-log.html',       level:'L4', tag:'Sh.39' },
-        { id:'oc1-fxl',  label:'Fire Extinguisher Log',      file:'fire-extinguisher-log.html', level:'L4', tag:'Sh.40', badge:'CAPA-004', bc:'red' },
+        { id:'oc1-fxl',  label:'Fire Extinguisher Log',      file:'fire-extinguisher-log.html', level:'L4', tag:'Sh.40' },
         { id:'oc1-fpl',  label:'Fire Pump Test Log',          file:'fire-pump-log.html',         level:'L4', tag:'Sh.41' },
         { id:'oc1-ohs',  label:'OH Surveillance Register',   file:'oh-surveillance.html',       level:'L4', tag:'Sh.42' },
         { id:'oc1-sca',  label:'Scaffold Inspection',         file:'scaffold-inspection.html',   level:'L4', tag:'Sh.64' },
@@ -106,7 +106,7 @@ var TREE = [
         { id:'oc1-wah',  label:'Working at Height Register',      file:'wah-register.html',          level:'L4', tag:'Sh.55' },
         { id:'oc1-hwl',  label:'Hot Work Activity Log',            file:'hot-work-log.html',          level:'L4', tag:'Sh.56' },
         { id:'oc1-els',  label:'Electrical Safety & Isolation Log',file:'electrical-safety-log.html', level:'L4', tag:'Sh.57' },
-        { id:'oc1-fll',  label:'Furnace Leakage Emergency Log',    file:'furnace-leakage-log.html',   level:'L4', tag:'Sh.58', badge:'DRILL!', bc:'red' },
+        { id:'oc1-fll',  label:'Furnace Leakage Emergency Log',    file:'furnace-leakage-log.html',   level:'L4', tag:'Sh.58' },
         { id:'oc1-fad',  label:'First Aid Records Register',       file:'first-aid-records.html',     level:'L4', tag:'Sh.59' },
         { id:'oc1-fkl',  label:'Forklift & Mobile Equipment Log',  file:'forklift-log.html',          level:'L4', tag:'Sh.60' },
         { id:'oc1-vis',  label:'Visitor Register & Induction Log', file:'visitor-register.html',      level:'L4', tag:'Sh.61' },
@@ -144,7 +144,7 @@ var TREE = [
     /* ── §10 Improvement ─────────────────────────────── */
     { id:'p07', label:'Improvement & Corrective Action', file:'proc-c10.html', level:'L2', badge:'L2-P-07 · §10',
       children:[
-        { id:'p07-cap', label:'CAPA Register',     file:'capa-register.html',    level:'L4', tag:'Sh.23', badge:'4 OPEN', bc:'red' },
+        { id:'p07-cap', label:'CAPA Register',     file:'capa-register.html',    level:'L4', tag:'Sh.23' },
         { id:'p07-inc', label:'Incident Register', file:'incident-register.html',level:'L4', tag:'Sh.24' },
       ]
     },
@@ -254,6 +254,130 @@ function buildSidebar(activeFile) {
        +  '<span class="sb-foot-text">ISO 45001 · 14001 · 50001 · 9001<br>TÜV Austria Stage 2</span></div>';
   html += '</div>';
   return html;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LIVE SIDEBAR BADGES — generic engine
+   Each rule fetches one live tab and decides whether its nav
+   item should show a badge, based on real row data — not a
+   hardcoded static claim that can drift out of date.
+
+   matcher(rows, headers) must return a number: 0 = no badge,
+   >0 = show badge (count is passed into label()).
+   Row format matches the rest of the site: rows are arrays
+   indexed by column position; headers is the matching name list.
+══════════════════════════════════════════════════════════════ */
+function _findCol(headers, needle) {
+  needle = needle.toLowerCase();
+  for (var i = 0; i < headers.length; i++) {
+    if (headers[i] && headers[i].toString().toLowerCase().indexOf(needle) > -1) return i;
+  }
+  return -1;
+}
+
+var LIVE_BADGE_RULES = [
+  {
+    /* CAPA Register — badge shows only if real NCRs exist */
+    navId: 'p07-cap', tabKey: 'capa', color: 'red',
+    matcher: function(rows) { return rows.length; },
+    label: function(n) { return n + ' OPEN'; }
+  },
+  {
+    /* Emergency Response Plan — badge shows only if a named
+       scenario's own Status column says PENDING (not just
+       because the page assumes no drills happened at all) */
+    navId: 'oc1-eme', tabKey: 'emergency', color: 'red',
+    matcher: function(rows, headers) {
+      var idx = _findCol(headers, 'status');
+      if (idx < 0) return 0;
+      return rows.filter(function(r) {
+        return (r[idx] || '').toString().toUpperCase().indexOf('PENDING') > -1;
+      }).length;
+    },
+    label: function(n) { return n + ' PENDING'; }
+  },
+  {
+    /* Furnace Leakage Emergency Log — badge shows only if there
+       is NO drill/event recorded in the current calendar year
+       (previously always showed "DRILL!" regardless of real data) */
+    navId: 'oc1-fll', tabKey: 'furnace_leakage', color: 'red',
+    matcher: function(rows, headers) {
+      var idx = _findCol(headers, 'date');
+      if (idx < 0) return 0;
+      var thisYear = new Date().getFullYear();
+      var hasCurrentYear = rows.some(function(r) {
+        var d = new Date(r[idx]);
+        return !isNaN(d) && d.getFullYear() === thisYear;
+      });
+      return hasCurrentYear ? 0 : 1;
+    },
+    label: function() { return 'DRILL NEEDED'; }
+  }
+];
+
+/* ── Stage 2 registers: these are meant to be actively populated,
+   so the polarity is reversed from CAPA — badge shows when the
+   register is NOT yet populated (0 real rows), and disappears
+   once genuine data exists. Simple row-count check, no column-
+   specific assumptions, so safe to apply uniformly. ────────── */
+var STAGE2_EMPTY_RULES = [
+  { navId: 'oc1-con', tabKey: 'contractor' },
+  { navId: 'oc1-lot', tabKey: 'loto_register' },
+  { navId: 'oc1-lta', tabKey: 'loto_auth' },
+  { navId: 'oc1-hts', tabKey: 'heat_stress' },
+  { navId: 'oc1-ghs', tabKey: 'chemical_inv' },
+  { navId: 'oc1-ppe', tabKey: 'ppe_register' },
+  { navId: 'oc1-hwl', tabKey: 'hot_work' },
+  { navId: 'oc1-fkl', tabKey: 'forklift_log' },
+  { navId: 'oc2-wst', tabKey: 'waste_mgmt' },
+  { navId: 'oc2-fur', tabKey: 'furnace_monitor' },
+  { navId: 'oc2-mps', tabKey: 'meps' },
+  { navId: 'p03-moc', tabKey: 'moc' },
+  { navId: 'p03-eny', tabKey: 'energy' },
+  { navId: 'p03-ghg', tabKey: 'ghg_inventory' },
+  { navId: 'p03-sc3', tabKey: 'scope3' },
+  { navId: 'oc1-fxl', tabKey: 'fire_ext' }
+].map(function(r) {
+  return {
+    navId: r.navId, tabKey: r.tabKey, color: 'amb',
+    matcher: function(rows) { return rows.length === 0 ? 1 : 0; },
+    label: function() { return 'NOT POPULATED'; }
+  };
+});
+LIVE_BADGE_RULES = LIVE_BADGE_RULES.concat(STAGE2_EMPTY_RULES);
+
+function updateLiveBadges() {
+  if (typeof SHEETS_URL === 'undefined') return;
+  LIVE_BADGE_RULES.forEach(function(rule) {
+    fetch(SHEETS_URL + '?tab=' + rule.tabKey + '&action=read')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var el = document.querySelector('[data-id="' + rule.navId + '"]');
+        if (!el) return;
+        var rows = (data && data.rows) ? data.rows : [];
+        var headers = (data && data.headers) ? data.headers : [];
+        var count = rule.matcher(rows, headers);
+        var existingBadge = el.querySelector('.nbdg');
+        if (count > 0) {
+          var text = rule.label(count);
+          if (existingBadge) {
+            existingBadge.textContent = text;
+            existingBadge.className = 'nbdg nbdg-' + rule.color;
+          } else {
+            var span = document.createElement('span');
+            span.className = 'nbdg nbdg-' + rule.color;
+            span.textContent = text;
+            el.appendChild(span);
+          }
+        } else if (existingBadge) {
+          existingBadge.remove();
+        }
+      })
+      .catch(function() {
+        /* Silent fail per rule — badge just stays as last rendered
+           rather than showing a broken state. */
+      });
+  });
 }
 
 /* ── Indentation per depth ─────────────────────────────────── */
@@ -573,6 +697,7 @@ function initPage(filename) {
   wireSearch();
   bindHoverCollapse();
   restoreScroll();
+  updateLiveBadges();
 
   /* ── Sidebar starts collapsed on all pages ──────────────────
      Expands instantly on hover / left-edge mouse approach.
@@ -1050,9 +1175,9 @@ function massINavOpen() {
    ─────────────────────────────────────────────────────────────────────────── */
 var MASSI_PAGE_CONTEXT = {
   'hira.html':                 {sev:'crit',  msg:'HIRA register is open. E-03 objective is BEHIND — overdue since Jun 2026. Shall I show the gap analysis?', q:['Show overdue HIRA items','Which hazards have HIGH residual risk?','Propose preventive actions from HIRA']},
-  'capa-register.html':        {sev:'crit',  msg:'CAPA register is open. 4 CAPAs are open — 2 are Stage 2 blockers. Shall I show overdue actions?', q:['Show overdue CAPAs','Which CAPAs are Stage 2 blockers?','Generate a CAPA proposal from incidents']},
+  'capa-register.html':        {sev:'low',   msg:'CAPA register is empty. 0 formal NCRs raised to date — first Internal Audit still pending. Pre-certification readiness items are tracked separately in the Action Tracker.', q:['Show the Action Tracker items','What is required before the first Internal Audit?','Explain the CAPA 8-step process']},
   'kpi-dashboard.html':        {sev:'high',  msg:'KPI dashboard is open. 4 KPIs are AT RISK including PTW compliance (79%) and Cullet ratio (20% vs 30% target).', q:['Show KPI trend chart','Compare this month with last month','Which KPIs are deteriorating?']},
-  'calibration-register.html': {sev:'high',  msg:'Calibration register is open. CAL-003 WBGT meter is overdue. Shall I show all overdue calibrations?', q:['Show overdue calibrations','Which instruments are due this month?','Update calibration register from Excel']},
+  'calibration-register.html': {sev:'med',   msg:'Calibration register has no records yet — WBGT (heat stress) and audiometry equipment are still pending Procurement quote confirmation. Shall I show the procurement status?', q:['Show procurement quote status','Which instruments still need ordering?','Update calibration register once equipment arrives']},
   'energy.html':               {sev:'crit',  msg:'Energy page is open. F4 SHC is +119 kcal/kg above age-adjusted target — URGENT. ECM 1 decision due August 2026.', q:['Show energy opportunity analysis','Compare furnace SHC vs targets','Show ECM recommendations']},
   'incident-register.html':    {sev:'high',  msg:'Incident register is open. Shall I analyse trends and identify recurring root causes?', q:['Analyse incident trends','Generate CAPA proposal from incidents','Show incidents by severity']},
   'training.html':             {sev:'med',   msg:'Training register is open. TRN-003 EnMS Awareness is planned for 31 Jul 2026 — not yet conducted.', q:['Show training completion rates','Which training is overdue?','Update training register from Excel']},
