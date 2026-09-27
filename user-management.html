@@ -251,14 +251,18 @@ function loadRemoteUsers(cb) {
     .catch(function () { remoteUsers = []; cb(); }); /* sheet unreachable — just show the local list, same as before this feature existed */
 }
 
-/* Local users are authoritative (they have real passwords behind
-   them); a sheet row is added on top ONLY if its ID isn't already
-   local — never lets remote data shadow or duplicate a local one. */
+/* The Sheet is now authoritative for display, for EVERY user —
+   including the original 15. Password changes go through the server
+   (action=setUser, hashed) regardless of which browser an account
+   originated on, so there's no remaining reason for a local copy to
+   ever override what the Sheet actually says. Local storage only
+   fills in a user who hasn't been synced to the Sheet at all yet
+   (e.g. mid-creation, before the first sync call completes). */
 function getMergedUsers() {
   var local = IMS_AUTH.getUsers();
-  var localIds = local.map(function (u) { return u.id; });
-  var remoteExtra = remoteUsers.filter(function (r) { return localIds.indexOf(r.id) < 0; });
-  return local.concat(remoteExtra);
+  var remoteIds = remoteUsers.map(function (r) { return r.id; });
+  var localOnly = local.filter(function (u) { return remoteIds.indexOf(u.id) < 0; });
+  return remoteUsers.concat(localOnly);
 }
 
 /* ── KPI update ────────────────────────────────────────────── */
@@ -300,11 +304,10 @@ function renderTable(){
 
   tbody.innerHTML=users.map(function(u){
     var isSelf=session&&session.userId===u.id;
-    var canModify=isAdmin && !u._remoteOnly && !(u.role==='superadmin' && IMS_AUTH.getRole()!=='superadmin');
+    var canModify=isAdmin && !(u.role==='superadmin' && IMS_AUTH.getRole()!=='superadmin');
     var acts='<button class="btn btn-teal btn-xs" data-ua="view" data-uid="'+u.id+'" title="View profile">🔍</button>';
     if(canModify) acts+='<button class="btn btn-navy btn-xs" data-ua="edit" data-uid="'+u.id+'" title="Edit user"'+(isSelf?' style="outline:2px solid var(--gold)"':'')+'>✏️</button>';
     if(canModify&&!isSelf) acts+='<button class="btn btn-red btn-xs" data-ua="toggle" data-uid="'+u.id+'" title="'+(u.status==='Active'?'Deactivate':'Activate')+'">'+( u.status==='Active'?'🚫':'✅')+'</button>';
-    if(u._remoteOnly) acts+='<span title="Added/edited on another computer — view only here; their password never left that browser" style="font-size:10px;color:#7a869a;margin-left:4px">🌐 synced</span>';
     return '<tr>'
       +'<td><span class="um-avatar" style="background:'+avatarBg(u.role)+'">'+initials(u.name)+'</span></td>'
       +'<td class="mono" style="font-size:9px;color:var(--text-lt)">'+u.id+'</td>'
@@ -326,13 +329,13 @@ function renderTable(){
 
 /* ── Action dispatcher ─────────────────────────────────────── */
 function dispatchAction(action,id){
-  var user=IMS_AUTH.getUserById(id);
-  if(!user) user = remoteUsers.find(function(r){ return r.id===id; });
+  /* Sheet-backed record first — this is what's actually current after
+     any edit; falling back to IMS_AUTH.getUserById would show stale
+     hardcoded seed data for the original 15, undoing their own edits
+     the moment someone clicks Edit or View again. */
+  var user = getMergedUsers().find(function(u){ return u.id===id; });
+  if(!user) user = IMS_AUTH.getUserById(id);
   if(!user)return;
-  if(user._remoteOnly && (action==='edit'||action==='toggle')){
-    alert('This user was added or edited on another computer — their password never left that browser, so editing or deactivating them here isn\'t safe from this one. Ask them (or whoever manages that browser) to make the change there instead.');
-    return;
-  }
   if(action==='view')   openUserModal(user,true);
   if(action==='edit')   openUserModal(user,false);
   if(action==='toggle') toggleStatus(user);
@@ -341,10 +344,15 @@ function dispatchAction(action,id){
 function toggleStatus(user){
   var newStatus=user.status==='Active'?'Inactive':'Active';
   if(!confirm((newStatus==='Inactive'?'Deactivate':'Re-activate')+' user "'+user.username+'"?'))return;
+  var updated = Object.assign({}, user, { status: newStatus });
   var users=IMS_AUTH.getUsers();
   var u2=users.find(function(x){return x.id===user.id;});
-  if(u2){ u2.status=newStatus; IMS_AUTH.saveUsers(users); IMS_AUTH.auditLog('USER_STATUS',user.username+' → '+newStatus, IMS_AUTH.getUser()&&IMS_AUTH.getUser().userId); }
-  renderTable(); toast(user.username+' set to '+newStatus,'ok');
+  if(u2){ u2.status=newStatus; IMS_AUTH.saveUsers(users); }
+  IMS_AUTH.auditLog('USER_STATUS',user.username+' → '+newStatus, IMS_AUTH.getUser()&&IMS_AUTH.getUser().userId);
+  syncUserToSheet(updated).then(function () {
+    loadRemoteUsers(renderTable);
+    toast(user.username+' set to '+newStatus,'ok');
+  });
 }
 
 /* ── Modal ─────────────────────────────────────────────────── */
@@ -388,7 +396,7 @@ function openUserModal(user, readOnly){
     +'</div>'
     +'<div class="dms-modal-ftr">'
     +(!readOnly?'<button class="btn btn-ghost-dk" id="um-cancel">Cancel</button><button class="btn btn-gold" id="um-save">'+(isNew?'Create User':'Save Changes')+'</button>':'')
-    +(readOnly&&IMS_AUTH.can('manage_users')&&!isSelf&&!u._remoteOnly?'<button class="btn btn-navy" id="um-go-edit">✏️ Edit</button>':'')
+    +(readOnly&&IMS_AUTH.can('manage_users')&&!isSelf?'<button class="btn btn-navy" id="um-go-edit">✏️ Edit</button>':'')
     +'<button class="btn btn-gold" id="um-close">Close</button>'
     +'</div>'
   );
@@ -443,9 +451,15 @@ function openUserModal(user, readOnly){
     if(idx>=0)users[idx]=upd; else users.push(upd);
     IMS_AUTH.saveUsers(users);
     IMS_AUTH.auditLog(isNew?'USER_CREATED':'USER_EDITED', upd.username+(isNew?'  created':' edited'), (IMS_AUTH.getUser()||{}).userId);
-    syncUserToSheet(upd, pwVal); /* pwVal only passed when actually typed — preserves the existing password on an edit that doesn't touch it */
-    closeOverlay(); renderTable();
-    toast(isNew?'User created.':'Changes saved.','ok');
+
+    var saveBtn = document.getElementById('um-save');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
+    syncUserToSheet(upd, pwVal).then(function () { /* pwVal only passed when actually typed — preserves the existing password on an edit that doesn't touch it */
+      closeOverlay();
+      loadRemoteUsers(renderTable); /* re-fetch the live sheet, only now that the write has actually landed — re-fetching any earlier could still show the pre-edit state */
+      toast(isNew?'User created.':'Changes saved.','ok');
+    });
   });
 }
 
@@ -474,12 +488,13 @@ function syncUserToSheet(user, plainPassword) {
   };
   if (plainPassword) payload.password = plainPassword;
 
-  fetch(SHEETS_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action: 'setUser' }, payload)) })
+  return fetch(SHEETS_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action: 'setUser' }, payload)) })
     .then(function (r) { return r.json(); })
     .then(function (result) {
       if (!(result && result.status === 'ok')) {
         console.warn('User sync to server did not confirm success for ' + user.id + ':', result);
       }
+      return result;
     })
     .catch(function (err) {
       console.warn('User sync to server failed for ' + user.id + ' (this browser still saved the user locally): ' + err);
