@@ -96,6 +96,9 @@
       rcaMethod: '', rcaDetail: '', rcaImmediateCause: '', rcaSystemContributor: '',
       caAction: '', caOwner: '', caOwnerEmail: '', caDueDate: '', caApproved: false, ownerManualMode: false,
       status: 'Open',
+      initialEvidenceFile: null, /* File object, in-memory only — can't survive a page reload/resume, by nature of file inputs */
+      initialEvidenceUploaded: false, /* guards against re-uploading the same already-attached file on every subsequent save */
+      initialEvidenceUrl: '', /* set once upload succeeds, or restored from the sheet when resuming a CAPA that already has one */
     };
   }
 
@@ -252,6 +255,29 @@
       + '</div>';
   }
 
+  /* Evidence attachment for Step 1 — reuses the same broad file-type
+     acceptance and upload mechanism already built for the ML-01
+     implementation log (any image, PDF, Word, Excel, PowerPoint).
+     Shown as its own confirmation line rather than relying on the
+     native file input's own label, because re-rendering the whole
+     step (e.g. every keystroke in the risk-score field) recreates a
+     fresh <input type="file"> that always shows "No file chosen" by
+     browser design — without this, it would look like the selection
+     was lost even though it's already safely captured in state. */
+  function evidenceFieldHTML() {
+    var confirmation = '';
+    if (state.initialEvidenceFile) {
+      confirmation = '<div class="cw-hint">📎 Selected: <strong>' + esc(state.initialEvidenceFile.name) + '</strong>' + (state.initialEvidenceUploaded ? ' — uploaded' : ' — will upload on save') + '</div>';
+    } else if (state.initialEvidenceUrl) {
+      confirmation = '<div class="cw-hint">📎 Evidence already attached: <a href="' + esc(state.initialEvidenceUrl) + '" target="_blank">view</a>. Choosing a new file below replaces it.</div>';
+    }
+    return '<div class="cw-field"><label>Evidence (optional)</label>'
+      + '<input type="file" id="cw-evidence-file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">'
+      + '<div class="cw-hint">Photo, PDF, Word, Excel, or PowerPoint — whatever shows the nonconformity.</div>'
+      + confirmation
+      + '</div>';
+  }
+
   /* ── Step 1: Intake + Severity ───────────────────────────── */
   function stepIntake() {
     var sevBanner = '';
@@ -269,6 +295,7 @@
     return ''
       + '<div class="cw-field"><label>Description of the nonconformity</label>'
       + '<textarea id="cw-desc" placeholder="What was observed, where, and when">' + esc(state.description) + '</textarea></div>'
+      + evidenceFieldHTML()
       + '<div class="cw-field"><label>Source</label>'
       + '<select id="cw-source">' + ['', 'Internal Audit', 'Certification Audit (TÜV)', 'Incident Investigation', 'Customer Complaint', 'Management Review', 'Other formal NC determination']
         .map(function (o) { return '<option' + (o === state.source ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></div>'
@@ -405,6 +432,15 @@
       render();
     });
 
+    var evidenceInput = document.getElementById('cw-evidence-file');
+    if (evidenceInput) evidenceInput.addEventListener('change', function () {
+      if (evidenceInput.files && evidenceInput.files[0]) {
+        state.initialEvidenceFile = evidenceInput.files[0];
+        state.initialEvidenceUploaded = false; /* a newly chosen file always needs (re-)uploading */
+        render(); /* shows the persistent confirmation line immediately */
+      }
+    });
+
     var manualToggle = document.getElementById('cw-owner-manual-toggle');
     if (manualToggle) manualToggle.addEventListener('click', function (ev) {
       ev.preventDefault();
@@ -505,10 +541,12 @@
     if (saving) return;
     saving = true;
     setButtonsSaving(true);
+    var wasFirstSave = false;
 
     function doWrite() {
       var row = buildRow(finishing);
       var isFirstSave = !state.capaId;
+      wasFirstSave = isFirstSave;
 
       function afterAssignId(id) {
         state.capaId = id;
@@ -534,6 +572,8 @@
     function handleResult(result) {
       saving = false; setButtonsSaving(false);
       if (result && result.status === 'ok') {
+        if (wasFirstSave) notifyNewCapaOwner(); /* fire-and-forget — owner should hear immediately, not wait for the alert/close below */
+        if (state.initialEvidenceFile && !state.initialEvidenceUploaded) uploadInitialEvidence();
         if (finishing) {
           alert(state.capaId + ' saved as finished (all 4 steps complete). Implementation tracking (ML-01) and Effectiveness Verification (F-04) are now available via "Continue an Existing CAPA".');
         } else {
@@ -550,6 +590,44 @@
     function handleError(err) {
       saving = false; setButtonsSaving(false);
       alert('Could not reach the live sheet: ' + err + '\nThis environment cannot verify the write live — please confirm on the deployed site.');
+    }
+
+    /* Tells the owner, right away, that a CAPA now exists with them as
+       owner — email + in-portal notification, same channels as the
+       overdue reminders but fired once at creation instead of daily. */
+    function notifyNewCapaOwner() {
+      if (!state.caOwnerEmail) return; /* shouldn't happen, Step 1 requires it — but never let a missing email break the save itself */
+      fetch(SHEETS_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'notifyNewCapa',
+          capaId: state.capaId,
+          ownerEmail: state.caOwnerEmail,
+          ownerName: state.caOwner,
+          description: state.description,
+          severity: state.severity ? state.severity.key : '',
+          dueDate: state.caDueDate,
+        }),
+      }).catch(function (err) {
+        console.warn('New-CAPA owner notification failed to send for ' + state.capaId + ': ' + err);
+      });
+    }
+
+    /* Uploads the Step 1 evidence file (if any) using the same
+       mechanism already built for ML-01 evidence, then attaches the
+       resulting link to the CAPA row via a follow-up update — the
+       upload itself needs a real CAPA ID first, which doesn't exist
+       until after the first successful save, so this always runs
+       AFTER doWrite() succeeds, never before or during it. */
+    function uploadInitialEvidence() {
+      uploadEvidence(state.initialEvidenceFile, state.capaId, function (url) {
+        if (!url) { console.warn('Evidence upload failed for ' + state.capaId + ' — CAPA itself was still saved successfully.'); return; }
+        state.initialEvidenceUploaded = true;
+        state.initialEvidenceUrl = url;
+        fetch(SHEETS_URL + '?action=update&tab=capa&idCol=' + encodeURIComponent('CAPA ID') + '&id=' + encodeURIComponent(state.capaId), {
+          method: 'POST', body: JSON.stringify({ 'Initial Evidence': url }),
+        }).catch(function (err) { console.warn('Could not attach evidence link to ' + state.capaId + ': ' + err); });
+      });
     }
 
     doWrite();
@@ -637,6 +715,8 @@
     state.severity = col('Severity') ? severityByKey(col('Severity')) : classify(state.score);
     state.caOwner = col('Owner');
     state.caOwnerEmail = col('Owner Email');
+    state.initialEvidenceUrl = col('Initial Evidence');
+    state.initialEvidenceUploaded = !!state.initialEvidenceUrl;
     state.containment = col('Immediate Action');
     state.containmentDate = col('Containment Date');
     var rcaMethodLabel = col('RCA Method');
@@ -1093,8 +1173,8 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var headers = data.headers || [];
-        var nameIdx = headers.indexOf('Name'), titleIdx = headers.indexOf('Title');
-        var emailIdx = headers.indexOf('Email'), statusIdx = headers.indexOf('Status');
+        var nameIdx = headers.indexOf('Full Name'), titleIdx = headers.indexOf('Job Title');
+        var emailIdx = headers.indexOf('Email'), statusIdx = headers.indexOf('Account Status');
         liveUserDirectory = (data.rows || [])
           .filter(function (r) { return statusIdx < 0 || String(r[statusIdx]).toLowerCase() === 'active'; })
           .map(function (r) {
