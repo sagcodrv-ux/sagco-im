@@ -202,7 +202,7 @@
       return;
     }
 
-    var stepHtml = ['stepIntake', 'stepContainment', 'stepRCA', 'stepCAPlan'][currentStep - 1]();
+    var stepHtml = [stepIntake, stepContainment, stepRCA, stepCAPlan][currentStep - 1]();
     mount.innerHTML = wrapShell(stepsPillsHTML() + idBannerHTML() + stepHtml + footerHTML());
     bindShellEvents();
     bindStepEvents();
