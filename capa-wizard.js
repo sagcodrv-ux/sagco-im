@@ -99,19 +99,32 @@
     };
   }
 
-  /* ── Role gate ────────────────────────────────────────────── */
+  /* ── Role gate ────────────────────────────────────────────────
+     Site-wide reality check: auth.js is loaded on 26 pages but only
+     2 (document-management.html, user-management.html) ever call
+     IMS_AUTH.init() to show a login wall. Everywhere else — including
+     this page, before this fix — getRole() silently returns 'public'
+     forever, which blocked every single click since 'public' has no
+     permissions. Failing open when no session exists matches how the
+     rest of the portal actually behaves; it only restricts someone
+     who IS logged in with a role below what's needed. If a real login
+     wall gets added to this page later (IMS_AUTH.init()), these gates
+     start meaning something rather than being cosmetic. ──────────── */
   function canRaise() {
-    if (!global.IMS_AUTH) return true; /* auth.js not loaded: fail open, don't block the demo */
+    if (!global.IMS_AUTH) return true;
+    if (!IMS_AUTH.getUser()) return true; /* no active session on this page — don't block by default */
     return IMS_AUTH.can('add');
   }
   function canEdit() {
     if (!global.IMS_AUTH) return true;
-    return IMS_AUTH.can('edit'); /* editor/admin/superadmin — HOD-level: log progress, move Open→In Progress→Completed */
+    if (!IMS_AUTH.getUser()) return true;
+    return IMS_AUTH.can('edit');
   }
   function canClose() {
     if (!global.IMS_AUTH) return true;
+    if (!IMS_AUTH.getUser()) return true; /* see note above — meaningful only once a login wall is active */
     var role = IMS_AUTH.getRole();
-    return role === 'admin' || role === 'superadmin'; /* effectiveness verification + Completed→Closed */
+    return role === 'admin' || role === 'superadmin';
   }
   function currentUserName() {
     return (global.IMS_AUTH && IMS_AUTH.getUser()) ? IMS_AUTH.getUser().name : 'Unknown';
