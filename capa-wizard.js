@@ -94,7 +94,7 @@
       score: '', severity: null,
       containment: '', containmentDate: '',
       rcaMethod: '', rcaDetail: '', rcaImmediateCause: '', rcaSystemContributor: '',
-      caAction: '', caOwner: '', caDueDate: '', caApproved: false,
+      caAction: '', caOwner: '', caOwnerEmail: '', caDueDate: '', caApproved: false, ownerManualMode: false,
       status: 'Open',
     };
   }
@@ -125,6 +125,18 @@
     if (!IMS_AUTH.getUser()) return true; /* see note above — meaningful only once a login wall is active */
     var role = IMS_AUTH.getRole();
     return role === 'admin' || role === 'superadmin';
+  }
+  /* Reopening a Closed CAPA is deliberately narrower than closing it.
+     "IMS Manager" in the real seeded user data (auth.js) is a job TITLE,
+     at role 'editor' — not the 'admin' tier canClose() checks. So this
+     can't reuse canClose(); it checks the title directly instead. */
+  function canReopen() {
+    if (!global.IMS_AUTH) return true;
+    var session = IMS_AUTH.getUser();
+    if (!session) return true;
+    if (session.role === 'superadmin') return true;
+    if (session.title === 'IMS Manager') return true;
+    return false;
   }
   function currentUserName() {
     return (global.IMS_AUTH && IMS_AUTH.getUser()) ? IMS_AUTH.getUser().name : 'Unknown';
@@ -266,9 +278,40 @@
       + '<input type="number" id="cw-score" min="0" max="40" value="' + esc(state.score) + '" placeholder="e.g. 15">'
       + '<div class="cw-hint">Critical ≥20 · Major 12–19 · Minor 6–11 (proc-c10.html §5)</div></div>'
       + sevBanner
-      + '<div class="cw-field"><label>Owner (assigned HOD/department)</label>'
-      + '<input type="text" id="cw-owner" value="' + esc(state.caOwner) + '" placeholder="e.g. Furnaces Manager"></div>'
+      + ownerFieldHTML()
       + '<div class="cw-sev-banner neutral">A CAPA can be raised with only this step completed — Containment, RCA and the Corrective Action Plan can be added later by whoever picks it up. Use <strong>Save &amp; Continue Later</strong> below.</div>';
+  }
+
+  /* Owner picker — pulls from the real registered-user directory
+     (auth.js's getUsers(), shared browser localStorage — the wizard
+     can read this directly since it runs in the same browser, unlike
+     the Apps Script backend which has no access to it at all) so the
+     email is correct by construction rather than hand-typed. Falls
+     back to manual name+email entry if the directory is empty (e.g.
+     this browser has never visited a page that seeds it) or if the
+     right person just isn't in the list yet. */
+  function ownerFieldHTML() {
+    var users = liveUserDirectory || [];
+
+    if (!state.ownerManualMode && users.length) {
+      var options = '<option value="">— Select from registered users —</option>' + users.map(function (u) {
+        var sel = (state.caOwner === u.name) ? ' selected' : '';
+        return '<option value="' + esc(u.name) + '" data-email="' + esc(u.email) + '"' + sel + '>' + esc(u.name) + ' — ' + esc(u.title) + '</option>';
+      }).join('');
+      return '<div class="cw-field"><label>Owner</label>'
+        + '<select id="cw-owner-select">' + options + '</select>'
+        + '<div class="cw-hint">Email auto-fills from the registered user directory: '
+        + (state.caOwnerEmail ? '<strong>' + esc(state.caOwnerEmail) + '</strong>' : 'not selected yet') + '. '
+        + '<a href="#" id="cw-owner-manual-toggle" style="color:#1565C0">Can\'t find them? Enter manually.</a></div></div>';
+    }
+
+    return '<div class="cw-field"><label>Owner (name)</label>'
+      + '<input type="text" id="cw-owner" value="' + esc(state.caOwner) + '" placeholder="e.g. Furnaces Manager"></div>'
+      + '<div class="cw-field"><label>Owner email</label>'
+      + '<input type="email" id="cw-owner-email" value="' + esc(state.caOwnerEmail) + '" placeholder="e.g. furnaces.mgr@sagco.com.sa">'
+      + '<div class="cw-hint">Required — overdue reminders are emailed here automatically until this CAPA is marked Completed. '
+      + (users.length ? '<a href="#" id="cw-owner-manual-toggle" style="color:#1565C0">Choose from registered users instead.</a>' : '(No registered users found in this browser — enter manually, or visit Document Management/User Management once to load the directory.)')
+      + '</div></div>';
   }
 
   /* ── Step 2: Containment ─────────────────────────────────── */
@@ -353,13 +396,29 @@
       var s2 = document.getElementById('cw-score');
       if (s2) { s2.focus(); s2.value = state.score; }
     });
+
+    var ownerSelect = document.getElementById('cw-owner-select');
+    if (ownerSelect) ownerSelect.addEventListener('change', function () {
+      var opt = ownerSelect.options[ownerSelect.selectedIndex];
+      state.caOwner = ownerSelect.value;
+      state.caOwnerEmail = ownerSelect.value ? (opt.getAttribute('data-email') || '') : '';
+      render();
+    });
+
+    var manualToggle = document.getElementById('cw-owner-manual-toggle');
+    if (manualToggle) manualToggle.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      state.ownerManualMode = !state.ownerManualMode;
+      render();
+    });
   }
 
   function collectStep() {
     if (currentStep === 1) {
       state.description = val('cw-desc'); state.source = val('cw-source');
       state.dateRaised = val('cw-date'); state.score = val('cw-score');
-      state.severity = classify(state.score); state.caOwner = val('cw-owner');
+      state.severity = classify(state.score);
+      if (document.getElementById('cw-owner')) { state.caOwner = val('cw-owner'); state.caOwnerEmail = val('cw-owner-email'); }
     } else if (currentStep === 2) {
       state.containment = val('cw-containment'); state.containmentDate = val('cw-cont-date');
     } else if (currentStep === 3) {
@@ -382,6 +441,10 @@
     collectStep();
     if (currentStep === 1 && !state.severity) {
       alert('Enter a risk score of 6 or higher to classify severity before continuing (scores below 6 are not a formal CAPA per proc-c10.html §5).');
+      return;
+    }
+    if (currentStep === 1 && !state.caOwnerEmail) {
+      alert('Owner email is required — overdue reminders are sent there automatically.');
       return;
     }
     if (currentStep === 4) {
@@ -419,6 +482,7 @@
       'Description': state.description,
       'Date Raised': state.dateRaised,
       'Owner': state.caOwner,
+      'Owner Email': state.caOwnerEmail,
       'Immediate Action': state.containment,
       'Containment Date': state.containmentDate,
       'RCA Method': state.rcaMethod === 'ishikawa' ? 'Ishikawa (fishbone)' : (state.rcaMethod === 'five_why' ? '5-Why' : ''),
@@ -505,7 +569,7 @@
     injectStyles();
     var mount = document.getElementById('capa-wizard-mount');
     mount.innerHTML = '<div id="capa-wiz-wrap"><div id="capa-wiz-box">'
-      + '<div class="cw-hdr"><h3>Continue an Existing CAPA</h3><div style="font-size:11px;opacity:.75">Loading live register…</div></div>'
+      + '<div class="cw-hdr"><h3>Continue or View a CAPA</h3><div style="font-size:11px;opacity:.75">Loading live register…</div></div>'
       + '<div class="cw-body" id="cw-picker-body"><div class="cw-blocked">Loading…</div></div>'
       + '<div class="cw-footer"><span></span><button class="cw-btn ghost" id="cw-close">Close</button></div>'
       + '</div></div>';
@@ -521,22 +585,32 @@
         var stageIdx = headers.indexOf('Process Stage');
         var statusIdx = headers.indexOf('Status');
         var descIdx = headers.indexOf('Description');
-        var rows = (data.rows || []).filter(function (row) {
-          return String(row[statusIdx]).toLowerCase() !== 'closed';
-        });
-        if (!rows.length) {
-          body.innerHTML = '<div class="cw-blocked">No open CAPAs to continue. Raise a new one instead.</div>';
-          return;
-        }
-        body.innerHTML = rows.map(function (row) {
+        var allRows = data.rows || [];
+        var openRows = allRows.filter(function (row) { return String(row[statusIdx]).toLowerCase() !== 'closed'; });
+        var closedRows = allRows.filter(function (row) { return String(row[statusIdx]).toLowerCase() === 'closed'; });
+
+        function rowHTML(row, closed) {
           var id = row[idIdx] || '(no ID)';
-          var stage = stageIdx >= 0 ? (row[stageIdx] || 'Intake') : 'Intake';
+          var stage = closed ? 'Closed' : (stageIdx >= 0 ? (row[stageIdx] || 'Intake') : 'Intake');
           var desc = descIdx >= 0 ? String(row[descIdx] || '').slice(0, 70) : '';
-          return '<div class="cw-picker-row" data-id="' + esc(id) + '">'
+          return '<div class="cw-picker-row" data-id="' + esc(id) + '"' + (closed ? ' style="opacity:.7"' : '') + '>'
             + '<div><strong>' + esc(id) + '</strong><div style="font-size:11px;color:#7a869a">' + esc(desc) + '</div></div>'
-            + '<span class="cw-picker-stage">' + esc(stage) + '</span>'
+            + '<span class="cw-picker-stage"' + (closed ? ' style="background:#eef1f6;color:#4b5563"' : '') + '>' + esc(stage) + '</span>'
             + '</div>';
-        }).join('');
+        }
+
+        var html = '';
+        if (openRows.length) {
+          html += '<div style="font-size:11px;font-weight:700;color:#1B2A4A;margin-bottom:8px">OPEN — CONTINUE WORKING</div>'
+            + openRows.map(function (r) { return rowHTML(r, false); }).join('');
+        } else {
+          html += '<div class="cw-hint" style="margin-bottom:14px">No open CAPAs to continue. Raise a new one instead.</div>';
+        }
+        if (closedRows.length) {
+          html += '<div style="font-size:11px;font-weight:700;color:#4b5563;margin:18px 0 8px">CLOSED — VIEW HISTORY ONLY</div>'
+            + closedRows.map(function (r) { return rowHTML(r, true); }).join('');
+        }
+        body.innerHTML = html;
         body.querySelectorAll('.cw-picker-row').forEach(function (el) {
           el.addEventListener('click', function () { resumeById(el.getAttribute('data-id'), data); });
         });
@@ -562,6 +636,7 @@
     state.score = col('Risk Score');
     state.severity = col('Severity') ? severityByKey(col('Severity')) : classify(state.score);
     state.caOwner = col('Owner');
+    state.caOwnerEmail = col('Owner Email');
     state.containment = col('Immediate Action');
     state.containmentDate = col('Containment Date');
     var rcaMethodLabel = col('RCA Method');
@@ -583,7 +658,7 @@
     }
 
     currentStep = Math.max(1, STAGE_NAMES.indexOf(stage) + 1) || 1;
-    render();
+    loadUserDirectory(render);
   }
 
   /* ══════════════════════════════════════════════════════════
@@ -650,7 +725,7 @@
           return '<div style="border-left:3px solid #C9A84C;padding:8px 12px;margin-bottom:8px;background:#f9fafb;border-radius:0 6px 6px 0">'
             + '<div style="font-size:10.5px;color:#7a869a">' + esc(e.date) + ' · ' + esc(e.by) + (e.change ? ' · <strong>' + esc(e.change) + '</strong>' : '') + '</div>'
             + '<div style="font-size:12px;margin-top:3px">' + esc(e.note) + '</div>'
-            + (e.photo ? '<a href="' + esc(e.photo) + '" target="_blank" style="font-size:11px;color:#1565C0">📷 View photo</a>' : '')
+            + (e.photo ? '<a href="' + esc(e.photo) + '" target="_blank" style="font-size:11px;color:#1565C0">📎 View attached evidence</a>' : '')
             + '</div>';
         }).join('')
       : '<div class="cw-hint" style="margin-bottom:12px">No progress entries yet.</div>';
@@ -660,7 +735,9 @@
       var nextAction = status === 'Open' ? 'In Progress' : (status === 'In Progress' ? 'Completed' : null);
       addForm = '<div class="cw-field"><label>Add progress update</label>'
         + '<textarea id="impl-note" placeholder="What was done since the last update"></textarea></div>'
-        + '<div class="cw-field"><label>Photo (optional)</label><input type="file" id="impl-photo" accept="image/*"></div>'
+        + '<div class="cw-field"><label>Evidence file (optional)</label>'
+        + '<input type="file" id="impl-photo" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">'
+        + '<div class="cw-hint">Photo, PDF, Word, Excel, or PowerPoint — whatever the actual evidence is.</div></div>'
         + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
         + '<button class="cw-btn ghost" id="impl-log-only">Log Update Only</button>'
         + (nextAction ? '<button class="cw-btn primary" id="impl-advance" data-next="' + nextAction + '">Log &amp; Mark ' + nextAction + '</button>' : '')
@@ -671,8 +748,15 @@
 
     var closureForm = '';
     if (status === 'Completed') {
+      if (canEdit()) {
+        closureForm += '<div style="margin-top:22px;padding-top:16px;border-top:1px solid #eef1f6">'
+          + '<div class="cw-field"><label>Not actually finished? Revert to In Progress</label>'
+          + '<textarea id="impl-revert-reason" placeholder="Why this isn\'t actually done yet — this is logged automatically"></textarea></div>'
+          + '<button class="cw-btn ghost" id="impl-revert-btn">↩ Revert to In Progress</button>'
+          + '</div>';
+      }
       if (canClose()) {
-        closureForm = '<div style="margin-top:22px;padding-top:16px;border-top:1px solid #eef1f6">'
+        closureForm += '<div style="margin-top:22px;padding-top:16px;border-top:1px solid #eef1f6">'
           + '<div style="font-size:12px;font-weight:700;color:#1B2A4A;margin-bottom:10px">F-04 · Effectiveness Verification &amp; Closure</div>'
           + '<div class="cw-field"><label>Verification method</label>'
           + '<input type="text" id="impl-verif-method" placeholder="e.g. Follow-up inspection, re-audit, KPI check"></div>'
@@ -683,13 +767,25 @@
           + '<button class="cw-btn primary" id="impl-verify-submit">Submit Verification</button>'
           + '<div class="cw-hint">A "No" reopens the CAPA rather than closing it — recurrence within 12 months per proc-c10.html also reopens a closed CAPA, though that check is not yet automated here.</div>'
           + '</div>';
-      } else {
+      }
+      if (!canEdit() && !canClose()) {
         closureForm = '<div class="cw-hint" style="margin-top:16px">Marked Completed — awaiting Admin effectiveness verification before it can be closed.</div>';
       }
     }
     if (status === 'Closed') {
       closureForm = '<div class="cw-sev-banner minor" style="background:#e8f5e9;border-color:#a5d6a7;color:#1B5E20;margin-top:16px">'
-        + 'Closed. Verified ' + esc(col('Verification Date')) + ' by ' + esc(col('Verified By')) + '.</div>';
+        + 'Closed. Verified ' + esc(col('Verification Date')) + ' by ' + esc(col('Verified By')) + '.'
+        + (canReopen()
+          ? '<br><span style="font-size:10.5px;opacity:.8">You can reopen this CAPA below (IMS Manager / Super Admin only).</span>'
+          : '<br><span style="font-size:10.5px;opacity:.8">Viewing history — reopening a closed CAPA is restricted to the IMS Manager or Super Admin.</span>')
+        + '</div>';
+      if (canReopen()) {
+        closureForm += '<div style="margin-top:16px;padding-top:16px;border-top:1px solid #eef1f6">'
+          + '<div class="cw-field"><label>Reason for reopening</label>'
+          + '<textarea id="impl-reopen-reason" placeholder="e.g. recurrence found, verification later judged insufficient — logged automatically"></textarea></div>'
+          + '<button class="cw-btn ghost" id="impl-reopen-btn">↩ Reopen (back to In Progress)</button>'
+          + '</div>';
+      }
     }
 
     body.innerHTML = feed + addForm + closureForm;
@@ -700,6 +796,10 @@
     if (advanceBtn) advanceBtn.addEventListener('click', function () { submitProgress(capaId, headers, row, advanceBtn.getAttribute('data-next')); });
     var verifySubmit = document.getElementById('impl-verify-submit');
     if (verifySubmit) verifySubmit.addEventListener('click', function () { submitVerification(capaId, headers, row); });
+    var revertBtn = document.getElementById('impl-revert-btn');
+    if (revertBtn) revertBtn.addEventListener('click', function () { submitRevert(capaId); });
+    var reopenBtn = document.getElementById('impl-reopen-btn');
+    if (reopenBtn) reopenBtn.addEventListener('click', function () { submitReopen(capaId); });
   }
 
   /* Saving-lock for the Implementation panel — the earlier version had
@@ -710,7 +810,7 @@
      re-entry until the request settles. */
   var implSaving = false;
   function setImplButtonsSaving(isSaving, activeBtnId) {
-    ['impl-log-only', 'impl-advance', 'impl-verify-submit'].forEach(function (id) {
+    ['impl-log-only', 'impl-advance', 'impl-verify-submit', 'impl-revert-btn', 'impl-reopen-btn'].forEach(function (id) {
       var b = document.getElementById(id);
       if (!b) return;
       b.disabled = isSaving;
@@ -718,7 +818,11 @@
     });
   }
 
-  function uploadPhoto(file, capaId, cb) {
+  /* Handles any evidence file — image, PDF, Word, Excel, PowerPoint.
+     The underlying sheet column is still named "Photo URL" (kept as-is
+     to avoid another schema change); it now just means "evidence file
+     link", whatever the file type actually is. */
+  function uploadEvidence(file, capaId, cb) {
     if (!file) { cb(null); return; }
     var reader = new FileReader();
     reader.onerror = function () { cb(null); };
@@ -749,13 +853,13 @@
     implSaving = true;
     setImplButtonsSaving(true, statusChange ? 'impl-advance' : 'impl-log-only');
 
-    uploadPhoto(file, capaId, function (photoLink) {
+    uploadEvidence(file, capaId, function (evidenceLink) {
       var logRow = {
         'Log ID': 'LOG-' + capaId + '-' + Date.now(),
         'CAPA ID': capaId,
         'Date': new Date().toISOString().split('T')[0],
         'Note': note,
-        'Photo URL': photoLink || '',
+        'Photo URL': evidenceLink || '',
         'Logged By': currentUserName(),
         'Status Change': statusChange ? ('→ ' + statusChange) : '',
       };
@@ -782,6 +886,81 @@
         })
         .catch(function (err) { implSaving = false; setImplButtonsSaving(false); alert('Could not reach the live sheet: ' + err); });
     });
+  }
+
+  function submitRevert(capaId) {
+    if (implSaving) return;
+    var reason = val('impl-revert-reason');
+    if (!reason) { alert('Add a short reason before reverting — this is written to the progress log automatically.'); return; }
+
+    implSaving = true;
+    setImplButtonsSaving(true, 'impl-revert-btn');
+
+    var logRow = {
+      'Log ID': 'LOG-' + capaId + '-' + Date.now(),
+      'CAPA ID': capaId,
+      'Date': new Date().toISOString().split('T')[0],
+      'Note': reason,
+      'Photo URL': '',
+      'Logged By': currentUserName(),
+      'Status Change': '→ In Progress (reverted from Completed)',
+    };
+    fetch(SHEETS_URL + '?action=write&tab=' + LOG_TAB, { method: 'POST', body: JSON.stringify([logRow]) })
+      .then(function (r) { return r.json(); })
+      .then(function (result) {
+        if (!(result && result.status === 'ok')) {
+          implSaving = false; setImplButtonsSaving(false);
+          alert('Could not log the revert: ' + JSON.stringify(result));
+          return;
+        }
+        fetch(SHEETS_URL + '?action=update&tab=capa&idCol=' + encodeURIComponent('CAPA ID') + '&id=' + encodeURIComponent(capaId), {
+          method: 'POST', body: JSON.stringify({ 'Status': 'In Progress' }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function () { implSaving = false; alert(capaId + ' reverted to In Progress.'); closeWizard(); if (global.reloadLive) reloadLive(); })
+          .catch(function (err) { implSaving = false; setImplButtonsSaving(false); alert('Log saved, but the status revert failed to reach the live sheet: ' + err); });
+      })
+      .catch(function (err) { implSaving = false; setImplButtonsSaving(false); alert('Could not reach the live sheet: ' + err); });
+  }
+
+  function submitReopen(capaId) {
+    if (implSaving) return;
+    if (!canReopen()) { alert('Reopening a closed CAPA is restricted to the IMS Manager or Super Admin.'); return; }
+    var reason = val('impl-reopen-reason');
+    if (!reason) { alert('Add a reason before reopening — this is written to the progress log automatically.'); return; }
+
+    implSaving = true;
+    setImplButtonsSaving(true, 'impl-reopen-btn');
+
+    var logRow = {
+      'Log ID': 'LOG-' + capaId + '-' + Date.now(),
+      'CAPA ID': capaId,
+      'Date': new Date().toISOString().split('T')[0],
+      'Note': reason,
+      'Photo URL': '',
+      'Logged By': currentUserName(),
+      'Status Change': '→ In Progress (reopened from Closed)',
+    };
+    fetch(SHEETS_URL + '?action=write&tab=' + LOG_TAB, { method: 'POST', body: JSON.stringify([logRow]) })
+      .then(function (r) { return r.json(); })
+      .then(function (result) {
+        if (!(result && result.status === 'ok')) {
+          implSaving = false; setImplButtonsSaving(false);
+          alert('Could not log the reopen: ' + JSON.stringify(result));
+          return;
+        }
+        /* Verified resets to No — a reopened CAPA is no longer standing as
+           verified-effective, even though its prior Effectiveness Method/
+           Evidence/Result/Verified By/Verification Date fields are left
+           in place as a historical record of that earlier closure. */
+        fetch(SHEETS_URL + '?action=update&tab=capa&idCol=' + encodeURIComponent('CAPA ID') + '&id=' + encodeURIComponent(capaId), {
+          method: 'POST', body: JSON.stringify({ 'Status': 'In Progress', 'Verified': 'No' }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function () { implSaving = false; alert(capaId + ' reopened — back to In Progress.'); closeWizard(); if (global.reloadLive) reloadLive(); })
+          .catch(function (err) { implSaving = false; setImplButtonsSaving(false); alert('Log saved, but reopening failed to reach the live sheet: ' + err); });
+      })
+      .catch(function (err) { implSaving = false; setImplButtonsSaving(false); alert('Could not reach the live sheet: ' + err); });
   }
 
   function submitVerification(capaId, headers, row) {
@@ -822,14 +1001,133 @@
       .catch(function (err) { implSaving = false; setImplButtonsSaving(false); alert('Could not reach the live sheet: ' + err); });
   }
 
+  /* ══════════════════════════════════════════════════════════
+     Notification bell (page-local, not portal-wide)
+     Shows the logged-in user's own unread overdue-CAPA notifications
+     from the 'notifications' tab, written by scanAndNotifyOwners()
+     in google-apps-script.js. Requires a real session (IMS_AUTH
+     .getUser()) since there's no other way to know whose email to
+     filter by — with no session, the bell just doesn't render.
+     ══════════════════════════════════════════════════════════ */
+
+  function initNotifBell() {
+    var mount = document.getElementById('capa-notif-mount');
+    if (!mount) return;
+    if (!global.IMS_AUTH || !IMS_AUTH.getUser() || !IMS_AUTH.getUser().email) return; /* no session — nothing to filter by */
+
+    var myEmail = IMS_AUTH.getUser().email;
+    var unread = [];
+
+    function load(cb) {
+      fetch(SHEETS_URL + '?tab=notifications&action=read')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var headers = data.headers || [];
+          var idIdx = headers.indexOf('Notification ID');
+          var emailIdx = headers.indexOf('Recipient Email');
+          var capaIdx = headers.indexOf('CAPA ID');
+          var msgIdx = headers.indexOf('Message');
+          var dateIdx = headers.indexOf('Date Created');
+          var readIdx = headers.indexOf('Read');
+          unread = (data.rows || [])
+            .filter(function (row) {
+              return String(row[emailIdx]).toLowerCase() === myEmail.toLowerCase() && String(row[readIdx]).toLowerCase() !== 'yes';
+            })
+            .map(function (row) {
+              return { id: row[idIdx], capaId: row[capaIdx], message: row[msgIdx], date: row[dateIdx] };
+            });
+          cb();
+        })
+        .catch(function () { unread = []; cb(); }); /* Notifications tab may not exist yet — degrade quietly */
+    }
+
+    function render() {
+      mount.innerHTML = '<button id="notif-bell-btn" style="background:none;border:none;cursor:pointer;font-size:20px;position:relative">🔔'
+        + (unread.length ? '<span style="position:absolute;top:-4px;right:-8px;background:#B71C1C;color:#fff;font-size:9px;font-weight:700;border-radius:8px;padding:1px 5px">' + unread.length + '</span>' : '')
+        + '</button>';
+      document.getElementById('notif-bell-btn').addEventListener('click', toggleDropdown);
+    }
+
+    function toggleDropdown() {
+      var existing = document.getElementById('notif-dropdown');
+      if (existing) { existing.remove(); return; }
+      var dd = document.createElement('div');
+      dd.id = 'notif-dropdown';
+      dd.style.cssText = 'position:absolute;top:28px;left:0;background:#fff;border:1px solid #eef1f6;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);width:320px;max-height:360px;overflow-y:auto;z-index:2000;font-family:Arial,sans-serif';
+      dd.innerHTML = unread.length
+        ? unread.map(function (n) {
+            return '<div style="padding:10px 12px;border-bottom:1px solid #f3f4f6">'
+              + '<div style="font-size:10.5px;color:#7a869a">' + esc(n.date) + ' · ' + esc(n.capaId) + '</div>'
+              + '<div style="font-size:12px;margin:3px 0 6px">' + esc(n.message) + '</div>'
+              + '<button class="notif-mark-read" data-id="' + esc(n.id) + '" style="font-size:10.5px;background:#EBF3FB;color:#1565C0;border:none;border-radius:4px;padding:3px 8px;cursor:pointer">Mark read</button>'
+              + '</div>';
+          }).join('')
+        : '<div style="padding:16px;font-size:12px;color:#7a869a">No unread notifications.</div>';
+      mount.appendChild(dd);
+      dd.querySelectorAll('.notif-mark-read').forEach(function (btn) {
+        btn.addEventListener('click', function () { markRead(btn.getAttribute('data-id')); });
+      });
+    }
+
+    function markRead(notifId) {
+      fetch(SHEETS_URL + '?action=update&tab=notifications&idCol=' + encodeURIComponent('Notification ID') + '&id=' + encodeURIComponent(notifId), {
+        method: 'POST', body: JSON.stringify({ 'Read': 'Yes' }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function () {
+          var dd = document.getElementById('notif-dropdown');
+          if (dd) dd.remove();
+          load(render);
+        })
+        .catch(function (err) { alert('Could not mark as read: ' + err); });
+    }
+
+    load(render);
+  }
+
+  var liveUserDirectory = null; /* cached for the wizard session once loaded */
+
+  function loadUserDirectory(cb) {
+    if (liveUserDirectory) { cb(); return; }
+    fetch(SHEETS_URL + '?tab=users&action=read')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var headers = data.headers || [];
+        var nameIdx = headers.indexOf('Name'), titleIdx = headers.indexOf('Title');
+        var emailIdx = headers.indexOf('Email'), statusIdx = headers.indexOf('Status');
+        liveUserDirectory = (data.rows || [])
+          .filter(function (r) { return statusIdx < 0 || String(r[statusIdx]).toLowerCase() === 'active'; })
+          .map(function (r) {
+            return { name: r[nameIdx] || '', title: titleIdx >= 0 ? (r[titleIdx] || '') : '', email: emailIdx >= 0 ? (r[emailIdx] || '') : '' };
+          })
+          .filter(function (u) { return u.name && u.email; });
+        /* Live sheet not populated yet — fall back to this browser's local
+           directory rather than leave the picker empty, so nothing regresses
+           before the sheet is filled in. */
+        if (!liveUserDirectory.length && global.IMS_AUTH && IMS_AUTH.getUsers) {
+          liveUserDirectory = IMS_AUTH.getUsers()
+            .filter(function (u) { return u.status === 'Active' && u.email; })
+            .map(function (u) { return { name: u.name, title: u.title, email: u.email }; });
+        }
+        cb();
+      })
+      .catch(function () {
+        liveUserDirectory = (global.IMS_AUTH && IMS_AUTH.getUsers)
+          ? IMS_AUTH.getUsers().filter(function (u) { return u.status === 'Active' && u.email; }).map(function (u) { return { name: u.name, title: u.title, email: u.email }; })
+          : [];
+        cb();
+      });
+  }
+
   /* ── Public entry points ──────────────────────────────────── */
-  function openNew() { injectStyles(); resetState(); currentStep = 1; render(); }
+  function openNew() { injectStyles(); resetState(); currentStep = 1; loadUserDirectory(render); }
 
   document.addEventListener('DOMContentLoaded', function () {
     var btn = document.getElementById('capa-raise-btn');
     if (btn) btn.addEventListener('click', openNew);
     var contBtn = document.getElementById('capa-continue-btn');
     if (contBtn) contBtn.addEventListener('click', openPicker);
+    initNotifBell();
   });
 
   global.CAPA_WIZARD = { open: openNew, openPicker: openPicker };

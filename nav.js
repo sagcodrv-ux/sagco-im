@@ -277,9 +277,20 @@ function _findCol(headers, needle) {
 
 var LIVE_BADGE_RULES = [
   {
-    /* CAPA Register — badge shows only if real NCRs exist */
+    /* CAPA Register — badge shows a count of rows genuinely still
+       open, not every row that exists. The original rule here
+       (rows.length) predates the CAPA raise/close workflow and
+       assumed any row at all meant a problem; now that CAPAs get
+       properly raised, worked, and Closed, a Closed row must not
+       count the same as an Open one. */
     navId: 'p07-cap', tabKey: 'capa', color: 'red',
-    matcher: function(rows) { return rows.length; },
+    matcher: function(rows, headers) {
+      var idx = _findCol(headers, 'status');
+      if (idx < 0) return rows.length; /* no Status column found — fall back to old behavior rather than guess */
+      return rows.filter(function(r) {
+        return (r[idx] || '').toString().trim().toLowerCase() !== 'closed';
+      }).length;
+    },
     label: function(n) { return n + ' OPEN'; }
   },
   {

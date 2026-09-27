@@ -37,6 +37,16 @@
 /* ── Google Drive folder for IMS attachments ────────────────── */
 var DRIVE_FOLDER_ID = '1PZQ2VLPg8548BIgbrfqg4mcojKE7J7lU';
 
+/* ── Overdue-CAPA notification config ────────────────────────
+   auth.js's user directory (names/emails/roles) lives only in each
+   person's own browser localStorage — this server-side script has
+   no access to it. So: (a) an NCR owner's email must be captured
+   directly on the CAPA row (see the wizard's new "Owner Email"
+   field), not looked up from a name, and (b) the IMS Manager
+   recipient list is a plain, manually-edited array here. Add every
+   real IMS Manager's email who should get the weekly overdue digest. */
+var IMS_MANAGER_EMAILS = ['imsmanager@sagco.com.sa']; /* TODO: confirm/replace with the real address(es) */
+
 /* ── Sheet name map ─────────────────────────────────────────── */
 var TABS = {
 
@@ -114,6 +124,7 @@ var TABS = {
   /* Clause 10 */
   'capa':            ' CAPA Register',
   'capa_log':        'CAPA Progress Log', /* NEW — must be created as a real tab on the live sheet; row 3 headers: Log ID, CAPA ID, Date, Note, Photo URL, Logged By, Status Change */
+  'notifications':  'Notifications', /* NEW — must be created as a real tab; row 3 headers: Notification ID, Recipient Email, CAPA ID, Message, Date Created, Read */
   'incidents':       ' Incidents',
 
   /* ESG */
@@ -443,6 +454,174 @@ function updateRowById(tabKey, idColumnHeader, idValue, updates) {
   }
 }
 
+/* ── Overdue CAPA notifications ───────────────────────────────
+   Person's requirement: the NCR owner gets email + in-portal system
+   notifications + reminders every day the CAPA stays overdue, until
+   it's Completed. The IMS Manager(s) get one weekly digest email of
+   everything currently overdue, for monitoring.
+
+   Two time-driven triggers call the two entry points below —
+   scanAndNotifyOwners() daily, sendWeeklyOverdueReport() weekly.
+   Neither runs on its own; call installTriggers() ONCE from the
+   Apps Script editor (select it in the function dropdown, then Run)
+   to actually schedule them. Re-running installTriggers() safely
+   clears and recreates them rather than stacking duplicates.
+   ------------------------------------------------------------- */
+
+function getOverdueCapaRows_() {
+  var sheetName = TABS['capa'];
+  var sheet = findSheet(sheetName);
+  if (!sheet) return { headers: [], rows: [] };
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 4) return { headers: [], rows: [] };
+
+  var headers = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var data = sheet.getRange(4, 1, lastRow - 3, headers.length).getValues();
+
+  var idIdx     = headers.indexOf('CAPA ID');
+  var statusIdx = headers.indexOf('Status');
+  var dueIdx    = headers.indexOf('Due Date');
+  var descIdx   = headers.indexOf('Description');
+  var ownerIdx  = headers.indexOf('Owner');
+  var emailIdx  = headers.indexOf('Owner Email');
+  var sevIdx    = headers.indexOf('Severity');
+
+  var overdue = [];
+
+  data.forEach(function(row) {
+    var status = String(row[statusIdx] || '').trim().toLowerCase();
+    if (status === 'completed' || status === 'closed') return; /* reminders stop once Completed, per the requirement */
+    var dueCell = row[dueIdx];
+    if (!dueCell) return;
+    var due = new Date(dueCell);
+    if (isNaN(due.getTime())) return;
+    var daysOverdue = Math.floor((new Date() - due) / 86400000);
+    if (daysOverdue < 0) return;
+
+    overdue.push({
+      id: row[idIdx], status: row[statusIdx], due: due, daysOverdue: daysOverdue,
+      description: descIdx >= 0 ? row[descIdx] : '', owner: ownerIdx >= 0 ? row[ownerIdx] : '',
+      ownerEmail: emailIdx >= 0 ? row[emailIdx] : '', severity: sevIdx >= 0 ? row[sevIdx] : '',
+    });
+  });
+
+  return { headers: headers, rows: overdue };
+}
+
+/* Dedupe key so the same CAPA doesn't get double-notified if this
+   function is accidentally run twice in one day. */
+function alreadyNotifiedToday_(capaId, dateStr) {
+  var sheetName = TABS['notifications'];
+  var sheet = findSheet(sheetName);
+  if (!sheet) return false; /* Notifications tab not created yet — don't block email sending on that */
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 4) return false;
+  var headers = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var capaIdx = headers.indexOf('CAPA ID');
+  var dateIdx = headers.indexOf('Date Created');
+  if (capaIdx < 0 || dateIdx < 0) return false;
+  var data = sheet.getRange(4, 1, lastRow - 3, headers.length).getValues();
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][capaIdx]) === String(capaId) && String(data[i][dateIdx]) === dateStr) return true;
+  }
+  return false;
+}
+
+function writeNotification_(recipientEmail, capaId, message) {
+  var sheetName = TABS['notifications'];
+  var sheet = findSheet(sheetName);
+  if (!sheet) return; /* silently skip in-portal notification if the tab doesn't exist yet; email still sends independently */
+  sheet.appendRow([
+    'NOTIF-' + capaId + '-' + Date.now(),
+    recipientEmail || '',
+    capaId,
+    message,
+    new Date().toISOString().split('T')[0],
+    'No',
+  ]);
+}
+
+/* Daily entry point: email + in-portal notification to each overdue
+   CAPA's owner, once per CAPA per day. */
+function scanAndNotifyOwners() {
+  var result = getOverdueCapaRows_();
+  var today = new Date().toISOString().split('T')[0];
+
+  result.rows.forEach(function(item) {
+    if (alreadyNotifiedToday_(item.id, today)) return;
+
+    var message = 'CAPA ' + item.id + ' (' + (item.severity || 'severity not set') + ') is ' + item.daysOverdue
+      + ' day' + (item.daysOverdue === 1 ? '' : 's') + ' overdue. Due date was ' + item.due.toISOString().split('T')[0]
+      + '. "' + (item.description || '') + '"';
+
+    writeNotification_(item.ownerEmail, item.id, message);
+
+    if (item.ownerEmail) {
+      try {
+        MailApp.sendEmail({
+          to: item.ownerEmail,
+          subject: 'OVERDUE — CAPA ' + item.id + ' (' + item.daysOverdue + ' day' + (item.daysOverdue === 1 ? '' : 's') + ' overdue)',
+          body: 'This is an automatic reminder from the SAGCO IMS Portal.\n\n' + message
+            + '\n\nThis reminder will repeat daily until the CAPA is marked Completed.\n\n— SAGCO IMS Portal',
+        });
+      } catch (err) {
+        Logger.log('Failed to email ' + item.ownerEmail + ' for ' + item.id + ': ' + err);
+      }
+    } else {
+      Logger.log('CAPA ' + item.id + ' is overdue but has no Owner Email on file — email skipped, in-portal notification still written.');
+    }
+  });
+
+  return { status: 'ok', overdueCount: result.rows.length };
+}
+
+/* Weekly entry point: one digest email to IMS_MANAGER_EMAILS listing
+   everything currently overdue. */
+function sendWeeklyOverdueReport() {
+  var result = getOverdueCapaRows_();
+  if (!IMS_MANAGER_EMAILS.length) { Logger.log('IMS_MANAGER_EMAILS is empty — no weekly report sent.'); return; }
+
+  var lines = result.rows.length
+    ? result.rows.map(function(item) {
+        return '• ' + item.id + ' — ' + (item.severity || '—') + ' — ' + item.daysOverdue + ' day(s) overdue — Owner: '
+          + (item.owner || '(no owner recorded)') + ' — "' + (item.description || '') + '"';
+      }).join('\n')
+    : 'No overdue CAPAs this week.';
+
+  var body = 'Weekly Overdue CAPA Report — SAGCO IMS Portal\n' + new Date().toISOString().split('T')[0]
+    + '\n\n' + result.rows.length + ' CAPA(s) currently overdue:\n\n' + lines
+    + '\n\nThis is generated automatically every week for monitoring and follow-up.';
+
+  IMS_MANAGER_EMAILS.forEach(function(email) {
+    try {
+      MailApp.sendEmail({ to: email, subject: 'Weekly Overdue CAPA Report — ' + result.rows.length + ' overdue', body: body });
+    } catch (err) {
+      Logger.log('Failed to email weekly report to ' + email + ': ' + err);
+    }
+  });
+
+  return { status: 'ok', overdueCount: result.rows.length, sentTo: IMS_MANAGER_EMAILS };
+}
+
+/* Run this ONCE from the Apps Script editor (function dropdown →
+   installTriggers → Run) to schedule the two functions above. Safe
+   to re-run — it clears any triggers on these two functions first,
+   so it never creates duplicates. */
+function installTriggers() {
+  var triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(function(t) {
+    var fn = t.getHandlerFunction();
+    if (fn === 'scanAndNotifyOwners' || fn === 'sendWeeklyOverdueReport') ScriptApp.deleteTrigger(t);
+  });
+
+  ScriptApp.newTrigger('scanAndNotifyOwners').timeBased().everyDays(1).atHour(8).create();
+  ScriptApp.newTrigger('sendWeeklyOverdueReport').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(8).create();
+
+  Logger.log('Triggers installed: scanAndNotifyOwners daily at ~08:00, sendWeeklyOverdueReport every Monday at ~08:00.');
+  return { status: 'ok' };
+}
+
 /* -- scanAlerts -----------------------------------------------
    Scans date-bearing registers for overdue / upcoming items.
    Called by massi.html and copilot_v2.html on session open.
@@ -489,7 +668,21 @@ function scanAlerts() {
       var data = sheet.getRange(4, 1, lastRow - 3, sheet.getLastColumn()).getValues();
       var overdueCount = 0; var warnCount = 0;
 
+      /* CAPA-specific: a Completed/Closed CAPA past its old due date is
+         not actually overdue anymore — without this check every closed
+         CAPA would permanently and incorrectly count as overdue here. */
+      var statusIdx = -1;
+      if (rule.tab === 'capa') {
+        for (var k = 0; k < headers.length; k++) {
+          if (String(headers[k]).toLowerCase().indexOf('status') >= 0) { statusIdx = k; break; }
+        }
+      }
+
       data.forEach(function(row) {
+        if (statusIdx >= 0) {
+          var st = String(row[statusIdx] || '').trim().toLowerCase();
+          if (st === 'completed' || st === 'closed') return;
+        }
         var cell = row[dateIdx];
         if (!cell) return;
         var d = new Date(cell);
