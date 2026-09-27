@@ -96,9 +96,8 @@
       rcaMethod: '', rcaDetail: '', rcaImmediateCause: '', rcaSystemContributor: '',
       caAction: '', caOwner: '', caOwnerEmail: '', caDueDate: '', caApproved: false, ownerManualMode: false,
       status: 'Open',
-      initialEvidenceFile: null, /* File object, in-memory only — can't survive a page reload/resume, by nature of file inputs */
-      initialEvidenceUploaded: false, /* guards against re-uploading the same already-attached file on every subsequent save */
-      initialEvidenceUrl: '', /* set once upload succeeds, or restored from the sheet when resuming a CAPA that already has one */
+      initialEvidenceFiles: [], /* File objects pending upload, in-memory only — can't survive a page reload/resume */
+      initialEvidenceUrls: [], /* already-uploaded links — restored from the sheet when resuming a CAPA that has some */
     };
   }
 
@@ -265,18 +264,23 @@
      browser design — without this, it would look like the selection
      was lost even though it's already safely captured in state. */
   function evidenceFieldHTML() {
-    var confirmation = '';
-    if (state.initialEvidenceFile) {
-      confirmation = '<div class="cw-hint">📎 Selected: <strong>' + esc(state.initialEvidenceFile.name) + '</strong>' + (state.initialEvidenceUploaded ? ' — uploaded' : ' — will upload on save') + '</div>';
-    } else if (state.initialEvidenceUrl) {
-      confirmation = '<div class="cw-hint">📎 Evidence already attached — '
-        + '<a href="' + esc(state.initialEvidenceUrl) + '" target="_blank" style="display:inline-block;background:#EBF3FB;color:#1565C0;border:1px solid #B5D4F4;border-radius:5px;padding:3px 10px;font-weight:700;text-decoration:none;margin:4px 0">📂 Open attached file</a>'
-        + '<br>Choosing a new file below replaces it.</div>';
-    }
-    return '<div class="cw-field"><label>Evidence (optional)</label>'
-      + '<input type="file" id="cw-evidence-file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">'
-      + '<div class="cw-hint">Photo, PDF, Word, Excel, or PowerPoint — whatever shows the nonconformity.</div>'
-      + confirmation
+    var uploadedList = state.initialEvidenceUrls.map(function (url, i) {
+      return '<a href="' + esc(url) + '" target="_blank" style="display:inline-block;background:#EBF3FB;color:#1565C0;border:1px solid #B5D4F4;border-radius:5px;padding:3px 10px;font-weight:700;text-decoration:none;margin:3px 6px 3px 0">📂 Evidence ' + (i + 1) + '</a>';
+    }).join('');
+
+    var pendingList = state.initialEvidenceFiles.map(function (f, i) {
+      return '<div style="font-size:11.5px;color:#4b5563;margin:2px 0">📎 ' + esc(f.name) + ' — will upload on save '
+        + '<a href="#" class="cw-evidence-remove" data-idx="' + i + '" style="color:#B71C1C;margin-left:6px">✕ remove</a></div>';
+    }).join('');
+
+    var summary = '';
+    if (uploadedList) summary += '<div class="cw-hint" style="margin-bottom:4px">' + uploadedList + '</div>';
+    if (pendingList) summary += '<div class="cw-hint">' + pendingList + '</div>';
+
+    return '<div class="cw-field"><label>Evidence (optional — attach as many as needed)</label>'
+      + '<input type="file" id="cw-evidence-file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">'
+      + '<div class="cw-hint">Photo, PDF, Word, Excel, or PowerPoint — select several at once, or add more later the same way.</div>'
+      + summary
       + '</div>';
   }
 
@@ -450,12 +454,20 @@
 
     var evidenceInput = document.getElementById('cw-evidence-file');
     if (evidenceInput) evidenceInput.addEventListener('change', function () {
-      if (evidenceInput.files && evidenceInput.files[0]) {
+      if (evidenceInput.files && evidenceInput.files.length) {
         syncStep1UntouchedFields();
-        state.initialEvidenceFile = evidenceInput.files[0];
-        state.initialEvidenceUploaded = false; /* a newly chosen file always needs (re-)uploading */
-        render(); /* shows the persistent confirmation line immediately */
+        for (var i = 0; i < evidenceInput.files.length; i++) state.initialEvidenceFiles.push(evidenceInput.files[i]);
+        render(); /* shows the persistent pending-file list immediately */
       }
+    });
+
+    document.querySelectorAll('.cw-evidence-remove').forEach(function (link) {
+      link.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        syncStep1UntouchedFields();
+        state.initialEvidenceFiles.splice(parseInt(link.getAttribute('data-idx'), 10), 1);
+        render();
+      });
     });
 
     var manualToggle = document.getElementById('cw-owner-manual-toggle');
@@ -590,7 +602,7 @@
       saving = false; setButtonsSaving(false);
       if (result && result.status === 'ok') {
         if (wasFirstSave) notifyNewCapaOwner(); /* fire-and-forget — owner should hear immediately, not wait for the alert/close below */
-        if (state.initialEvidenceFile && !state.initialEvidenceUploaded) uploadInitialEvidence();
+        if (state.initialEvidenceFiles.length) uploadInitialEvidence();
         if (finishing) {
           alert(state.capaId + ' saved as finished (all 4 steps complete). Implementation tracking (ML-01) and Effectiveness Verification (F-04) are now available via "Continue an Existing CAPA".');
         } else {
@@ -636,15 +648,39 @@
        upload itself needs a real CAPA ID first, which doesn't exist
        until after the first successful save, so this always runs
        AFTER doWrite() succeeds, never before or during it. */
+    /* Uploads every pending Step 1 evidence file (there can be several)
+       using the same mechanism already built for ML-01 evidence, one
+       at a time — sequential, not parallel, to avoid hammering the
+       Drive-upload endpoint with a burst of simultaneous requests.
+       Once all succeed, writes the FULL combined list (whatever was
+       already attached, plus the newly uploaded ones) to the sheet in
+       a single update — never overwrites earlier evidence, only adds
+       to it. Needs a real CAPA ID first, which doesn't exist until
+       after the first successful save, so this always runs AFTER
+       doWrite() succeeds, never before or during it. */
     function uploadInitialEvidence() {
-      uploadEvidence(state.initialEvidenceFile, state.capaId, function (url) {
-        if (!url) { console.warn('Evidence upload failed for ' + state.capaId + ' — CAPA itself was still saved successfully.'); return; }
-        state.initialEvidenceUploaded = true;
-        state.initialEvidenceUrl = url;
-        fetch(SHEETS_URL + '?action=update&tab=capa&idCol=' + encodeURIComponent('CAPA ID') + '&id=' + encodeURIComponent(state.capaId), {
-          method: 'POST', body: JSON.stringify({ 'Initial Evidence': url }),
-        }).catch(function (err) { console.warn('Could not attach evidence link to ' + state.capaId + ': ' + err); });
-      });
+      var pending = state.initialEvidenceFiles.slice();
+      var newUrls = [];
+
+      function next() {
+        if (!pending.length) {
+          if (newUrls.length) {
+            state.initialEvidenceUrls = state.initialEvidenceUrls.concat(newUrls);
+            state.initialEvidenceFiles = [];
+            fetch(SHEETS_URL + '?action=update&tab=capa&idCol=' + encodeURIComponent('CAPA ID') + '&id=' + encodeURIComponent(state.capaId), {
+              method: 'POST', body: JSON.stringify({ 'Initial Evidence': state.initialEvidenceUrls.join('\n') }),
+            }).catch(function (err) { console.warn('Could not attach evidence links to ' + state.capaId + ': ' + err); });
+          }
+          return;
+        }
+        var file = pending.shift();
+        uploadEvidence(file, state.capaId, function (url) {
+          if (url) newUrls.push(url);
+          else console.warn('Evidence upload failed for ' + file.name + ' on ' + state.capaId + ' — CAPA itself was still saved successfully.');
+          next();
+        });
+      }
+      next();
     }
 
     doWrite();
@@ -732,8 +768,7 @@
     state.severity = col('Severity') ? severityByKey(col('Severity')) : classify(state.score);
     state.caOwner = col('Owner');
     state.caOwnerEmail = col('Owner Email');
-    state.initialEvidenceUrl = col('Initial Evidence');
-    state.initialEvidenceUploaded = !!state.initialEvidenceUrl;
+    state.initialEvidenceUrls = col('Initial Evidence').split('\n').filter(function (u) { return u.trim(); });
     state.containment = col('Immediate Action');
     state.containmentDate = col('Containment Date');
     var rcaMethodLabel = col('RCA Method');
