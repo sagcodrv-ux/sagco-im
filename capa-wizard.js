@@ -702,6 +702,22 @@
     if (verifySubmit) verifySubmit.addEventListener('click', function () { submitVerification(capaId, headers, row); });
   }
 
+  /* Saving-lock for the Implementation panel — the earlier version had
+     no guard here at all, so repeated clicks (whether intentional
+     re-clicks during testing, or clicks made before any visual feedback
+     appeared) each wrote a brand-new, undeduplicated row to the log tab.
+     This disables both buttons the instant either is clicked and blocks
+     re-entry until the request settles. */
+  var implSaving = false;
+  function setImplButtonsSaving(isSaving, activeBtnId) {
+    ['impl-log-only', 'impl-advance', 'impl-verify-submit'].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (!b) return;
+      b.disabled = isSaving;
+      if (id === activeBtnId) b.textContent = isSaving ? 'Saving…' : b.getAttribute('data-label') || b.textContent;
+    });
+  }
+
   function uploadPhoto(file, capaId, cb) {
     if (!file) { cb(null); return; }
     var reader = new FileReader();
@@ -723,11 +739,15 @@
   }
 
   function submitProgress(capaId, headers, row, statusChange) {
+    if (implSaving) return; /* ignore re-clicks while a save is already in flight */
     var note = val('impl-note');
     var fileInput = document.getElementById('impl-photo');
     var file = fileInput && fileInput.files ? fileInput.files[0] : null;
 
     if (!note && !statusChange) { alert('Add a note before logging (or attach a photo).'); return; }
+
+    implSaving = true;
+    setImplButtonsSaving(true, statusChange ? 'impl-advance' : 'impl-log-only');
 
     uploadPhoto(file, capaId, function (photoLink) {
       var logRow = {
@@ -743,6 +763,7 @@
         .then(function (r) { return r.json(); })
         .then(function (result) {
           if (!(result && result.status === 'ok')) {
+            implSaving = false; setImplButtonsSaving(false);
             alert('Log entry did not confirm success: ' + JSON.stringify(result) + '\nConfirm the "' + LOG_TAB + '" tab exists on the live sheet with the right headers.');
             return;
           }
@@ -751,22 +772,27 @@
               method: 'POST', body: JSON.stringify({ 'Status': statusChange }),
             })
               .then(function (r) { return r.json(); })
-              .then(function () { alert(capaId + ' marked ' + statusChange + '.'); closeWizard(); if (global.reloadLive) reloadLive(); })
-              .catch(function (err) { alert('Log saved, but status update failed to reach the live sheet: ' + err); });
+              .then(function () { implSaving = false; alert(capaId + ' marked ' + statusChange + '.'); closeWizard(); if (global.reloadLive) reloadLive(); })
+              .catch(function (err) { implSaving = false; setImplButtonsSaving(false); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
           } else {
+            implSaving = false;
             alert('Progress logged.');
             closeWizard();
           }
         })
-        .catch(function (err) { alert('Could not reach the live sheet: ' + err); });
+        .catch(function (err) { implSaving = false; setImplButtonsSaving(false); alert('Could not reach the live sheet: ' + err); });
     });
   }
 
   function submitVerification(capaId, headers, row) {
+    if (implSaving) return;
     var method = val('impl-verif-method');
     var evidence = val('impl-verif-evidence');
     var result = val('impl-verif-result');
     if (!method || !evidence) { alert('Verification method and evidence are required before submitting.'); return; }
+
+    implSaving = true;
+    setImplButtonsSaving(true, 'impl-verify-submit');
 
     var updates = {
       'Effectiveness Method': method,
@@ -783,15 +809,17 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (res) {
+        implSaving = false;
         if (res && res.status === 'ok') {
           alert(result === 'Yes' ? capaId + ' verified effective and Closed.' : capaId + ' verification failed — reopened to In Progress.');
           closeWizard();
           if (global.reloadLive) reloadLive();
         } else {
+          setImplButtonsSaving(false);
           alert('Verification did not confirm success: ' + JSON.stringify(res));
         }
       })
-      .catch(function (err) { alert('Could not reach the live sheet: ' + err); });
+      .catch(function (err) { implSaving = false; setImplButtonsSaving(false); alert('Could not reach the live sheet: ' + err); });
   }
 
   /* ── Public entry points ──────────────────────────────────── */
