@@ -269,7 +269,9 @@
     if (state.initialEvidenceFile) {
       confirmation = '<div class="cw-hint">📎 Selected: <strong>' + esc(state.initialEvidenceFile.name) + '</strong>' + (state.initialEvidenceUploaded ? ' — uploaded' : ' — will upload on save') + '</div>';
     } else if (state.initialEvidenceUrl) {
-      confirmation = '<div class="cw-hint">📎 Evidence already attached: <a href="' + esc(state.initialEvidenceUrl) + '" target="_blank">view</a>. Choosing a new file below replaces it.</div>';
+      confirmation = '<div class="cw-hint">📎 Evidence already attached — '
+        + '<a href="' + esc(state.initialEvidenceUrl) + '" target="_blank" style="display:inline-block;background:#EBF3FB;color:#1565C0;border:1px solid #B5D4F4;border-radius:5px;padding:3px 10px;font-weight:700;text-decoration:none;margin:4px 0">📂 Open attached file</a>'
+        + '<br>Choosing a new file below replaces it.</div>';
     }
     return '<div class="cw-field"><label>Evidence (optional)</label>'
       + '<input type="file" id="cw-evidence-file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">'
