@@ -90,6 +90,7 @@
   function resetState() {
     state = {
       capaId: null, /* null until first save; real ID from the live sheet, not a guess */
+      createdById: '', createdByName: '', /* set once, at first save — who created this CAPA, not who owns it */
       description: '', source: '', dateRaised: '',
       score: '', severity: null,
       containment: '', containmentDate: '',
@@ -138,6 +139,20 @@
     if (!session) return true;
     if (session.role === 'superadmin') return true;
     if (session.title === 'IMS Manager') return true;
+    return false;
+  }
+  /* Step 1 (the original NC record — description, evidence, source,
+     date, severity score, owner assignment) locks once a CAPA has
+     been saved at least once. Only the person who CREATED it (not
+     whoever's assigned as Owner — those are frequently different
+     people) can still edit it afterward, plus Admin/Superadmin as a
+     correction override. */
+  function canEditStep1() {
+    if (!global.IMS_AUTH) return true;
+    var session = IMS_AUTH.getUser();
+    if (!session) return true;
+    if (session.role === 'admin' || session.role === 'superadmin') return true;
+    if (state.createdById && session.userId === state.createdById) return true;
     return false;
   }
   function currentUserName() {
@@ -263,22 +278,27 @@
      fresh <input type="file"> that always shows "No file chosen" by
      browser design — without this, it would look like the selection
      was lost even though it's already safely captured in state. */
-  function evidenceFieldHTML() {
+  function evidenceFieldHTML(locked) {
     var uploadedList = state.initialEvidenceUrls.map(function (url, i) {
-      return '<a href="' + esc(url) + '" target="_blank" style="display:inline-block;background:#EBF3FB;color:#1565C0;border:1px solid #B5D4F4;border-radius:5px;padding:3px 10px;font-weight:700;text-decoration:none;margin:3px 6px 3px 0">📂 Evidence ' + (i + 1) + '</a>';
+      return '<a href="' + esc(url) + '" target="_blank" title="Evidence ' + (i + 1) + '" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;background:#EBF3FB;color:#1565C0;border:1px solid #B5D4F4;border-radius:5px;text-decoration:none;font-size:15px;margin:2px 4px 2px 0">📎</a>';
     }).join('');
 
     var pendingList = state.initialEvidenceFiles.map(function (f, i) {
       return '<div style="font-size:11.5px;color:#4b5563;margin:2px 0">📎 ' + esc(f.name) + ' — will upload on save '
-        + '<a href="#" class="cw-evidence-remove" data-idx="' + i + '" style="color:#B71C1C;margin-left:6px">✕ remove</a></div>';
+        + (locked ? '' : '<a href="#" class="cw-evidence-remove" data-idx="' + i + '" style="color:#B71C1C;margin-left:6px">✕ remove</a>') + '</div>';
     }).join('');
 
     var summary = '';
     if (uploadedList) summary += '<div class="cw-hint" style="margin-bottom:4px">' + uploadedList + '</div>';
     if (pendingList) summary += '<div class="cw-hint">' + pendingList + '</div>';
 
+    if (locked) {
+      return '<div class="cw-field"><label>Evidence</label>' + (summary || '<div class="cw-hint">No evidence was attached.</div>') + '</div>';
+    }
+
     return '<div class="cw-field"><label>Evidence (optional — attach as many as needed)</label>'
-      + '<input type="file" id="cw-evidence-file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">'
+      + '<input type="file" id="cw-evidence-file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" style="display:none">'
+      + '<button type="button" id="cw-evidence-add-btn" style="background:#EBF3FB;color:#1565C0;border:1px solid #B5D4F4;border-radius:5px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer">➕ Add Evidence</button>'
       + '<div class="cw-hint">Photo, PDF, Word, Excel, or PowerPoint — select several at once, or add more later the same way.</div>'
       + summary
       + '</div>';
@@ -286,6 +306,11 @@
 
   /* ── Step 1: Intake + Severity ───────────────────────────── */
   function stepIntake() {
+    var locked = !!state.capaId && !canEditStep1();
+    var lockBanner = locked
+      ? '<div class="cw-sev-banner neutral" style="background:#fff7ed;border-color:#fed7aa;color:#7a4a10">🔒 Locked — the original nonconformity record can\'t be changed once a CAPA has been raised. Only ' + esc(state.createdByName || 'the CAPA creator') + ' or an Administrator can edit this.</div>'
+      : '';
+
     var sevBanner = '';
     if (state.severity) {
       var cls = state.severity.key === 'Critical' ? 'crit' : (state.severity.key === 'Major' ? 'major' : 'minor');
@@ -298,21 +323,23 @@
     } else if (state.score !== '') {
       sevBanner = '<div class="cw-sev-banner neutral">Score below 6 does not meet the threshold for a formal CAPA per proc-c10.html §5. Consider a near-miss / observation entry instead.</div>';
     }
-    return ''
+    var dis = locked ? ' disabled' : '';
+    var ro = locked ? ' readonly' : '';
+    return lockBanner
       + '<div class="cw-field"><label>Description of the nonconformity</label>'
-      + '<textarea id="cw-desc" placeholder="What was observed, where, and when">' + esc(state.description) + '</textarea></div>'
-      + evidenceFieldHTML()
+      + '<textarea id="cw-desc"' + ro + ' placeholder="What was observed, where, and when">' + esc(state.description) + '</textarea></div>'
+      + evidenceFieldHTML(locked)
       + '<div class="cw-field"><label>Source</label>'
-      + '<select id="cw-source">' + ['', 'Internal Audit', 'Certification Audit (TÜV)', 'Incident Investigation', 'Customer Complaint', 'Management Review', 'Other formal NC determination']
+      + '<select id="cw-source"' + dis + '>' + ['', 'Internal Audit', 'Certification Audit (TÜV)', 'Incident Investigation', 'Customer Complaint', 'Management Review', 'Other formal NC determination']
         .map(function (o) { return '<option' + (o === state.source ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></div>'
       + '<div class="cw-field"><label>Date raised</label>'
-      + '<input type="date" id="cw-date" value="' + esc(state.dateRaised) + '"></div>'
+      + '<input type="date" id="cw-date"' + dis + ' value="' + esc(state.dateRaised) + '"></div>'
       + '<div class="cw-field"><label>Risk score (drives severity classification automatically)</label>'
-      + '<input type="number" id="cw-score" min="0" max="40" value="' + esc(state.score) + '" placeholder="e.g. 15">'
+      + '<input type="number" id="cw-score"' + dis + ' min="0" max="40" value="' + esc(state.score) + '" placeholder="e.g. 15">'
       + '<div class="cw-hint">Critical ≥20 · Major 12–19 · Minor 6–11 (proc-c10.html §5)</div></div>'
       + sevBanner
-      + ownerFieldHTML()
-      + '<div class="cw-sev-banner neutral">A CAPA can be raised with only this step completed — Containment, RCA and the Corrective Action Plan can be added later by whoever picks it up. Use <strong>Save &amp; Continue Later</strong> below.</div>';
+      + ownerFieldHTML(locked)
+      + (locked ? '' : '<div class="cw-sev-banner neutral">A CAPA can be raised with only this step completed — Containment, RCA and the Corrective Action Plan can be added later by whoever picks it up. Use <strong>Save &amp; Continue Later</strong> below.</div>');
   }
 
   /* Owner picker — pulls from the real registered-user directory
@@ -323,8 +350,9 @@
      back to manual name+email entry if the directory is empty (e.g.
      this browser has never visited a page that seeds it) or if the
      right person just isn't in the list yet. */
-  function ownerFieldHTML() {
+  function ownerFieldHTML(locked) {
     var users = liveUserDirectory || [];
+    var dis = locked ? ' disabled' : '';
 
     if (!state.ownerManualMode && users.length) {
       var options = '<option value="">— Select from registered users —</option>' + users.map(function (u) {
@@ -332,18 +360,18 @@
         return '<option value="' + esc(u.name) + '" data-email="' + esc(u.email) + '"' + sel + '>' + esc(u.name) + ' — ' + esc(u.title) + '</option>';
       }).join('');
       return '<div class="cw-field"><label>Owner</label>'
-        + '<select id="cw-owner-select">' + options + '</select>'
+        + '<select id="cw-owner-select"' + dis + '>' + options + '</select>'
         + '<div class="cw-hint">Email auto-fills from the registered user directory: '
-        + (state.caOwnerEmail ? '<strong>' + esc(state.caOwnerEmail) + '</strong>' : 'not selected yet') + '. '
-        + '<a href="#" id="cw-owner-manual-toggle" style="color:#1565C0">Can\'t find them? Enter manually.</a></div></div>';
+        + (state.caOwnerEmail ? '<strong>' + esc(state.caOwnerEmail) + '</strong>' : 'not selected yet')
+        + (locked ? '' : '. <a href="#" id="cw-owner-manual-toggle" style="color:#1565C0">Can\'t find them? Enter manually.</a>') + '</div></div>';
     }
 
     return '<div class="cw-field"><label>Owner (name)</label>'
-      + '<input type="text" id="cw-owner" value="' + esc(state.caOwner) + '" placeholder="e.g. Furnaces Manager"></div>'
+      + '<input type="text" id="cw-owner"' + dis + ' value="' + esc(state.caOwner) + '" placeholder="e.g. Furnaces Manager"></div>'
       + '<div class="cw-field"><label>Owner email</label>'
-      + '<input type="email" id="cw-owner-email" value="' + esc(state.caOwnerEmail) + '" placeholder="e.g. furnaces.mgr@sagco.com.sa">'
-      + '<div class="cw-hint">Required — overdue reminders are emailed here automatically until this CAPA is marked Completed. '
-      + (users.length ? '<a href="#" id="cw-owner-manual-toggle" style="color:#1565C0">Choose from registered users instead.</a>' : '(No registered users found in this browser — enter manually, or visit Document Management/User Management once to load the directory.)')
+      + '<input type="email" id="cw-owner-email"' + dis + ' value="' + esc(state.caOwnerEmail) + '" placeholder="e.g. furnaces.mgr@sagco.com.sa">'
+      + '<div class="cw-hint">Required — overdue reminders are emailed here automatically until this CAPA is marked Closed. '
+      + (locked ? '' : (users.length ? '<a href="#" id="cw-owner-manual-toggle" style="color:#1565C0">Choose from registered users instead.</a>' : '(No registered users found in this browser — enter manually, or visit Document Management/User Management once to load the directory.)'))
       + '</div></div>';
   }
 
@@ -453,6 +481,8 @@
     });
 
     var evidenceInput = document.getElementById('cw-evidence-file');
+    var evidenceAddBtn = document.getElementById('cw-evidence-add-btn');
+    if (evidenceAddBtn && evidenceInput) evidenceAddBtn.addEventListener('click', function () { evidenceInput.click(); });
     if (evidenceInput) evidenceInput.addEventListener('change', function () {
       if (evidenceInput.files && evidenceInput.files.length) {
         syncStep1UntouchedFields();
@@ -562,6 +592,8 @@
       'Verified': 'No',
       'Process Stage': STAGE_NAMES[currentStep - 1],
       'Definition Complete': finishing ? 'Yes' : 'No',
+      'Created By ID': state.createdById,
+      'Created By Name': state.createdByName,
     };
   }
 
@@ -573,9 +605,14 @@
     var wasFirstSave = false;
 
     function doWrite() {
-      var row = buildRow(finishing);
       var isFirstSave = !state.capaId;
       wasFirstSave = isFirstSave;
+      if (isFirstSave) {
+        var creator = (global.IMS_AUTH && IMS_AUTH.getUser()) ? IMS_AUTH.getUser() : null;
+        state.createdById = creator ? creator.userId : '';
+        state.createdByName = creator ? creator.name : '';
+      }
+      var row = buildRow(finishing);
 
       function afterAssignId(id) {
         state.capaId = id;
@@ -784,6 +821,8 @@
     state.severity = col('Severity') ? severityByKey(col('Severity')) : classify(state.score);
     state.caOwner = col('Owner');
     state.caOwnerEmail = col('Owner Email');
+    state.createdById = col('Created By ID');
+    state.createdByName = col('Created By Name');
     state.initialEvidenceUrls = col('Initial Evidence').split('\n').filter(function (u) { return u.trim(); });
     state.containment = col('Immediate Action');
     state.containmentDate = col('Containment Date');
