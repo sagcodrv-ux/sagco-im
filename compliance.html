@@ -15,12 +15,17 @@
   ⚠️ <strong>Showing fallback/sample data</strong> — the live Google Sheets connection returned no data. The figures and table below are NOT current live records. Refresh once the sheet is reachable.
 </div>
 
+<!-- Real, current status vocabulary (COMPLIANT / IN PROGRESS / NON-COMPLIANT / PENDING).
+     Earlier build used COMPLIANT/PARTIAL/IN PROGRESS/MONITORING/URGENT, which does not
+     match any value actually used in the live sheet. Added a 5th card showing how many
+     obligations are logged against the 65-obligation target, since that gap — not the
+     status split — is the register's main current weakness. -->
 <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
-  <div class="kpi-card kc-grn"><div class="kpi-lbl">Compliant</div><div class="kpi-val" id="cc-comp">—</div><div class="kpi-sub">of obligations</div></div>
-  <div class="kpi-card kc-org"><div class="kpi-lbl">Partial</div><div class="kpi-val" id="cc-part">—</div><div class="kpi-sub">Action required</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Compliant</div><div class="kpi-val" id="cc-comp">—</div><div class="kpi-sub">of logged obligations</div></div>
   <div class="kpi-card kc-blue"><div class="kpi-lbl">In Progress</div><div class="kpi-val" id="cc-prog">—</div><div class="kpi-sub">Active improvement</div></div>
-  <div class="kpi-card kc-navy"><div class="kpi-lbl">Monitoring</div><div class="kpi-val" id="cc-mon">—</div><div class="kpi-sub">Voluntary/emerging</div></div>
-  <div class="kpi-card kc-red"><div class="kpi-lbl">URGENT</div><div class="kpi-val" id="cc-urg">—</div><div class="kpi-sub" id="cc-urg-sub">Immediate action items</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">Non-Compliant</div><div class="kpi-val" id="cc-noncomp">—</div><div class="kpi-sub" id="cc-noncomp-sub">Action required</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Pending</div><div class="kpi-val" id="cc-pend">—</div><div class="kpi-sub">Not yet evaluated</div></div>
+  <div class="kpi-card kc-navy"><div class="kpi-lbl">Logged</div><div class="kpi-val" id="cc-logged">—</div><div class="kpi-sub" id="cc-logged-sub">of 65 target obligations</div></div>
 </div>
 
 <div class="chart-grid" style="grid-template-columns:1fr 1fr">
@@ -35,10 +40,10 @@
 </div>
 
 <div class="filter-bar">
-  <input class="filter-input" type="text" id="cc-s" placeholder="Search obligation, authority, evidence…">
+  <input class="filter-input" type="text" id="cc-s" placeholder="Search requirement, jurisdiction, owner…">
   <select class="filter-sel" id="cc-stat">
     <option value="">All Statuses</option>
-    <option>COMPLIANT</option><option>PARTIAL</option><option>IN PROGRESS</option><option>MONITORING</option>
+    <option>COMPLIANT</option><option>IN PROGRESS</option><option>NON-COMPLIANT</option><option>PENDING</option>
   </select>
   <select class="filter-sel" id="cc-cat"><option value="">All Categories</option></select>
   <span class="filter-count" id="cc-count">— records</span>
@@ -47,17 +52,15 @@
 <div class="tbl-wrap">
 <table id="cc-tbl" class="tbl-stripe"><thead><tr>
   <th style="width:75px">Ref</th>
-  <th style="width:140px">Authority</th>
-  <th style="min-width:200px">Legal Instrument</th>
-  <th style="min-width:200px">Key Requirement</th>
-  <th style="width:120px">Category</th>
-  <th style="width:80px">Standard</th>
-  <th style="width:65px">Clause</th>
-  <th style="min-width:200px">Evidence / Status Notes</th>
-  <th style="width:130px">Owner</th>
-  <th style="width:100px">Next Review</th>
+  <th style="width:90px">Standard</th>
+  <th style="width:110px">Category</th>
+  <th style="min-width:260px">Legal / Regulatory Requirement</th>
+  <th style="width:90px">Jurisdiction</th>
+  <th style="width:120px">Applicable To</th>
+  <th style="width:100px">Evaluation Date</th>
   <th style="width:110px">Status</th>
-  <th style="width:110px">Risk Ref</th>
+  <th style="min-width:200px">Gap / Action</th>
+  <th style="width:130px">Owner</th>
 </tr></thead><tbody id="cc-tbody"></tbody></table>
 </div>
 
@@ -68,13 +71,33 @@ initPage("compliance.html");
 document.getElementById("tb").innerHTML = renderTopbar("Legal & Compliance Register","ISO §6.1.3 · Loading…");
 
 const catBg = {
-  "Health & Safety":"#7F0000","Environment":"#004D40","Energy":"#003366",
+  "Safety":"#7F0000","Health & Safety":"#7F0000","Environment":"#004D40","Energy":"#003366",
   "GHG & Emissions":"#4A148C","Quality (ISO 9001)":"#1B5E20","Social Responsibility":"#1A237E",
   "Sustainable Procurement":"#4E342E","Risk Management":"#37474F","Anti-Corruption":"#B71C1C","IMS Standards":"#1B2A4A"
 };
 
+/* Local, page-specific status badge — deliberately NOT reusing the shared
+   statusBadge() from nav.js for this page. That shared function checks its
+   "green" bucket with v.includes('COMPLIANT'), which also matches the
+   substring inside "NON-COMPLIANT" and would render a non-compliant
+   obligation with a green "compliant" badge. Given this register already
+   has a live NON-COMPLIANT row, that bug is applied here directly rather
+   than left for a future page to trip over. */
+function ccStatusBadge(s) {
+  var v = String(s || '').toUpperCase().trim();
+  /* Using only badge classes already confirmed to exist elsewhere on the
+     site (red/org/amb/grn/grey, per nav.js's statusBadge/riskRating) —
+     no "badge-blue" class is defined anywhere, so it isn't invented here. */
+  if (v.indexOf('NON-COMPLIANT') > -1) return 'badge-red';
+  if (v.indexOf('PENDING') > -1)       return 'badge-org';
+  if (v.indexOf('IN PROGRESS') > -1)   return 'badge-amb';
+  if (v.indexOf('COMPLIANT') > -1)     return 'badge-grn';
+  return 'badge-grey';
+}
+
 let _allData = [];
 let _chartStat, _chartCat;
+const TARGET_OBLIGATIONS = 65; /* per the register's own stated scope — not independently verified */
 
 function applyFilters() {
   const s = (document.getElementById("cc-stat")?.value || "").toUpperCase();
@@ -96,20 +119,45 @@ function applyFilters() {
    which never reflected the live sheet's actual row count. */
 function updateTopbarSubtitle(recordCount, categoryCount, usingFallback) {
   const sub = usingFallback
-    ? `ISO §6.1.3 · ${recordCount} obligations (fallback data) · ${categoryCount} categories`
-    : `ISO §6.1.3 · ${recordCount} obligations · ${categoryCount} categories`;
+    ? `ISO §6.1.3 · ${recordCount} of ${TARGET_OBLIGATIONS} target obligations logged (fallback data) · ${categoryCount} categories`
+    : `ISO §6.1.3 · ${recordCount} of ${TARGET_OBLIGATIONS} target obligations logged · ${categoryCount} categories`;
   document.getElementById("tb").innerHTML = renderTopbar("Legal & Compliance Register", sub);
+}
+
+/* Maps a raw row object (built by getData.compliance() in nav.js, which
+   keys fields by lowercased/underscored header name) onto the field names
+   this page actually displays. This is the fix for the root issue: the
+   page previously read d.auth / d.instrument / d.req / d.cat / d.std /
+   d.clause / d.evidence / d.review / d.status / d.risk_ref, none of which
+   exist on the real sheet except d.owner and d.ref — everything else
+   silently rendered as "—". The real headers are: Ref, Standard, Category,
+   "Legal / Regulatory Requirement", Jurisdiction, "Applicable To",
+   "Evaluation Date", "Compliance Status", "Gap / Action", Owner. */
+function mapRow(d) {
+  return {
+    ref:        d.ref || "",
+    std:        d.standard || "",
+    cat:        d.category || "Other",
+    req:        d["legal_/_regulatory_requirement"] || "",
+    jurisdiction: d.jurisdiction || "",
+    applicable: d.applicable_to || "",
+    evalDate:   d.evaluation_date || "",
+    status:     d.compliance_status || "",
+    gapAction:  d["gap_/_action"] || "",
+    owner:      d.owner || ""
+  };
 }
 
 async function load() {
   const l = document.getElementById("loader"); if (l) l.classList.remove("hidden");
   let usingFallback = false;
   try {
-    let data = await getData.compliance();
-    if (!data || !data.length) {
-      data = FALLBACK.compliance;
+    let raw = await getData.compliance();
+    if (!raw || !raw.length) {
+      raw = FALLBACK.compliance;
       usingFallback = true;
     }
+    const data = raw.map(mapRow);
     _allData = data;
 
     // Show/hide the fallback-data warning banner so no one mistakes sample
@@ -117,29 +165,31 @@ async function load() {
     const banner = document.getElementById("cc-fallback-banner");
     if (banner) banner.classList.toggle("hidden", !usingFallback);
 
-    // Count statuses
-    const sc = {}, cc = {}; let urg = 0;
+    // Count statuses — real vocabulary: COMPLIANT / IN PROGRESS / NON-COMPLIANT / PENDING
+    const sc = {}, cc = {};
     data.forEach(d => {
       const s = String(d.status || "").trim().toUpperCase();
       sc[s] = (sc[s] || 0) + 1;
       const cat = d.cat || "Other";
       cc[cat] = (cc[cat] || 0) + 1;
-      if (s === "PARTIAL" && (String(d.review || "").toUpperCase().includes("IMMEDIATE") || String(d.evidence || "").toUpperCase().includes("URGENT"))) urg++;
     });
 
-    document.getElementById("cc-comp").textContent = sc["COMPLIANT"] || 0;
-    document.getElementById("cc-part").textContent = sc["PARTIAL"] || 0;
-    document.getElementById("cc-prog").textContent = sc["IN PROGRESS"] || 0;
-    document.getElementById("cc-mon").textContent  = sc["MONITORING"] || 0;
-    document.getElementById("cc-urg").textContent  = urg || 0;
+    document.getElementById("cc-comp").textContent    = sc["COMPLIANT"] || 0;
+    document.getElementById("cc-prog").textContent     = sc["IN PROGRESS"] || 0;
+    document.getElementById("cc-noncomp").textContent  = sc["NON-COMPLIANT"] || 0;
+    document.getElementById("cc-pend").textContent      = sc["PENDING"] || 0;
+    document.getElementById("cc-logged").textContent    = data.length;
+    document.getElementById("cc-logged-sub").textContent = `of ${TARGET_OBLIGATIONS} target obligations`;
+    const noncompSub = document.getElementById("cc-noncomp-sub");
+    if (noncompSub) noncompSub.textContent = (sc["NON-COMPLIANT"] || 0) > 0 ? "Action required" : "None currently open";
 
     // Populate category filter
     const catSel = document.getElementById("cc-cat");
     catSel.innerHTML = '<option value="">All Categories</option>' +
       Object.keys(cc).map(k => `<option value="${k}">${k}</option>`).join("");
 
-    // Topbar now reflects the real record/category counts instead of a
-    // hardcoded "65 obligations · 10 categories" string.
+    // Topbar now reflects the real record/category counts and the
+    // 65-obligation population gap, instead of a hardcoded claim.
     updateTopbarSubtitle(data.length, Object.keys(cc).length, usingFallback);
 
     // Charts with click-to-filter
@@ -150,16 +200,16 @@ async function load() {
     _chartStat = new Chart(document.getElementById("cStat"), {
       type: "doughnut",
       data: {
-        labels: ["Compliant","Partial","In Progress","Monitoring"],
+        labels: ["Compliant","In Progress","Non-Compliant","Pending"],
         datasets: [{
-          data: [sc["COMPLIANT"]||0, sc["PARTIAL"]||0, sc["IN PROGRESS"]||0, sc["MONITORING"]||0],
-          backgroundColor: ["#1B5E20","#F57F17","#1565C0","#78909C"], borderWidth: 0
+          data: [sc["COMPLIANT"]||0, sc["IN PROGRESS"]||0, sc["NON-COMPLIANT"]||0, sc["PENDING"]||0],
+          backgroundColor: ["#1B5E20","#1565C0","#B71C1C","#F57F17"], borderWidth: 0
         }]
       },
       options: { ...cd, cutout: "60%",
         onClick(e, el) {
           if (!el.length) return;
-          const labels = ["COMPLIANT","PARTIAL","IN PROGRESS","MONITORING"];
+          const labels = ["COMPLIANT","IN PROGRESS","NON-COMPLIANT","PENDING"];
           document.getElementById("cc-stat").value = labels[el[0].index] || "";
           applyFilters();
         }
@@ -189,22 +239,19 @@ async function load() {
     // Build table
     const tbody = document.getElementById("cc-tbody");
     tbody.innerHTML = data.map(d => {
-      const sb = statusBadge(d.status);
-      const isUrg = String(d.review || "").toUpperCase().includes("IMMEDIATE") || String(d.evidence || "").toUpperCase().includes("URGENT");
+      const sb = ccStatusBadge(d.status);
       const cb = catBg[d.cat] || "#37474F";
       return `<tr id="${d.ref||""}" data-stat="${String(d.status||"").toUpperCase()}" data-cat="${d.cat||""}">
         <td style="font-family:var(--mono);font-size:10.5px">${d.ref||"—"}</td>
-        <td style="font-size:11px">${d.auth||"—"}</td>
-        <td style="font-size:12px;font-weight:500">${d.instrument||"—"}</td>
-        <td style="font-size:11px;line-height:1.4">${d.req||"—"}</td>
-        <td><span class="badge" style="background:${cb}22;color:${cb};font-size:9px;white-space:normal">${d.cat||"—"}</span></td>
         <td style="font-size:10px;color:var(--text-lt)">${d.std||"—"}</td>
-        <td style="font-size:10px;color:var(--text-lt)">${d.clause||"—"}</td>
-        <td style="font-size:11px;line-height:1.4;${isUrg?"color:var(--crit);font-weight:700":""}">${d.evidence||"—"}</td>
-        <td style="font-size:11px">${d.owner||"—"}</td>
-        <td style="font-size:11px;${isUrg?"color:var(--crit);font-weight:700":""}white-space:nowrap">${d.review||"—"}</td>
+        <td><span class="badge" style="background:${cb}22;color:${cb};font-size:9px;white-space:normal">${d.cat||"—"}</span></td>
+        <td style="font-size:11px;line-height:1.4">${d.req||"—"}</td>
+        <td style="font-size:11px">${d.jurisdiction||"—"}</td>
+        <td style="font-size:11px">${d.applicable||"—"}</td>
+        <td style="font-size:11px;white-space:nowrap">${d.evalDate||"—"}</td>
         <td><span class="badge ${sb}">${d.status||"—"}</span></td>
-        <td style="font-size:10px">${traceLinks(d.risk_ref||"")}</td>
+        <td style="font-size:11px;line-height:1.4">${d.gapAction||"—"}</td>
+        <td style="font-size:11px">${d.owner||"—"}</td>
       </tr>`;
     }).join("");
 
