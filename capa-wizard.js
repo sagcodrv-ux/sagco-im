@@ -90,7 +90,7 @@
   function resetState() {
     state = {
       capaId: null, /* null until first save; real ID from the live sheet, not a guess */
-      createdById: '', createdByName: '', /* set once, at first save — who created this CAPA, not who owns it */
+      createdById: '', createdByName: '', createdByEmail: '', /* set once, at first save — who created this CAPA, not who owns it */
       description: '', source: '', dateRaised: '',
       score: '', severity: null,
       containment: '', containmentDate: '',
@@ -594,6 +594,7 @@
       'Definition Complete': finishing ? 'Yes' : 'No',
       'Created By ID': state.createdById,
       'Created By Name': state.createdByName,
+      'Created By Email': state.createdByEmail,
     };
   }
 
@@ -611,6 +612,7 @@
         var creator = (global.IMS_AUTH && IMS_AUTH.getUser()) ? IMS_AUTH.getUser() : null;
         state.createdById = creator ? creator.userId : '';
         state.createdByName = creator ? creator.name : '';
+        state.createdByEmail = creator ? (creator.email || '') : '';
       }
       var row = buildRow(finishing);
 
@@ -823,6 +825,7 @@
     state.caOwnerEmail = col('Owner Email');
     state.createdById = col('Created By ID');
     state.createdByName = col('Created By Name');
+    state.createdByEmail = col('Created By Email');
     state.initialEvidenceUrls = col('Initial Evidence').split('\n').filter(function (u) { return u.trim(); });
     state.containment = col('Immediate Action');
     state.containmentDate = col('Containment Date');

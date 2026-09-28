@@ -226,7 +226,7 @@
         if (!isOriginalSeed || pw !== seedUser.password) return false;
 
         btn.disabled = false; btn.textContent = origLabel;
-        var session2 = { userId:seedUser.id, username:seedUser.username, name:seedUser.name, role:seedUser.role, loginTs:new Date().toISOString() };
+        var session2 = { userId:seedUser.id, username:seedUser.username, name:seedUser.name, role:seedUser.role, email:seedUser.email||'', loginTs:new Date().toISOString() };
         setSession(session2);
         auditLog('LOGIN_OK','Successful login (local fallback — server unreachable or sheet not yet populated for this account)', seedUser.id);
         sessionStorage.setItem('sagco_dms_role', mapRoleToDMS(seedUser.role));
@@ -269,7 +269,7 @@
           var user = result.user;
 
           /* Success */
-          var session = { userId:user.id, username:user.username, name:user.name, role:user.role, loginTs:new Date().toISOString() };
+          var session = { userId:user.id, username:user.username, name:user.name, role:user.role, email:user.email||'', loginTs:new Date().toISOString() };
           setSession(session);
 
           /* Write-through cache: keep a local copy of this user's directory

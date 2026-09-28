@@ -649,9 +649,6 @@ function notifyNewCapaOwner(p) {
 
   var capaLink = 'https://sagcodrv-ux.github.io/sagco-im/capa-register.html?capa=' + encodeURIComponent(capaId);
   var evidenceUrls = p.evidenceUrls || [];
-  var evidenceLines = evidenceUrls.length
-    ? '\n\nEvidence attached:\n' + evidenceUrls.map(function (u, i) { return (i + 1) + '. ' + u; }).join('\n')
-    : '';
 
   var message = 'You have been assigned as the owner of a new CAPA: ' + capaId
     + ' (' + (p.severity || 'severity not set') + ')'
@@ -660,15 +657,40 @@ function notifyNewCapaOwner(p) {
 
   writeNotification_(ownerEmail, capaId, message);
 
+  /* Plain-text fallback, for mail clients that don't render HTML. */
+  var evidenceLinesPlain = evidenceUrls.length
+    ? '\n\nEvidence attached:\n' + evidenceUrls.map(function (u, i) { return (i + 1) + '. ' + u; }).join('\n')
+    : '';
+  var plainBody = 'Hi ' + ownerName + ',\n\nA new CAPA has been raised in the SAGCO IMS Portal, and you have been assigned as its owner.\n\n'
+    + message + evidenceLinesPlain + '\n\nOpen it directly here: ' + capaLink + '\n\n— SAGCO IMS Portal';
+
+  /* HTML version — a real clickable button for the CAPA link, and
+     compact icon buttons for evidence, matching the same visual style
+     already used in the wizard itself. Kept to inline styles only,
+     since email clients don't reliably support external/embedded CSS. */
+  var evidenceHtml = evidenceUrls.length
+    ? '<p style="margin:16px 0 6px;font-size:13px;color:#1B2A4A"><strong>Evidence attached:</strong></p><p style="margin:0 0 16px">'
+      + evidenceUrls.map(function (u, i) {
+          return '<a href="' + u + '" title="Evidence ' + (i + 1) + '" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;background:#EBF3FB;color:#1565C0;border:1px solid #B5D4F4;border-radius:5px;text-decoration:none;font-size:16px;margin:0 6px 6px 0">📎</a>';
+        }).join('')
+      + '</p>'
+    : '';
+
+  var htmlBody = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#1B2A4A;max-width:520px">'
+    + '<p>Hi ' + ownerName + ',</p>'
+    + '<p>A new CAPA has been raised in the SAGCO IMS Portal, and you have been assigned as its owner.</p>'
+    + '<p style="background:#f9fafb;border-left:3px solid #C9A84C;padding:10px 14px;margin:16px 0">' + message + '</p>'
+    + evidenceHtml
+    + '<p><a href="' + capaLink + '" style="display:inline-block;background:#1B2A4A;color:#fff;text-decoration:none;font-weight:700;padding:10px 20px;border-radius:6px;font-size:13px">📂 Open CAPA in Portal</a></p>'
+    + '<p style="font-size:11px;color:#7a869a;margin-top:24px">— SAGCO IMS Portal</p>'
+    + '</div>';
+
   try {
     MailApp.sendEmail({
       to: ownerEmail,
       subject: 'New CAPA Assigned to You: ' + capaId,
-      body: 'Hi ' + ownerName + ',\n\nA new CAPA has been raised in the SAGCO IMS Portal, and you have been assigned as its owner.\n\n'
-        + message
-        + evidenceLines
-        + '\n\nOpen it directly here: ' + capaLink
-        + '\n\n— SAGCO IMS Portal',
+      body: plainBody,
+      htmlBody: htmlBody,
     });
   } catch (err) {
     Logger.log('Failed to email new-CAPA notification to ' + ownerEmail + ' for ' + capaId + ': ' + err);
@@ -713,7 +735,7 @@ function scanAndNotifyOwners() {
           to: item.ownerEmail,
           subject: 'OVERDUE — CAPA ' + item.id + ' (' + item.daysOverdue + ' day' + (item.daysOverdue === 1 ? '' : 's') + ' overdue)',
           body: 'This is an automatic reminder from the SAGCO IMS Portal.\n\n' + message
-            + '\n\nThis reminder will repeat daily until the CAPA is marked Completed.\n\n— SAGCO IMS Portal',
+            + '\n\nThis reminder will repeat daily until the CAPA is marked Closed.\n\n— SAGCO IMS Portal',
         });
       } catch (err) {
         Logger.log('Failed to email ' + item.ownerEmail + ' for ' + item.id + ': ' + err);
@@ -723,7 +745,167 @@ function scanAndNotifyOwners() {
     }
   });
 
+  scanAndNotifyMissingContainment(); /* separate, faster-cadence check — containment deadlines are days, not weeks */
+  scanAndNotifyCreatorsPendingVerification(); /* once the owner marks Completed, the CREATOR gets chased daily to follow up until Closed or reverted */
+
   return { status: 'ok', overdueCount: result.rows.length };
+}
+
+/* ── Creator reminder: pending verification ────────────────────
+   Person's requirement: once the Owner marks a CAPA Completed, the
+   CREATOR (not the Owner — different person, usually) gets a daily
+   nudge to chase the verifier, until the CAPA is either Closed or
+   bounced back to In Progress. Neither of those states matches
+   'completed' below, so the reminder naturally stops either way. */
+function scanAndNotifyCreatorsPendingVerification() {
+  var sheet = findSheet(TABS['capa']);
+  if (!sheet) return;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 4) return;
+
+  var headers = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var data = sheet.getRange(4, 1, lastRow - 3, headers.length).getValues();
+
+  var idIdx = headers.indexOf('CAPA ID'), statusIdx = headers.indexOf('Status');
+  var creatorEmailIdx = headers.indexOf('Created By Email'), creatorNameIdx = headers.indexOf('Created By Name');
+  var descIdx = headers.indexOf('Description'), sevIdx = headers.indexOf('Severity');
+
+  var today = new Date().toISOString().split('T')[0];
+
+  data.forEach(function(row) {
+    var status = String(row[statusIdx] || '').trim().toLowerCase();
+    if (status !== 'completed') return; /* only while sitting in Completed — moves out once Closed or reverted to In Progress */
+
+    var capaId = row[idIdx];
+    var creatorEmail = creatorEmailIdx >= 0 ? row[creatorEmailIdx] : '';
+    if (!creatorEmail) {
+      Logger.log('CAPA ' + capaId + ' is Completed and awaiting verification, but has no Created By Email on file — reminder skipped.');
+      return;
+    }
+
+    var dedupeKey = capaId + '-pendingverify'; /* distinct from the other two reminder types' dedupe keys */
+    if (alreadyNotifiedToday_(dedupeKey, today)) return;
+
+    var creatorName = creatorNameIdx >= 0 ? row[creatorNameIdx] : '';
+    var message = 'CAPA ' + capaId + ' (' + (sevIdx >= 0 ? row[sevIdx] : '') + ') was marked Completed by its owner and is still awaiting'
+      + ' Effectiveness Verification before it can be Closed. "' + (descIdx >= 0 ? row[descIdx] : '') + '"';
+
+    writeNotification_(creatorEmail, dedupeKey, message);
+
+    try {
+      MailApp.sendEmail({
+        to: creatorEmail,
+        subject: 'AWAITING VERIFICATION — CAPA ' + capaId,
+        body: 'Hi ' + creatorName + ',\n\nThis is an automatic reminder from the SAGCO IMS Portal.\n\n' + message
+          + '\n\nAs the person who raised this CAPA, please follow up with the verifier (Admin/IMS Manager) to get it closed.'
+          + '\n\nThis reminder will repeat daily until it\'s Closed, or sent back to In Progress.\n\n— SAGCO IMS Portal',
+      });
+    } catch (err) {
+      Logger.log('Failed to email pending-verification reminder to ' + creatorEmail + ' for ' + capaId + ': ' + err);
+    }
+  });
+}
+
+/* ── Containment-overdue reminders ─────────────────────────────
+   Separate from the main overdue-CAPA reminder above: containment
+   has its own, much tighter deadline (proc-c10.html §5 — Critical:
+   same shift, Major: 5 working days, Minor: 14 working days) measured
+   from Date Raised, not from the CAPA's overall Due Date. Without
+   this, a CAPA with no containment logged at all would go unnoticed
+   until the much later overall due date, weeks or months out.
+
+   "Working days" here means Sunday–Thursday (Saudi's actual work
+   week), not the Western Monday–Friday — worth confirming this
+   assumption is correct for SAGCO specifically. */
+
+function addWorkingDays_(startDate, days) {
+  var d = new Date(startDate);
+  var added = 0;
+  while (added < days) {
+    d.setDate(d.getDate() + 1);
+    var dow = d.getDay(); /* 0=Sun ... 6=Sat; Saudi weekend is Fri(5)/Sat(6) */
+    if (dow !== 5 && dow !== 6) added++;
+  }
+  return d;
+}
+
+function getMissingContainmentRows_() {
+  var sheet = findSheet(TABS['capa']);
+  if (!sheet) return [];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 4) return [];
+
+  var headers = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var data = sheet.getRange(4, 1, lastRow - 3, headers.length).getValues();
+
+  var idIdx = headers.indexOf('CAPA ID'), statusIdx = headers.indexOf('Status');
+  var dateRaisedIdx = headers.indexOf('Date Raised'), sevIdx = headers.indexOf('Severity');
+  var containIdx = headers.indexOf('Immediate Action'), emailIdx = headers.indexOf('Owner Email');
+  var descIdx = headers.indexOf('Description');
+
+  var today = new Date();
+  var results = [];
+
+  data.forEach(function(row) {
+    var status = String(row[statusIdx] || '').trim().toLowerCase();
+    if (status === 'completed' || status === 'closed') return; /* containment is moot once work is done or closed */
+
+    var containment = String(row[containIdx] || '').trim();
+    if (containment) return; /* already filled in — nothing to remind about */
+
+    var raisedCell = row[dateRaisedIdx];
+    if (!raisedCell) return;
+    var raised = new Date(raisedCell);
+    if (isNaN(raised.getTime())) return;
+
+    var severity = String(row[sevIdx] || '');
+    var deadline;
+    if (severity === 'Critical') deadline = raised; /* same shift — effectively same day */
+    else if (severity === 'Major') deadline = addWorkingDays_(raised, 5);
+    else if (severity === 'Minor') deadline = addWorkingDays_(raised, 14);
+    else return; /* severity not set — can't compute a deadline */
+
+    if (today <= deadline) return; /* not overdue yet */
+
+    var daysLate = Math.floor((today - deadline) / 86400000);
+    results.push({
+      id: row[idIdx], severity: severity, daysLate: daysLate,
+      ownerEmail: emailIdx >= 0 ? row[emailIdx] : '', description: descIdx >= 0 ? row[descIdx] : '',
+    });
+  });
+
+  return results;
+}
+
+function scanAndNotifyMissingContainment() {
+  var rows = getMissingContainmentRows_();
+  var today = new Date().toISOString().split('T')[0];
+
+  rows.forEach(function(item) {
+    var dedupeKey = item.id + '-containment'; /* distinct from the general overdue dedupe key, so both can fire the same day without colliding */
+    if (alreadyNotifiedToday_(dedupeKey, today)) return;
+
+    var message = 'CAPA ' + item.id + ' (' + item.severity + ') has NO containment action logged, and its containment deadline passed '
+      + item.daysLate + ' day' + (item.daysLate === 1 ? '' : 's') + ' ago. "' + (item.description || '') + '"';
+
+    writeNotification_(item.ownerEmail, dedupeKey, message);
+
+    if (item.ownerEmail) {
+      try {
+        MailApp.sendEmail({
+          to: item.ownerEmail,
+          subject: 'CONTAINMENT OVERDUE — CAPA ' + item.id,
+          body: 'This is an automatic reminder from the SAGCO IMS Portal.\n\n' + message
+            + '\n\nContainment is the fastest-required step in the CAPA process — please log it as soon as possible.'
+            + '\n\nThis reminder will repeat daily until containment is recorded.\n\n— SAGCO IMS Portal',
+        });
+      } catch (err) {
+        Logger.log('Failed to email containment reminder to ' + item.ownerEmail + ' for ' + item.id + ': ' + err);
+      }
+    } else {
+      Logger.log('CAPA ' + item.id + ' is missing containment past deadline but has no Owner Email on file.');
+    }
+  });
 }
 
 /* Weekly entry point: one digest email to IMS_MANAGER_EMAILS listing
