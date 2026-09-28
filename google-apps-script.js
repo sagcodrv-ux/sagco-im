@@ -283,6 +283,8 @@ function doPost(e) {
       result = serverLogin(params.username, params.password);
     } else if (action === 'setUser') {
       result = serverSetUser(params);
+    } else if (action === 'notifyNewCapa') {
+      result = notifyNewCapaOwner(params);
     } else if (action === 'deleteFile') {
       result = deleteFileFromDrive(params.fileId);
     } else if (action === 'saveDocumentRecord' || action === 'saveDocument') {
@@ -563,8 +565,10 @@ function serverSetUser(payload) {
 /* ── Overdue CAPA notifications ───────────────────────────────
    Person's requirement: the NCR owner gets email + in-portal system
    notifications + reminders every day the CAPA stays overdue, until
-   it's Completed. The IMS Manager(s) get one weekly digest email of
-   everything currently overdue, for monitoring.
+   Status reaches Closed — reaching Completed alone does NOT stop the
+   reminders, since a Completed-but-not-yet-verified CAPA past its due
+   date is still considered overdue. The IMS Manager(s) get one weekly
+   digest email of everything currently overdue, for monitoring.
 
    Two time-driven triggers call the two entry points below —
    scanAndNotifyOwners() daily, sendWeeklyOverdueReport() weekly.
@@ -597,7 +601,7 @@ function getOverdueCapaRows_() {
 
   data.forEach(function(row) {
     var status = String(row[statusIdx] || '').trim().toLowerCase();
-    if (status === 'completed' || status === 'closed') return; /* reminders stop once Completed, per the requirement */
+    if (status === 'closed') return; /* reminders continue even once Completed — only stop at Closed, per the requirement */
     var dueCell = row[dueIdx];
     if (!dueCell) return;
     var due = new Date(dueCell);
@@ -632,6 +636,46 @@ function alreadyNotifiedToday_(capaId, dateStr) {
     if (String(data[i][capaIdx]) === String(capaId) && String(data[i][dateIdx]) === dateStr) return true;
   }
   return false;
+}
+
+/* Fires ONCE, right when a CAPA is first raised — tells the owner
+   they're now responsible for it, rather than them finding out only
+   once it's overdue. Separate from scanAndNotifyOwners() (which is
+   the recurring daily overdue reminder) — this is a single, immediate
+   heads-up at creation time. */
+function notifyNewCapaOwner(p) {
+  var capaId = p.capaId, ownerEmail = p.ownerEmail, ownerName = p.ownerName || '';
+  if (!ownerEmail) return { status: 'error', message: 'No owner email provided.' };
+
+  var capaLink = 'https://sagcodrv-ux.github.io/sagco-im/capa-register.html?capa=' + encodeURIComponent(capaId);
+  var evidenceUrls = p.evidenceUrls || [];
+  var evidenceLines = evidenceUrls.length
+    ? '\n\nEvidence attached:\n' + evidenceUrls.map(function (u, i) { return (i + 1) + '. ' + u; }).join('\n')
+    : '';
+
+  var message = 'You have been assigned as the owner of a new CAPA: ' + capaId
+    + ' (' + (p.severity || 'severity not set') + ')'
+    + (p.dueDate ? ' — due ' + p.dueDate : '')
+    + '. "' + (p.description || '') + '"';
+
+  writeNotification_(ownerEmail, capaId, message);
+
+  try {
+    MailApp.sendEmail({
+      to: ownerEmail,
+      subject: 'New CAPA Assigned to You: ' + capaId,
+      body: 'Hi ' + ownerName + ',\n\nA new CAPA has been raised in the SAGCO IMS Portal, and you have been assigned as its owner.\n\n'
+        + message
+        + evidenceLines
+        + '\n\nOpen it directly here: ' + capaLink
+        + '\n\n— SAGCO IMS Portal',
+    });
+  } catch (err) {
+    Logger.log('Failed to email new-CAPA notification to ' + ownerEmail + ' for ' + capaId + ': ' + err);
+    return { status: 'error', message: 'Notification written but email failed: ' + err };
+  }
+
+  return { status: 'ok' };
 }
 
 function writeNotification_(recipientEmail, capaId, message) {
@@ -787,7 +831,7 @@ function scanAlerts() {
       data.forEach(function(row) {
         if (statusIdx >= 0) {
           var st = String(row[statusIdx] || '').trim().toLowerCase();
-          if (st === 'completed' || st === 'closed') return;
+          if (st === 'closed') return; /* only Closed stops counting as overdue now, matching the reminder cutoff */
         }
         var cell = row[dateIdx];
         if (!cell) return;

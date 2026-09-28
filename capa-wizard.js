@@ -601,8 +601,15 @@
     function handleResult(result) {
       saving = false; setButtonsSaving(false);
       if (result && result.status === 'ok') {
-        if (wasFirstSave) notifyNewCapaOwner(); /* fire-and-forget — owner should hear immediately, not wait for the alert/close below */
-        if (state.initialEvidenceFiles.length) uploadInitialEvidence();
+        if (wasFirstSave) {
+          /* Wait for evidence to finish uploading (if any) BEFORE
+             notifying the owner, so the email can include real links
+             rather than firing before the links even exist. */
+          if (state.initialEvidenceFiles.length) uploadInitialEvidence(notifyNewCapaOwner);
+          else notifyNewCapaOwner();
+        } else if (state.initialEvidenceFiles.length) {
+          uploadInitialEvidence(); /* not the first save — no owner-notification tied to this one */
+        }
         if (finishing) {
           alert(state.capaId + ' saved as finished (all 4 steps complete). Implementation tracking (ML-01) and Effectiveness Verification (F-04) are now available via "Continue an Existing CAPA".');
         } else {
@@ -623,7 +630,9 @@
 
     /* Tells the owner, right away, that a CAPA now exists with them as
        owner — email + in-portal notification, same channels as the
-       overdue reminders but fired once at creation instead of daily. */
+       overdue reminders but fired once at creation instead of daily.
+       Includes evidence links (if uploadInitialEvidence ran first) and
+       a direct deep link to reopen this exact CAPA on the register page. */
     function notifyNewCapaOwner() {
       if (!state.caOwnerEmail) return; /* shouldn't happen, Step 1 requires it — but never let a missing email break the save itself */
       fetch(SHEETS_URL, {
@@ -636,6 +645,7 @@
           description: state.description,
           severity: state.severity ? state.severity.key : '',
           dueDate: state.caDueDate,
+          evidenceUrls: state.initialEvidenceUrls,
         }),
       })
         .then(function (r) { return r.json(); })
@@ -649,12 +659,6 @@
         });
     }
 
-    /* Uploads the Step 1 evidence file (if any) using the same
-       mechanism already built for ML-01 evidence, then attaches the
-       resulting link to the CAPA row via a follow-up update — the
-       upload itself needs a real CAPA ID first, which doesn't exist
-       until after the first successful save, so this always runs
-       AFTER doWrite() succeeds, never before or during it. */
     /* Uploads every pending Step 1 evidence file (there can be several)
        using the same mechanism already built for ML-01 evidence, one
        at a time — sequential, not parallel, to avoid hammering the
@@ -664,8 +668,11 @@
        a single update — never overwrites earlier evidence, only adds
        to it. Needs a real CAPA ID first, which doesn't exist until
        after the first successful save, so this always runs AFTER
-       doWrite() succeeds, never before or during it. */
-    function uploadInitialEvidence() {
+       doWrite() succeeds, never before or during it. Takes an optional
+       callback, run once the sheet update completes (or immediately,
+       if nothing actually uploaded) — used to sequence the owner
+       notification after evidence, not before. */
+    function uploadInitialEvidence(cb) {
       var pending = state.initialEvidenceFiles.slice();
       var newUrls = [];
 
@@ -676,8 +683,10 @@
             state.initialEvidenceFiles = [];
             fetch(SHEETS_URL + '?action=update&tab=capa&idCol=' + encodeURIComponent('CAPA ID') + '&id=' + encodeURIComponent(state.capaId), {
               method: 'POST', body: JSON.stringify({ 'Initial Evidence': state.initialEvidenceUrls.join('\n') }),
-            }).catch(function (err) { console.warn('Could not attach evidence links to ' + state.capaId + ': ' + err); });
-          }
+            })
+              .then(function () { if (cb) cb(); })
+              .catch(function (err) { console.warn('Could not attach evidence links to ' + state.capaId + ': ' + err); if (cb) cb(); });
+          } else if (cb) cb();
           return;
         }
         var file = pending.shift();
@@ -1267,6 +1276,18 @@
     var contBtn = document.getElementById('capa-continue-btn');
     if (contBtn) contBtn.addEventListener('click', openPicker);
     initNotifBell();
+
+    /* Deep link support — e.g. capa-register.html?capa=CAPA-2026-004,
+       used by the new-CAPA-owner email so clicking it opens straight
+       to that CAPA instead of just the general register page. */
+    var deepLinkId = new URLSearchParams(window.location.search).get('capa');
+    if (deepLinkId) {
+      injectStyles();
+      fetch(SHEETS_URL + '?tab=capa&action=read')
+        .then(function (r) { return r.json(); })
+        .then(function (data) { resumeById(deepLinkId, data); })
+        .catch(function () { /* silent — worst case, the person just uses "Continue an Existing CAPA" manually */ });
+    }
   });
 
   global.CAPA_WIZARD = { open: openNew, openPicker: openPicker };

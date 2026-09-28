@@ -288,7 +288,7 @@ function renderTable(){
   var fr=document.getElementById('um-frole').value;
   var fs=document.getElementById('um-fstatus').value;
   var session=IMS_AUTH.getUser();
-  var isAdmin=IMS_AUTH.can('manage_users');
+  var isSuperAdmin=IMS_AUTH.getRole()==='superadmin';
 
   var users=getMergedUsers().filter(function(u){
     var hay=(u.name+' '+u.username+' '+u.department+' '+u.title).toLowerCase();
@@ -304,7 +304,7 @@ function renderTable(){
 
   tbody.innerHTML=users.map(function(u){
     var isSelf=session&&session.userId===u.id;
-    var canModify=isAdmin && !(u.role==='superadmin' && IMS_AUTH.getRole()!=='superadmin');
+    var canModify=isSelf || isSuperAdmin; /* own account is always editable; another person's account is Super Admin only */
     var acts='<button class="btn btn-teal btn-xs" data-ua="view" data-uid="'+u.id+'" title="View profile">🔍</button>';
     if(canModify) acts+='<button class="btn btn-navy btn-xs" data-ua="edit" data-uid="'+u.id+'" title="Edit user"'+(isSelf?' style="outline:2px solid var(--gold)"':'')+'>✏️</button>';
     if(canModify&&!isSelf) acts+='<button class="btn btn-red btn-xs" data-ua="toggle" data-uid="'+u.id+'" title="'+(u.status==='Active'?'Deactivate':'Activate')+'">'+( u.status==='Active'?'🚫':'✅')+'</button>';
@@ -336,6 +336,12 @@ function dispatchAction(action,id){
   var user = getMergedUsers().find(function(u){ return u.id===id; });
   if(!user) user = IMS_AUTH.getUserById(id);
   if(!user)return;
+  var isSelf = (IMS_AUTH.getUser()||{}).userId===user.id;
+  var isSuperAdmin = IMS_AUTH.getRole()==='superadmin';
+  if((action==='edit'||action==='toggle') && !isSelf && !isSuperAdmin){
+    alert('You can only edit your own account. Only the Super Admin can modify another user\'s account.');
+    return;
+  }
   if(action==='view')   openUserModal(user,true);
   if(action==='edit')   openUserModal(user,false);
   if(action==='toggle') toggleStatus(user);
@@ -396,7 +402,7 @@ function openUserModal(user, readOnly){
     +'</div>'
     +'<div class="dms-modal-ftr">'
     +(!readOnly?'<button class="btn btn-ghost-dk" id="um-cancel">Cancel</button><button class="btn btn-gold" id="um-save">'+(isNew?'Create User':'Save Changes')+'</button>':'')
-    +(readOnly&&IMS_AUTH.can('manage_users')&&!isSelf?'<button class="btn btn-navy" id="um-go-edit">✏️ Edit</button>':'')
+    +(readOnly&&IMS_AUTH.getRole()==='superadmin'&&!isSelf?'<button class="btn btn-navy" id="um-go-edit">✏️ Edit</button>':'')
     +'<button class="btn btn-gold" id="um-close">Close</button>'
     +'</div>'
   );
