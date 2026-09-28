@@ -11,12 +11,16 @@
 <div class="loader" id="loader"><div class="loader-spin"></div><div class="loader-text">Loading compliance data…</div></div>
 <div class="main"><div id="tb"></div><div class="content">
 
+<div id="cc-fallback-banner" class="alert-amber hidden" style="background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:12px">
+  ⚠️ <strong>Showing fallback/sample data</strong> — the live Google Sheets connection returned no data. The figures and table below are NOT current live records. Refresh once the sheet is reachable.
+</div>
+
 <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
   <div class="kpi-card kc-grn"><div class="kpi-lbl">Compliant</div><div class="kpi-val" id="cc-comp">—</div><div class="kpi-sub">of obligations</div></div>
   <div class="kpi-card kc-org"><div class="kpi-lbl">Partial</div><div class="kpi-val" id="cc-part">—</div><div class="kpi-sub">Action required</div></div>
   <div class="kpi-card kc-blue"><div class="kpi-lbl">In Progress</div><div class="kpi-val" id="cc-prog">—</div><div class="kpi-sub">Active improvement</div></div>
   <div class="kpi-card kc-navy"><div class="kpi-lbl">Monitoring</div><div class="kpi-val" id="cc-mon">—</div><div class="kpi-sub">Voluntary/emerging</div></div>
-  <div class="kpi-card kc-red"><div class="kpi-lbl">URGENT</div><div class="kpi-val" id="cc-urg">—</div><div class="kpi-sub">HS-04 · HS-08 · RM-04</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">URGENT</div><div class="kpi-val" id="cc-urg">—</div><div class="kpi-sub" id="cc-urg-sub">Immediate action items</div></div>
 </div>
 
 <div class="chart-grid" style="grid-template-columns:1fr 1fr">
@@ -57,11 +61,11 @@
 </tr></thead><tbody id="cc-tbody"></tbody></table>
 </div>
 
-<div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
+</div></div>
 
 <script>
 initPage("compliance.html");
-document.getElementById("tb").innerHTML = renderTopbar("Legal & Compliance Register","ISO §6.1.3 · 65 obligations · 10 categories");
+document.getElementById("tb").innerHTML = renderTopbar("Legal & Compliance Register","ISO §6.1.3 · Loading…");
 
 const catBg = {
   "Health & Safety":"#7F0000","Environment":"#004D40","Energy":"#003366",
@@ -87,12 +91,31 @@ function applyFilters() {
   document.getElementById("cc-count").textContent = v + " records";
 }
 
+/* Updates the topbar subtitle from the real record/category counts.
+   Replaces the old hardcoded "65 obligations · 10 categories" string,
+   which never reflected the live sheet's actual row count. */
+function updateTopbarSubtitle(recordCount, categoryCount, usingFallback) {
+  const sub = usingFallback
+    ? `ISO §6.1.3 · ${recordCount} obligations (fallback data) · ${categoryCount} categories`
+    : `ISO §6.1.3 · ${recordCount} obligations · ${categoryCount} categories`;
+  document.getElementById("tb").innerHTML = renderTopbar("Legal & Compliance Register", sub);
+}
+
 async function load() {
   const l = document.getElementById("loader"); if (l) l.classList.remove("hidden");
+  let usingFallback = false;
   try {
     let data = await getData.compliance();
-    if (!data || !data.length) data = FALLBACK.compliance;
+    if (!data || !data.length) {
+      data = FALLBACK.compliance;
+      usingFallback = true;
+    }
     _allData = data;
+
+    // Show/hide the fallback-data warning banner so no one mistakes sample
+    // data for live records (previously this happened silently).
+    const banner = document.getElementById("cc-fallback-banner");
+    if (banner) banner.classList.toggle("hidden", !usingFallback);
 
     // Count statuses
     const sc = {}, cc = {}; let urg = 0;
@@ -114,6 +137,10 @@ async function load() {
     const catSel = document.getElementById("cc-cat");
     catSel.innerHTML = '<option value="">All Categories</option>' +
       Object.keys(cc).map(k => `<option value="${k}">${k}</option>`).join("");
+
+    // Topbar now reflects the real record/category counts instead of a
+    // hardcoded "65 obligations · 10 categories" string.
+    updateTopbarSubtitle(data.length, Object.keys(cc).length, usingFallback);
 
     // Charts with click-to-filter
     const cd = chartDefaults();
@@ -188,140 +215,13 @@ async function load() {
     document.getElementById("cc-cat")?.addEventListener("change", applyFilters);
     document.getElementById("cc-s")?.addEventListener("input", applyFilters);
     scrollToHash();
-  } catch(e) { console.error(e); }
+  } catch(e) {
+    console.error(e);
+    updateTopbarSubtitle(_allData.length || 0, 0, usingFallback);
+  }
   finally { const l = document.getElementById("loader"); if (l) l.classList.add("hidden"); }
 }
 load(); startRefresh(load);
 </script>
 
-<script>
-/* ── Auto-update summary cards from live Sheets data ── */
-
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
-  }
-  return '—';
-}
-
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
-    }
-  }
-}
-(function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows && d.rows.length > 0){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('Total Obligations', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
-  updateCard('COMPLIANT', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Status","COMPLIANT"); })(d.rows||[],d.headers||[]));
-  updateCard('IN PROGRESS', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Status","IN PROGRESS"); })(d.rows||[],d.headers||[]));
-  updateCard('NON-COMPLIANT', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Status","NON-COMPLIANT"); })(d.rows||[],d.headers||[]));
-  updateCard('OVERDUE', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Status","OVERDUE"); })(d.rows||[],d.headers||[]));
-      }
-    };
-  }
-})();
-</script>
-
-
-<script>
-(function() {
-  function colIdx(headers, name) {
-    var n = name.toLowerCase();
-    for (var i=0;i<headers.length;i++) {
-      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
-    }
-    return -1;
-  }
-  function countVal(rows, col, val) {
-    if (col < 0) return 0;
-    var v = val ? val.toLowerCase() : null;
-    return rows.filter(function(r){
-      var cell = String(r[col]||'').toLowerCase().trim();
-      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
-    }).length;
-  }
-  function sumCol(rows, col) {
-    if (col < 0) return 0;
-    return rows.reduce(function(s,r){
-      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
-      return s + (isNaN(v) ? 0 : v);
-    }, 0);
-  }
-  function setCard(idx, val) {
-    var cards = document.querySelectorAll('.kpi-val');
-    if (cards[idx]) cards[idx].textContent = val;
-  }
-
-  var origRender = window.renderTable;
-  window.renderTable = function(data, container) {
-    if (origRender) origRender(data, container);
-    if (!data || !data.rows || !data.headers) return;
-    var rows = data.rows, h = data.headers;
-    try { setCard(0, countVal(rows, colIdx(h,"status"), "compliant") - countVal(rows, colIdx(h,"status"), "non-compliant")); } catch(e) {}
-    try { setCard(1, countVal(rows, colIdx(h,"status"), "partial")); } catch(e) {}
-    try { setCard(2, countVal(rows, colIdx(h,"status"), "progress")); } catch(e) {}
-    try { setCard(3, countVal(rows, colIdx(h,"status"), "monitor")); } catch(e) {}
-    try { setCard(4, countVal(rows, colIdx(h,"status"), "urgent") + countVal(rows, colIdx(h,"status"), "overdue")); } catch(e) {}
-  };
-})();
-</script>
 </body></html>
