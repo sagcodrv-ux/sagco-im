@@ -151,7 +151,7 @@
     if (!global.IMS_AUTH) return true;
     var session = IMS_AUTH.getUser();
     if (!session) return true;
-    if (session.role === 'admin' || session.role === 'superadmin') return true;
+    if (session.role === 'superadmin') return true;
     if (state.createdById && session.userId === state.createdById) return true;
     return false;
   }
@@ -261,10 +261,14 @@
   function footerHTML() {
     var backDisabled = currentStep === 1 ? 'disabled' : '';
     var nextLabel = currentStep === 4 ? 'Finish & Save' : 'Next →';
+    var step1Locked = currentStep === 1 && !!state.capaId && !canEditStep1();
+    var saveLaterBtn = step1Locked
+      ? '<button class="cw-btn save-later" id="cw-save-later" disabled title="Locked — nothing to save while Step 1 is read-only">💾 Save &amp; Continue Later</button>'
+      : '<button class="cw-btn save-later" id="cw-save-later">💾 Save &amp; Continue Later</button>';
     return '<div class="cw-footer">'
       + '<div><button class="cw-btn ghost" id="cw-cancel">Cancel</button> '
       + '<button class="cw-btn ghost" id="cw-back" ' + backDisabled + '>← Back</button></div>'
-      + '<div><button class="cw-btn save-later" id="cw-save-later">💾 Save &amp; Continue Later</button> '
+      + '<div>' + saveLaterBtn + ' '
       + '<button class="cw-btn primary" id="cw-next">' + nextLabel + '</button></div>'
       + '</div>';
   }
@@ -308,7 +312,7 @@
   function stepIntake() {
     var locked = !!state.capaId && !canEditStep1();
     var lockBanner = locked
-      ? '<div class="cw-sev-banner neutral" style="background:#fff7ed;border-color:#fed7aa;color:#7a4a10">🔒 Locked — the original nonconformity record can\'t be changed once a CAPA has been raised. Only ' + esc(state.createdByName || 'the CAPA creator') + ' or an Administrator can edit this.</div>'
+      ? '<div class="cw-sev-banner neutral" style="background:#fff7ed;border-color:#fed7aa;color:#7a4a10">🔒 Locked — the original nonconformity record can\'t be changed once a CAPA has been raised. Only ' + esc(state.createdByName || 'the CAPA creator') + ' or the Super Admin can edit this.</div>'
       : '';
 
     var sevBanner = '';
