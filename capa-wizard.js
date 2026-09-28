@@ -845,7 +845,13 @@
     }
 
     currentStep = Math.max(1, STAGE_NAMES.indexOf(stage) + 1) || 1;
-    loadUserDirectory(render);
+    loadUserDirectory(function () {
+      if (!state.caOwnerEmail && state.caOwner && liveUserDirectory) {
+        var matched = liveUserDirectory.find(function (u) { return u.name === state.caOwner; });
+        if (matched) state.caOwnerEmail = matched.email;
+      }
+      render();
+    });
   }
 
   /* ══════════════════════════════════════════════════════════
