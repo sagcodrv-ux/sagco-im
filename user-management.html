@@ -238,11 +238,13 @@ function loadRemoteUsers(cb) {
       var unIdx = headers.indexOf('Username'), roleIdx = headers.indexOf('Role');
       var titleIdx = headers.indexOf('Job Title'), deptIdx = headers.indexOf('Department');
       var emailIdx = headers.indexOf('Email'), statusIdx = headers.indexOf('Account Status');
+      var digestIdx = headers.indexOf('Weekly CAPA Digest');
       remoteUsers = (data.rows || []).map(function (r) {
         return {
           id: r[idIdx], name: r[nameIdx], username: unIdx >= 0 ? r[unIdx] : '', role: roleIdx >= 0 ? r[roleIdx] : 'viewer',
           title: titleIdx >= 0 ? r[titleIdx] : '', department: deptIdx >= 0 ? r[deptIdx] : '',
           email: emailIdx >= 0 ? r[emailIdx] : '', status: statusIdx >= 0 ? r[statusIdx] : 'Active',
+          weeklyDigest: digestIdx >= 0 && String(r[digestIdx]).trim().toLowerCase() === 'yes',
           _remoteOnly: true,
         };
       });
@@ -450,6 +452,7 @@ function openUserModal(user, readOnly){
       email:  document.getElementById('uf-email').value.trim(),
       status: document.getElementById('uf-status').value,
       notes:  document.getElementById('uf-notes').value.trim(),
+      weeklyDigest: document.getElementById('uf-digest').checked,
     });
     if(pwVal) upd.password=pwVal; /* plain text for demo */
     if(isNew){ upd.createdBy=(IMS_AUTH.getUser()||{}).userId||'unknown'; }
@@ -490,7 +493,7 @@ function syncUserToSheet(user, plainPassword) {
   var payload = {
     id: user.id, name: user.name, username: user.username, role: user.role,
     title: user.title || '', department: user.department || '', email: user.email || '',
-    status: user.status || 'Active',
+    status: user.status || 'Active', weeklyDigest: !!user.weeklyDigest,
   };
   if (plainPassword) payload.password = plainPassword;
 
@@ -567,6 +570,7 @@ function buildEditForm(u, isNew, roleOpts, statusOpts, isSelf, canSA){
     +'<div class="dms-field"><label>Email</label><input type="email" id="uf-email" value="'+esc(u.email||'')+'" placeholder="user@sagco.com.sa"></div>'
     +'<div class="dms-field"><label>Status</label><select id="uf-status">'+statusOpts+'</select></div>'
     +'</div>'
+    +'<div class="dms-field"><label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" id="uf-digest" style="width:auto"'+(u.weeklyDigest?' checked':'')+'> Receive the weekly overdue-CAPA digest email</label></div>'
     +'<div class="dms-field"><label>Notes</label><textarea id="uf-notes" rows="2" placeholder="Access notes, restrictions, or reminders…">'+esc(u.notes||'')+'</textarea></div>';
 }
 
