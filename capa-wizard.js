@@ -1318,7 +1318,15 @@
   /* ── Public entry points ──────────────────────────────────── */
   function openNew() { injectStyles(); resetState(); currentStep = 1; loadUserDirectory(render); }
 
-  document.addEventListener('DOMContentLoaded', function () {
+  /* Was previously an unconditional DOMContentLoaded listener — moved to
+     an explicitly-called function, because that ran independently of
+     capa-register.html's own login wall (IMS_AUTH.init()). A person
+     opening the page cold (no prior session, e.g. clicking the email
+     deep-link fresh) would have this wire up and the deep-link
+     auto-open fire regardless of whether login had actually happened
+     yet. Now this only runs once capa-register.html's onReady callback
+     calls CAPA_WIZARD.initPage() — i.e., after a real session exists. */
+  function initWizardPage() {
     var btn = document.getElementById('capa-raise-btn');
     if (btn) btn.addEventListener('click', openNew);
     var contBtn = document.getElementById('capa-continue-btn');
@@ -1336,8 +1344,8 @@
         .then(function (data) { resumeById(deepLinkId, data); })
         .catch(function () { /* silent — worst case, the person just uses "Continue an Existing CAPA" manually */ });
     }
-  });
+  }
 
-  global.CAPA_WIZARD = { open: openNew, openPicker: openPicker };
+  global.CAPA_WIZARD = { open: openNew, openPicker: openPicker, initPage: initWizardPage };
 
 })(window);
