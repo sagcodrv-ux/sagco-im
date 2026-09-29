@@ -19,7 +19,7 @@
   margin:-24px; padding:24px; min-height:100vh;
 }
 .kd-wrap *{box-sizing:border-box}
-.kd-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:18px}
+.kd-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:14px}
 .kd-title{font-size:20px;font-weight:800;letter-spacing:-.2px}
 .kd-subtitle{font-size:12px;color:var(--kd-text-lt);margin-top:4px}
 .kd-sync{font-size:10px;color:var(--kd-text-lt);display:flex;align-items:center;gap:6px}
@@ -28,6 +28,16 @@
 .kd-edit-badge{font-size:9.5px;font-weight:700;padding:4px 10px;border-radius:14px;display:flex;align-items:center;gap:5px}
 .kd-edit-on{background:rgba(66,217,160,.15);color:var(--kd-green)}
 .kd-edit-off{background:rgba(137,150,178,.15);color:var(--kd-text-lt)}
+
+.kd-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.kd-year-group{display:flex;align-items:center;gap:8px}
+.kd-select{background:var(--kd-card2);border:1px solid var(--kd-border);color:var(--kd-text);
+  font-family:inherit;font-size:13px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer}
+.kd-btn{background:var(--kd-purple);color:#fff;border:none;font-family:inherit;font-size:11.5px;font-weight:700;
+  padding:9px 16px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:opacity .15s}
+.kd-btn:hover{opacity:.88}
+.kd-btn-ghost{background:var(--kd-card2);color:var(--kd-text);border:1px solid var(--kd-border)}
+.kd-btn:disabled{opacity:.35;cursor:not-allowed}
 
 .cal-legend{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
 .cal-chip{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--kd-text-lt);
@@ -62,8 +72,16 @@
 
 .kd-modal-overlay{display:none;position:fixed;inset:0;background:rgba(4,7,20,.72);z-index:9000;align-items:center;justify-content:center;padding:20px}
 .kd-modal-overlay.open{display:flex}
-.kd-modal{background:var(--kd-card);border:1px solid var(--kd-border);border-radius:16px;max-width:440px;width:100%;padding:22px;font-family:'Inter',Arial,sans-serif;color:var(--kd-text)}
+.kd-modal{background:var(--kd-card);border:1px solid var(--kd-border);border-radius:16px;max-width:460px;width:100%;
+  max-height:88vh;overflow-y:auto;padding:22px;font-family:'Inter',Arial,sans-serif;color:var(--kd-text)}
 .kd-modal-close{float:right;background:var(--kd-card2);border:1px solid var(--kd-border);color:var(--kd-text-lt);width:26px;height:26px;border-radius:8px;cursor:pointer}
+.kd-form-row{margin-bottom:13px}
+.kd-form-row label{display:block;font-size:10px;font-weight:700;color:var(--kd-text-lt);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.kd-form-row-split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kd-input,.kd-form-select,.kd-textarea{width:100%;background:var(--kd-card2);border:1px solid var(--kd-border);
+  color:var(--kd-text);font-family:inherit;font-size:12.5px;padding:9px 11px;border-radius:8px}
+.kd-textarea{resize:vertical;min-height:60px}
+.kd-form-error{font-size:11px;color:var(--kd-red);margin-top:10px;display:none}
 
 .kd-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
   background:var(--kd-card2);border:1px solid var(--kd-border);color:var(--kd-text);
@@ -80,13 +98,21 @@
 
   <div class="kd-header">
     <div>
-      <div class="kd-title">Annual Activities Calendar — 2026</div>
+      <div class="kd-title">Annual Activities Calendar</div>
       <div class="kd-subtitle">All IMS-wide recurring and one-off activities in one view · sourced live from each register</div>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
       <span class="kd-edit-badge" id="kd-edit-badge">Checking permissions…</span>
       <div class="kd-sync"><span class="kd-sync-dot"></span><span id="kd-sync-text">Connecting to live data…</span></div>
     </div>
+  </div>
+
+  <div class="kd-toolbar">
+    <div class="kd-year-group">
+      <select class="kd-select" id="kd-year-select"></select>
+      <button class="kd-btn kd-btn-ghost" id="kd-add-year-btn" title="Add a future year to the list">+ Add Year</button>
+    </div>
+    <button class="kd-btn" id="kd-add-event-btn" style="display:none">+ Add Event</button>
   </div>
 
   <div class="cal-legend" id="cal-legend"></div>
@@ -115,7 +141,7 @@ IMS_AUTH.injectUserBar();
 </script>
 
 <script>
-var SEED = {"events": [{"id": "CAL-01", "name": "T\u00dcV Austria Stage 1 Audit", "category": "certification", "month": 8, "day": 25, "endDay": 26, "status": "Completed", "note": "Stage 1 completed 25\u201326 Aug 2026"}, {"id": "CAL-02", "name": "T\u00dcV Austria Stage 2 Audit", "category": "certification", "month": 9, "day": 22, "endDay": 26, "status": "Completed", "note": "Stage 2 window 22\u201326 Sep 2026"}, {"id": "CAL-03", "name": "WG-03 Meeting #6 (OH Surveillance)", "category": "meeting", "month": 9, "day": 8, "endDay": null, "status": "Completed", "note": "Working Group 3 governance meeting"}, {"id": "CAL-04", "name": "Management Review MR-2026-01", "category": "mgmtreview", "month": 9, "day": 19, "endDay": null, "status": "Completed", "note": "Hard gate input for Stage 2"}], "tbc": [{"name": "EcoVadis Silver Submission", "category": "esg", "month": 11, "note": "Exact submission day not yet confirmed"}, {"name": "Internal Audit Programme \u2014 10 planned audits", "category": "audit", "month": null, "note": "Scheduling in progress \u2014 exact dates owned by Audit Programme (Sh.20)"}, {"name": "Annual Training Plan", "category": "training", "month": null, "note": "Exact dates owned by Training Register (Sh.16)"}, {"name": "Calibration Due Dates (WBGT, Audiometry)", "category": "calibration", "month": null, "note": "Pending Procurement \u2014 exact dates owned by Calibration Register (Sh.54)"}]};
+var SEED = {"events": [{"id": "CAL-01", "name": "T\u00dcV Austria Stage 1 Audit", "category": "certification", "year": 2026, "startMonth": 8, "startDay": 25, "endMonth": 8, "endDay": 26, "status": "Completed", "note": "Stage 1 completed 25\u201326 Aug 2026"}, {"id": "CAL-02", "name": "T\u00dcV Austria Stage 2 Audit", "category": "certification", "year": 2026, "startMonth": 9, "startDay": 22, "endMonth": 9, "endDay": 26, "status": "Completed", "note": "Stage 2 window 22\u201326 Sep 2026"}, {"id": "CAL-03", "name": "WG-03 Meeting #6 (OH Surveillance)", "category": "meeting", "year": 2026, "startMonth": 9, "startDay": 8, "endMonth": 9, "endDay": 8, "status": "Completed", "note": "Working Group 3 governance meeting"}, {"id": "CAL-04", "name": "Management Review MR-2026-01", "category": "mgmtreview", "year": 2026, "startMonth": 9, "startDay": 19, "endMonth": 9, "endDay": 19, "status": "Completed", "note": "Hard gate input for Stage 2"}], "tbc": [{"name": "EcoVadis Silver Submission", "category": "esg", "year": 2026, "month": 11, "note": "Exact submission day not yet confirmed"}, {"name": "Internal Audit Programme \u2014 10 planned audits", "category": "audit", "year": 2026, "month": null, "note": "Scheduling in progress \u2014 exact dates owned by Audit Programme (Sh.20)"}, {"name": "Annual Training Plan", "category": "training", "year": 2026, "month": null, "note": "Exact dates owned by Training Register (Sh.16)"}, {"name": "Calibration Due Dates (WBGT, Audiometry)", "category": "calibration", "year": 2026, "month": null, "note": "Pending Procurement \u2014 exact dates owned by Calibration Register (Sh.54)"}]};
 
 var CATEGORIES = {
   certification: { label: 'Certification / Audit (External)', color: '#8855F7' },
@@ -126,14 +152,22 @@ var CATEGORIES = {
   calibration:   { label: 'Calibration',                       color: '#42D9A0' },
   esg:           { label: 'ESG / EcoVadis',                    color: '#F45B69' }
 };
-
+var STATUSES = ['Planned','Confirmed','In Progress','Completed','Cancelled'];
 var MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-var DAYS_IN_MONTH = [31,28,31,30,31,30,31,31,30,31,30,31];
+var MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-var STATE = { events: SEED.events, tbc: SEED.tbc, activeCategory: 'all', canEdit: false, dragEventId: null };
+var CURRENT_YEAR = 2026; /* portal's current operating year */
 
-/* ── Permission check — role 'editor' and above (IMS Manager's actual
-   assigned role, shared with SHEE Head / QA Manager / Energy Manager) ── */
+var STATE = {
+  events: SEED.events, tbc: SEED.tbc,
+  activeCategory: 'all', canEdit: false, dragEventId: null,
+  selectedYear: CURRENT_YEAR,
+  availableYears: [2025,2026,2027,2028]
+};
+
+function daysInMonth(year, month) { return new Date(year, month, 0).getDate(); } /* leap-year correct */
+function ordinal(year, month, day) { return Math.floor((new Date(year, month-1, day) - new Date(year,0,1)) / 86400000); }
+
 function checkEditPermission() {
   try {
     var role = IMS_AUTH.getRole();
@@ -141,9 +175,10 @@ function checkEditPermission() {
   } catch (e) { STATE.canEdit = false; }
   var badge = document.getElementById('kd-edit-badge');
   if (STATE.canEdit) {
-    badge.className = 'kd-edit-badge kd-edit-on'; badge.textContent = '✏️ Edit mode — drag events to reschedule';
+    badge.className = 'kd-edit-badge kd-edit-on'; badge.textContent = '✏️ Edit mode — drag events or add new ones';
+    document.getElementById('kd-add-event-btn').style.display = 'flex';
   } else {
-    badge.className = 'kd-edit-badge kd-edit-off'; badge.textContent = '👁 Read-only — sign in as Editor or above to reschedule';
+    badge.className = 'kd-edit-badge kd-edit-off'; badge.textContent = '👁 Read-only — sign in as Editor or above to edit';
   }
 }
 
@@ -154,6 +189,30 @@ function showToast(msg, isError) {
   setTimeout(function () { t.className = 'kd-toast'; }, 3200);
 }
 
+/* ── Year selector ─────────────────────────────────────────── */
+function renderYearSelect() {
+  var sel = document.getElementById('kd-year-select');
+  var years = STATE.availableYears.slice().sort(function(a,b){return a-b;});
+  sel.innerHTML = years.map(function (y) {
+    return '<option value="'+y+'"'+(y===STATE.selectedYear?' selected':'')+'>'+y+' Calendar</option>';
+  }).join('');
+  sel.onchange = function () {
+    STATE.selectedYear = parseInt(this.value, 10);
+    renderGrid(); renderTbc();
+  };
+}
+document.getElementById('kd-add-year-btn').addEventListener('click', function () {
+  var input = prompt('Add a new year to the calendar (e.g. 2029):');
+  if (!input) return;
+  var y = parseInt(input, 10);
+  if (!y || y < 2020 || y > 2100) { showToast('Enter a valid 4-digit year', true); return; }
+  if (STATE.availableYears.indexOf(y) === -1) STATE.availableYears.push(y);
+  STATE.selectedYear = y;
+  renderYearSelect(); renderGrid(); renderTbc();
+  showToast('Year '+y+' added — start adding events to it with "+ Add Event"');
+});
+
+/* ── Category legend / filter ─────────────────────────────── */
 function renderLegend() {
   var html = '<div class="cal-chip active" data-cat="all">All categories</div>';
   Object.keys(CATEGORIES).forEach(function (key) {
@@ -172,23 +231,26 @@ function renderLegend() {
 }
 
 function eventsFor(month, day) {
+  var targetOrd = ordinal(STATE.selectedYear, month, day);
   return STATE.events.filter(function (e) {
+    if (e.year !== STATE.selectedYear) return false;
     if (STATE.activeCategory !== 'all' && e.category !== STATE.activeCategory) return false;
-    if (e.month !== month) return false;
-    var end = e.endDay || e.day;
-    return day >= e.day && day <= end;
+    var startOrd = ordinal(e.year, e.startMonth, e.startDay);
+    var endOrd = ordinal(e.year, e.endMonth || e.startMonth, e.endDay || e.startDay);
+    return targetOrd >= startOrd && targetOrd <= endOrd;
   });
 }
 
 function renderGrid() {
   var grid = document.getElementById('cal-grid');
+  var year = STATE.selectedYear;
   var html = '<div class="cal-cell cal-head"></div>';
   MONTHS.forEach(function (m) { html += '<div class="cal-cell cal-head">'+m+'</div>'; });
 
   for (var day = 1; day <= 31; day++) {
     html += '<div class="cal-cell cal-daynum">'+day+'</div>';
     for (var m = 1; m <= 12; m++) {
-      if (day > DAYS_IN_MONTH[m-1]) { html += '<div class="cal-cell" style="background:var(--kd-bg);opacity:.3"></div>'; continue; }
+      if (day > daysInMonth(year, m)) { html += '<div class="cal-cell" style="background:var(--kd-bg);opacity:.3"></div>'; continue; }
       var evs = eventsFor(m, day);
       var cellHtml = evs.map(function (e) {
         var color = CATEGORIES[e.category] ? CATEGORIES[e.category].color : '#8996B2';
@@ -203,32 +265,21 @@ function renderGrid() {
   if (STATE.canEdit) wireDropzones();
 }
 
-function onDragStart(ev, eventId) {
-  STATE.dragEventId = eventId;
-  ev.target.classList.add('cal-dragging');
-  ev.dataTransfer.effectAllowed = 'move';
-}
+function onDragStart(ev, eventId) { STATE.dragEventId = eventId; ev.target.classList.add('cal-dragging'); ev.dataTransfer.effectAllowed = 'move'; }
 function onDragEnd(ev) { ev.target.classList.remove('cal-dragging'); }
 
 function wireDropzones() {
   document.querySelectorAll('.cal-dropzone').forEach(function (zone) {
     zone.addEventListener('dragover', function (ev) {
       ev.preventDefault();
-      var month = parseInt(zone.getAttribute('data-month'), 10);
-      var day = parseInt(zone.getAttribute('data-day'), 10);
-      var valid = day <= DAYS_IN_MONTH[month-1];
       zone.classList.add('cal-dragover');
-      zone.classList.toggle('cal-invalid', !valid);
     });
-    zone.addEventListener('dragleave', function () {
-      zone.classList.remove('cal-dragover','cal-invalid');
-    });
+    zone.addEventListener('dragleave', function () { zone.classList.remove('cal-dragover','cal-invalid'); });
     zone.addEventListener('drop', function (ev) {
       ev.preventDefault();
       zone.classList.remove('cal-dragover','cal-invalid');
       var newMonth = parseInt(zone.getAttribute('data-month'), 10);
       var newDay = parseInt(zone.getAttribute('data-day'), 10);
-      if (newDay > DAYS_IN_MONTH[newMonth-1]) { showToast('That date doesn\'t exist — move cancelled', true); return; }
       handleReschedule(STATE.dragEventId, newMonth, newDay);
     });
   });
@@ -237,62 +288,53 @@ function wireDropzones() {
 function handleReschedule(eventId, newMonth, newDay) {
   var ev = STATE.events.filter(function (e) { return e.id === eventId; })[0];
   if (!ev) return;
-  var oldMonth = ev.month, oldDay = ev.day;
-  if (oldMonth === newMonth && oldDay === newDay) return; /* dropped back on itself */
+  var year = ev.year;
+  var oldStartOrd = ordinal(year, ev.startMonth, ev.startDay);
+  var oldEndOrd = ordinal(year, ev.endMonth || ev.startMonth, ev.endDay || ev.startDay);
+  var newStartOrd = ordinal(year, newMonth, newDay);
+  if (newStartOrd === oldStartOrd) return;
+  var delta = newStartOrd - oldStartOrd;
+  var newEndOrd = oldEndOrd + delta;
 
-  var duration = ev.endDay ? (ev.endDay - ev.day) : 0;
-  var newEndDay = ev.endDay ? (newDay + duration) : null;
-  if (newEndDay && newEndDay > DAYS_IN_MONTH[newMonth-1]) {
-    showToast('Move would push the end date past the end of the month — cancelled', true);
+  var origStart = new Date(year,0,1); origStart.setDate(origStart.getDate()+newStartOrd);
+  var origEnd = new Date(year,0,1); origEnd.setDate(origEnd.getDate()+newEndOrd);
+  if (origStart.getFullYear() !== year || origEnd.getFullYear() !== year) {
+    showToast('Move would push this event outside '+year+' — cross-year moves aren\'t supported yet. Cancelled.', true);
     return;
   }
 
-  /* Optimistic UI update */
-  ev.month = newMonth; ev.day = newDay; if (ev.endDay) ev.endDay = newEndDay;
+  var oldVals = { startMonth: ev.startMonth, startDay: ev.startDay, endMonth: ev.endMonth, endDay: ev.endDay };
+  ev.startMonth = origStart.getMonth()+1; ev.startDay = origStart.getDate();
+  ev.endMonth = origEnd.getMonth()+1; ev.endDay = origEnd.getDate();
   renderGrid();
 
-  if (typeof SHEETS_URL === 'undefined' || !SHEETS_URL) {
-    showToast('Moved locally — no live sheet connection to save to', true);
-    return;
-  }
+  if (typeof SHEETS_URL === 'undefined' || !SHEETS_URL) { showToast('Moved locally — no live sheet connection to save to', true); return; }
 
-  var updates = { 'Month': String(newMonth), 'Day': String(newDay) };
-  if (newEndDay) updates['End Day'] = String(newEndDay);
-
-  fetch(SHEETS_URL + '?action=update&tab=ims_calendar&idCol=' + encodeURIComponent('Event ID') + '&id=' + encodeURIComponent(eventId), {
-    method: 'POST',
-    body: JSON.stringify(updates)
-  })
+  var updates = { 'Start Month': String(ev.startMonth), 'Start Day': String(ev.startDay), 'End Month': String(ev.endMonth), 'End Day': String(ev.endDay) };
+  fetch(SHEETS_URL + '?action=update&tab=ims_calendar&idCol=' + encodeURIComponent('Event ID') + '&id=' + encodeURIComponent(eventId), { method:'POST', body: JSON.stringify(updates) })
     .then(function (r) { return r.json(); })
     .then(function (res) {
-      if (res && res.status === 'ok') {
-        showToast('"' + ev.name + '" moved to ' + MONTHS[newMonth-1] + ' ' + newDay + ' — saved to sheet');
-      } else {
-        ev.month = oldMonth; ev.day = oldDay; ev.endDay = ev.endDay ? (oldDay + duration) : null;
-        renderGrid();
-        showToast('Could not save — ' + (res && res.message ? res.message : 'unknown error') + '. Move reverted.', true);
-      }
+      if (res && res.status === 'ok') { showToast('"'+ev.name+'" moved to '+MONTHS[ev.startMonth-1]+' '+ev.startDay+' — saved'); }
+      else { Object.assign(ev, oldVals); renderGrid(); showToast('Could not save — move reverted', true); }
     })
-    .catch(function () {
-      ev.month = oldMonth; ev.day = oldDay; ev.endDay = ev.endDay ? (oldDay + duration) : null;
-      renderGrid();
-      showToast('Connection failed — move reverted', true);
-    });
+    .catch(function () { Object.assign(ev, oldVals); renderGrid(); showToast('Connection failed — move reverted', true); });
 }
 
 function renderTbc() {
-  var html = STATE.tbc.map(function (e) {
-    var monthLabel = e.month ? MONTHS[e.month-1] + ' 2026' : 'Date TBC';
+  var items = STATE.tbc.filter(function (e) { return e.year === STATE.selectedYear; });
+  var html = items.map(function (e) {
+    var monthLabel = e.month ? MONTHS[e.month-1] + ' ' + e.year : 'Date TBC';
     return '<div class="tbc-row"><div><div class="tbc-name">'+e.name+'</div><div class="tbc-note">'+e.note+'</div></div><div class="tbc-month">'+monthLabel+'</div></div>';
   }).join('');
-  document.getElementById('tbc-list').innerHTML = html || '<div class="tbc-note">Nothing pending.</div>';
+  document.getElementById('tbc-list').innerHTML = html || '<div class="tbc-note">Nothing pending for '+STATE.selectedYear+'.</div>';
 }
 
 function openEvent(eventId) {
   var e = STATE.events.filter(function (x) { return x.id === eventId; })[0];
   if (!e) return;
-  var cat = CATEGORIES[e.category];
-  var dateLabel = MONTHS[e.month-1] + ' ' + e.day + (e.endDay ? '–' + e.endDay : '') + ', 2026';
+  var cat = CATEGORIES[e.category] || { label: e.category, color: '#8996B2' };
+  var dateLabel = MONTH_NAMES[e.startMonth-1]+' '+e.startDay
+    + ((e.endMonth!==e.startMonth || e.endDay!==e.startDay) ? ' – '+MONTH_NAMES[e.endMonth-1]+' '+e.endDay : '') + ', '+e.year;
   document.getElementById('kd-modal-body').innerHTML =
     '<button class="kd-modal-close" onclick="closeEvent()">✕</button>'
     + '<div style="font-size:16px;font-weight:800;margin-bottom:6px">'+e.name+'</div>'
@@ -306,14 +348,122 @@ function openEvent(eventId) {
 function closeEvent() { document.getElementById('kd-modal-overlay').classList.remove('open'); }
 document.getElementById('kd-modal-overlay').addEventListener('click', function (e) { if (e.target === this) closeEvent(); });
 
+/* ── Add Event form ────────────────────────────────────────── */
+function nextEventId() {
+  var maxN = 0;
+  STATE.events.forEach(function (e) {
+    var m = String(e.id).match(/(\d+)$/);
+    if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+  });
+  return 'CAL-' + String(maxN + 1).padStart(2, '0');
+}
+
+function monthOptions(selected) {
+  return MONTH_NAMES.map(function (name, i) {
+    return '<option value="'+(i+1)+'"'+((i+1)===selected?' selected':'')+'>'+name+'</option>';
+  }).join('');
+}
+function dayOptions(year, month, selected) {
+  var n = daysInMonth(year, month);
+  var html = '';
+  for (var d = 1; d <= n; d++) html += '<option value="'+d+'"'+(d===selected?' selected':'')+'>'+d+'</option>';
+  return html;
+}
+function categoryOptions() {
+  return Object.keys(CATEGORIES).map(function (k) { return '<option value="'+k+'">'+CATEGORIES[k].label+'</option>'; }).join('');
+}
+function statusOptions() {
+  return STATUSES.map(function (s) { return '<option value="'+s+'">'+s+'</option>'; }).join('');
+}
+
+document.getElementById('kd-add-event-btn').addEventListener('click', openAddEventForm);
+
+function openAddEventForm() {
+  var year = STATE.selectedYear;
+  document.getElementById('kd-modal-body').innerHTML =
+    '<button class="kd-modal-close" onclick="closeEvent()">✕</button>'
+    + '<div style="font-size:16px;font-weight:800;margin-bottom:16px">Add Event — '+year+'</div>'
+    + '<div class="kd-form-row"><label>Event Name</label><input class="kd-input" id="af-name" placeholder="e.g. Q3 Internal Audit"></div>'
+    + '<div class="kd-form-row"><label>Category</label><select class="kd-form-select" id="af-category">'+categoryOptions()+'</select></div>'
+    + '<div class="kd-form-row"><label>Start Date</label><div class="kd-form-row-split">'
+    +   '<select class="kd-form-select" id="af-start-month" onchange="onAddFormMonthChange(\'start\')">'+monthOptions(new Date().getMonth()+1)+'</select>'
+    +   '<select class="kd-form-select" id="af-start-day"></select>'
+    + '</div></div>'
+    + '<div class="kd-form-row"><label>End Date (leave as-is for a single-day event)</label><div class="kd-form-row-split">'
+    +   '<select class="kd-form-select" id="af-end-month" onchange="onAddFormMonthChange(\'end\')">'+monthOptions(new Date().getMonth()+1)+'</select>'
+    +   '<select class="kd-form-select" id="af-end-day"></select>'
+    + '</div></div>'
+    + '<div class="kd-form-row"><label>Status</label><select class="kd-form-select" id="af-status">'+statusOptions()+'</select></div>'
+    + '<div class="kd-form-row"><label>Notes</label><textarea class="kd-textarea" id="af-notes" placeholder="Any extra detail — owner, doc reference, etc."></textarea></div>'
+    + '<div class="kd-form-error" id="af-error"></div>'
+    + '<button class="kd-btn" style="width:100%;justify-content:center;margin-top:6px" onclick="submitAddEvent()">Save Event</button>';
+
+  populateDayOptions('start'); populateDayOptions('end');
+  document.getElementById('kd-modal-overlay').classList.add('open');
+}
+
+function populateDayOptions(which) {
+  var monthSel = document.getElementById('af-'+which+'-month');
+  var daySel = document.getElementById('af-'+which+'-day');
+  var today = new Date().getDate();
+  daySel.innerHTML = dayOptions(STATE.selectedYear, parseInt(monthSel.value,10), today);
+}
+function onAddFormMonthChange(which) { populateDayOptions(which); }
+
+function submitAddEvent() {
+  var name = document.getElementById('af-name').value.trim();
+  var category = document.getElementById('af-category').value;
+  var startMonth = parseInt(document.getElementById('af-start-month').value, 10);
+  var startDay = parseInt(document.getElementById('af-start-day').value, 10);
+  var endMonth = parseInt(document.getElementById('af-end-month').value, 10);
+  var endDay = parseInt(document.getElementById('af-end-day').value, 10);
+  var status = document.getElementById('af-status').value;
+  var notes = document.getElementById('af-notes').value.trim();
+  var errEl = document.getElementById('af-error');
+
+  if (!name) { errEl.textContent = 'Event name is required.'; errEl.style.display = 'block'; return; }
+  var year = STATE.selectedYear;
+  if (ordinal(year, endMonth, endDay) < ordinal(year, startMonth, startDay)) {
+    errEl.textContent = 'End date can\'t be before the start date.'; errEl.style.display = 'block'; return;
+  }
+  errEl.style.display = 'none';
+
+  var newEvent = {
+    id: nextEventId(), name: name, category: category, year: year,
+    startMonth: startMonth, startDay: startDay, endMonth: endMonth, endDay: endDay,
+    status: status, note: notes || '—'
+  };
+  STATE.events.push(newEvent);
+  closeEvent();
+  renderGrid();
+  showToast('"'+name+'" added to the '+year+' calendar');
+
+  if (typeof SHEETS_URL === 'undefined' || !SHEETS_URL) { showToast('Saved locally only — no live sheet connection', true); return; }
+
+  var row = {
+    'Event ID': newEvent.id, 'Event Name': newEvent.name, 'Category': newEvent.category, 'Year': String(newEvent.year),
+    'Start Month': String(newEvent.startMonth), 'Start Day': String(newEvent.startDay),
+    'End Month': String(newEvent.endMonth), 'End Day': String(newEvent.endDay),
+    'Status': newEvent.status, 'Notes': newEvent.note
+  };
+  fetch(SHEETS_URL + '?action=write&tab=ims_calendar', { method: 'POST', body: JSON.stringify([row]) })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      if (!(res && res.status === 'ok')) showToast('Warning: could not confirm the save reached the sheet', true);
+    })
+    .catch(function () { showToast('Warning: could not confirm the save reached the sheet', true); });
+}
+
+/* ── Init ──────────────────────────────────────────────────── */
 checkEditPermission();
+renderYearSelect();
 renderLegend();
 renderGrid();
 renderTbc();
 
-/* ── Live fetch: overlay real events from the ims_calendar sheet tab ──
-   Falls back to the seed data above (only confirmed real dates) if that
-   tab doesn't exist yet or returns nothing — never fabricates events. */
+/* ── Live fetch: overlay real events + real years from the ims_calendar
+   sheet tab. Falls back to seed data (only confirmed real dates) if the
+   tab doesn't exist yet — never fabricates events. ── */
 setTimeout(function () {
   if (typeof SHEETS_URL === 'undefined' || !SHEETS_URL) {
     document.getElementById('kd-sync-text').textContent = 'No data connection configured — showing confirmed dates only';
@@ -332,18 +482,20 @@ setTimeout(function () {
         for (var i=0;i<hdr.length;i++) if (String(hdr[i]||'').toLowerCase().trim()===n) return i;
         return -1;
       }
-      var idCol = col('Event ID'), nameCol = col('Event Name'), catCol = col('Category'), monthCol = col('Month'),
-          dayCol = col('Day'), endCol = col('End Day'), statCol = col('Status'), noteCol = col('Notes');
+      var idCol=col('Event ID'), nameCol=col('Event Name'), catCol=col('Category'), yearCol=col('Year'),
+          smCol=col('Start Month'), sdCol=col('Start Day'), emCol=col('End Month'), edCol=col('End Day'),
+          statCol=col('Status'), noteCol=col('Notes');
 
       var liveEvents = data.rows.map(function (row) {
-        var month = parseInt(row[monthCol], 10), day = parseInt(row[dayCol], 10);
-        if (!month || !day) return null; /* skip rows with no confirmed day — never guess */
+        var year = parseInt(row[yearCol],10), sm = parseInt(row[smCol],10), sd = parseInt(row[sdCol],10);
+        if (!year || !sm || !sd) return null; /* never guess a missing date */
         return {
           id: idCol>=0 ? String(row[idCol]||'').trim() : ('ROW-'+Math.random()),
           name: String(row[nameCol]||'').trim(),
           category: String(row[catCol]||'').trim().toLowerCase(),
-          month: month, day: day,
-          endDay: endCol>=0 ? (parseInt(row[endCol],10) || null) : null,
+          year: year, startMonth: sm, startDay: sd,
+          endMonth: emCol>=0 ? (parseInt(row[emCol],10) || sm) : sm,
+          endDay: edCol>=0 ? (parseInt(row[edCol],10) || sd) : sd,
           status: statCol>=0 ? String(row[statCol]||'').trim() : '',
           note: noteCol>=0 ? String(row[noteCol]||'').trim() : ''
         };
@@ -351,7 +503,9 @@ setTimeout(function () {
 
       if (liveEvents.length) {
         STATE.events = liveEvents;
-        renderGrid();
+        var years = liveEvents.map(function(e){return e.year;});
+        years.forEach(function (y) { if (STATE.availableYears.indexOf(y) === -1) STATE.availableYears.push(y); });
+        renderYearSelect(); renderGrid();
       }
       document.getElementById('kd-sync-text').textContent = 'Live — synced ' + new Date().toLocaleTimeString();
     })
