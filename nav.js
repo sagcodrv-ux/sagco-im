@@ -176,6 +176,7 @@ var TREE = [
     { id:'adm-dms',  label:'Document Management',  file:'document-management.html', level:'L0' },
     { id:'adm-usr',  label:'User Management',       file:'user-management.html',     level:'L0' },
     { id:'adm-rdm',  label:'Project Roadmap',       file:'project-roadmap.html',     level:'L0' },
+    { id:'adm-cal',  label:'Annual Activities Calendar', file:'ims-calendar.html',    level:'L0', badge:'2026' },
   ]},
 
 ]
