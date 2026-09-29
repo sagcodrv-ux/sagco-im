@@ -148,11 +148,28 @@ function mapRow(d) {
   };
 }
 
+/* Small delay helper for the retry below. */
+function wait_(ms) { return new Promise(res => setTimeout(res, ms)); }
+
 async function load() {
   const l = document.getElementById("loader"); if (l) l.classList.remove("hidden");
   let usingFallback = false;
   try {
     let raw = await getData.compliance();
+
+    /* Google Apps Script Web Apps can respond empty/slow on a "cold start"
+       after sitting idle — this is not a real connectivity problem, just a
+       wake-up delay. Rather than show the fallback banner for what is often
+       a one-off timing issue, wait 2.5s and try exactly once more before
+       treating it as a genuine failure. A second miss in a row is treated
+       as real and falls back to FALLBACK.compliance as before. */
+    if (!raw || !raw.length) {
+      const lt = document.querySelector("#loader .loader-text");
+      if (lt) lt.textContent = "First attempt came back empty — retrying…";
+      await wait_(2500);
+      raw = await getData.compliance();
+    }
+
     if (!raw || !raw.length) {
       raw = FALLBACK.compliance;
       usingFallback = true;
