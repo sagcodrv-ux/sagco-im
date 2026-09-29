@@ -10,8 +10,6 @@
 <script src="data.js"></script>
 <script src="nav.js"></script>
 <style>
-/* Same dark theme system as the KPI Dashboard (kpi-consolidated.html),
-   scoped to .kd-wrap so the rest of the portal is unaffected. */
 .kd-wrap{
   --kd-bg:#080D20; --kd-card:#141D35; --kd-card2:#192440; --kd-border:#293653;
   --kd-text:#F1F5FF; --kd-text-lt:#8996B2;
@@ -27,25 +25,31 @@
 .kd-sync{font-size:10px;color:var(--kd-text-lt);display:flex;align-items:center;gap:6px}
 .kd-sync-dot{width:6px;height:6px;border-radius:50%;background:var(--kd-green);animation:kd-pulse 2s infinite}
 @keyframes kd-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.kd-edit-badge{font-size:9.5px;font-weight:700;padding:4px 10px;border-radius:14px;display:flex;align-items:center;gap:5px}
+.kd-edit-on{background:rgba(66,217,160,.15);color:var(--kd-green)}
+.kd-edit-off{background:rgba(137,150,178,.15);color:var(--kd-text-lt)}
 
 .cal-legend{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
 .cal-chip{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--kd-text-lt);
   background:var(--kd-card2);border:1px solid var(--kd-border);border-radius:20px;padding:5px 12px;cursor:pointer;transition:all .15s}
 .cal-chip:hover{border-color:var(--kd-purple)}
 .cal-chip.active{color:var(--kd-text);border-color:var(--kd-purple)}
-.cal-chip.dim{opacity:.35}
 .cal-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 
 .cal-grid-wrap{background:var(--kd-card);border:1px solid var(--kd-border);border-radius:14px;overflow-x:auto;margin-bottom:18px}
 .cal-grid{display:grid;grid-template-columns:36px repeat(12,minmax(78px,1fr));min-width:1100px}
 .cal-cell{border-bottom:1px solid var(--kd-border);border-right:1px solid var(--kd-border);
-  padding:4px 5px;min-height:34px;position:relative}
+  padding:4px 5px;min-height:34px;position:relative;transition:background .1s}
+.cal-cell.cal-dropzone.cal-dragover{background:rgba(136,85,247,.18)}
+.cal-cell.cal-dropzone.cal-invalid{background:rgba(244,91,105,.18)}
 .cal-head{position:sticky;top:0;background:var(--kd-card2);font-size:10px;font-weight:700;
   text-align:center;padding:8px 4px;color:var(--kd-text-lt);text-transform:uppercase;letter-spacing:.4px;z-index:2}
 .cal-daynum{font-size:9px;color:var(--kd-text-lt);text-align:center;background:var(--kd-card2)}
 .cal-event{font-size:8.5px;font-weight:600;border-radius:4px;padding:2px 4px;margin-bottom:2px;
   color:#0A0E1F;line-height:1.3;cursor:pointer}
-.cal-event-more{font-size:8px;color:var(--kd-text-lt);cursor:pointer}
+.cal-event.cal-draggable{cursor:grab}
+.cal-event.cal-draggable:active{cursor:grabbing}
+.cal-event.cal-dragging{opacity:.4}
 .cal-cell.gf-hidden .cal-event{display:none}
 
 .tbc-panel{background:var(--kd-card);border:1px solid var(--kd-border);border-radius:14px;padding:18px}
@@ -60,6 +64,14 @@
 .kd-modal-overlay.open{display:flex}
 .kd-modal{background:var(--kd-card);border:1px solid var(--kd-border);border-radius:16px;max-width:440px;width:100%;padding:22px;font-family:'Inter',Arial,sans-serif;color:var(--kd-text)}
 .kd-modal-close{float:right;background:var(--kd-card2);border:1px solid var(--kd-border);color:var(--kd-text-lt);width:26px;height:26px;border-radius:8px;cursor:pointer}
+
+.kd-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--kd-card2);border:1px solid var(--kd-border);color:var(--kd-text);
+  padding:11px 20px;border-radius:10px;font-size:12px;font-weight:600;z-index:9500;
+  opacity:0;transition:all .25s;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.kd-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.kd-toast.kd-toast-ok{border-color:var(--kd-green)}
+.kd-toast.kd-toast-err{border-color:var(--kd-red)}
 </style>
 </head>
 <body>
@@ -71,7 +83,10 @@
       <div class="kd-title">Annual Activities Calendar — 2026</div>
       <div class="kd-subtitle">All IMS-wide recurring and one-off activities in one view · sourced live from each register</div>
     </div>
-    <div class="kd-sync"><span class="kd-sync-dot"></span><span id="kd-sync-text">Connecting to live data…</span></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="kd-edit-badge" id="kd-edit-badge">Checking permissions…</span>
+      <div class="kd-sync"><span class="kd-sync-dot"></span><span id="kd-sync-text">Connecting to live data…</span></div>
+    </div>
   </div>
 
   <div class="cal-legend" id="cal-legend"></div>
@@ -91,6 +106,7 @@
 <div class="kd-modal-overlay" id="kd-modal-overlay">
   <div class="kd-modal" id="kd-modal-body"></div>
 </div>
+<div class="kd-toast" id="kd-toast"></div>
 
 <script>
 initPage('ims-calendar.html');
@@ -99,7 +115,7 @@ IMS_AUTH.injectUserBar();
 </script>
 
 <script>
-var SEED = {"events": [{"name": "T\u00dcV Austria Stage 1 Audit", "category": "certification", "month": 8, "day": 25, "endDay": 26, "status": "Completed", "note": "Stage 1 completed 25\u201326 Aug 2026"}, {"name": "T\u00dcV Austria Stage 2 Audit", "category": "certification", "month": 9, "day": 22, "endDay": 26, "status": "Completed", "note": "Stage 2 window 22\u201326 Sep 2026"}, {"name": "WG-03 Meeting #6 (OH Surveillance)", "category": "meeting", "month": 9, "day": 8, "endDay": null, "status": "Completed", "note": "Working Group 3 governance meeting"}, {"name": "Management Review MR-2026-01", "category": "mgmtreview", "month": 9, "day": 19, "endDay": null, "status": "Completed", "note": "Hard gate input for Stage 2"}], "tbc": [{"name": "EcoVadis Silver Submission", "category": "esg", "month": 11, "note": "Exact submission day not yet confirmed"}, {"name": "Internal Audit Programme \u2014 10 planned audits", "category": "audit", "month": null, "note": "Scheduling in progress \u2014 exact dates owned by Audit Programme (Sh.20)"}, {"name": "Annual Training Plan", "category": "training", "month": null, "note": "Exact dates owned by Training Register (Sh.16)"}, {"name": "Calibration Due Dates (WBGT, Audiometry)", "category": "calibration", "month": null, "note": "Pending Procurement \u2014 exact dates owned by Calibration Register (Sh.54)"}]};
+var SEED = {"events": [{"id": "CAL-01", "name": "T\u00dcV Austria Stage 1 Audit", "category": "certification", "month": 8, "day": 25, "endDay": 26, "status": "Completed", "note": "Stage 1 completed 25\u201326 Aug 2026"}, {"id": "CAL-02", "name": "T\u00dcV Austria Stage 2 Audit", "category": "certification", "month": 9, "day": 22, "endDay": 26, "status": "Completed", "note": "Stage 2 window 22\u201326 Sep 2026"}, {"id": "CAL-03", "name": "WG-03 Meeting #6 (OH Surveillance)", "category": "meeting", "month": 9, "day": 8, "endDay": null, "status": "Completed", "note": "Working Group 3 governance meeting"}, {"id": "CAL-04", "name": "Management Review MR-2026-01", "category": "mgmtreview", "month": 9, "day": 19, "endDay": null, "status": "Completed", "note": "Hard gate input for Stage 2"}], "tbc": [{"name": "EcoVadis Silver Submission", "category": "esg", "month": 11, "note": "Exact submission day not yet confirmed"}, {"name": "Internal Audit Programme \u2014 10 planned audits", "category": "audit", "month": null, "note": "Scheduling in progress \u2014 exact dates owned by Audit Programme (Sh.20)"}, {"name": "Annual Training Plan", "category": "training", "month": null, "note": "Exact dates owned by Training Register (Sh.16)"}, {"name": "Calibration Due Dates (WBGT, Audiometry)", "category": "calibration", "month": null, "note": "Pending Procurement \u2014 exact dates owned by Calibration Register (Sh.54)"}]};
 
 var CATEGORIES = {
   certification: { label: 'Certification / Audit (External)', color: '#8855F7' },
@@ -114,7 +130,29 @@ var CATEGORIES = {
 var MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 var DAYS_IN_MONTH = [31,28,31,30,31,30,31,31,30,31,30,31];
 
-var STATE = { events: SEED.events, tbc: SEED.tbc, activeCategory: 'all' };
+var STATE = { events: SEED.events, tbc: SEED.tbc, activeCategory: 'all', canEdit: false, dragEventId: null };
+
+/* ── Permission check — role 'editor' and above (IMS Manager's actual
+   assigned role, shared with SHEE Head / QA Manager / Energy Manager) ── */
+function checkEditPermission() {
+  try {
+    var role = IMS_AUTH.getRole();
+    STATE.canEdit = IMS_AUTH.roleAtLeast(role, 'editor');
+  } catch (e) { STATE.canEdit = false; }
+  var badge = document.getElementById('kd-edit-badge');
+  if (STATE.canEdit) {
+    badge.className = 'kd-edit-badge kd-edit-on'; badge.textContent = '✏️ Edit mode — drag events to reschedule';
+  } else {
+    badge.className = 'kd-edit-badge kd-edit-off'; badge.textContent = '👁 Read-only — sign in as Editor or above to reschedule';
+  }
+}
+
+function showToast(msg, isError) {
+  var t = document.getElementById('kd-toast');
+  t.textContent = msg;
+  t.className = 'kd-toast show ' + (isError ? 'kd-toast-err' : 'kd-toast-ok');
+  setTimeout(function () { t.className = 'kd-toast'; }, 3200);
+}
 
 function renderLegend() {
   var html = '<div class="cal-chip active" data-cat="all">All categories</div>';
@@ -154,12 +192,92 @@ function renderGrid() {
       var evs = eventsFor(m, day);
       var cellHtml = evs.map(function (e) {
         var color = CATEGORIES[e.category] ? CATEGORIES[e.category].color : '#8996B2';
-        return '<div class="cal-event" style="background:'+color+'" onclick="openEvent(\''+e.name.replace(/'/g,"\\'")+'\')" title="'+e.name+'">'+e.name+'</div>';
+        var dragAttr = STATE.canEdit ? ' draggable="true" ondragstart="onDragStart(event,\''+e.id+'\')" ondragend="onDragEnd(event)"' : '';
+        var cls = 'cal-event' + (STATE.canEdit ? ' cal-draggable' : '');
+        return '<div class="'+cls+'" style="background:'+color+'"'+dragAttr+' onclick="openEvent(\''+e.id+'\')" title="'+e.name+'">'+e.name+'</div>';
       }).join('');
-      html += '<div class="cal-cell">'+cellHtml+'</div>';
+      html += '<div class="cal-cell cal-dropzone" data-month="'+m+'" data-day="'+day+'">'+cellHtml+'</div>';
     }
   }
   grid.innerHTML = html;
+  if (STATE.canEdit) wireDropzones();
+}
+
+function onDragStart(ev, eventId) {
+  STATE.dragEventId = eventId;
+  ev.target.classList.add('cal-dragging');
+  ev.dataTransfer.effectAllowed = 'move';
+}
+function onDragEnd(ev) { ev.target.classList.remove('cal-dragging'); }
+
+function wireDropzones() {
+  document.querySelectorAll('.cal-dropzone').forEach(function (zone) {
+    zone.addEventListener('dragover', function (ev) {
+      ev.preventDefault();
+      var month = parseInt(zone.getAttribute('data-month'), 10);
+      var day = parseInt(zone.getAttribute('data-day'), 10);
+      var valid = day <= DAYS_IN_MONTH[month-1];
+      zone.classList.add('cal-dragover');
+      zone.classList.toggle('cal-invalid', !valid);
+    });
+    zone.addEventListener('dragleave', function () {
+      zone.classList.remove('cal-dragover','cal-invalid');
+    });
+    zone.addEventListener('drop', function (ev) {
+      ev.preventDefault();
+      zone.classList.remove('cal-dragover','cal-invalid');
+      var newMonth = parseInt(zone.getAttribute('data-month'), 10);
+      var newDay = parseInt(zone.getAttribute('data-day'), 10);
+      if (newDay > DAYS_IN_MONTH[newMonth-1]) { showToast('That date doesn\'t exist — move cancelled', true); return; }
+      handleReschedule(STATE.dragEventId, newMonth, newDay);
+    });
+  });
+}
+
+function handleReschedule(eventId, newMonth, newDay) {
+  var ev = STATE.events.filter(function (e) { return e.id === eventId; })[0];
+  if (!ev) return;
+  var oldMonth = ev.month, oldDay = ev.day;
+  if (oldMonth === newMonth && oldDay === newDay) return; /* dropped back on itself */
+
+  var duration = ev.endDay ? (ev.endDay - ev.day) : 0;
+  var newEndDay = ev.endDay ? (newDay + duration) : null;
+  if (newEndDay && newEndDay > DAYS_IN_MONTH[newMonth-1]) {
+    showToast('Move would push the end date past the end of the month — cancelled', true);
+    return;
+  }
+
+  /* Optimistic UI update */
+  ev.month = newMonth; ev.day = newDay; if (ev.endDay) ev.endDay = newEndDay;
+  renderGrid();
+
+  if (typeof SHEETS_URL === 'undefined' || !SHEETS_URL) {
+    showToast('Moved locally — no live sheet connection to save to', true);
+    return;
+  }
+
+  var updates = { 'Month': String(newMonth), 'Day': String(newDay) };
+  if (newEndDay) updates['End Day'] = String(newEndDay);
+
+  fetch(SHEETS_URL + '?action=update&tab=ims_calendar&idCol=' + encodeURIComponent('Event ID') + '&id=' + encodeURIComponent(eventId), {
+    method: 'POST',
+    body: JSON.stringify(updates)
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      if (res && res.status === 'ok') {
+        showToast('"' + ev.name + '" moved to ' + MONTHS[newMonth-1] + ' ' + newDay + ' — saved to sheet');
+      } else {
+        ev.month = oldMonth; ev.day = oldDay; ev.endDay = ev.endDay ? (oldDay + duration) : null;
+        renderGrid();
+        showToast('Could not save — ' + (res && res.message ? res.message : 'unknown error') + '. Move reverted.', true);
+      }
+    })
+    .catch(function () {
+      ev.month = oldMonth; ev.day = oldDay; ev.endDay = ev.endDay ? (oldDay + duration) : null;
+      renderGrid();
+      showToast('Connection failed — move reverted', true);
+    });
 }
 
 function renderTbc() {
@@ -170,8 +288,8 @@ function renderTbc() {
   document.getElementById('tbc-list').innerHTML = html || '<div class="tbc-note">Nothing pending.</div>';
 }
 
-function openEvent(name) {
-  var e = STATE.events.filter(function (x) { return x.name === name; })[0];
+function openEvent(eventId) {
+  var e = STATE.events.filter(function (x) { return x.id === eventId; })[0];
   if (!e) return;
   var cat = CATEGORIES[e.category];
   var dateLabel = MONTHS[e.month-1] + ' ' + e.day + (e.endDay ? '–' + e.endDay : '') + ', 2026';
@@ -181,12 +299,14 @@ function openEvent(name) {
     + '<div style="font-size:11px;color:#8996B2;margin-bottom:14px">'+dateLabel+'</div>'
     + '<div style="display:inline-block;background:'+cat.color+';color:#0A0E1F;font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;margin-bottom:12px">'+cat.label+'</div>'
     + '<div style="font-size:12px;line-height:1.6">'+e.note+'</div>'
-    + '<div style="font-size:11px;color:#8996B2;margin-top:10px">Status: '+e.status+'</div>';
+    + '<div style="font-size:11px;color:#8996B2;margin-top:10px">Status: '+e.status+'</div>'
+    + (STATE.canEdit ? '<div style="font-size:10px;color:#8996B2;margin-top:14px;font-style:italic">Tip: close this and drag the event on the grid to reschedule it.</div>' : '');
   document.getElementById('kd-modal-overlay').classList.add('open');
 }
 function closeEvent() { document.getElementById('kd-modal-overlay').classList.remove('open'); }
 document.getElementById('kd-modal-overlay').addEventListener('click', function (e) { if (e.target === this) closeEvent(); });
 
+checkEditPermission();
 renderLegend();
 renderGrid();
 renderTbc();
@@ -212,13 +332,14 @@ setTimeout(function () {
         for (var i=0;i<hdr.length;i++) if (String(hdr[i]||'').toLowerCase().trim()===n) return i;
         return -1;
       }
-      var nameCol = col('Event Name'), catCol = col('Category'), monthCol = col('Month'),
+      var idCol = col('Event ID'), nameCol = col('Event Name'), catCol = col('Category'), monthCol = col('Month'),
           dayCol = col('Day'), endCol = col('End Day'), statCol = col('Status'), noteCol = col('Notes');
 
       var liveEvents = data.rows.map(function (row) {
         var month = parseInt(row[monthCol], 10), day = parseInt(row[dayCol], 10);
         if (!month || !day) return null; /* skip rows with no confirmed day — never guess */
         return {
+          id: idCol>=0 ? String(row[idCol]||'').trim() : ('ROW-'+Math.random()),
           name: String(row[nameCol]||'').trim(),
           category: String(row[catCol]||'').trim().toLowerCase(),
           month: month, day: day,
