@@ -1,919 +1,478 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>SAGCO IMS — Consolidated IMS KPI Dashboard</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="auth.js"></script>
-  <script src="data.js"></script>
-  <script src="nav.js"></script>
-  <style>
-:root{--navy:#1a2340;--gold:#c8a84b;--gold-lt:#f0d98a;--teal:#1a7a6e;--red:#c0392b;--amb:#e67e22;--grn:#1e8449;--g100:#f7f9fc;--g200:#edf0f5;--g300:#d0d8e8;--text:#2d3748;--text-lt:#64748b;--radius:8px;--mono:'Courier New',monospace}
-.back-row{margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap}
-.back-link{font-size:11px;color:var(--navy);text-decoration:none;padding:4px 10px;border:1px solid var(--g300);border-radius:4px;background:#fff}
-.back-link:hover{background:var(--navy);color:#fff}
-/* KPI Card */
-.kpi-card{background:#fff;border:1px solid var(--g300);border-radius:var(--radius);margin-bottom:12px;overflow:hidden}
-.kpi-card-hdr{display:grid;grid-template-columns:1fr auto;align-items:start;gap:12px;padding:14px 16px;background:var(--g100);border-bottom:1px solid var(--g200)}
-.kpi-card-name{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:2px}
-.kpi-card-clause{font-size:9px;color:var(--text-lt);font-family:var(--mono)}
-.kpi-card-target{text-align:right}
-.kpi-target-val{font-size:16px;font-weight:800;color:var(--navy)}
-.kpi-target-lbl{font-size:8px;color:var(--text-lt);text-transform:uppercase;letter-spacing:.5px}
-.kpi-card-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0;border-top:1px solid var(--g200)}
-.kpi-meta-item{padding:10px 14px;border-right:1px solid var(--g200)}
-.kpi-meta-item:last-child{border-right:none}
-.kmi-label{font-size:8px;color:var(--text-lt);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
-.kmi-val{font-size:11px;color:var(--text);line-height:1.5}
-.kpi-live-row{display:flex;align-items:center;gap:10px;padding:8px 16px;background:#f0f9ff;border-top:1px solid #bee3f8}
-.kpi-live-val{font-size:18px;font-weight:800;color:var(--navy)}
-.kpi-live-lbl{font-size:9px;color:var(--text-lt)}
-.kpi-live-badge{font-size:8px;font-weight:700;padding:2px 8px;border-radius:10px}
-.klb-live{background:#e8f5e9;color:#2e7d32}
-.klb-load{background:#fff3e0;color:#e65100}
-/* Section header */
-.sec-hdr{background:var(--navy);color:#fff;border-radius:var(--radius) var(--radius) 0 0;padding:16px 20px;margin-bottom:0}
-.sec-hdr h2{font-size:15px;font-weight:700;margin-bottom:4px}
-.sec-hdr .sh-meta{font-size:10px;color:rgba(255,255,255,.6);display:flex;gap:16px;flex-wrap:wrap}
-.sec-body{background:#fff;border:1px solid var(--g300);border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:20px;margin-bottom:20px}
-/* Policy card */
-.pol-card{background:#fff;border:1px solid var(--g300);border-radius:var(--radius);overflow:hidden;margin-bottom:0}
-.pol-hdr{background:linear-gradient(135deg,var(--navy),#1e3a5f);color:#fff;padding:20px 24px}
-.pol-hdr .ph-code{font-size:9px;font-family:var(--mono);color:rgba(255,255,255,.5);margin-bottom:4px}
-.pol-hdr .ph-title{font-size:18px;font-weight:800;margin-bottom:8px}
-.pol-hdr .ph-meta{display:flex;gap:16px;font-size:10px;color:rgba(255,255,255,.6);flex-wrap:wrap}
-.pol-hdr .ph-std{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
-.pol-hdr .ph-pill{background:rgba(200,168,75,.2);border:1px solid rgba(200,168,75,.4);border-radius:20px;padding:2px 8px;font-size:9px;color:var(--gold-lt)}
-.pol-body{padding:24px}
-.pol-section{margin-bottom:20px}
-.pol-section h3{font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid var(--gold);display:inline-block}
-.pol-section .policy-text{font-size:11px;color:var(--text);line-height:1.8;margin-bottom:8px}
-.values-row{display:flex;gap:8px;flex-wrap:wrap}
-.value-badge{background:var(--navy);color:#fff;border-radius:20px;padding:4px 12px;font-size:10px;font-weight:600}
-.commitment-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
-.commitment-item{background:var(--g100);border:1px solid var(--g200);border-radius:6px;padding:12px;border-left:3px solid var(--gold)}
-.ci-title{font-size:10px;font-weight:700;color:var(--navy);margin-bottom:4px}
-.ci-text{font-size:10px;color:var(--text);line-height:1.6}
-.sign-block{background:var(--g100);border:1px solid var(--g300);border-radius:var(--radius);padding:20px;margin-top:20px}
-.sign-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
-.sign-col{border-top:2px solid var(--navy);padding-top:10px;text-align:center}
-.sign-col .sc-sig{font-size:18px;color:var(--navy);margin:8px 0 4px;font-family:Georgia,serif;font-style:italic}
-.sign-col .sc-name{font-size:12px;font-weight:700;color:var(--navy)}
-.sign-col .sc-role{font-size:10px;color:var(--text-lt);margin-top:2px}
-.sign-col .sc-date{font-size:10px;color:var(--text-lt);margin-top:6px}
-/* Furnace cards */
-.furnace-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:12px 0}
-.furnace-card{background:var(--g100);border:1px solid var(--g300);border-radius:var(--radius);padding:12px;text-align:center}
-.furnace-card .fc-num{font-size:18px;font-weight:800;color:var(--navy)}
-.furnace-card .fc-status{font-size:10px;margin-top:6px;font-weight:700}
-.fc-complete{color:var(--grn)}
-.fc-planned{color:var(--amb)}
-.fc-operating{color:var(--grn)}
-.fc-scheduled{color:var(--text-lt)}
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Consolidated KPI Dashboard</title>
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="auth.js"></script>
+<script src="data.js"></script>
+<script src="nav.js"></script>
+<style>
+/* ══════════════════════════════════════════════════════════════
+   KPI DASHBOARD — premium dark analytics theme
+   Scoped entirely to .kd-wrap so the rest of the portal (sidebar,
+   topbar, every other page) keeps its existing navy/gold house
+   style untouched. Only this page's content area goes dark.
+   ══════════════════════════════════════════════════════════════ */
+.kd-wrap{
+  --kd-bg:#080D20; --kd-card:#141D35; --kd-card2:#192440; --kd-border:#293653;
+  --kd-text:#F1F5FF; --kd-text-lt:#8996B2;
+  --kd-purple:#8855F7; --kd-cyan:#36C9E8; --kd-teal:#16C7A5; --kd-green:#42D9A0; --kd-blue:#438DF5;
+  --kd-red:#F45B69; --kd-amber:#F5A623;
+  background:var(--kd-bg); color:var(--kd-text); font-family:'Inter',Arial,sans-serif;
+  margin:-24px; padding:24px; min-height:100vh; border-radius:0;
+}
+.kd-wrap *{box-sizing:border-box}
+.kd-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:20px}
+.kd-title{font-size:20px;font-weight:800;color:var(--kd-text);letter-spacing:-.2px}
+.kd-subtitle{font-size:12px;color:var(--kd-text-lt);margin-top:4px}
+.kd-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.kd-select{background:var(--kd-card2);border:1px solid var(--kd-border);color:var(--kd-text);
+  font-family:inherit;font-size:12px;padding:8px 12px;border-radius:8px;cursor:pointer}
+.kd-sync{font-size:10px;color:var(--kd-text-lt);display:flex;align-items:center;gap:6px}
+.kd-sync-dot{width:6px;height:6px;border-radius:50%;background:var(--kd-green);animation:kd-pulse 2s infinite}
+@keyframes kd-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── Summary tiles ─────────────────────────────────────────── */
+.kd-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.kd-stile{background:var(--kd-card);border:1px solid var(--kd-border);border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.kd-stile::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.kd-stile.kd-s-total::before{background:var(--kd-blue)}
+.kd-stile.kd-s-ontrack::before{background:var(--kd-green)}
+.kd-stile.kd-s-atrisk::before{background:var(--kd-red)}
+.kd-stile.kd-s-compliance::before{background:var(--kd-purple)}
+.kd-stile-lbl{font-size:10px;color:var(--kd-text-lt);text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:8px}
+.kd-stile-val{font-size:28px;font-weight:800;color:var(--kd-text);line-height:1}
+.kd-stile-sub{font-size:11px;color:var(--kd-text-lt);margin-top:6px}
+
+/* ── Main grid: KPI cards + side panels ───────────────────── */
+.kd-main-grid{display:grid;grid-template-columns:2.4fr 1fr;gap:18px;align-items:start}
+@media (max-width:1100px){.kd-main-grid{grid-template-columns:1fr}}
+
+/* ── Group filter pills ───────────────────────────────────── */
+.kd-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.kd-pill{padding:7px 15px;border-radius:20px;border:1px solid var(--kd-border);background:var(--kd-card2);
+  font-size:11px;font-weight:600;color:var(--kd-text-lt);cursor:pointer;transition:all .15s}
+.kd-pill:hover{border-color:var(--kd-purple);color:var(--kd-text)}
+.kd-pill.active{background:var(--kd-purple);color:#fff;border-color:var(--kd-purple)}
+
+/* ── KPI cards ────────────────────────────────────────────── */
+.kd-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.kd-card{background:var(--kd-card);border:1px solid var(--kd-border);border-radius:14px;padding:16px;
+  cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s}
+.kd-card:hover{transform:translateY(-2px);border-color:var(--kd-purple);box-shadow:0 8px 24px rgba(136,85,247,.15)}
+.kd-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px}
+.kd-card-name{font-size:12.5px;font-weight:700;color:var(--kd-text);line-height:1.35}
+.kd-card-clause{font-size:9px;color:var(--kd-text-lt);font-family:'Courier New',monospace;margin-top:3px}
+.kd-badge{font-size:8.5px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.kd-badge-ontrack{background:rgba(66,217,160,.15);color:var(--kd-green)}
+.kd-badge-monitor{background:rgba(245,166,35,.15);color:var(--kd-amber)}
+.kd-badge-atrisk{background:rgba(244,91,105,.15);color:var(--kd-red)}
+.kd-badge-notyet{background:rgba(137,150,178,.15);color:var(--kd-text-lt)}
+.kd-card-value-row{display:flex;align-items:baseline;gap:6px;margin-bottom:2px}
+.kd-card-value{font-size:26px;font-weight:800;color:var(--kd-text);line-height:1}
+.kd-card-unit{font-size:11px;color:var(--kd-text-lt);font-weight:500}
+.kd-trend{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;margin-bottom:10px}
+.kd-trend-up{color:var(--kd-green)} .kd-trend-down{color:var(--kd-red)} .kd-trend-flat{color:var(--kd-text-lt)}
+.kd-card-spark{height:36px;margin:8px 0}
+.kd-card-spark svg{width:100%;height:100%;display:block}
+.kd-card-spark-empty{font-size:9.5px;color:var(--kd-text-lt);font-style:italic;display:flex;align-items:center;height:36px}
+.kd-progress-wrap{margin-top:8px}
+.kd-progress-track{background:var(--kd-card2);border-radius:6px;height:6px;overflow:hidden}
+.kd-progress-fill{height:100%;border-radius:6px;transition:width .3s}
+.kd-progress-lbl{font-size:9px;color:var(--kd-text-lt);margin-top:4px;display:flex;justify-content:space-between}
+.kd-card-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--kd-border)}
+.kd-card-owner{font-size:9.5px;color:var(--kd-text-lt);max-width:65%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kd-card-updated{font-size:9px;color:var(--kd-text-lt)}
+
+/* ── Side panels: donut + recent activity ────────────────── */
+.kd-panel{background:var(--kd-card);border:1px solid var(--kd-border);border-radius:14px;padding:18px;margin-bottom:16px}
+.kd-panel-title{font-size:12px;font-weight:700;color:var(--kd-text);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.kd-donut-wrap{display:flex;align-items:center;gap:16px}
+.kd-donut-legend{flex:1;display:flex;flex-direction:column;gap:8px}
+.kd-legend-row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--kd-text-lt)}
+.kd-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.kd-legend-val{margin-left:auto;font-weight:700;color:var(--kd-text)}
+.kd-activity-item{display:flex;flex-direction:column;gap:2px;padding:9px 0;border-bottom:1px solid var(--kd-border)}
+.kd-activity-item:last-child{border-bottom:none;padding-bottom:0}
+.kd-activity-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.kd-activity-name{font-size:11px;font-weight:600;color:var(--kd-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kd-activity-val{font-size:11px;font-weight:700;color:var(--kd-cyan);flex-shrink:0}
+.kd-activity-meta{font-size:9.5px;color:var(--kd-text-lt)}
+.kd-empty-note{font-size:11px;color:var(--kd-text-lt);font-style:italic;text-align:center;padding:16px 0}
+
+/* ── Drill-down modal ─────────────────────────────────────── */
+.kd-modal-overlay{display:none;position:fixed;inset:0;background:rgba(4,7,20,.72);z-index:9000;
+  align-items:center;justify-content:center;padding:20px}
+.kd-modal-overlay.open{display:flex}
+.kd-modal{background:var(--kd-card);border:1px solid var(--kd-border);border-radius:16px;max-width:640px;width:100%;
+  max-height:86vh;overflow-y:auto;padding:26px;font-family:'Inter',Arial,sans-serif;color:var(--kd-text)}
+.kd-modal-close{float:right;background:var(--kd-card2);border:1px solid var(--kd-border);color:var(--kd-text-lt);
+  width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:14px;line-height:1}
+.kd-modal-title{font-size:17px;font-weight:800;margin-bottom:4px}
+.kd-modal-clause{font-size:10.5px;color:var(--kd-text-lt);font-family:'Courier New',monospace;margin-bottom:16px}
+.kd-modal-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.kd-modal-meta-item{background:var(--kd-card2);border-radius:10px;padding:10px 12px}
+.kd-modal-meta-lbl{font-size:8.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--kd-text-lt);margin-bottom:4px}
+.kd-modal-meta-val{font-size:11.5px;color:var(--kd-text);line-height:1.5}
+.kd-modal-chart{height:120px;margin:16px 0}
+.kd-modal-chart svg{width:100%;height:100%}
+.kd-modal-table{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:8px}
+.kd-modal-table th{text-align:left;color:var(--kd-text-lt);font-weight:600;font-size:9.5px;text-transform:uppercase;
+  letter-spacing:.4px;padding:8px 10px;border-bottom:1px solid var(--kd-border)}
+.kd-modal-table td{padding:8px 10px;border-bottom:1px solid var(--kd-border);color:var(--kd-text)}
+
+@media (max-width:640px){
+  .kd-summary{grid-template-columns:repeat(2,1fr)}
+  .kd-cards{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
-<div class="main">
-  <div id="tb"></div>
-  <div class="content">
+<div class="main"><div id="tb"></div><div class="content">
 
-    <div class="back-row">
-      <a href="ims-framework.html#tab-kpi" class="back-link">← KPI Register</a>
-      <a href="ims-manual.html" class="back-link">← IMS Manual</a>
+<div class="kd-wrap">
+
+  <div class="kd-header">
+    <div>
+      <div class="kd-title">Consolidated IMS KPI Dashboard</div>
+      <div class="kd-subtitle">29 KPIs · ISO 9001 · 14001:2026 · 45001 · 50001 · 37001 · 26000 · 20400 · L3-IMS-621-R-02</div>
     </div>
-    <div class="sec-hdr">
-      <h2>Consolidated IMS KPI Dashboard — 26 KPIs</h2>
-      <div class="sh-meta">
-        <span>📊 26 Total KPIs</span>
-        <span>🔄 Values loaded live from Google Sheets</span>
-        <span>📋 L3-IMS-621-R-02 · Rev.02</span>
+    <div class="kd-controls">
+      <select class="kd-select" id="kd-range">
+        <option value="all">All reported history</option>
+        <option value="latest3">Last 3 reported periods</option>
+      </select>
+      <div class="kd-sync"><span class="kd-sync-dot"></span><span id="kd-sync-text">Connecting to live data…</span></div>
+    </div>
+  </div>
+
+  <div class="kd-summary">
+    <div class="kd-stile kd-s-total"><div class="kd-stile-lbl">Total KPIs</div><div class="kd-stile-val">29</div><div class="kd-stile-sub">All Working Groups</div></div>
+    <div class="kd-stile kd-s-ontrack"><div class="kd-stile-lbl">On Track</div><div class="kd-stile-val" id="kd-sum-ontrack">—</div><div class="kd-stile-sub">Latest reported status</div></div>
+    <div class="kd-stile kd-s-atrisk"><div class="kd-stile-lbl">At Risk</div><div class="kd-stile-val" id="kd-sum-atrisk">—</div><div class="kd-stile-sub">Needs attention</div></div>
+    <div class="kd-stile kd-s-compliance"><div class="kd-stile-lbl">Reporting Compliance</div><div class="kd-stile-val" id="kd-sum-compliance">—</div><div class="kd-stile-sub">KPIs with ≥1 real reading</div></div>
+  </div>
+
+  <div class="kd-main-grid">
+    <div>
+      <div class="kd-pills" id="kd-pills">
+        <button class="kd-pill active" data-filter="all">All 29</button>
+        <button class="kd-pill" data-filter="steering">IMS Steering Committee</button>
+        <button class="kd-pill" data-filter="wg1">WG1: Plant &amp; Quality</button>
+        <button class="kd-pill" data-filter="wg2">WG2: SHEE, Energy &amp; ENV</button>
+        <button class="kd-pill" data-filter="wg3">WG3: People, Ethics &amp; Procurement</button>
+      </div>
+      <div class="kd-cards" id="kd-cards"></div>
+    </div>
+
+    <div>
+      <div class="kd-panel">
+        <div class="kd-panel-title">📊 Status Distribution</div>
+        <div class="kd-donut-wrap">
+          <div id="kd-donut"></div>
+          <div class="kd-donut-legend" id="kd-donut-legend"></div>
+        </div>
+      </div>
+      <div class="kd-panel">
+        <div class="kd-panel-title">🕓 Recently Logged</div>
+        <div id="kd-activity"><div class="kd-empty-note">Loading…</div></div>
       </div>
     </div>
-    <div class="sec-body" id="objectives"><div style="font-size:12px;font-weight:700;color:var(--navy);border-left:4px solid #c8a84b;padding-left:10px;margin:20px 0 10px">IMS Steering Committee</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">IMS CAPA Closure Rate</div>
-      <div class="kpi-card-clause">All standards §10.2</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">≥ 95%</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
   </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">IMS Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Monthly</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">CAPA Register — % closed within agreed timescale across all standards</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-0">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-0-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
+
 </div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Internal Audit Programme Completion</div>
-      <div class="kpi-card-clause">All standards §9.2</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">≥ 95% as scheduled</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">IMS Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Monthly / Annual</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Audit schedule vs. completed audits — % on schedule</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-1">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-1-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
+
+<div class="kd-modal-overlay" id="kd-modal-overlay">
+  <div class="kd-modal" id="kd-modal-body"></div>
 </div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Legal Compliance Status</div>
-      <div class="kpi-card-clause">All standards §9.1.2</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">100%</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">IMS Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Quarterly</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Legal Compliance Register — % obligations met across all standards</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-2">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-2-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Management Review Completion</div>
-      <div class="kpi-card-clause">All standards §9.3</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">100% annual</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">IMS Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Annual</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Management Review minutes — completed vs. planned</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-3">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-3-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">High-Risk CAPA Closure Rate</div>
-      <div class="kpi-card-clause">All standards §6.1</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">100% within timescale</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">IMS Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Monthly</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Risk Register — % high-risk actions closed on time</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-4">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-4-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div><div style="font-size:12px;font-weight:700;color:var(--navy);border-left:4px solid #1a4a2e;padding-left:10px;margin:20px 0 10px">WG1: Plant & Quality</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Pack-to-Melt Ratio</div>
-      <div class="kpi-card-clause">Daily / MonthlyISO 9001 §8.1, §9.1</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">≥ 80%</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Plant Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Production daily records → monthly KPI report</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Monitor daily furnace output vs. melt throughput; report monthly</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-5">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-5-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Customer Satisfaction Rating</div>
-      <div class="kpi-card-clause">Bi-annual / Annual MRISO 9001 §9.1.2</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">≥ 4.0 / 5.0</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">QA Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Customer survey score (1–5 scale)</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Conduct bi-annual customer satisfaction surveys; analyze results</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-6">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-6-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Total Heldware</div>
-      <div class="kpi-card-clause">Daily / MonthlyISO 9001 §8.6, §8.7</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">≤ 3%</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">QA Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Daily inspection records — % of total production</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Monitor Process, Finished Goods auditing against standards and specifications compliance</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-7">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-7-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Supplier Approved List (ASL) Review</div>
-      <div class="kpi-card-clause">AnnualISO 9001 §8.4</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">100% annually</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">QA Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">ASL review records — % suppliers reviewed on schedule</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Conduct annual supplier performance review against quality, delivery and ESG criteria</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-8">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-8-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div><div style="font-size:12px;font-weight:700;color:var(--navy);border-left:4px solid #1a3a5e;padding-left:10px;margin:20px 0 10px">WG2: SHEE, Energy & ENV</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Fatalities</div>
-      <div class="kpi-card-clause">Continuous / MonthlyISO 45001 §6.1, §8.1</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">0</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Operations Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Incident register — fatality count</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Implement and enforce all safety controls; investigate all high-potential incidents</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-9">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-9-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">LTIFR (Lost Time Injury Frequency Rate)³Downward trend from 2025 baseline; zero fatalities</div>
-      <div class="kpi-card-clause">ISO 45001 §9.1</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">Operations Manager</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Monitor LTIs monthly; analyze root causes; implement preventive actions</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Monthly</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">(No. LTIs × 1,000,000) ÷ hours worked</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-10">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-10-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Near-Miss Reports per MonthPositive trend from 2025 baseline</div>
-      <div class="kpi-card-clause">ISO 45001 §9.1 (leading indicator)</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">Operations Manager</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Promote near-miss reporting culture; investigate all reports; track monthly volume</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Monthly</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Near-miss log — total reports per month</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-11">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-11-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">SHEE HIRA CAPA Closure¹ (OH&amp;S + ENV)</div>
-      <div class="kpi-card-clause">MonthlyISO 45001 §6.1.2; ISO 14001 §6.1; §10.2</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">≥ 95%</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Operations Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">CAPA Register — % closed within class timescale</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Ensure Top 5 Priority SHEE HIRA findings are actioned and closed within timescale</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-12">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-12-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">SHEE Legal Compliance¹ (OH&amp;S + ENV)</div>
-      <div class="kpi-card-clause">QuarterlyISO 45001 §9.1.2; ISO 14001 §9.1.2</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">100%</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Operations Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Legal Compliance Register — % SHEE obligations met</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Evaluate compliance with all MHRSD / MODON / MEWA / NCEC obligations</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-13">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-13-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">HSE Training Completion</div>
-      <div class="kpi-card-clause">Monthly / AnnualISO 45001 §7.2</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">≥ 95% as planned</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Operations Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Training attendance records — % completed as scheduled</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Execute annual HSE training plan; track completion per department</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-14">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-14-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">GHG Intensity — Scope 1+2 Combined² (kgCO₂e/tonne packed)Downward trend toward ≥20% reduction by July 2030</div>
-      <div class="kpi-card-clause">ISO 14001 §6.2, §9.1</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">Deputy Plant Manager</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Record fuel consumption and grid electricity monthly; calculate combined GHG intensity</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Monthly</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">(Fuel × emission factors + Grid kWh × SEC factor) ÷ monthly production</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-15">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-15-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Total Waste RecycledUpward trend from 2025 baseline</div>
-      <div class="kpi-card-clause">ISO 14001 §8.1</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">Deputy Plant Manager</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Classify and track all waste streams; maximize recycling routes</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Monthly</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Monthly waste records — recycled ÷ total waste generated</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-16">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-16-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Specific Heat Consumption (SHC — Specific Heat Consumed) per Furnace (kcal/kg)F1:≤1,242 · F2:≤1,580 · F3:≤1,996 · F4:≤2,066 · F5:≤2,138 kcal/kg</div>
-      <div class="kpi-card-clause">ISO 50001 §6.3, §6.6, §9.1</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">Deputy Plant Manager</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Monitor SHC monthly per furnace; identify deviations; implement operational controls</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Monthly</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Energy meters + fuel flow data ÷ monthly packed glass production per furnace</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-17">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-17-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">EnPI (Energy Performance Indicator) AchievementPositive trend against 2023 baseline (monthly)</div>
-      <div class="kpi-card-clause">ISO 50001 §6.4, §9.1</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">Deputy Plant Manager</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Track EnPI monthly; report trends; initiate corrective action when negative trend</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Monthly</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Monthly SHC trend chart vs. baseline and target line</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-18">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-18-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">SEU Long-Term Projects (ECM Programme) On Schedule</div>
-      <div class="kpi-card-clause">Quarterly / Annual MRISO 50001 §8.1, §6.3</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">100% per EnMS Schedule</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Deputy Plant Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">ECM milestone tracker (L4-IMS-630-R-01) — % milestones on schedule</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Execute ECM programme objectives per approved project schedule; track milestones</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-19">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-19-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div><div style="font-size:12px;font-weight:700;color:var(--navy);border-left:4px solid #4a1a2e;padding-left:10px;margin:20px 0 10px">WG3: People, Ethics & Procurement</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Confirmed Corruption Cases</div>
-      <div class="kpi-card-clause">Continuous / QuarterlyISO 37001 §8.2, §8.7</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">0</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">HR Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Anti-Bribery Risk Register (BRA-001–008) — confirmed case count</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Maintain active ABMS controls; operate whistleblowing system; conduct CoI reviews</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-20">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-20-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">CoI Declaration Completion Rate</div>
-      <div class="kpi-card-clause">AnnualISO 37001 §8.7</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">100% designated personnel</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">HR Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">CoI Register — % declarations signed and filed</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Issue, collect and file signed CoI declarations (L4-IMS-520-F-01) annually</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-21">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-21-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Anti-Corruption Training Completion</div>
-      <div class="kpi-card-clause">AnnualISO 37001 §7.2, §7.3; EcoVadis Ethics</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">100% key personnel</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">HR Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Training attendance records — % of key personnel trained</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Deliver annual anti-corruption and ethics training to all key personnel</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-22">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-22-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Whistleblowing System Availability</div>
-      <div class="kpi-card-clause">Annual test; continuousISO 37002; Saudi M/25 2024; EcoVadis Ethics</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">100% operational</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">HR Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">System availability log; annual test record</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Maintain and test whistleblowing channel; ensure confidentiality and non-retaliation enforced</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-23">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-23-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Labour Legal Compliance</div>
-      <div class="kpi-card-clause">QuarterlyISO 26000 §6.4; Saudi MR 3337; M/51</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">100%</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">HR Manager</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Legal Compliance Register — % labour law obligations met</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Evaluate compliance with all MHRSD / Saudi labour law obligations quarterly</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-24">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-24-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
-</div>
-<div class="kpi-card">
-  <div class="kpi-card-hdr">
-    <div>
-      <div class="kpi-card-name">Grievances Resolved100% acknowledged within 3 WD; 100% resolved within 30 days</div>
-      <div class="kpi-card-clause">ISO 45001 §5.4; ISO 26000 §6.4; Saudi M/51</div>
-    </div>
-    <div class="kpi-card-target">
-      <div class="kpi-target-val">HR Manager</div>
-      <div class="kpi-target-lbl">Target</div>
-    </div>
-  </div>
-  <div class="kpi-card-body">
-    <div class="kpi-meta-item"><div class="kmi-label">Owner</div><div class="kmi-val">Operate formal grievance mechanism; track all grievances to closure</div></div>
-    <div class="kpi-meta-item"><div class="kmi-label">Frequency</div><div class="kmi-val">Monthly</div></div>
-    <div class="kpi-meta-item" style="grid-column:span 2"><div class="kmi-label">Measurement Method</div><div class="kmi-val">Grievance register — tiered resolution timeline compliance rate</div></div>
-  </div>
-  <div class="kpi-live-row">
-    <div>
-      <div class="kpi-live-lbl">Current Value</div>
-      <div class="kpi-live-val" id="kpi-live-25">—</div>
-    </div>
-    <span class="kpi-live-badge klb-load" id="kpi-live-25-badge">⏳ Loading</span>
-    <div style="flex:1;text-align:right;font-size:9px;color:var(--text-lt)">Updated from Google Sheets</div>
-  </div>
+
 </div></div>
-    
 <script>
-setTimeout(function(){
-  if(typeof SHEETS_URL === 'undefined' || !SHEETS_URL) return;
-  fetch(SHEETS_URL + '?action=read&tab=kpi_register')
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      if(!data || !data.rows) return;
-      var hdr = data.headers || [];
-      var nameCol  = hdr.findIndex(function(h){ return /name|kpi/i.test(h); });
-      var valCol   = hdr.findIndex(function(h){ return /value|actual|result|current/i.test(h); });
-      var statCol  = hdr.findIndex(function(h){ return /status|rag|color/i.test(h); });
-      var ids = ["kpi-live-0", "kpi-live-1", "kpi-live-2", "kpi-live-3", "kpi-live-4"];
-      var rows = data.rows.filter(function(r){ 
-        return String(r[hdr.indexOf('Group')] || r[0] || '').toLowerCase().includes('ims steering committee');
-      });
-      if(!rows.length) rows = data.rows.slice(0, 5);
-      ids.forEach(function(id, i){
-        var row = rows[i];
-        if(!row) return;
-        var valEl   = document.getElementById(id);
-        var badgeEl = document.getElementById(id + '-badge');
-        if(valEl && valCol >= 0) {
-          var v = String(row[valCol] || '—');
-          valEl.textContent = v;
-        }
-        if(badgeEl) {
-          var st = statCol >= 0 ? String(row[statCol] || '').toLowerCase() : '';
-          if(st.includes('green') || st.includes('on track')){
-            badgeEl.className = 'kpi-live-badge klb-live'; badgeEl.textContent = '✅ On Track';
-          } else if(st.includes('red') || st.includes('off')){
-            badgeEl.className = 'kpi-live-badge'; badgeEl.style.cssText='background:#fce4ec;color:#c62828;font-size:8px;font-weight:700;padding:2px 8px;border-radius:10px'; badgeEl.textContent = '❌ Off Target';
-          } else if(st.includes('amber') || st.includes('yellow')){
-            badgeEl.className = 'kpi-live-badge'; badgeEl.style.cssText='background:#fff3e0;color:#e65100;font-size:8px;font-weight:700;padding:2px 8px;border-radius:10px'; badgeEl.textContent = '⚠️ At Risk';
-          } else {
-            badgeEl.className = 'kpi-live-badge klb-live'; badgeEl.textContent = '📊 Live';
-          }
-        }
-      });
-    }).catch(function(){});
-}, 1000);
+initPage('kpi-consolidated.html');
+document.getElementById('tb').innerHTML = renderTopbar('Consolidated IMS KPI Dashboard','L3-IMS-621-R-02 · 29 KPIs · All Working Groups · ISO §9.1 all standards');
+IMS_AUTH.injectUserBar();
 </script>
+
 <script>
-setTimeout(function(){
-  if(typeof SHEETS_URL === 'undefined' || !SHEETS_URL) return;
-  fetch(SHEETS_URL + '?action=read&tab=kpi_register')
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      if(!data || !data.rows) return;
-      var hdr = data.headers || [];
-      var nameCol  = hdr.findIndex(function(h){ return /name|kpi/i.test(h); });
-      var valCol   = hdr.findIndex(function(h){ return /value|actual|result|current/i.test(h); });
-      var statCol  = hdr.findIndex(function(h){ return /status|rag|color/i.test(h); });
-      var ids = ["kpi-live-5", "kpi-live-6", "kpi-live-7", "kpi-live-8"];
-      var rows = data.rows.filter(function(r){ 
-        return String(r[hdr.indexOf('Group')] || r[0] || '').toLowerCase().includes('wg1: plant & quality');
-      });
-      if(!rows.length) rows = data.rows.slice(5, 9);
-      ids.forEach(function(id, i){
-        var row = rows[i];
-        if(!row) return;
-        var valEl   = document.getElementById(id);
-        var badgeEl = document.getElementById(id + '-badge');
-        if(valEl && valCol >= 0) {
-          var v = String(row[valCol] || '—');
-          valEl.textContent = v;
-        }
-        if(badgeEl) {
-          var st = statCol >= 0 ? String(row[statCol] || '').toLowerCase() : '';
-          if(st.includes('green') || st.includes('on track')){
-            badgeEl.className = 'kpi-live-badge klb-live'; badgeEl.textContent = '✅ On Track';
-          } else if(st.includes('red') || st.includes('off')){
-            badgeEl.className = 'kpi-live-badge'; badgeEl.style.cssText='background:#fce4ec;color:#c62828;font-size:8px;font-weight:700;padding:2px 8px;border-radius:10px'; badgeEl.textContent = '❌ Off Target';
-          } else if(st.includes('amber') || st.includes('yellow')){
-            badgeEl.className = 'kpi-live-badge'; badgeEl.style.cssText='background:#fff3e0;color:#e65100;font-size:8px;font-weight:700;padding:2px 8px;border-radius:10px'; badgeEl.textContent = '⚠️ At Risk';
-          } else {
-            badgeEl.className = 'kpi-live-badge klb-live'; badgeEl.textContent = '📊 Live';
-          }
-        }
-      });
-    }).catch(function(){});
-}, 1000);
-</script>
-<script>
-setTimeout(function(){
-  if(typeof SHEETS_URL === 'undefined' || !SHEETS_URL) return;
-  fetch(SHEETS_URL + '?action=read&tab=kpi_register')
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      if(!data || !data.rows) return;
-      var hdr = data.headers || [];
-      var nameCol  = hdr.findIndex(function(h){ return /name|kpi/i.test(h); });
-      var valCol   = hdr.findIndex(function(h){ return /value|actual|result|current/i.test(h); });
-      var statCol  = hdr.findIndex(function(h){ return /status|rag|color/i.test(h); });
-      var ids = ["kpi-live-9", "kpi-live-10", "kpi-live-11", "kpi-live-12", "kpi-live-13", "kpi-live-14", "kpi-live-15", "kpi-live-16", "kpi-live-17", "kpi-live-18", "kpi-live-19"];
-      var rows = data.rows.filter(function(r){ 
-        return String(r[hdr.indexOf('Group')] || r[0] || '').toLowerCase().includes('wg2: shee, energy & env');
-      });
-      if(!rows.length) rows = data.rows.slice(9, 20);
-      ids.forEach(function(id, i){
-        var row = rows[i];
-        if(!row) return;
-        var valEl   = document.getElementById(id);
-        var badgeEl = document.getElementById(id + '-badge');
-        if(valEl && valCol >= 0) {
-          var v = String(row[valCol] || '—');
-          valEl.textContent = v;
-        }
-        if(badgeEl) {
-          var st = statCol >= 0 ? String(row[statCol] || '').toLowerCase() : '';
-          if(st.includes('green') || st.includes('on track')){
-            badgeEl.className = 'kpi-live-badge klb-live'; badgeEl.textContent = '✅ On Track';
-          } else if(st.includes('red') || st.includes('off')){
-            badgeEl.className = 'kpi-live-badge'; badgeEl.style.cssText='background:#fce4ec;color:#c62828;font-size:8px;font-weight:700;padding:2px 8px;border-radius:10px'; badgeEl.textContent = '❌ Off Target';
-          } else if(st.includes('amber') || st.includes('yellow')){
-            badgeEl.className = 'kpi-live-badge'; badgeEl.style.cssText='background:#fff3e0;color:#e65100;font-size:8px;font-weight:700;padding:2px 8px;border-radius:10px'; badgeEl.textContent = '⚠️ At Risk';
-          } else {
-            badgeEl.className = 'kpi-live-badge klb-live'; badgeEl.textContent = '📊 Live';
-          }
-        }
-      });
-    }).catch(function(){});
-}, 1000);
-</script>
-<script>
-setTimeout(function(){
-  if(typeof SHEETS_URL === 'undefined' || !SHEETS_URL) return;
-  fetch(SHEETS_URL + '?action=read&tab=kpi_register')
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      if(!data || !data.rows) return;
-      var hdr = data.headers || [];
-      var nameCol  = hdr.findIndex(function(h){ return /name|kpi/i.test(h); });
-      var valCol   = hdr.findIndex(function(h){ return /value|actual|result|current/i.test(h); });
-      var statCol  = hdr.findIndex(function(h){ return /status|rag|color/i.test(h); });
-      var ids = ["kpi-live-20", "kpi-live-21", "kpi-live-22", "kpi-live-23", "kpi-live-24", "kpi-live-25"];
-      var rows = data.rows.filter(function(r){ 
-        return String(r[hdr.indexOf('Group')] || r[0] || '').toLowerCase().includes('wg3: people, ethics & procurement');
-      });
-      if(!rows.length) rows = data.rows.slice(20, 26);
-      ids.forEach(function(id, i){
-        var row = rows[i];
-        if(!row) return;
-        var valEl   = document.getElementById(id);
-        var badgeEl = document.getElementById(id + '-badge');
-        if(valEl && valCol >= 0) {
-          var v = String(row[valCol] || '—');
-          valEl.textContent = v;
-        }
-        if(badgeEl) {
-          var st = statCol >= 0 ? String(row[statCol] || '').toLowerCase() : '';
-          if(st.includes('green') || st.includes('on track')){
-            badgeEl.className = 'kpi-live-badge klb-live'; badgeEl.textContent = '✅ On Track';
-          } else if(st.includes('red') || st.includes('off')){
-            badgeEl.className = 'kpi-live-badge'; badgeEl.style.cssText='background:#fce4ec;color:#c62828;font-size:8px;font-weight:700;padding:2px 8px;border-radius:10px'; badgeEl.textContent = '❌ Off Target';
-          } else if(st.includes('amber') || st.includes('yellow')){
-            badgeEl.className = 'kpi-live-badge'; badgeEl.style.cssText='background:#fff3e0;color:#e65100;font-size:8px;font-weight:700;padding:2px 8px;border-radius:10px'; badgeEl.textContent = '⚠️ At Risk';
-          } else {
-            badgeEl.className = 'kpi-live-badge klb-live'; badgeEl.textContent = '📊 Live';
-          }
-        }
-      });
-    }).catch(function(){});
-}, 1000);
-</script>
-  </div>
-</div>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  initPage('kpi-consolidated.html');
-  document.getElementById('tb').innerHTML = renderTopbar('Consolidated IMS KPI Dashboard','L3-IMS-621-R-02 · 26 KPIs · All Working Groups · ISO §9.1 all standards');
-  IMS_AUTH.injectUserBar();
+/* ══════════════════════════════════════════════════════════════
+   KPI DASHBOARD ENGINE
+   Data-driven: KPI_META (static definitions) + live sheet history
+   (fetched once, by real KPI ID — no positional matching). All
+   cards, the donut, the summary tiles and the recent-activity feed
+   are generated from this single in-memory model. Nothing here is
+   fabricated: values, trends and charts only render when a real
+   observation exists; otherwise an honest empty state is shown.
+   ══════════════════════════════════════════════════════════════ */
+var KPI_META = [{"id": "STC-01", "name": "IMS CAPA Closure Rate", "group": "IMS Steering Committee", "groupKey": "steering", "standard": "All Standards \u00a710.2", "unit": "%", "formula": "CAPA Register \u2014 % closed within agreed timescale across all standards", "baseline": "TBC", "target": "\u2265 95%", "owner": "IMS Manager"}, {"id": "STC-02", "name": "Internal Audit Programme Completion", "group": "IMS Steering Committee", "groupKey": "steering", "standard": "All Standards \u00a79.2", "unit": "%", "formula": "Audit schedule vs. completed audits \u2014 % on schedule", "baseline": "TBC", "target": "\u2265 95% as scheduled", "owner": "IMS Manager"}, {"id": "STC-03", "name": "Legal Compliance Status", "group": "IMS Steering Committee", "groupKey": "steering", "standard": "All Standards \u00a79.1.2", "unit": "%", "formula": "Legal Compliance Register \u2014 % obligations met across all standards", "baseline": "TBC", "target": "100%", "owner": "IMS Manager"}, {"id": "STC-04", "name": "Management Review Completion", "group": "IMS Steering Committee", "groupKey": "steering", "standard": "All Standards \u00a79.3", "unit": "%", "formula": "Management Review minutes \u2014 completed vs. planned", "baseline": "TBC", "target": "100% annual", "owner": "IMS Manager"}, {"id": "STC-05", "name": "High-Risk CAPA Closure Rate", "group": "IMS Steering Committee", "groupKey": "steering", "standard": "All Standards \u00a76.1", "unit": "%", "formula": "Risk Register \u2014 % high-risk actions closed on time", "baseline": "TBC", "target": "100% within timescale", "owner": "IMS Manager"}, {"id": "WG1-01", "name": "Pack-to-Melt Ratio", "group": "WG1: Plant & Quality", "groupKey": "wg1", "standard": "ISO 9001 \u00a78.1, \u00a79.1", "unit": "%", "formula": "Production daily records \u2192 monthly KPI report", "baseline": "TBC", "target": "\u2265 80%", "owner": "Plant Manager"}, {"id": "WG1-02", "name": "Customer Satisfaction Rating", "group": "WG1: Plant & Quality", "groupKey": "wg1", "standard": "ISO 9001 \u00a79.1.2", "unit": "score (1\u20135)", "formula": "Annual customer survey score, 1\u20135 scale", "baseline": "TBC", "target": "\u2265 4.0 / 5.0", "owner": "Plant Manager \u00b7 QA Manager \u00b7 Regional Account Managers"}, {"id": "WG1-03", "name": "Total Heldware", "group": "WG1: Plant & Quality", "groupKey": "wg1", "standard": "ISO 9001 \u00a78.6, \u00a78.7", "unit": "%", "formula": "Heldware % = Held Tons \u00f7 (Held + Good Tons) \u00d7 100", "baseline": "TBC", "target": "\u2264 3%", "owner": "Operations Manager \u00b7 QA Manager \u00b7 Unit Manager"}, {"id": "WG1-04", "name": "Supplier Approved List (ASL) Review", "group": "WG1: Plant & Quality", "groupKey": "wg1", "standard": "ISO 9001 \u00a78.4", "unit": "%", "formula": "ASL review records \u2014 % suppliers reviewed on schedule", "baseline": "TBC", "target": "100% annually", "owner": "QA Manager"}, {"id": "WG2-01", "name": "Fatalities", "group": "WG2: SHEE, Energy & ENV", "groupKey": "wg2", "standard": "ISO 45001 \u00a76.1, \u00a78.1", "unit": "count", "formula": "Incident register \u2014 fatality count", "baseline": "TBC", "target": "0", "owner": "Operations Manager"}, {"id": "WG2-02", "name": "LTIFR (Lost Time Injury Frequency Rate)", "group": "WG2: SHEE, Energy & ENV", "groupKey": "wg2", "standard": "ISO 45001 \u00a79.1", "unit": "per 1,000,000 hrs", "formula": "(No. LTIs \u00d7 1,000,000) \u00f7 hours worked", "baseline": "TBC", "target": "Downward trend from 2025 baseline; zero fatalities", "owner": "Operations Manager"}, {"id": "WG2-03", "name": "Near-Miss Reports per Month", "group": "WG2: SHEE, Energy & ENV", "groupKey": "wg2", "standard": "ISO 45001 \u00a79.1 (leading indicator)", "unit": "count / month", "formula": "Near-miss log \u2014 total reports per month", "baseline": "2", "target": "Positive trend from 2025 baseline", "owner": "Operations Manager"}, {"id": "WG2-04", "name": "SHEE HIRA CAPA Closure (OH&S + ENV)", "group": "WG2: SHEE, Energy & ENV", "groupKey": "wg2", "standard": "ISO 45001 \u00a76.1.2; ISO 14001 \u00a76.1; \u00a710.2", "unit": "%", "formula": "CAPA Register \u2014 % closed within class timescale", "baseline": "TBC", "target": "\u2265 95%", "owner": "Operations Manager"}, {"id": "WG2-05", "name": "SHEE Legal Compliance (OH&S + ENV)", "group": "WG2: SHEE, Energy & ENV", "groupKey": "wg2", "standard": "ISO 45001 \u00a79.1.2; ISO 14001 \u00a79.1.2", "unit": "%", "formula": "Legal Compliance Register \u2014 % SHEE obligations met", "baseline": "TBC", "target": "100%", "owner": "Operations Manager"}, {"id": "WG2-06", "name": "HSE Training Completion", "group": "WG2: SHEE, Energy & ENV", "groupKey": "wg2", "standard": "ISO 45001 \u00a77.2", "unit": "%", "formula": "Training attendance records \u2014 % completed as scheduled", "baseline": "TBC", "target": "\u2265 95% as planned", "owner": "Operations Manager"}, {"id": "WG2-07", "name": "GHG Intensity \u2014 Scope 1+2 Combined", "group": "WG2: SHEE, Energy & ENV", "groupKey": "wg2", "standard": "ISO 14001 \u00a76.2, \u00a79.1", "unit": "kgCO2e/t", "formula": "(Fuel \u00d7 emission factors + Grid kWh \u00d7 SEC factor) \u00f7 monthly production", "baseline": "615.27", "target": "Downward trend toward \u226520% reduction by July 2030", "owner": "Deputy Plant Manager"}, {"id": "WG2-08", "name": "Total Waste Recycled", "group": "WG2: SHEE, Energy & ENV", "groupKey": "wg2", "standard": "ISO 14001 \u00a78.1", "unit": "%", "formula": "Monthly waste records \u2014 recycled \u00f7 total waste generated", "baseline": "TBC", "target": "Upward trend from 2025 baseline", "owner": "Deputy Plant Manager"}, {"id": "WG2-09", "name": "Specific Heat Consumption (SHC) per Furnace", "group": "WG2: SHEE, Energy & ENV", "groupKey": "wg2", "standard": "ISO 50001 \u00a76.3, \u00a76.6, \u00a79.1", "unit": "kcal/kg", "formula": "Energy meters + fuel flow data \u00f7 monthly packed glass production per furnace", "baseline": "TBC", "target": "F1:\u22641,242 \u00b7 F2:\u22641,580 \u00b7 F3:\u22641,996 \u00b7 F4:\u22642,066 \u00b7 F5:\u22642,138", "owner": "Deputy Plant Manager"}, {"id": "WG2-10", "name": "EnPI (Energy Performance Indicator) Achievement", "group": "WG2: SHEE, Energy & ENV", "groupKey": "wg2", "standard": "ISO 50001 \u00a76.4, \u00a79.1", "unit": "trend index", "formula": "Monthly SHC trend chart vs. baseline and target line", "baseline": "TBC", "target": "Positive trend against 2023 baseline (monthly)", "owner": "Deputy Plant Manager"}, {"id": "WG2-11", "name": "SEU Long-Term Projects (ECM Programme) On Schedule", "group": "WG2: SHEE, Energy & ENV", "groupKey": "wg2", "standard": "ISO 50001 \u00a78.1, \u00a76.3", "unit": "%", "formula": "ECM milestone tracker \u2014 % milestones on schedule", "baseline": "TBC", "target": "100% per EnMS Schedule", "owner": "Deputy Plant Manager"}, {"id": "WG3-01", "name": "Confirmed Corruption Cases", "group": "WG3: People, Ethics & Procurement", "groupKey": "wg3", "standard": "ISO 37001 \u00a78.2, \u00a78.7", "unit": "count", "formula": "Anti-Bribery Risk Register \u2014 confirmed case count", "baseline": "TBC", "target": "0", "owner": "HR Manager"}, {"id": "WG3-02", "name": "CoI Declaration Completion Rate", "group": "WG3: People, Ethics & Procurement", "groupKey": "wg3", "standard": "ISO 37001 \u00a78.7", "unit": "%", "formula": "CoI Register \u2014 % declarations signed and filed", "baseline": "TBC", "target": "100% designated personnel", "owner": "HR Manager"}, {"id": "WG3-03", "name": "Anti-Corruption Training Completion", "group": "WG3: People, Ethics & Procurement", "groupKey": "wg3", "standard": "ISO 37001 \u00a77.2, \u00a77.3; EcoVadis Ethics", "unit": "%", "formula": "Training attendance records \u2014 % of key personnel trained", "baseline": "TBC", "target": "100% key personnel", "owner": "HR Manager"}, {"id": "WG3-04", "name": "Whistleblowing System Availability", "group": "WG3: People, Ethics & Procurement", "groupKey": "wg3", "standard": "ISO 37002; Saudi M/25 2024", "unit": "%", "formula": "System availability log; annual test record", "baseline": "TBC", "target": "100% operational", "owner": "HR Manager"}, {"id": "WG3-05", "name": "Labour Legal Compliance", "group": "WG3: People, Ethics & Procurement", "groupKey": "wg3", "standard": "ISO 26000 \u00a76.4; Saudi MR 3337; M/51", "unit": "%", "formula": "Legal Compliance Register \u2014 % labour law obligations met", "baseline": "TBC", "target": "100%", "owner": "HR Manager"}, {"id": "WG3-06", "name": "Grievances Resolved", "group": "WG3: People, Ethics & Procurement", "groupKey": "wg3", "standard": "ISO 45001 \u00a75.4; ISO 26000 \u00a76.4; Saudi M/51", "unit": "%", "formula": "Grievance register \u2014 tiered resolution timeline compliance rate", "baseline": "TBC", "target": "100% acknowledged within 3 WD; 100% resolved within 30 days", "owner": "HR Manager"}, {"id": "WG3-07", "name": "Supplier ESG Screening Completion", "group": "WG3: People, Ethics & Procurement", "groupKey": "wg3", "standard": "ISO 20400 \u00a76.3; ISO 9001 \u00a78.4", "unit": "%", "formula": "Supplier register \u2014 % new suppliers with completed ESG screening", "baseline": "TBC", "target": "100% new suppliers", "owner": "Procurement Manager"}, {"id": "WG3-08", "name": "Information Security Risk Assessment Completion", "group": "WG3: People, Ethics & Procurement", "groupKey": "wg3", "standard": "IT Governance best practice \u00b7 L1-IMS-PO-08", "unit": "%", "formula": "IS Risk Register \u2014 completed vs. planned", "baseline": "TBC", "target": "100% annual completion", "owner": "IT Manager"}, {"id": "WG3-09", "name": "Data Backup Success Rate", "group": "WG3: People, Ethics & Procurement", "groupKey": "wg3", "standard": "IT Governance best practice \u00b7 L1-IMS-PO-08", "unit": "%", "formula": "Backup system logs \u2014 % successful runs per month", "baseline": "TBC", "target": "\u2265 99% automated daily backups successful", "owner": "IT Manager"}];
+
+var STATE = { historyById: {}, activeFilter: 'all', range: 'all' };
+
+function findCol(headers, name) {
+  var n = name.toLowerCase();
+  for (var i = 0; i < headers.length; i++) if (String(headers[i]||'').toLowerCase().trim() === n) return i;
+  for (var i = 0; i < headers.length; i++) if (String(headers[i]||'').toLowerCase().indexOf(n) > -1) return i;
+  return -1;
+}
+
+function statusBucket(status) {
+  var s = (status || '').toUpperCase();
+  if (s.indexOf('NOT YET') > -1 || s === '') return 'notyet';
+  if (s.indexOf('ON TRACK') > -1) return 'ontrack';
+  if (s.indexOf('AT RISK') > -1 || s.indexOf('AMBER') > -1 || s.indexOf('OFF') > -1) return 'atrisk';
+  if (s.indexOf('MONITOR') > -1 || s.indexOf('IN PROGRESS') > -1) return 'monitor';
+  return 'notyet';
+}
+
+var BUCKET_COLORS = { ontrack:'#42D9A0', monitor:'#F5A623', atrisk:'#F45B69', notyet:'#8996B2' };
+var BUCKET_LABELS = { ontrack:'On Track', monitor:'Monitor / In Progress', atrisk:'At Risk', notyet:'Not Yet Reported' };
+
+function historyFor(kpiId, range) {
+  var h = STATE.historyById[kpiId] || [];
+  var real = h.filter(function (p) { return p.month && p.month.toLowerCase() !== 'not yet reported'; });
+  if (range === 'latest3') real = real.slice(-3);
+  return real;
+}
+
+function numericPoints(history) {
+  return history
+    .map(function (p) { return { month: p.month, value: parseFloat(String(p.value).replace(/[^0-9.\-]/g,'')) }; })
+    .filter(function (p) { return !isNaN(p.value); });
+}
+
+function buildSparkline(points, big) {
+  var w = 280, h = big ? 100 : 36, padX = 4, padY = big ? 10 : 5;
+  var values = points.map(function (p) { return p.value; });
+  var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+  if (min === max) { min -= 1; max += 1; }
+  var stepX = points.length > 1 ? (w - padX*2) / (points.length - 1) : 0;
+  function xAt(i){ return padX + i*stepX; }
+  function yAt(v){ return h - padY - ((v - min)/(max - min)) * (h - padY*2); }
+  var linePts = points.map(function(p,i){ return xAt(i)+','+yAt(p.value); }).join(' ');
+  var areaPts = linePts + ' ' + xAt(points.length-1) + ',' + h + ' ' + xAt(0) + ',' + h;
+  var dots = points.map(function(p,i){ return '<circle cx="'+xAt(i)+'" cy="'+yAt(p.value)+'" r="'+(big?3:2)+'" fill="#8855F7"></circle>'; }).join('');
+  var labels = big ? points.map(function(p,i){ return '<text x="'+xAt(i)+'" y="'+(h-1)+'" font-size="8" fill="#8996B2" text-anchor="middle">'+p.month+'</text>'; }).join('') : '';
+  return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none">'
+    + '<polygon points="'+areaPts+'" fill="rgba(136,85,247,.12)"></polygon>'
+    + '<polyline points="'+linePts+'" fill="none" stroke="#8855F7" stroke-width="2"></polyline>'
+    + dots + labels + '</svg>';
+}
+
+function parseSimpleTarget(targetStr) {
+  var m = String(targetStr).match(/^(≥|≤|=)?\s*([\d.,]+)\s*%?$/);
+  if (!m) return null;
+  return { op: m[1] || '=', num: parseFloat(m[2].replace(/,/g,'')) };
+}
+
+function computeCard(meta) {
+  var history = historyFor(meta.id, STATE.range);
+  var latest = history.length ? history[history.length - 1] : null;
+  var prev = history.length > 1 ? history[history.length - 2] : null;
+  var bucket = statusBucket(latest ? latest.status : '');
+  var pts = numericPoints(history);
+
+  var trendHtml = '<span class="kd-trend-flat">First reading — no comparison yet</span>';
+  if (pts.length >= 2) {
+    var last = pts[pts.length-1].value, before = pts[pts.length-2].value;
+    var delta = last - before;
+    var pct = before !== 0 ? (delta/Math.abs(before)*100) : 0;
+    if (Math.abs(delta) < 1e-9) {
+      trendHtml = '<span class="kd-trend-flat">▬ No change vs previous period</span>';
+    } else {
+      var dir = delta > 0 ? 'up' : 'down';
+      trendHtml = '<span class="kd-trend-'+dir+'">'+(delta>0?'▲':'▼')+' '+Math.abs(pct).toFixed(1)+'% vs previous period</span>';
+    }
+  }
+
+  var sparkHtml = pts.length >= 2
+    ? '<div class="kd-card-spark">'+buildSparkline(pts,false)+'</div>'
+    : '<div class="kd-card-spark-empty">No monthly history yet</div>';
+
+  var progressHtml = '';
+  var parsedTarget = parseSimpleTarget(meta.target);
+  if (parsedTarget && pts.length) {
+    var v = pts[pts.length-1].value;
+    var pct = parsedTarget.num !== 0 ? Math.min(100, Math.max(0, (v/parsedTarget.num)*100)) : 0;
+    var onTarget = (parsedTarget.op === '≥') ? v >= parsedTarget.num
+                 : (parsedTarget.op === '≤') ? v <= parsedTarget.num
+                 : v === parsedTarget.num;
+    progressHtml = '<div class="kd-progress-wrap"><div class="kd-progress-track">'
+      + '<div class="kd-progress-fill" style="width:'+pct.toFixed(0)+'%;background:'+(onTarget?'#42D9A0':'#F45B69')+'"></div></div>'
+      + '<div class="kd-progress-lbl"><span>Actual: '+v+' '+meta.unit+'</span><span>Target: '+meta.target+'</span></div></div>';
+  }
+
+  return {
+    meta: meta, history: history, latest: latest, bucket: bucket,
+    valueHtml: latest ? '<span class="kd-card-value">'+latest.value+'</span><span class="kd-card-unit">'+meta.unit+'</span>' : '<span class="kd-card-value" style="font-size:15px;color:#8996B2">Not yet reported</span>',
+    trendHtml: trendHtml, sparkHtml: sparkHtml, progressHtml: progressHtml,
+    updatedLabel: latest ? latest.month : '—'
+  };
+}
+
+function renderCards() {
+  var container = document.getElementById('kd-cards');
+  var html = '';
+  KPI_META.forEach(function (meta) {
+    if (STATE.activeFilter !== 'all' && meta.groupKey !== STATE.activeFilter) return;
+    var c = computeCard(meta);
+    html += '<div class="kd-card" onclick="openDrilldown(\''+meta.id+'\')">'
+      + '<div class="kd-card-top"><div><div class="kd-card-name">'+meta.name+'</div><div class="kd-card-clause">'+meta.standard+'</div></div>'
+      + '<span class="kd-badge kd-badge-'+c.bucket+'">'+BUCKET_LABELS[c.bucket]+'</span></div>'
+      + '<div class="kd-card-value-row">'+c.valueHtml+'</div>'
+      + '<div class="kd-trend">'+c.trendHtml+'</div>'
+      + c.sparkHtml + c.progressHtml
+      + '<div class="kd-card-foot"><span class="kd-card-owner">'+meta.owner+'</span><span class="kd-card-updated">'+c.updatedLabel+'</span></div>'
+      + '</div>';
+  });
+  container.innerHTML = html || '<div class="kd-empty-note">No KPIs in this group.</div>';
+}
+
+function renderDonut() {
+  var counts = { ontrack:0, monitor:0, atrisk:0, notyet:0 };
+  KPI_META.forEach(function (meta) {
+    var history = historyFor(meta.id, 'all');
+    var latest = history.length ? history[history.length-1] : null;
+    counts[statusBucket(latest ? latest.status : '')]++;
+  });
+  var total = 29;
+  var r = 42, cx = 55, cy = 55, circumference = 2*Math.PI*r;
+  var offset = 0, segs = '';
+  ['ontrack','monitor','atrisk','notyet'].forEach(function (b) {
+    var frac = counts[b] / total;
+    var len = frac * circumference;
+    segs += '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+BUCKET_COLORS[b]+'" stroke-width="14" '
+      + 'stroke-dasharray="'+len+' '+(circumference-len)+'" stroke-dashoffset="'+(-offset)+'" transform="rotate(-90 '+cx+' '+cy+')"></circle>';
+    offset += len;
+  });
+  document.getElementById('kd-donut').innerHTML =
+    '<svg width="110" height="110" viewBox="0 0 110 110">'+segs
+    + '<text x="55" y="50" text-anchor="middle" font-size="20" font-weight="800" fill="#F1F5FF">'+total+'</text>'
+    + '<text x="55" y="66" text-anchor="middle" font-size="9" fill="#8996B2">Total KPIs</text></svg>';
+
+  var legendHtml = '';
+  ['ontrack','monitor','atrisk','notyet'].forEach(function (b) {
+    legendHtml += '<div class="kd-legend-row"><span class="kd-legend-dot" style="background:'+BUCKET_COLORS[b]+'"></span>'
+      + BUCKET_LABELS[b] + '<span class="kd-legend-val">'+counts[b]+'</span></div>';
+  });
+  document.getElementById('kd-donut-legend').innerHTML = legendHtml;
+
+  document.getElementById('kd-sum-ontrack').textContent = counts.ontrack;
+  document.getElementById('kd-sum-atrisk').textContent = counts.atrisk;
+  document.getElementById('kd-sum-compliance').textContent = (29 - counts.notyet) + ' / 29';
+}
+
+function renderActivity() {
+  var rows = [];
+  Object.keys(STATE.historyById).forEach(function (id) {
+    var meta = KPI_META.filter(function (m) { return m.id === id; })[0];
+    if (!meta) return;
+    (STATE.historyById[id] || []).forEach(function (p, idx) {
+      if (!p.month || p.month.toLowerCase() === 'not yet reported') return;
+      rows.push({ meta: meta, point: p, seq: idx });
+    });
+  });
+  if (!rows.length) {
+    document.getElementById('kd-activity').innerHTML = '<div class="kd-empty-note">No monthly readings logged yet.</div>';
+    return;
+  }
+  rows.reverse(); /* most recently appended rows first */
+  var html = rows.slice(0, 8).map(function (r) {
+    return '<div class="kd-activity-item"><div class="kd-activity-top">'
+      + '<span class="kd-activity-name">'+r.meta.name+'</span><span class="kd-activity-val">'+r.point.value+'</span></div>'
+      + '<div class="kd-activity-meta">'+r.point.month+' · '+ (r.point.status || 'No status') +'</div></div>';
+  }).join('');
+  document.getElementById('kd-activity').innerHTML = html;
+}
+
+function openDrilldown(kpiId) {
+  var meta = KPI_META.filter(function (m) { return m.id === kpiId; })[0];
+  if (!meta) return;
+  var history = historyFor(kpiId, 'all');
+  var pts = numericPoints(history);
+  var chartHtml = pts.length >= 2
+    ? buildSparkline(pts, true)
+    : '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#8996B2;font-size:11px;font-style:italic">No historical observations recorded yet</div>';
+
+  var rowsHtml = history.length
+    ? history.map(function (p) {
+        return '<tr><td>'+p.month+'</td><td>'+(p.value||'—')+'</td><td>'+(p.status||'—')+'</td></tr>';
+      }).join('')
+    : '<tr><td colspan="3" style="text-align:center;color:#8996B2;font-style:italic">No historical observations recorded yet</td></tr>';
+
+  document.getElementById('kd-modal-body').innerHTML =
+    '<button class="kd-modal-close" onclick="closeDrilldown()">✕</button>'
+    + '<div class="kd-modal-title">'+meta.name+'</div>'
+    + '<div class="kd-modal-clause">'+meta.standard+' · '+meta.id+'</div>'
+    + '<div class="kd-modal-meta-grid">'
+    +   '<div class="kd-modal-meta-item"><div class="kd-modal-meta-lbl">Target</div><div class="kd-modal-meta-val">'+meta.target+'</div></div>'
+    +   '<div class="kd-modal-meta-item"><div class="kd-modal-meta-lbl">Baseline</div><div class="kd-modal-meta-val">'+meta.baseline+'</div></div>'
+    +   '<div class="kd-modal-meta-item"><div class="kd-modal-meta-lbl">Owner</div><div class="kd-modal-meta-val">'+meta.owner+'</div></div>'
+    +   '<div class="kd-modal-meta-item"><div class="kd-modal-meta-lbl">Unit</div><div class="kd-modal-meta-val">'+meta.unit+'</div></div>'
+    +   '<div class="kd-modal-meta-item" style="grid-column:span 2"><div class="kd-modal-meta-lbl">Formula / Description</div><div class="kd-modal-meta-val">'+meta.formula+'</div></div>'
+    + '</div>'
+    + '<div class="kd-modal-chart">'+chartHtml+'</div>'
+    + '<table class="kd-modal-table"><thead><tr><th>Reporting Month</th><th>Value</th><th>Status</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>';
+
+  document.getElementById('kd-modal-overlay').classList.add('open');
+}
+function closeDrilldown() { document.getElementById('kd-modal-overlay').classList.remove('open'); }
+document.getElementById('kd-modal-overlay').addEventListener('click', function (e) {
+  if (e.target === this) closeDrilldown();
 });
+
+function wirePills() {
+  document.querySelectorAll('.kd-pill').forEach(function (pill) {
+    pill.addEventListener('click', function () {
+      document.querySelectorAll('.kd-pill').forEach(function (p) { p.classList.remove('active'); });
+      pill.classList.add('active');
+      STATE.activeFilter = pill.getAttribute('data-filter');
+      renderCards();
+    });
+  });
+  document.getElementById('kd-range').addEventListener('change', function () {
+    STATE.range = this.value;
+    renderCards();
+  });
+}
+
+function renderAll() { renderCards(); renderDonut(); renderActivity(); }
+
+wirePills();
+renderAll(); /* render once immediately with "Not yet reported" placeholders, then again when live data arrives */
+
+setTimeout(function () {
+  if (typeof SHEETS_URL === 'undefined' || !SHEETS_URL) {
+    document.getElementById('kd-sync-text').textContent = 'No data connection configured';
+    return;
+  }
+  fetch(SHEETS_URL + '?action=read&tab=kpi_dashboard')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data || !data.rows || !data.headers) { document.getElementById('kd-sync-text').textContent = 'Live data unavailable'; return; }
+      var hdr = data.headers;
+      var idCol = findCol(hdr,'KPI ID'), monthCol = findCol(hdr,'Reporting Month'),
+          valCol = findCol(hdr,'Value'), statCol = findCol(hdr,'Status');
+      if (idCol < 0) { document.getElementById('kd-sync-text').textContent = 'Sheet columns not recognized'; return; }
+
+      var historyById = {};
+      data.rows.forEach(function (row) {
+        var id = String(row[idCol]||'').trim();
+        if (!id) return;
+        if (!historyById[id]) historyById[id] = [];
+        historyById[id].push({
+          month: monthCol>=0 ? String(row[monthCol]||'').trim() : '',
+          value: valCol>=0 ? String(row[valCol]||'').trim() : '',
+          status: statCol>=0 ? String(row[statCol]||'').trim() : ''
+        });
+      });
+      STATE.historyById = historyById;
+      document.getElementById('kd-sync-text').textContent = 'Live — synced ' + new Date().toLocaleTimeString();
+      renderAll();
+    })
+    .catch(function () { document.getElementById('kd-sync-text').textContent = 'Connection unavailable'; });
+}, 400);
 </script>
 </body>
 </html>
