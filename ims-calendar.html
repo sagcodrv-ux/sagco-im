@@ -16,10 +16,26 @@
   --kd-purple:#8855F7; --kd-cyan:#36C9E8; --kd-teal:#16C7A5; --kd-green:#42D9A0; --kd-blue:#438DF5;
   --kd-red:#F45B69; --kd-amber:#F5A623;
 }
+/* Printable-on-white palette — deliberately deeper/less-saturated tones than the
+   screen palette, chosen for legible ink reproduction on white A4 rather than
+   just inverting the dark theme. Text uses the site's own navy for consistency. */
+:root.print-mode{
+  --kd-bg:#FFFFFF; --kd-card:#FFFFFF; --kd-card2:#F4F6FB; --kd-border:#D7DEEA;
+  --kd-text:#1B2A4A; --kd-text-lt:#5B6B85; --kd-placeholder:#97A3B8;
+  --kd-purple:#6B3FD6; --kd-cyan:#0F7A96; --kd-teal:#0E7A66; --kd-green:#1E7A4E; --kd-blue:#2A54A8;
+  --kd-red:#B23347; --kd-amber:#B06A08;
+}
 .kd-wrap{
   background:var(--kd-bg); color:var(--kd-text); font-family:'Inter',Arial,sans-serif;
   margin:-24px; padding:24px; min-height:100vh;
 }
+.kd-wrap.print-mode-active{border:1px solid var(--kd-border)}
+.kd-toggle{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--kd-text-lt);font-weight:600}
+.kd-switch{position:relative;width:38px;height:20px;background:var(--kd-card2);border:1px solid var(--kd-border);
+  border-radius:12px;cursor:pointer;transition:background .2s}
+.kd-switch.on{background:var(--kd-purple)}
+.kd-switch-knob{position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:left .2s}
+.kd-switch.on .kd-switch-knob{left:20px}
 .kd-wrap *{box-sizing:border-box}
 .kd-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:14px}
 .kd-title{font-size:20px;font-weight:800;letter-spacing:-.2px}
@@ -116,6 +132,10 @@
       <div class="kd-subtitle">All IMS-wide recurring and one-off activities in one view · sourced live from each register</div>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
+      <div class="kd-toggle">
+        🖨️ Printable View
+        <div class="kd-switch" id="kd-print-switch" onclick="togglePrintMode()"><div class="kd-switch-knob"></div></div>
+      </div>
       <span class="kd-edit-badge" id="kd-edit-badge">Checking permissions…</span>
       <div class="kd-sync"><span class="kd-sync-dot"></span><span id="kd-sync-text">Connecting to live data…</span></div>
     </div>
@@ -158,14 +178,26 @@ IMS_AUTH.injectUserBar();
 var SEED = {"events": [{"id": "CAL-01", "name": "T\u00dcV Austria Stage 1 Audit", "category": "certification", "year": 2026, "startMonth": 8, "startDay": 25, "endMonth": 8, "endDay": 26, "status": "Completed", "note": "Stage 1 completed 25\u201326 Aug 2026"}, {"id": "CAL-02", "name": "T\u00dcV Austria Stage 2 Audit", "category": "certification", "year": 2026, "startMonth": 9, "startDay": 22, "endMonth": 9, "endDay": 26, "status": "Completed", "note": "Stage 2 window 22\u201326 Sep 2026"}, {"id": "CAL-03", "name": "WG-03 Meeting #6 (OH Surveillance)", "category": "meeting", "year": 2026, "startMonth": 9, "startDay": 8, "endMonth": 9, "endDay": 8, "status": "Completed", "note": "Working Group 3 governance meeting"}, {"id": "CAL-04", "name": "Management Review MR-2026-01", "category": "mgmtreview", "year": 2026, "startMonth": 9, "startDay": 19, "endMonth": 9, "endDay": 19, "status": "Completed", "note": "Hard gate input for Stage 2"}], "tbc": [{"name": "EcoVadis Silver Submission", "category": "esg", "year": 2026, "month": 11, "note": "Exact submission day not yet confirmed"}, {"name": "Internal Audit Programme \u2014 10 planned audits", "category": "audit", "year": 2026, "month": null, "note": "Scheduling in progress \u2014 exact dates owned by Audit Programme (Sh.20)"}, {"name": "Annual Training Plan", "category": "training", "year": 2026, "month": null, "note": "Exact dates owned by Training Register (Sh.16)"}, {"name": "Calibration Due Dates (WBGT, Audiometry)", "category": "calibration", "year": 2026, "month": null, "note": "Pending Procurement \u2014 exact dates owned by Calibration Register (Sh.54)"}]};
 
 var CATEGORIES = {
-  certification: { label: 'Certification / Audit (External)', color: '#8855F7' },
-  audit:         { label: 'Internal Audit',                    color: '#36C9E8' },
-  mgmtreview:    { label: 'Management Review',                 color: '#438DF5' },
-  meeting:       { label: 'Governance Meeting',                color: '#F5A623' },
-  training:      { label: 'Training',                          color: '#16C7A5' },
-  calibration:   { label: 'Calibration',                       color: '#42D9A0' },
-  esg:           { label: 'ESG / EcoVadis',                    color: '#F45B69' }
+  certification: { label: 'Certification / Audit (External)', color: '#8855F7', printColor: '#6B3FD6' },
+  audit:         { label: 'Internal Audit',                    color: '#36C9E8', printColor: '#0F7A96' },
+  mgmtreview:    { label: 'Management Review',                 color: '#438DF5', printColor: '#2A54A8' },
+  meeting:       { label: 'Governance Meeting',                color: '#F5A623', printColor: '#B06A08' },
+  training:      { label: 'Training',                          color: '#16C7A5', printColor: '#0E7A66' },
+  calibration:   { label: 'Calibration',                       color: '#42D9A0', printColor: '#1E7A4E' },
+  esg:           { label: 'ESG / EcoVadis',                    color: '#F45B69', printColor: '#B23347' }
 };
+function isPrintMode() { return document.documentElement.classList.contains('print-mode'); }
+function catColor(key) {
+  var c = CATEGORIES[key];
+  if (!c) return isPrintMode() ? '#5B6B85' : '#8996B2';
+  return isPrintMode() ? c.printColor : c.color;
+}
+function togglePrintMode() {
+  var on = document.documentElement.classList.toggle('print-mode');
+  document.getElementById('kd-print-switch').classList.toggle('on', on);
+  renderLegend(); renderGrid();
+  showToast(on ? 'Printable View on — best colors for white A4 paper' : 'Printable View off — back to screen colors');
+}
 var STATUSES = ['Planned','Confirmed','In Progress','Completed','Cancelled'];
 var MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 var MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -221,7 +253,7 @@ function renderLegend() {
   var html = '<div class="cal-chip active" data-cat="all">All categories</div>';
   Object.keys(CATEGORIES).forEach(function (key) {
     var c = CATEGORIES[key];
-    html += '<div class="cal-chip" data-cat="'+key+'"><span class="cal-dot" style="background:'+c.color+'"></span>'+c.label+'</div>';
+    html += '<div class="cal-chip" data-cat="'+key+'"><span class="cal-dot" style="background:'+catColor(key)+'"></span>'+c.label+'</div>';
   });
   html += '<label class="cal-chip cal-chip-toggle" style="cursor:pointer"><input type="checkbox" id="cal-show-cancelled" style="margin-right:6px">Show cancelled</label>';
   document.getElementById('cal-legend').innerHTML = html;
@@ -263,7 +295,7 @@ function renderGrid() {
       if (day > daysInMonth(year, m)) { html += '<div class="cal-cell" style="background:var(--kd-bg);opacity:.3"></div>'; continue; }
       var evs = eventsFor(m, day);
       var cellHtml = evs.map(function (e) {
-        var color = CATEGORIES[e.category] ? CATEGORIES[e.category].color : '#8996B2';
+        var color = catColor(e.category);
         var dragAttr = (STATE.canEdit && e.status !== 'Cancelled') ? ' draggable="true" ondragstart="onDragStart(event,\''+e.id+'\')" ondragend="onDragEnd(event)"' : '';
         var cls = 'cal-event' + (STATE.canEdit && e.status!=='Cancelled' ? ' cal-draggable' : '') + (e.status==='Cancelled' ? ' cal-cancelled' : '');
         return '<div class="'+cls+'" style="background:'+color+'"'+dragAttr+' onclick="openEvent(\''+e.id+'\')" title="'+e.name+'">'+e.name+'</div>';
@@ -335,7 +367,8 @@ function renderTbc() {
 function openEvent(eventId) {
   var e = STATE.events.filter(function (x) { return x.id === eventId; })[0];
   if (!e) return;
-  var cat = CATEGORIES[e.category] || { label: e.category, color: '#8996B2' };
+  var cat = CATEGORIES[e.category] || { label: e.category };
+  var catCol = catColor(e.category);
   var dateLabel = MONTH_NAMES[e.startMonth-1]+' '+e.startDay
     + ((e.endMonth!==e.startMonth || e.endDay!==e.startDay) ? ' – '+MONTH_NAMES[e.endMonth-1]+' '+e.endDay : '') + ', '+e.year;
   var actionsHtml = '';
@@ -350,10 +383,10 @@ function openEvent(eventId) {
   document.getElementById('kd-modal-body').innerHTML =
     '<button class="kd-modal-close" onclick="closeEvent()">✕</button>'
     + '<div class="kd-modal-title" style="margin-bottom:4px">'+e.name+'</div>'
-    + '<div style="font-size:11px;color:#8996B2;margin-bottom:14px">'+dateLabel+'</div>'
-    + '<div style="display:inline-block;background:'+cat.color+';color:#0A0E1F;font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;margin-bottom:12px">'+cat.label+'</div>'
+    + '<div style="font-size:11px;color:var(--kd-text-lt);margin-bottom:14px">'+dateLabel+'</div>'
+    + '<div style="display:inline-block;background:'+catCol+';color:#0A0E1F;font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;margin-bottom:12px">'+cat.label+'</div>'
     + '<div style="font-size:12px;line-height:1.6">'+e.note+'</div>'
-    + '<div style="font-size:11px;color:#8996B2;margin-top:10px">Status: '+e.status+'</div>'
+    + '<div style="font-size:11px;color:var(--kd-text-lt);margin-top:10px">Status: '+e.status+'</div>'
     + actionsHtml;
   document.getElementById('kd-modal-overlay').classList.add('open');
 }
