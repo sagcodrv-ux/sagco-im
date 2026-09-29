@@ -24,7 +24,7 @@ var TREE = [
     { id:'strat-obj', label:'Objectives',               file:'ims-objectives.html',   level:'L0', badge:'ISO §6.2', children:[
       { id:'strat-obj-plan', label:'Objectives Planning Register', file:'ims-objectives-plan.html', level:'L2', badge:'§6.2' },
     ]},
-    { id:'strat-kpi', label:'KPI Register',             file:'ims-framework.html#tab-kpi', level:'L0', badge:'26 KPIs' },
+    { id:'strat-kpi', label:'KPI Definitions',             file:'ims-framework.html#tab-kpi', level:'L0', badge:'29 KPIs' },
     { id:'strat-trc', label:'Traceability Matrix',      file:'ims-traceability.html', level:'L0', badge:'Full Chain' },
   ]},
 
@@ -133,8 +133,8 @@ var TREE = [
     /* ── §9 Performance Evaluation ───────────────────── */
     { id:'p06', label:'Performance Evaluation', file:'proc-c9.html', level:'L2', badge:'L2-P-06 · §9',
       children:[
-        { id:'p06-kpi', label:'KPI Dashboard',          file:'kpi-dashboard.html',    level:'L4', tag:'Sh.18' },
-        { id:'p06-kpic',label:'KPI Consolidated View',    file:'kpi-consolidated.html', level:'L4', tag:'Sh.18b' },
+        { id:'p06-kpi', label:'KPI Register',          file:'kpi-dashboard.html',    level:'L4', tag:'Sh.18' },
+        { id:'p06-kpic',label:'KPI Dashboard',    file:'kpi-consolidated.html', level:'L4', tag:'Sh.18b' },
         { id:'p06-cev', label:'Compliance Evaluation',  file:'compliance-eval.html',  level:'L4', tag:'Sh.19' },
         { id:'p06-aud', label:'Internal Audit Programme',file:'audit-programme.html', level:'L4', tag:'Sh.20' },
         { id:'p06-mr',  label:'Management Review',      file:'management-review.html',level:'L4', tag:'Sh.22' },
