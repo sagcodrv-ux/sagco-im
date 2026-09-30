@@ -83,12 +83,14 @@
     inspection: {
       label: 'Inspection', tabKey: 'fe_inspection_log', containerId: 'live-table-inspection',
       idCol: 'Inspection ID', idPrefix: 'INSP', amberCol: 'Inspector ID',
-      fields: ['FE Code','Inspection Date','Inspector ID','Anti-Tamper Seal','Pin','Hose','Notes']
+      fields: ['FE Code','Inspection Date','Inspector ID','Anti-Tamper Seal','Pin','Hose','Notes'],
+      crossRef: {'FE Code': 'master'} // suggest FE Codes from the Master Inventory list, not just this table's own history
     },
     service: {
       label: 'Service Record', tabKey: 'fe_service_log', containerId: 'live-table-service',
       idCol: 'Service ID', idPrefix: 'SVC',
-      fields: ['FE Code','Expire Date','Pre-Service Pin','Pre-Service Hose','Pre-Service Pressure','Pre-Service Body','Notes','Delivery Date','Return Date']
+      fields: ['FE Code','Expire Date','Pre-Service Pin','Pre-Service Hose','Pre-Service Pressure','Pre-Service Body','Notes','Delivery Date','Return Date'],
+      crossRef: {'FE Code': 'master'}
     }
   };
   var STATUS_COL = 'Record Status';
@@ -102,6 +104,23 @@
       return '<span class="nb nb-amb" title="Unverified — real Employee ID not yet confirmed">' + s + '</span>';
     }
     return formatCell(val);
+  }
+
+  /* ── Unique previously-recorded values for a field, for the datalist ── */
+  function getSuggestions(tKeyName, fieldName){
+    var cfg = TABLES[tKeyName];
+    var sourceTable = (cfg.crossRef && cfg.crossRef[fieldName]) ? cfg.crossRef[fieldName] : tKeyName;
+    var data = _cache[sourceTable];
+    if (!data || !data.headers || !data.rows) return [];
+    var idx = colIdx(data.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}, out = [];
+    data.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    });
+    out.sort();
+    return out;
   }
 
   function colIdx(headers, name){
@@ -189,12 +208,22 @@
   }
 
   /* ── Modal (shared by Add + Edit) ───────────────────────────────────── */
-  function showModal(title, fields, initialValues, onSubmit){
+  function showModal(tKeyName, title, fields, initialValues, onSubmit){
     var root = document.getElementById('fe-modal-root');
-    var fieldsHtml = fields.map(function(f){
+    var fieldsHtml = fields.map(function(f, fi){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
-      return '<div class="fe-field"><label>'+f+'</label><input type="text" data-field="'+f+'" value="'+vEsc+'"></div>';
+      var suggestions = getSuggestions(tKeyName, f);
+      var dlId = 'fe-dl-' + fi;
+      var dlHtml = '';
+      if (suggestions.length){
+        dlHtml = '<datalist id="'+dlId+'">' + suggestions.map(function(s){
+          return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
+        }).join('') + '</datalist>';
+      }
+      return '<div class="fe-field"><label>'+f+'</label>' +
+        '<input type="text" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
+        dlHtml + '</div>';
     }).join('');
     root.innerHTML = '<div class="fe-modal-bg" id="fe-modal-bg"><div class="fe-modal">' +
       '<h3>'+title+'</h3>' + fieldsHtml +
@@ -227,7 +256,7 @@
     openAdd: function(tKeyName){
       var cfg = TABLES[tKeyName];
       if (!can('add')) return;
-      showModal('Add ' + cfg.label, cfg.fields, {}, function(values, close){
+      showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, {}, function(values, close){
         if (cfg.idPrefix) values[cfg.idCol] = genId(cfg.idPrefix);
         values[STATUS_COL] = 'Active';
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
@@ -245,7 +274,7 @@
       if (!row) return alert('Record not found — try refreshing.');
       var initial = {};
       data.headers.forEach(function(h,i){ initial[h] = row[i]; });
-      showModal('Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
         postJSON('update', {tab: cfg.tabKey, idCol: encodeURIComponent(cfg.idCol), id: encodeURIComponent(idVal)}, values).then(function(res){
           close();
           loadTab(tKeyName);
