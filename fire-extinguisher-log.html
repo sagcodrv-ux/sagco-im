@@ -25,14 +25,20 @@
 .back-link:hover{background:#e3f0fa}
 </style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety</a></div><div class="req-text">ISO 45001 §8.1 / Civil Defense Regulations — All fire extinguishers: monthly visual inspection (pressure gauge green; safety pin intact; accessible; tag updated); annual full service by Civil Defense-licensed contractor. Annual certificate filed in this register.</div>
 
-<div class="sec-banner">FE MASTER INVENTORY</div>
-<div id="live-table-master" style="margin-top:0"></div>
+<div class="fe-jumpbar">
+  <button class="fe-jump-btn" onclick="FE.jumpTo('master')">FE Master Inventory <span id="fe-count-master" class="fe-jump-count"></span></button>
+  <button class="fe-jump-btn" onclick="FE.jumpTo('inspection')">Monthly Inspection Log <span id="fe-count-inspection" class="fe-jump-count"></span></button>
+  <button class="fe-jump-btn" onclick="FE.jumpTo('service')">Annual Service Log <span id="fe-count-service" class="fe-jump-count"></span></button>
+</div>
 
-<div class="sec-banner" style="margin-top:18px">FE MONTHLY INSPECTION LOG &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(one row per inspection event, appended — never overwritten)</span></div>
-<div id="live-table-inspection" style="margin-top:0"></div>
+<div class="sec-banner fe-sec-toggle" id="fe-hdr-master" onclick="FE.toggle('master')"><span class="fe-chevron">▶</span> FE MASTER INVENTORY</div>
+<div id="live-table-master" class="fe-collapsible" style="margin-top:0"></div>
 
-<div class="sec-banner" style="margin-top:18px">FE ANNUAL SERVICE LOG &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(3rd-party Civil-Defense-licensed contractor)</span></div>
-<div id="live-table-service" style="margin-top:0"></div>
+<div class="sec-banner fe-sec-toggle" id="fe-hdr-inspection" style="margin-top:10px" onclick="FE.toggle('inspection')"><span class="fe-chevron">▶</span> FE MONTHLY INSPECTION LOG &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(one row per inspection event, appended — never overwritten)</span></div>
+<div id="live-table-inspection" class="fe-collapsible" style="margin-top:0"></div>
+
+<div class="sec-banner fe-sec-toggle" id="fe-hdr-service" style="margin-top:10px" onclick="FE.toggle('service')"><span class="fe-chevron">▶</span> FE ANNUAL SERVICE LOG &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(3rd-party Civil-Defense-licensed contractor)</span></div>
+<div id="live-table-service" class="fe-collapsible" style="margin-top:0"></div>
 
 <div style="margin-top:16px;font-size:10px;color:var(--text-lt);text-align:right" id="fe-live-ts"></div>
 </div></div>
@@ -58,6 +64,22 @@
   border:1px solid #ccc;border-radius:5px;font-family:inherit;box-sizing:border-box}
 .fe-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .fe-modal-actions .fe-btn-cancel{background:#f2f2f2}
+.fe-jumpbar{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px}
+.fe-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:var(--radius);
+  border:1px solid #d0d0d0;background:#fff;cursor:pointer;font-family:inherit;color:var(--navy)}
+.fe-jump-btn:hover{background:#eef4fb;border-color:var(--navy)}
+.fe-jump-count{font-weight:400;color:var(--text-lt);font-size:10px}
+.fe-sec-toggle{cursor:pointer;user-select:none}
+.fe-sec-toggle:hover{opacity:.9}
+.fe-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px}
+.fe-collapsible{overflow:hidden;max-height:0;transition:none}
+.fe-collapsible.fe-open{max-height:none}
+.fe-filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.fe-search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
+  border:1px solid #ccc;border-radius:var(--radius);font-family:inherit}
+.fe-filter-select{padding:6px 8px;font-size:12px;border:1px solid #ccc;
+  border-radius:var(--radius);font-family:inherit;max-width:220px}
+.fe-filter-status{font-size:10px;color:var(--text-lt);margin-left:auto}
 </style>
 
 <div id="fe-modal-root"></div>
@@ -78,21 +100,25 @@
     master: {
       label: 'FE Unit', tabKey: 'fe_master', containerId: 'live-table-master',
       idCol: 'FE Code', idEditable: true,  // FE Code is user-typed on Add, not auto-generated
-      fields: ['FE Code','Location Code','Current Location','Agent','Capacity']
+      fields: ['FE Code','Location Code','Current Location','Agent','Capacity'],
+      filterField: 'Location Code'
     },
     inspection: {
       label: 'Inspection', tabKey: 'fe_inspection_log', containerId: 'live-table-inspection',
       idCol: 'Inspection ID', idPrefix: 'INSP', amberCol: 'Inspector ID',
       fields: ['FE Code','Inspection Date','Inspector ID','Anti-Tamper Seal','Pin','Hose','Notes'],
-      crossRef: {'FE Code': 'master'} // suggest FE Codes from the Master Inventory list, not just this table's own history
+      crossRef: {'FE Code': 'master'}, // suggest FE Codes from the Master Inventory list, not just this table's own history
+      filterField: 'Inspector ID'
     },
     service: {
       label: 'Service Record', tabKey: 'fe_service_log', containerId: 'live-table-service',
       idCol: 'Service ID', idPrefix: 'SVC',
       fields: ['FE Code','Expire Date','Pre-Service Pin','Pre-Service Hose','Pre-Service Pressure','Pre-Service Body','Notes','Delivery Date','Return Date'],
-      crossRef: {'FE Code': 'master'}
+      crossRef: {'FE Code': 'master'},
+      filterField: 'FE Code'
     }
   };
+  var _filters = {}; // tKeyName -> {search:'', category:''}
   var STATUS_COL = 'Record Status';
   var _cache = {}; // tableKeyName -> {headers, rows}
 
@@ -129,8 +155,24 @@
     return out;
   }
 
-  /* ── Render one table with Actions column (if permitted) ──────────── */
-  function renderEditableTable(tKeyName, data){
+  function getOwnColumnValues(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return [];
+    var idx = colIdx(data.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}, out = [];
+    data.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    });
+    out.sort();
+    return out;
+  }
+
+  /* ── Build the outer shell ONCE per data load: toolbar + filter bar +
+     an empty table-area div. The table area alone gets rebuilt on every
+     filter keystroke, so the search input never loses focus. ──────── */
+  function renderShell(tKeyName, data){
     var cfg = TABLES[tKeyName];
     var el = document.getElementById(cfg.containerId);
     if (!data || !data.headers || !data.rows){
@@ -138,29 +180,82 @@
       return;
     }
     _cache[tKeyName] = data;
+    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:''};
+    var f = _filters[tKeyName];
+
+    var toolbarHtml = '';
+    if (can('add')){
+      toolbarHtml = '<button class="fe-btn fe-btn-add" onclick="FE.openAdd(\'' + tKeyName + '\')">+ Add Record</button>';
+    }
+
+    var categoryHtml = '';
+    if (cfg.filterField){
+      var opts = getOwnColumnValues(tKeyName, cfg.filterField);
+      categoryHtml = '<select class="fe-filter-select" onchange="FE.onCategoryChange(\''+tKeyName+'\', this.value)">' +
+        '<option value="">All ' + cfg.filterField + '</option>' +
+        opts.map(function(o){
+          var sel = (o === f.category) ? ' selected' : '';
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+sel+'>'+o+'</option>';
+        }).join('') + '</select>';
+    }
+
+    var html =
+      '<div class="fe-toolbar">' + toolbarHtml + '</div>' +
+      '<div class="fe-filterbar">' +
+        '<input type="text" class="fe-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="FE.onSearchInput(\''+tKeyName+'\', this.value)">' +
+        categoryHtml +
+        '<button class="fe-btn" onclick="FE.clearFilters(\''+tKeyName+'\')">Clear</button>' +
+        '<span class="fe-filter-status" id="fe-filter-status-'+tKeyName+'"></span>' +
+      '</div>' +
+      '<div class="fe-table-area" id="fe-table-area-'+tKeyName+'"></div>';
+    el.innerHTML = html;
+    renderTableArea(tKeyName);
+  }
+
+  /* ── Rebuilds ONLY the table rows, based on current cached data + filters ── */
+  function renderTableArea(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    var areaEl = document.getElementById('fe-table-area-' + tKeyName);
+    var statusEl = document.getElementById('fe-filter-status-' + tKeyName);
+    if (!data || !areaEl) return;
 
     var statusIdx = colIdx(data.headers, STATUS_COL);
     var idIdx = colIdx(data.headers, cfg.idCol);
     var amberIdx = cfg.amberCol ? colIdx(data.headers, cfg.amberCol) : -1;
+    var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
     var showActions = can('edit') || can('delete');
+    var f = _filters[tKeyName] || {search:'', category:''};
+    var searchLower = f.search.trim().toLowerCase();
 
-    // Toolbar
-    var toolbarHtml = '';
-    if (can('add')){
-      toolbarHtml = '<div class="fe-toolbar"><button class="fe-btn fe-btn-add" onclick="FE.openAdd(\'' + tKeyName + '\')">+ Add Record</button></div>';
-    }
-
-    // Filter out soft-deleted rows
+    // 1. exclude soft-deleted
     var visibleRows = data.rows.filter(function(r){
       if (statusIdx < 0) return true;
       return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
     });
+    var totalVisible = visibleRows.length;
+
+    // 2. category filter (exact match)
+    if (f.category && filterFieldIdx > -1){
+      visibleRows = visibleRows.filter(function(r){ return String(r[filterFieldIdx]||'').trim() === f.category; });
+    }
+    // 3. free-text search (any column contains, case-insensitive)
+    if (searchLower){
+      visibleRows = visibleRows.filter(function(r){
+        return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
+      });
+    }
+
+    if (statusEl){
+      var isFiltered = !!(f.search.trim() || f.category);
+      statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
+    }
 
     var wide = data.headers.length > 8;
-    var html = toolbarHtml + '<div class="tbl-wrap"><table class="tbl-stripe' + (wide?' tbl-compact':'') + '">';
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe' + (wide?' tbl-compact':'') + '">';
     html += '<thead><tr>';
     data.headers.forEach(function(h,i){
-      if (i === statusIdx) return; // don't show the internal status column
+      if (i === statusIdx) return;
       html += '<th>' + h + '</th>';
     });
     if (showActions) html += '<th>Actions</th>';
@@ -168,7 +263,7 @@
 
     if (!visibleRows.length){
       var colspan = data.headers.length - (statusIdx>-1?1:0) + (showActions?1:0);
-      html += '<tr><td colspan="'+colspan+'"><div class="empty-state"><strong>No records</strong>Add data in Google Sheets to populate this table.</div></td></tr>';
+      html += '<tr><td colspan="'+colspan+'"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
     } else {
       visibleRows.forEach(function(row){
         var idVal = idIdx>-1 ? row[idIdx] : '';
@@ -187,7 +282,7 @@
       });
     }
     html += '</tbody></table></div>';
-    el.innerHTML = html;
+    areaEl.innerHTML = html;
   }
 
   function loadTab(tKeyName){
@@ -196,7 +291,17 @@
     el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-lt);font-size:11px">⏳ Loading live data…</div>';
     return fetch(SHEETS_URL + '?tab=' + cfg.tabKey + '&action=read')
       .then(function(r){ return r.json(); })
-      .then(function(data){ renderEditableTable(tKeyName, data); return data; })
+      .then(function(data){
+        renderShell(tKeyName, data);
+        var countEl = document.getElementById('fe-count-' + tKeyName);
+        if (countEl && data && data.rows) {
+          var statusIdx = colIdx(data.headers, STATUS_COL);
+          var visibleCount = statusIdx < 0 ? data.rows.length :
+            data.rows.filter(function(r){ return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; }).length;
+          countEl.textContent = '(' + visibleCount + ')';
+        }
+        return data;
+      })
       .catch(function(){
         el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
         return null;
@@ -205,6 +310,20 @@
 
   function loadAll(){
     Object.keys(TABLES).forEach(function(k){ loadTab(k); });
+  }
+
+  function setExpanded(tKeyName, expanded){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    var hdr = document.getElementById('fe-hdr-' + tKeyName);
+    var chev = hdr ? hdr.querySelector('.fe-chevron') : null;
+    if (expanded){
+      el.classList.add('fe-open');
+      if (chev) chev.style.transform = 'rotate(90deg)';
+    } else {
+      el.classList.remove('fe-open');
+      if (chev) chev.style.transform = 'rotate(0deg)';
+    }
   }
 
   /* ── Modal (shared by Add + Edit) ───────────────────────────────────── */
@@ -253,6 +372,29 @@
 
   /* ── Public API used by inline onclick handlers ─────────────────────── */
   window.FE = {
+    toggle: function(tKeyName){
+      var el = document.getElementById(TABLES[tKeyName].containerId);
+      setExpanded(tKeyName, !el.classList.contains('fe-open'));
+    },
+    jumpTo: function(tKeyName){
+      setExpanded(tKeyName, true);
+      var hdr = document.getElementById('fe-hdr-' + tKeyName);
+      if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
+    },
+    onSearchInput: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:''};
+      _filters[tKeyName].search = val;
+      renderTableArea(tKeyName);
+    },
+    onCategoryChange: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:''};
+      _filters[tKeyName].category = val;
+      renderTableArea(tKeyName);
+    },
+    clearFilters: function(tKeyName){
+      _filters[tKeyName] = {search:'', category:''};
+      renderShell(tKeyName, _cache[tKeyName]); // rebuild shell so the select resets to "All" too
+    },
     openAdd: function(tKeyName){
       var cfg = TABLES[tKeyName];
       if (!can('add')) return;
