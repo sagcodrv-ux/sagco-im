@@ -3,7 +3,7 @@
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SAGCO IMS — Fire Extinguisher Inspection Log</title>
 <link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
+<script src="auth.js"></script><script src="data.js"></script><script src="nav.js"></script>
 </head><body>
 <div class="main"><div id="tb"></div><div class="content"><style>
 .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
@@ -23,7 +23,7 @@
   font-weight:600;text-decoration:none;padding:5px 10px;background:var(--g100);
   border-radius:var(--radius);border:1px solid #e0e0e0}
 .back-link:hover{background:#e3f0fa}
-</style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety</a></div><div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"><div class="kpi-card kc-blue"><div class="kpi-lbl">Total Units</div><div class="kpi-val">—</div><div class="kpi-sub">Enter site inventory count</div></div><div class="kpi-card kc-red"><div class="kpi-lbl">2026 Inspections</div><div class="kpi-val">NOT DONE</div><div class="kpi-sub">Stage 2 blocker</div></div><div class="kpi-card kc-org"><div class="kpi-lbl">Monthly Check</div><div class="kpi-val">Every unit</div><div class="kpi-sub">Visual check — 12 per year per unit</div></div><div class="kpi-card kc-amb"><div class="kpi-lbl">Annual Service</div><div class="kpi-val">Civil Defense</div><div class="kpi-sub">Licensed contractor required</div></div><div class="kpi-card kc-nvy"><div class="kpi-lbl">Document Code</div><div class="kpi-val">L4-SHEE-PR-13-CL-01</div><div class="kpi-sub">OC-01 §A.17</div></div></div><div class="req-text">ISO 45001 §8.1 / Civil Defense Regulations — All fire extinguishers: monthly visual inspection (pressure gauge green; safety pin intact; accessible; tag updated); annual full service by Civil Defense-licensed contractor. Annual certificate filed in this register.</div>
+</style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety</a></div><div class="req-text">ISO 45001 §8.1 / Civil Defense Regulations — All fire extinguishers: monthly visual inspection (pressure gauge green; safety pin intact; accessible; tag updated); annual full service by Civil Defense-licensed contractor. Annual certificate filed in this register.</div>
 
 <div class="sec-banner">FE MASTER INVENTORY</div>
 <div id="live-table-master" style="margin-top:0"></div>
@@ -38,11 +38,63 @@
 </div></div>
 <script>initPage("fire-extinguisher-log.html");document.getElementById("tb").innerHTML=renderTopbar("Fire Extinguisher Inspection Log","L4-SHEE-PR-13-CL-01 · ISO 45001 §8.1 · Civil Defense · OC-01 §A.17");</script>
 
+<style>
+.fe-toolbar{display:flex;justify-content:flex-end;padding:6px 0}
+.fe-btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:var(--radius);
+  border:1px solid #ccc;background:#fff;cursor:pointer;font-family:inherit}
+.fe-btn:hover{background:#f2f2f2}
+.fe-btn-add{background:var(--navy);color:#fff;border-color:var(--navy)}
+.fe-btn-add:hover{background:#15315a}
+.fe-icon-btn{border:none;background:none;cursor:pointer;font-size:13px;padding:2px 5px;border-radius:4px}
+.fe-icon-btn:hover{background:#e8e8e8}
+.fe-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;
+  align-items:center;justify-content:center;z-index:9999}
+.fe-modal{background:#fff;border-radius:8px;padding:20px;width:420px;max-width:92vw;
+  max-height:86vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+.fe-modal h3{margin:0 0 12px;font-size:14px;color:var(--navy)}
+.fe-field{margin-bottom:10px}
+.fe-field label{display:block;font-size:10px;font-weight:600;color:var(--text-lt);margin-bottom:3px}
+.fe-field input,.fe-field textarea{width:100%;padding:6px 8px;font-size:12px;
+  border:1px solid #ccc;border-radius:5px;font-family:inherit;box-sizing:border-box}
+.fe-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.fe-modal-actions .fe-btn-cancel{background:#f2f2f2}
+</style>
+
+<div id="fe-modal-root"></div>
+
 <script>
-/* ── Fire Extinguisher: 3-table live load (Master / Inspection Log / Service Log) ──
-   This page has 3 separate registers instead of the usual 1, so it bypasses the
-   generic single-table autoLoadPageData() and fetches all 3 tab keys directly. */
+/* ── Fire Extinguisher: 3-table live load + Add/Edit/Remove ──────────────
+   This page has 3 separate registers instead of the usual 1, so it bypasses
+   the generic single-table autoLoadPageData() and manages its own loading,
+   rendering, and role-gated CRUD for each of the 3 tabs.
+
+   "Remove" is a SOFT delete — it sets Record Status = 'Removed' rather than
+   deleting the row, so audit history is never actually erased. Rows marked
+   Removed are hidden from the table but still exist in the sheet.
+   ────────────────────────────────────────────────────────────────────── */
 (function(){
+
+  var TABLES = {
+    master: {
+      label: 'FE Unit', tabKey: 'fe_master', containerId: 'live-table-master',
+      idCol: 'FE Code', idEditable: true,  // FE Code is user-typed on Add, not auto-generated
+      fields: ['FE Code','Location Code','Current Location','Agent','Capacity']
+    },
+    inspection: {
+      label: 'Inspection', tabKey: 'fe_inspection_log', containerId: 'live-table-inspection',
+      idCol: 'Inspection ID', idPrefix: 'INSP', amberCol: 'Inspector ID',
+      fields: ['FE Code','Inspection Date','Inspector ID','Anti-Tamper Seal','Pin','Hose','Notes']
+    },
+    service: {
+      label: 'Service Record', tabKey: 'fe_service_log', containerId: 'live-table-service',
+      idCol: 'Service ID', idPrefix: 'SVC',
+      fields: ['FE Code','Expire Date','Pre-Service Pin','Pre-Service Hose','Pre-Service Pressure','Pre-Service Body','Notes','Delivery Date','Return Date']
+    }
+  };
+  var STATUS_COL = 'Record Status';
+  var _cache = {}; // tableKeyName -> {headers, rows}
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
 
   function amberTempId(val){
     var s = String(val||'').trim();
@@ -52,87 +104,167 @@
     return formatCell(val);
   }
 
-  function renderWithIdFlag(data, container, idColName){
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+
+  /* ── Render one table with Actions column (if permitted) ──────────── */
+  function renderEditableTable(tKeyName, data){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
     if (!data || !data.headers || !data.rows){
-      container.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      el.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
       return;
     }
-    var idIdx = -1;
-    data.headers.forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(idColName).toLowerCase()) idIdx = i; });
+    _cache[tKeyName] = data;
+
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var amberIdx = cfg.amberCol ? colIdx(data.headers, cfg.amberCol) : -1;
+    var showActions = can('edit') || can('delete');
+
+    // Toolbar
+    var toolbarHtml = '';
+    if (can('add')){
+      toolbarHtml = '<div class="fe-toolbar"><button class="fe-btn fe-btn-add" onclick="FE.openAdd(\'' + tKeyName + '\')">+ Add Record</button></div>';
+    }
+
+    // Filter out soft-deleted rows
+    var visibleRows = data.rows.filter(function(r){
+      if (statusIdx < 0) return true;
+      return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+
     var wide = data.headers.length > 8;
-    var html = '<div class="tbl-wrap"><table class="tbl-stripe' + (wide?' tbl-compact':'') + '">';
+    var html = toolbarHtml + '<div class="tbl-wrap"><table class="tbl-stripe' + (wide?' tbl-compact':'') + '">';
     html += '<thead><tr>';
-    data.headers.forEach(function(h){ html += '<th>' + h + '</th>'; });
+    data.headers.forEach(function(h,i){
+      if (i === statusIdx) return; // don't show the internal status column
+      html += '<th>' + h + '</th>';
+    });
+    if (showActions) html += '<th>Actions</th>';
     html += '</tr></thead><tbody>';
-    if (!data.rows.length){
-      html += '<tr><td colspan="'+data.headers.length+'"><div class="empty-state"><strong>No records</strong>Add data in Google Sheets to populate this table.</div></td></tr>';
+
+    if (!visibleRows.length){
+      var colspan = data.headers.length - (statusIdx>-1?1:0) + (showActions?1:0);
+      html += '<tr><td colspan="'+colspan+'"><div class="empty-state"><strong>No records</strong>Add data in Google Sheets to populate this table.</div></td></tr>';
     } else {
-      data.rows.forEach(function(row){
+      visibleRows.forEach(function(row){
+        var idVal = idIdx>-1 ? row[idIdx] : '';
         html += '<tr>';
         row.forEach(function(cell,ci){
-          html += '<td>' + (ci===idIdx ? amberTempId(cell) : formatCell(cell)) + '</td>';
+          if (ci === statusIdx) return;
+          html += '<td>' + (ci===amberIdx ? amberTempId(cell) : formatCell(cell)) + '</td>';
         });
+        if (showActions){
+          html += '<td style="white-space:nowrap">';
+          if (can('edit')) html += '<button class="fe-icon-btn" title="Edit" onclick="FE.openEdit(\''+tKeyName+'\',\''+String(idVal).replace(/'/g,"\\'")+'\')">✏️</button>';
+          if (can('delete')) html += '<button class="fe-icon-btn" title="Remove" onclick="FE.remove(\''+tKeyName+'\',\''+String(idVal).replace(/'/g,"\\'")+'\')">🗑️</button>';
+          html += '</td>';
+        }
         html += '</tr>';
       });
     }
     html += '</tbody></table></div>';
-    container.innerHTML = html;
+    el.innerHTML = html;
   }
 
-  function loadTab(key, containerId, idColName){
-    var el = document.getElementById(containerId);
-    if (!el) return Promise.resolve(null);
+  function loadTab(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
     el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-lt);font-size:11px">⏳ Loading live data…</div>';
-    return fetch(SHEETS_URL + '?tab=' + key + '&action=read')
+    return fetch(SHEETS_URL + '?tab=' + cfg.tabKey + '&action=read')
       .then(function(r){ return r.json(); })
-      .then(function(data){
-        if (idColName) renderWithIdFlag(data, el, idColName);
-        else renderTable(data, el);
-        return data;
-      })
+      .then(function(data){ renderEditableTable(tKeyName, data); return data; })
       .catch(function(){
         el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
         return null;
       });
   }
 
-  document.addEventListener('DOMContentLoaded', function(){
-    setTimeout(function(){
-      Promise.all([
-        loadTab('fe_master', 'live-table-master', null),
-        loadTab('fe_inspection_log', 'live-table-inspection', 'Inspector ID'),
-        loadTab('fe_service_log', 'live-table-service', null)
-      ]).then(function(results){
-        var master = results[0], inspection = results[1];
-        if (master && master.rows) updateCard('Total Units', master.rows.length);
-        if (inspection && inspection.rows && master && master.rows && master.rows.length){
-          var uniqueUnitsInspected = {};
-          var fkIdx = -1;
-          (inspection.headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()==='fe code') fkIdx = i; });
-          if (fkIdx > -1){
-            inspection.rows.forEach(function(r){ uniqueUnitsInspected[r[fkIdx]] = true; });
-            var n = Object.keys(uniqueUnitsInspected).length;
-            var pct = Math.round(100 * n / master.rows.length);
-            updateCard('2026 Inspections', n + ' / ' + master.rows.length + ' units (' + pct + '%)');
-          }
-        }
-        var ts = document.getElementById('fe-live-ts');
-        if (ts) ts.textContent = 'Updated: ' + new Date().toLocaleTimeString();
-      });
-    }, 100);
-  });
-
-  function updateCard(label, val){
-    var cards = document.querySelectorAll('.kpi-card');
-    for (var i=0;i<cards.length;i++){
-      var lbl = cards[i].querySelector('.kpi-lbl');
-      var valEl = cards[i].querySelector('.kpi-val');
-      if (lbl && valEl && lbl.textContent.trim()===label){
-        if (val !== null && val !== undefined && val !== '') valEl.textContent = val;
-        break;
-      }
-    }
+  function loadAll(){
+    Object.keys(TABLES).forEach(function(k){ loadTab(k); });
   }
+
+  /* ── Modal (shared by Add + Edit) ───────────────────────────────────── */
+  function showModal(title, fields, initialValues, onSubmit){
+    var root = document.getElementById('fe-modal-root');
+    var fieldsHtml = fields.map(function(f){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEsc = String(v).replace(/"/g,'&quot;');
+      return '<div class="fe-field"><label>'+f+'</label><input type="text" data-field="'+f+'" value="'+vEsc+'"></div>';
+    }).join('');
+    root.innerHTML = '<div class="fe-modal-bg" id="fe-modal-bg"><div class="fe-modal">' +
+      '<h3>'+title+'</h3>' + fieldsHtml +
+      '<div class="fe-modal-actions"><button class="fe-btn fe-btn-cancel" id="fe-modal-cancel">Cancel</button>' +
+      '<button class="fe-btn fe-btn-add" id="fe-modal-save">Save</button></div></div></div>';
+
+    document.getElementById('fe-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('fe-modal-bg').onclick = function(e){ if(e.target.id==='fe-modal-bg') root.innerHTML=''; };
+    document.getElementById('fe-modal-save').onclick = function(){
+      var values = {};
+      root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      onSubmit(values, function(){ root.innerHTML=''; });
+    };
+  }
+
+  function genId(prefix){
+    return prefix + '-' + Date.now().toString().slice(-8);
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    }).then(function(r){ return r.json(); });
+  }
+
+  /* ── Public API used by inline onclick handlers ─────────────────────── */
+  window.FE = {
+    openAdd: function(tKeyName){
+      var cfg = TABLES[tKeyName];
+      if (!can('add')) return;
+      showModal('Add ' + cfg.label, cfg.fields, {}, function(values, close){
+        if (cfg.idPrefix) values[cfg.idCol] = genId(cfg.idPrefix);
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+          close();
+          loadTab(tKeyName);
+        }).catch(function(){ alert('Could not save — check your connection.'); });
+      });
+    },
+    openEdit: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('edit')) return;
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal('Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+        postJSON('update', {tab: cfg.tabKey, idCol: encodeURIComponent(cfg.idCol), id: encodeURIComponent(idVal)}, values).then(function(res){
+          close();
+          loadTab(tKeyName);
+        }).catch(function(){ alert('Could not save — check your connection.'); });
+      });
+    },
+    remove: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('delete')) return;
+      if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: cfg.tabKey, idCol: encodeURIComponent(cfg.idCol), id: encodeURIComponent(idVal)}, {'Record Status':'Removed'}).then(function(res){
+        loadTab(tKeyName);
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(loadAll, 100);
+  });
 })();
 </script>
 
