@@ -23,129 +23,117 @@
   font-weight:600;text-decoration:none;padding:5px 10px;background:var(--g100);
   border-radius:var(--radius);border:1px solid #e0e0e0}
 .back-link:hover{background:#e3f0fa}
-</style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety</a></div><div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"><div class="kpi-card kc-blue"><div class="kpi-lbl">Total Units</div><div class="kpi-val">—</div><div class="kpi-sub">Enter site inventory count</div></div><div class="kpi-card kc-red"><div class="kpi-lbl">2026 Inspections</div><div class="kpi-val">NOT DONE</div><div class="kpi-sub">Stage 2 blocker</div></div><div class="kpi-card kc-org"><div class="kpi-lbl">Monthly Check</div><div class="kpi-val">Every unit</div><div class="kpi-sub">Visual check — 12 per year per unit</div></div><div class="kpi-card kc-amb"><div class="kpi-lbl">Annual Service</div><div class="kpi-val">Civil Defense</div><div class="kpi-sub">Licensed contractor required</div></div><div class="kpi-card kc-nvy"><div class="kpi-lbl">Document Code</div><div class="kpi-val">L4-SHEE-PR-13-CL-01</div><div class="kpi-sub">OC-01 §A.17</div></div></div><div class="alert-red">⚠️ Stage 2 Blocker: No 2026 fire extinguisher inspections conducted. Engineering Manager must contract Civil Defense-licensed fire safety company immediately and complete ALL 2026 inspections before TÜV Austria Stage 2 audit.</div><div class="req-text">ISO 45001 §8.1 / Civil Defense Regulations — All fire extinguishers: monthly visual inspection (pressure gauge green; safety pin intact; accessible; tag updated); annual full service by Civil Defense-licensed contractor. Annual certificate filed in this register.</div><div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
+</style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety</a></div><div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"><div class="kpi-card kc-blue"><div class="kpi-lbl">Total Units</div><div class="kpi-val">—</div><div class="kpi-sub">Enter site inventory count</div></div><div class="kpi-card kc-red"><div class="kpi-lbl">2026 Inspections</div><div class="kpi-val">NOT DONE</div><div class="kpi-sub">Stage 2 blocker</div></div><div class="kpi-card kc-org"><div class="kpi-lbl">Monthly Check</div><div class="kpi-val">Every unit</div><div class="kpi-sub">Visual check — 12 per year per unit</div></div><div class="kpi-card kc-amb"><div class="kpi-lbl">Annual Service</div><div class="kpi-val">Civil Defense</div><div class="kpi-sub">Licensed contractor required</div></div><div class="kpi-card kc-nvy"><div class="kpi-lbl">Document Code</div><div class="kpi-val">L4-SHEE-PR-13-CL-01</div><div class="kpi-sub">OC-01 §A.17</div></div></div><div class="req-text">ISO 45001 §8.1 / Civil Defense Regulations — All fire extinguishers: monthly visual inspection (pressure gauge green; safety pin intact; accessible; tag updated); annual full service by Civil Defense-licensed contractor. Annual certificate filed in this register.</div>
+
+<div class="sec-banner">FE MASTER INVENTORY</div>
+<div id="live-table-master" style="margin-top:0"></div>
+
+<div class="sec-banner" style="margin-top:18px">FE MONTHLY INSPECTION LOG &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(one row per inspection event, appended — never overwritten)</span></div>
+<div id="live-table-inspection" style="margin-top:0"></div>
+
+<div class="sec-banner" style="margin-top:18px">FE ANNUAL SERVICE LOG &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(3rd-party Civil-Defense-licensed contractor)</span></div>
+<div id="live-table-service" style="margin-top:0"></div>
+
+<div style="margin-top:16px;font-size:10px;color:var(--text-lt);text-align:right" id="fe-live-ts"></div>
+</div></div>
 <script>initPage("fire-extinguisher-log.html");document.getElementById("tb").innerHTML=renderTopbar("Fire Extinguisher Inspection Log","L4-SHEE-PR-13-CL-01 · ISO 45001 §8.1 · Civil Defense · OC-01 §A.17");</script>
 
 <script>
-/* ── Auto-update summary cards from live Sheets data ── */
-
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
-  }
-  return '—';
-}
-
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
-    }
-  }
-}
+/* ── Fire Extinguisher: 3-table live load (Master / Inspection Log / Service Log) ──
+   This page has 3 separate registers instead of the usual 1, so it bypasses the
+   generic single-table autoLoadPageData() and fetches all 3 tab keys directly. */
 (function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows && d.rows.length > 0){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('Total Units', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
-  updateCard('2026 Inspections', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Status","DONE") + countContains("Status","Inspected"); })(d.rows||[],d.headers||[]));
-      }
-    };
-  }
-})();
-</script>
 
-<script>
-(function() {
-  function colIdx(headers, name) {
-    var n = name.toLowerCase();
-    for (var i=0;i<headers.length;i++) {
-      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
+  function amberTempId(val){
+    var s = String(val||'').trim();
+    if (s.indexOf('TEMP-') === 0) {
+      return '<span class="nb nb-amb" title="Unverified — real Employee ID not yet confirmed">' + s + '</span>';
     }
-    return -1;
-  }
-  function countVal(rows, col, val) {
-    if (col < 0) return 0;
-    var v = val ? val.toLowerCase() : null;
-    return rows.filter(function(r){
-      var cell = String(r[col]||'').toLowerCase().trim();
-      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
-    }).length;
-  }
-  function sumCol(rows, col) {
-    if (col < 0) return 0;
-    return rows.reduce(function(s,r){
-      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
-      return s + (isNaN(v) ? 0 : v);
-    }, 0);
-  }
-  function setCard(idx, val) {
-    var cards = document.querySelectorAll('.kpi-val');
-    if (cards[idx]) cards[idx].textContent = val;
+    return formatCell(val);
   }
 
-  var origRender = window.renderTable;
-  window.renderTable = function(data, container) {
-    if (origRender) origRender(data, container);
-    if (!data || !data.rows || !data.headers) return;
-    var rows = data.rows, h = data.headers;
-    try { setCard(0, rows.length); } catch(e) {}
-  };
+  function renderWithIdFlag(data, container, idColName){
+    if (!data || !data.headers || !data.rows){
+      container.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      return;
+    }
+    var idIdx = -1;
+    data.headers.forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(idColName).toLowerCase()) idIdx = i; });
+    var wide = data.headers.length > 8;
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe' + (wide?' tbl-compact':'') + '">';
+    html += '<thead><tr>';
+    data.headers.forEach(function(h){ html += '<th>' + h + '</th>'; });
+    html += '</tr></thead><tbody>';
+    if (!data.rows.length){
+      html += '<tr><td colspan="'+data.headers.length+'"><div class="empty-state"><strong>No records</strong>Add data in Google Sheets to populate this table.</div></td></tr>';
+    } else {
+      data.rows.forEach(function(row){
+        html += '<tr>';
+        row.forEach(function(cell,ci){
+          html += '<td>' + (ci===idIdx ? amberTempId(cell) : formatCell(cell)) + '</td>';
+        });
+        html += '</tr>';
+      });
+    }
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+  }
+
+  function loadTab(key, containerId, idColName){
+    var el = document.getElementById(containerId);
+    if (!el) return Promise.resolve(null);
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-lt);font-size:11px">⏳ Loading live data…</div>';
+    return fetch(SHEETS_URL + '?tab=' + key + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (idColName) renderWithIdFlag(data, el, idColName);
+        else renderTable(data, el);
+        return data;
+      })
+      .catch(function(){
+        el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
+        return null;
+      });
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){
+      Promise.all([
+        loadTab('fe_master', 'live-table-master', null),
+        loadTab('fe_inspection_log', 'live-table-inspection', 'Inspector ID'),
+        loadTab('fe_service_log', 'live-table-service', null)
+      ]).then(function(results){
+        var master = results[0], inspection = results[1];
+        if (master && master.rows) updateCard('Total Units', master.rows.length);
+        if (inspection && inspection.rows && master && master.rows && master.rows.length){
+          var uniqueUnitsInspected = {};
+          var fkIdx = -1;
+          (inspection.headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()==='fe code') fkIdx = i; });
+          if (fkIdx > -1){
+            inspection.rows.forEach(function(r){ uniqueUnitsInspected[r[fkIdx]] = true; });
+            var n = Object.keys(uniqueUnitsInspected).length;
+            var pct = Math.round(100 * n / master.rows.length);
+            updateCard('2026 Inspections', n + ' / ' + master.rows.length + ' units (' + pct + '%)');
+          }
+        }
+        var ts = document.getElementById('fe-live-ts');
+        if (ts) ts.textContent = 'Updated: ' + new Date().toLocaleTimeString();
+      });
+    }, 100);
+  });
+
+  function updateCard(label, val){
+    var cards = document.querySelectorAll('.kpi-card');
+    for (var i=0;i<cards.length;i++){
+      var lbl = cards[i].querySelector('.kpi-lbl');
+      var valEl = cards[i].querySelector('.kpi-val');
+      if (lbl && valEl && lbl.textContent.trim()===label){
+        if (val !== null && val !== undefined && val !== '') valEl.textContent = val;
+        break;
+      }
+    }
+  }
 })();
 </script>
+
 </body></html>
