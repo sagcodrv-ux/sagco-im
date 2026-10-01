@@ -96,6 +96,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <div class="chart-card">
     <div class="chart-title">Monthly Inspection Coverage<span class="chart-sub">% of 570 units</span></div>
     <div class="chart-wrap"><canvas id="feCoverageChart"></canvas></div>
+    <!-- Live caption, filled/refreshed in renderDashboard() from the
+         same coverageCounts/totalUnits used by the chart itself -- never
+         hardcoded, so it always matches whatever month is newest. -->
+    <div id="fe-coverage-caption" class="chart-sub" style="display:block;margin-top:6px;text-align:center"></div>
   </div>
   <div class="chart-card">
     <div class="chart-title">Upcoming Service Expiry<span class="chart-sub">units expiring, by month</span></div>
@@ -537,8 +541,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
     if (window.Chart && sortedMonths.length){
       var coverageLabels = sortedMonths.map(monthLabel);
-      var coveragePct = sortedMonths.map(function(m){
-        return totalUnits ? Math.round(100 * Object.keys(monthUnits[m]).length / totalUnits) : 0;
+      // Live counts recomputed from current monthUnits/totalUnits on every
+      // render -- never cached or hardcoded, so a tiny early month (e.g.
+      // a 2% July while the register was still being populated) always
+      // shows its real "x / y units" figure instead of looking like a
+      // flat zero.
+      var coverageCounts = sortedMonths.map(function(m){ return Object.keys(monthUnits[m]).length; });
+      var coveragePct = coverageCounts.map(function(n){
+        return totalUnits ? Math.round(100 * n / totalUnits) : 0;
       });
       _charts.coverage = new Chart(document.getElementById('feCoverageChart'), {
         type: 'line',
@@ -553,8 +563,36 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             y: { beginAtZero:true, max:100, ticks:{ color:TICK, callback:function(v){return v+'%';} }, grid:{ color:GRID } },
             x: { ticks:{ color:TICK }, grid:{ color:GRID } }
           },
-          plugins: { legend: { display:false } } }
+          plugins: {
+            legend: { display:false },
+            tooltip: {
+              callbacks: {
+                // Live label built from coverageCounts/totalUnits at
+                // tooltip-render time -- always matches whatever data is
+                // currently loaded, e.g. "2% · 14 / 570 units inspected".
+                label: function(ctx){
+                  var i = ctx.dataIndex;
+                  var n = coverageCounts[i];
+                  var p = coveragePct[i];
+                  return p + '% · ' + n + ' / ' + totalUnits + ' units inspected';
+                }
+              }
+            }
+          } }
       });
+
+      // Always-visible caption (not just hover) -- shows the real count
+      // behind the newest month's bar/point so a small early batch (e.g.
+      // 2% in July) never reads as "no inspections happened".
+      var capEl = document.getElementById('fe-coverage-caption');
+      if (capEl){
+        var lastIdx = coverageCounts.length - 1;
+        capEl.textContent = coverageLabels[lastIdx] + ': ' + coveragePct[lastIdx] + '% · '
+          + coverageCounts[lastIdx] + ' / ' + totalUnits + ' units inspected';
+      }
+    } else {
+      var capElEmpty = document.getElementById('fe-coverage-caption');
+      if (capElEmpty) capElEmpty.textContent = '';
     }
 
     // Chart 2: Upcoming Service Expiry (bar) -- excludes corrupt entries that
