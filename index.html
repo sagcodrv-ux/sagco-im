@@ -9,10 +9,12 @@
     :root{--navy:#0d1520;--navy2:#1a2340;--gold:#c8a84b;--gold-lt:#f0d98a;--white:#fff;--radius:10px}
     html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--navy);color:var(--white);overflow-x:hidden}
 
-    /* Video */
-    .video-wrap{position:fixed;inset:0;z-index:0;background:var(--navy);overflow:hidden}
-    .video-wrap iframe{position:absolute;top:50%;left:50%;width:177.78vh;height:100vh;min-width:100vw;min-height:56.25vw;transform:translate(-50%,-50%);pointer-events:none;border:none}
-    .video-overlay{position:fixed;inset:0;z-index:1;background:linear-gradient(to bottom,rgba(13,21,32,.55) 0%,rgba(13,21,32,.35) 40%,rgba(13,21,32,.65) 70%,rgba(13,21,32,.92) 100%)}
+    /* Background — static gradient, reliable, zero external dependency */
+    .video-wrap{position:fixed;inset:0;z-index:0;background:
+      radial-gradient(ellipse at 20% 15%, rgba(200,168,75,.10) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 80%, rgba(26,100,200,.12) 0%, transparent 55%),
+      linear-gradient(135deg, #0d1520 0%, #16223a 45%, #0d1a2e 100%)}
+    .video-overlay{position:fixed;inset:0;z-index:1;background:linear-gradient(to bottom,rgba(13,21,32,.15) 0%,rgba(13,21,32,.05) 40%,rgba(13,21,32,.35) 70%,rgba(13,21,32,.75) 100%)}
 
     /* Page */
     .page{position:relative;z-index:2;min-height:100vh;display:flex;flex-direction:column}
@@ -50,13 +52,18 @@
 
     /* Mode cards */
     .mode-row{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;padding:0 16px;opacity:0;animation:fadeUp .9s ease forwards 2.1s}
-    .mode-card{width:280px;border-radius:14px;border:1px solid rgba(255,255,255,.15);background:rgba(13,21,32,.7);backdrop-filter:blur(16px);padding:28px 24px 22px;cursor:pointer;color:var(--white);transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease;position:relative;user-select:none}
+    .mode-card{width:320px;border-radius:14px;border:1px solid rgba(255,255,255,.15);background:rgba(13,21,32,.7);backdrop-filter:blur(16px);padding:28px 24px 22px;cursor:pointer;color:var(--white);transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease;position:relative;user-select:none}
     .mode-card:hover{transform:translateY(-4px);border-color:rgba(200,168,75,.6);box-shadow:0 20px 60px rgba(0,0,0,.5)}
     .mode-card.primary{border-color:rgba(200,168,75,.4)}
+    .mode-card.hub{border-color:rgba(183,28,28,.3)}
+    .mode-card.hub:hover{border-color:rgba(183,28,28,.65);box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 0 1px rgba(183,28,28,.25)}
+    .mode-card.hub .mc-cta{color:#ff8a80}
     .mc-badge{position:absolute;top:14px;right:14px;background:rgba(200,168,75,.2);border:1px solid rgba(200,168,75,.4);border-radius:20px;padding:2px 10px;font-size:9px;color:var(--gold-lt);font-weight:600;letter-spacing:.5px}
+    .mc-badge.restricted{background:rgba(183,28,28,.22);border-color:rgba(183,28,28,.55);color:#ff8a80}
     .mc-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px}
     .mc-gold{background:rgba(200,168,75,.2)}
     .mc-blue{background:rgba(26,100,200,.2)}
+    .mc-red{background:rgba(183,28,28,.25)}
     .mc-title{font-size:16px;font-weight:700;margin-bottom:6px}
     .mc-sub{font-size:12px;color:rgba(255,255,255,.65);line-height:1.6;margin-bottom:18px}
     .mc-cta{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--gold)}
@@ -105,15 +112,12 @@
     .lm-hint strong{color:#1a2340}
 
     /* Mobile */
-    .mobile-bg{display:none;position:fixed;inset:0;z-index:0;background:linear-gradient(135deg,#0d1520 0%,#1a2340 50%,#0d2235 100%)}
     @media(max-width:600px){
       .topbar{padding:16px 20px 0}
       .hero{padding:24px 16px 16px}
       .stats{gap:24px}
       .mode-card{width:100%;max-width:340px}
       .bottom{padding:16px 20px 20px}
-      .video-wrap iframe{display:none}
-      .mobile-bg{display:block}
     }
 
     /* Animations */
@@ -153,17 +157,8 @@ try {
 } catch(e) {}
 </script>
 
-<div class="mobile-bg"></div>
-
-<!-- YouTube background — muted, autoplay, loop, no controls -->
-<div class="video-wrap">
-  <iframe
-    src="https://www.youtube.com/embed/u3B7l-gVElE?autoplay=1&mute=1&loop=1&controls=0&showinfo=0&rel=0&playlist=u3B7l-gVElE&start=73&modestbranding=1&disablekb=1&iv_load_policy=3"
-    allow="autoplay; encrypted-media"
-    allowfullscreen
-    title="SAGCO facility operations">
-  </iframe>
-</div>
+<!-- Static gradient background (replaces former YouTube iframe background) -->
+<div class="video-wrap"></div>
 <div class="video-overlay"></div>
 
 <div class="page">
@@ -201,19 +196,19 @@ try {
     </div>
 
     <div class="mode-row">
-      <div class="mode-card primary" id="btn-manual">
-        <div class="mc-badge">PRESENTATION</div>
-        <div class="mc-icon mc-gold">📋</div>
-        <div class="mc-title">Explore the IMS Manual</div>
-        <div class="mc-sub">Executive-level overview of SAGCO's integrated management framework — policies, governance, KPIs, and certification roadmap.</div>
-        <div class="mc-cta">Enter presentation <span>→</span></div>
-      </div>
-      <div class="mode-card" id="btn-portal">
+      <div class="mode-card primary" id="btn-portal">
         <div class="mc-badge">FULL PORTAL</div>
-        <div class="mc-icon mc-blue">🏭</div>
+        <div class="mc-icon mc-gold">🏭</div>
         <div class="mc-title">Explore the IMS Portal</div>
         <div class="mc-sub">Full access to all procedures, registers, KPI dashboards, document management, and operational controls.</div>
         <div class="mc-cta">Enter portal <span>→</span></div>
+      </div>
+      <div class="mode-card hub" id="btn-hub">
+        <div class="mc-badge restricted">LIVE REGISTERS</div>
+        <div class="mc-icon mc-red">🛡️</div>
+        <div class="mc-title">Operations Hub</div>
+        <div class="mc-sub">Live operational registers — PTW, fire extinguishers, emergency drills.</div>
+        <div class="mc-cta">Enter Hub <span>→</span></div>
       </div>
     </div>
   </main>
@@ -278,6 +273,7 @@ try {
   var DEST_LABELS = {
     'ims-manual.html': 'Destination: IMS Manual — Presentation Mode',
     'procedures.html': 'Destination: IMS Portal — Full Platform',
+    'safety-hub.html': 'Destination: Operations Hub — Live Registers',
   };
 
   /* ── Open modal ──────────────────────────────────────────── */
@@ -394,8 +390,8 @@ try {
   }
 
   /* ── Wire up card buttons ────────────────────────────────── */
-  document.getElementById('btn-manual').addEventListener('click', function(){ openModal('ims-manual.html'); });
   document.getElementById('btn-portal').addEventListener('click', function(){ openModal('procedures.html'); });
+  document.getElementById('btn-hub').addEventListener('click',    function(){ openModal('safety-hub.html'); });
   document.getElementById('btn-skip').addEventListener('click',   function(){ openModal('procedures.html'); });
 
   /* ── Modal controls ──────────────────────────────────────── */
