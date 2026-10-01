@@ -15,7 +15,7 @@ var TREE = [
   { id:'home-overview', label:'IMS Overview',  file:'ims-overview.html', level:'L0', badge:'System Map' },
   { id:'home-manual',   label:'IMS Manual',    file:'ims-manual.html',   level:'L0', badge:'L1 · MAN-01' },
   { id:'home-procs',  label:'Procedures Hub',  file:'procedures.html',   level:'L0', badge:'All Procedures' },
-  { id:'home-safety-hub', label:'Safety Operations Hub', file:'safety-hub.html', level:'L0', badge:'Live Registers' },
+  { id:'home-safety-hub', label:'Operations Hub', file:'safety-hub.html', level:'L0', badge:'Live Registers' },
 
   /* ══ STRATEGIC FRAMEWORK ════════════════════════════════ */
   { id:'strat', label:'Strategic Framework', level:'clause', children:[
@@ -95,7 +95,7 @@ var TREE = [
         { id:'oc1-lta',  label:'LOTO Authorised Persons',    file:'loto-auth-persons.html',     level:'L4', tag:'Sh.59' },
         { id:'oc1-csl',  label:'Confined Space Entry Log',   file:'confined-space-log.html',    level:'L4', tag:'Sh.38' },
         { id:'oc1-hts',  label:'Heat Stress / WBGT Log',     file:'heat-stress-log.html',       level:'L4', tag:'Sh.39' },
-        { id:'oc1-fxl',  label:'Fire Extinguisher Log',      file:'fire-extinguisher-dashboard.html', level:'L4', tag:'Sh.40' },
+        { id:'oc1-fxl',  label:'Fire Extinguisher Log',      file:'fire-extinguisher-log.html', level:'L4', tag:'Sh.40' },
         { id:'oc1-fpl',  label:'Fire Pump Test Log',          file:'fire-pump-log.html',         level:'L4', tag:'Sh.41' },
         { id:'oc1-ohs',  label:'OH Surveillance Register',   file:'oh-surveillance.html',       level:'L4', tag:'Sh.42' },
         { id:'oc1-sca',  label:'Scaffold Inspection',         file:'scaffold-inspection.html',   level:'L4', tag:'Sh.64' },
