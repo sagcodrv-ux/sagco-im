@@ -15,6 +15,7 @@ var TREE = [
   { id:'home-overview', label:'IMS Overview',  file:'ims-overview.html', level:'L0', badge:'System Map' },
   { id:'home-manual',   label:'IMS Manual',    file:'ims-manual.html',   level:'L0', badge:'L1 · MAN-01' },
   { id:'home-procs',  label:'Procedures Hub',  file:'procedures.html',   level:'L0', badge:'All Procedures' },
+  { id:'home-safety-hub', label:'Safety Operations Hub', file:'safety-hub.html', level:'L0', badge:'Live Registers' },
 
   /* ══ STRATEGIC FRAMEWORK ════════════════════════════════ */
   { id:'strat', label:'Strategic Framework', level:'clause', children:[
