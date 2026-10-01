@@ -74,10 +74,10 @@
 
 <div class="sec-banner">FEX QUICK STATUS</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
-  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Total Units</div><div class="kpi-val" id="fe-kpi-total">—</div><div class="kpi-sub">Master Inventory</div></div>
-  <div class="kpi-card kc-blue"><div class="kpi-lbl">This Month's Coverage</div><div class="kpi-val" id="fe-kpi-coverage">—</div><div class="kpi-sub" id="fe-kpi-coverage-sub">Loading…</div></div>
-  <div class="kpi-card kc-amb"><div class="kpi-lbl">Never Inspected</div><div class="kpi-val" id="fe-kpi-never">—</div><div class="kpi-sub">Zero inspections on record</div></div>
-  <div class="kpi-card kc-red"><div class="kpi-lbl">Flagged Items</div><div class="kpi-val" id="fe-kpi-flagged">—</div><div class="kpi-sub">Seal / Pin / Hose issues open</div></div>
+  <div class="kpi-card kc-nvy fe-clickable" onclick="FE.cardClick('total')" title="Click to view Master Inventory"><div class="kpi-lbl">Total Units</div><div class="kpi-val" id="fe-kpi-total">—</div><div class="kpi-sub">Master Inventory</div></div>
+  <div class="kpi-card kc-blue fe-clickable" onclick="FE.cardClick('coverage')" title="Click to view this month's inspections"><div class="kpi-lbl">This Month's Coverage</div><div class="kpi-val" id="fe-kpi-coverage">—</div><div class="kpi-sub" id="fe-kpi-coverage-sub">Loading…</div></div>
+  <div class="kpi-card kc-amb fe-clickable" onclick="FE.cardClick('never')" title="Click to view the never-inspected units"><div class="kpi-lbl">Never Inspected</div><div class="kpi-val" id="fe-kpi-never">—</div><div class="kpi-sub">Zero inspections on record</div></div>
+  <div class="kpi-card kc-red fe-clickable" onclick="FE.cardClick('flagged')" title="Click to view the flagged inspection items"><div class="kpi-lbl">Flagged Items</div><div class="kpi-val" id="fe-kpi-flagged">—</div><div class="kpi-sub">Seal / Pin / Hose issues open</div></div>
 </div>
 
 <div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
@@ -167,6 +167,14 @@
 
 .fe-dark-wrap .nb{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid}
 .fe-dark-wrap .nb-amb{background:rgba(232,179,57,.15);color:var(--fdw-amb);border-color:rgba(232,179,57,.4)}
+
+.fe-dark-wrap .kpi-card.fe-clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.fe-dark-wrap .kpi-card.fe-clickable:hover{transform:translateY(-2px);border-color:var(--fdw-gold)}
+.fe-dark-wrap .fe-special-pill{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:600;
+  padding:4px 10px;border-radius:14px;background:rgba(201,168,76,.15);color:var(--fdw-gold-lt);
+  border:1px solid var(--fdw-border-gold);margin:6px 0}
+.fe-dark-wrap .fe-special-pill-x{cursor:pointer;opacity:.8}
+.fe-dark-wrap .fe-special-pill-x:hover{opacity:1}
 </style>
 
 <div id="fe-modal-root"></div>
@@ -205,10 +213,11 @@
       filterField: 'FE Code'
     }
   };
-  var _filters = {}; // tKeyName -> {search:'', category:''}
+  var _filters = {}; // tKeyName -> {search:'', category:'', special:null}
   var STATUS_COL = 'Record Status';
   var _cache = {}; // tableKeyName -> {headers, rows}
   var _charts = { coverage: null, expiry: null }; // Chart.js instances, destroyed/recreated on each dashboard render
+  var _lastMonthYM = null; // most recent real inspection month (e.g. '2026-09'), set in renderDashboard, used by the "This Month's Coverage" card's drill-down click
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
 
@@ -268,7 +277,7 @@
       return;
     }
     _cache[tKeyName] = data;
-    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:''};
+    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
     var f = _filters[tKeyName];
 
     var toolbarHtml = '';
@@ -287,8 +296,16 @@
         }).join('') + '</select>';
     }
 
+    var specialLabels = { never_inspected: 'Never Inspected', flagged: 'Flagged Items' };
+    var specialPillHtml = '';
+    if (f.special && specialLabels[f.special]){
+      specialPillHtml = '<span class="fe-special-pill">Showing: ' + specialLabels[f.special] +
+        ' <span class="fe-special-pill-x" onclick="FE.clearFilters(\''+tKeyName+'\')">✕</span></span>';
+    }
+
     var html =
       '<div class="fe-toolbar">' + toolbarHtml + '</div>' +
+      specialPillHtml +
       '<div class="fe-filterbar">' +
         '<input type="text" class="fe-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="FE.onSearchInput(\''+tKeyName+'\', this.value)">' +
         categoryHtml +
@@ -313,7 +330,7 @@
     var amberIdx = cfg.amberCol ? colIdx(data.headers, cfg.amberCol) : -1;
     var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
     var showActions = can('edit') || can('delete');
-    var f = _filters[tKeyName] || {search:'', category:''};
+    var f = _filters[tKeyName] || {search:'', category:'', special:null};
     var searchLower = f.search.trim().toLowerCase();
 
     // 1. exclude soft-deleted
@@ -333,9 +350,33 @@
         return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
       });
     }
+    // 4. special drill-down filters, triggered by clicking a dashboard card.
+    //    These aren't simple text matches, so they're handled separately from
+    //    search/category: "never inspected" needs the Inspection Log's real
+    //    data cross-referenced against Master; "flagged" needs the 3 specific
+    //    condition columns checked, same logic as the Flagged Items KPI.
+    if (f.special === 'never_inspected' && tKeyName === 'master'){
+      var insp = _cache['inspection'];
+      var everInspected = {};
+      if (insp){
+        var iCodeIdx2 = colIdx(insp.headers, 'FE Code');
+        insp.rows.forEach(function(r){ var c = r[iCodeIdx2]; if (c) everInspected[String(c).trim()] = true; });
+      }
+      visibleRows = visibleRows.filter(function(r){ return !everInspected[String(r[idIdx]).trim()]; });
+    }
+    if (f.special === 'flagged' && tKeyName === 'inspection'){
+      var sealIdx2 = colIdx(data.headers, 'Anti-Tamper Seal');
+      var pinIdx2 = colIdx(data.headers, 'Pin');
+      var hoseIdx2 = colIdx(data.headers, 'Hose');
+      visibleRows = visibleRows.filter(function(r){
+        return (sealIdx2>-1 && r[sealIdx2] && String(r[sealIdx2]).trim()) ||
+               (pinIdx2>-1 && r[pinIdx2] && String(r[pinIdx2]).trim()) ||
+               (hoseIdx2>-1 && r[hoseIdx2] && String(r[hoseIdx2]).trim());
+      });
+    }
 
     if (statusEl){
-      var isFiltered = !!(f.search.trim() || f.category);
+      var isFiltered = !!(f.search.trim() || f.category || f.special);
       statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
     }
 
@@ -463,6 +504,7 @@
 
     if (sortedMonths.length){
       var lastMonth = sortedMonths[sortedMonths.length - 1];
+      _lastMonthYM = lastMonth;
       var lastCount = Object.keys(monthUnits[lastMonth]).length;
       var pct = totalUnits ? Math.round(100 * lastCount / totalUnits) : 0;
       document.getElementById('fe-kpi-coverage').textContent = lastCount + ' / ' + totalUnits + ' (' + pct + '%)';
@@ -613,18 +655,45 @@
       if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
     },
     onSearchInput: function(tKeyName, val){
-      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:''};
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
       _filters[tKeyName].search = val;
       renderTableArea(tKeyName);
     },
     onCategoryChange: function(tKeyName, val){
-      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:''};
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
       _filters[tKeyName].category = val;
       renderTableArea(tKeyName);
     },
     clearFilters: function(tKeyName){
-      _filters[tKeyName] = {search:'', category:''};
+      _filters[tKeyName] = {search:'', category:'', special:null};
       renderShell(tKeyName, _cache[tKeyName]); // rebuild shell so the select resets to "All" too
+    },
+    /* Dashboard card click-through: jumps to the relevant register, already
+       filtered to exactly what the card showed. Each card's number and its
+       drill-down use the identical underlying data and logic -- so the rows
+       you land on are guaranteed to match the number you clicked. */
+    cardClick: function(cardName){
+      if (cardName === 'total'){
+        _filters['master'] = {search:'', category:'', special:null};
+        renderShell('master', _cache['master']);
+        setExpanded('master', true);
+        document.getElementById('fe-hdr-master').scrollIntoView({behavior:'smooth', block:'start'});
+      } else if (cardName === 'coverage'){
+        _filters['inspection'] = {search: _lastMonthYM || '', category:'', special:null};
+        renderShell('inspection', _cache['inspection']);
+        setExpanded('inspection', true);
+        document.getElementById('fe-hdr-inspection').scrollIntoView({behavior:'smooth', block:'start'});
+      } else if (cardName === 'never'){
+        _filters['master'] = {search:'', category:'', special:'never_inspected'};
+        renderShell('master', _cache['master']);
+        setExpanded('master', true);
+        document.getElementById('fe-hdr-master').scrollIntoView({behavior:'smooth', block:'start'});
+      } else if (cardName === 'flagged'){
+        _filters['inspection'] = {search:'', category:'', special:'flagged'};
+        renderShell('inspection', _cache['inspection']);
+        setExpanded('inspection', true);
+        document.getElementById('fe-hdr-inspection').scrollIntoView({behavior:'smooth', block:'start'});
+      }
     },
     openAdd: function(tKeyName){
       var cfg = TABLES[tKeyName];
