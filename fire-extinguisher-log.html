@@ -4,26 +4,92 @@
 <title>SAGCO IMS — Fire Extinguisher Inspection Log</title>
 <link rel="stylesheet" href="style.css">
 <script src="auth.js"></script><script src="data.js"></script><script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head><body>
 <div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--g100);
-  border-radius:var(--radius);border-left:3px solid var(--gold);margin:10px 0;color:var(--text-lt)}
-.alert-red{background:#FFEBEE;border:1px solid #EF9A9A;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#B71C1C;margin-bottom:10px}
-.alert-amb{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:10px}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-.back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--navy);font-size:11px;
-  font-weight:600;text-decoration:none;padding:5px 10px;background:var(--g100);
-  border-radius:var(--radius);border:1px solid #e0e0e0}
-.back-link:hover{background:#e3f0fa}
-</style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety</a></div><div class="req-text">ISO 45001 §8.1 / Civil Defense Regulations — All fire extinguishers: monthly visual inspection (pressure gauge green; safety pin intact; accessible; tag updated); annual full service by Civil Defense-licensed contractor. Annual certificate filed in this register.</div>
+/* ══════════════════════════════════════════════════════════════════
+   FIRE EXTINGUISHER PAGE — dark navy/gold theme
+   Colors match Procedure Hub exactly (bg:#0D1B35, gold:#C9A84C).
+   Card/tile shapes match the KPI Dashboard (kpi-consolidated.html):
+   left-border-accent stiles for status cards, rounded dark chart cards.
+   Scoped entirely to .fe-dark-wrap — every class below keeps its
+   original name (so none of the page's JS needs to change), just
+   restyled inside this one wrapper. Sidebar/topbar stay untouched.
+   ══════════════════════════════════════════════════════════════════ */
+.fe-dark-wrap{
+  --fdw-bg:#0D1B35; --fdw-bg2:#142140; --fdw-bg3:#1a2a50;
+  --fdw-gold:#C9A84C; --fdw-gold-lt:#E8C97A;
+  --fdw-text:rgba(255,255,255,.92); --fdw-text-muted:rgba(255,255,255,.55);
+  --fdw-text-dim:rgba(255,255,255,.35); --fdw-border:rgba(255,255,255,.08);
+  --fdw-border-gold:rgba(201,168,76,.35);
+  --fdw-blue:#5B9BD5; --fdw-red:#F0685C; --fdw-amb:#E8B339; --fdw-grn:#4FCB9E;
+  background:var(--fdw-bg); color:var(--fdw-text); margin:-24px; padding:24px; min-height:100vh;
+}
+.fe-dark-wrap *{box-sizing:border-box}
+
+.fe-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.fe-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--fdw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--fdw-bg2);
+  border-radius:8px;border:1px solid var(--fdw-border-gold)}
+.fe-dark-wrap .back-link:hover{background:var(--fdw-bg3)}
+
+.fe-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--fdw-bg2);
+  border-radius:8px;border-left:3px solid var(--fdw-gold);margin:10px 0;color:var(--fdw-text-muted)}
+
+.fe-dark-wrap .sec-banner{background:var(--fdw-bg2);color:var(--fdw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--fdw-border-gold);border-bottom:none}
+
+/* Status cards: KPI Dashboard's "stile" shape (colored left-border accent),
+   recolored navy/gold instead of its purple/cyan scheme */
+.fe-dark-wrap .kpi-grid{display:grid;gap:14px}
+.fe-dark-wrap .kpi-card{background:var(--fdw-bg2);border:1px solid var(--fdw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.fe-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.fe-dark-wrap .kpi-card.kc-nvy::before{background:var(--fdw-gold)}
+.fe-dark-wrap .kpi-card.kc-blue::before{background:var(--fdw-blue)}
+.fe-dark-wrap .kpi-card.kc-amb::before{background:var(--fdw-amb)}
+.fe-dark-wrap .kpi-card.kc-red::before{background:var(--fdw-red)}
+.fe-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--fdw-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.fe-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--fdw-text);line-height:1.1;margin-bottom:4px}
+.fe-dark-wrap .kpi-sub{font-size:10px;color:var(--fdw-text-muted)}
+
+/* Chart cards: same dark card shape as the status tiles */
+.fe-dark-wrap .chart-grid{display:grid;gap:14px}
+.fe-dark-wrap .chart-card{background:var(--fdw-bg2);border:1px solid var(--fdw-border);
+  border-radius:14px;padding:16px 18px}
+.fe-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--fdw-text);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.fe-dark-wrap .chart-sub{font-size:10px;color:var(--fdw-text-muted);font-weight:400}
+.fe-dark-wrap .chart-wrap{height:220px;position:relative}
+
+.fe-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.fe-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--fdw-grn)}
+.fe-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--fdw-red)}
+.fe-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--fdw-amb)}
+.fe-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--fdw-blue)}
+.fe-dark-wrap .badge.kc-nvy{background:var(--fdw-bg3);color:var(--fdw-gold-lt)}
+</style><div class="fe-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety</a></div><div class="req-text">ISO 45001 §8.1 / Civil Defense Regulations — All fire extinguishers: monthly visual inspection (pressure gauge green; safety pin intact; accessible; tag updated); annual full service by Civil Defense-licensed contractor. Annual certificate filed in this register.</div>
+
+<div class="sec-banner">FEX QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Total Units</div><div class="kpi-val" id="fe-kpi-total">—</div><div class="kpi-sub">Master Inventory</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">This Month's Coverage</div><div class="kpi-val" id="fe-kpi-coverage">—</div><div class="kpi-sub" id="fe-kpi-coverage-sub">Loading…</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Never Inspected</div><div class="kpi-val" id="fe-kpi-never">—</div><div class="kpi-sub">Zero inspections on record</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">Flagged Items</div><div class="kpi-val" id="fe-kpi-flagged">—</div><div class="kpi-sub">Seal / Pin / Hose issues open</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+  <div class="chart-card">
+    <div class="chart-title">Monthly Inspection Coverage<span class="chart-sub">% of 570 units</span></div>
+    <div class="chart-wrap"><canvas id="feCoverageChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Upcoming Service Expiry<span class="chart-sub">units expiring, by month</span></div>
+    <div class="chart-wrap"><canvas id="feExpiryChart"></canvas></div>
+  </div>
+</div>
 
 <div class="fe-jumpbar">
   <button class="fe-jump-btn" onclick="FE.jumpTo('master')">FE Master Inventory <span id="fe-count-master" class="fe-jump-count"></span></button>
@@ -40,46 +106,67 @@
 <div class="sec-banner fe-sec-toggle" id="fe-hdr-service" style="margin-top:10px" onclick="FE.toggle('service')"><span class="fe-chevron">▶</span> FE ANNUAL SERVICE LOG &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(3rd-party Civil-Defense-licensed contractor)</span></div>
 <div id="live-table-service" class="fe-collapsible" style="margin-top:0"></div>
 
-<div style="margin-top:16px;font-size:10px;color:var(--text-lt);text-align:right" id="fe-live-ts"></div>
-</div></div>
+<div style="margin-top:16px;font-size:10px;color:var(--fdw-text-dim);text-align:right" id="fe-live-ts"></div>
+</div></div></div>
 <script>initPage("fire-extinguisher-log.html");document.getElementById("tb").innerHTML=renderTopbar("Fire Extinguisher Inspection Log","L4-SHEE-PR-13-CL-01 · ISO 45001 §8.1 · Civil Defense · OC-01 §A.17");</script>
 
 <style>
-.fe-toolbar{display:flex;justify-content:flex-end;padding:6px 0}
-.fe-btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:var(--radius);
-  border:1px solid #ccc;background:#fff;cursor:pointer;font-family:inherit}
-.fe-btn:hover{background:#f2f2f2}
-.fe-btn-add{background:var(--navy);color:#fff;border-color:var(--navy)}
-.fe-btn-add:hover{background:#15315a}
-.fe-icon-btn{border:none;background:none;cursor:pointer;font-size:13px;padding:2px 5px;border-radius:4px}
-.fe-icon-btn:hover{background:#e8e8e8}
-.fe-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;
+.fe-dark-wrap .fe-toolbar{display:flex;justify-content:flex-end;padding:6px 0}
+.fe-dark-wrap .fe-btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;
+  border:1px solid var(--fdw-border);background:var(--fdw-bg3);color:var(--fdw-text);cursor:pointer;font-family:inherit}
+.fe-dark-wrap .fe-btn:hover{background:#223457;border-color:var(--fdw-border-gold)}
+.fe-dark-wrap .fe-btn-add{background:var(--fdw-gold);color:#1a1200;border-color:var(--fdw-gold);font-weight:700}
+.fe-dark-wrap .fe-btn-add:hover{background:var(--fdw-gold-lt)}
+.fe-dark-wrap .fe-icon-btn{border:none;background:none;cursor:pointer;font-size:13px;padding:2px 5px;border-radius:4px}
+.fe-dark-wrap .fe-icon-btn:hover{background:var(--fdw-bg3)}
+.fe-dark-wrap .fe-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
   align-items:center;justify-content:center;z-index:9999}
-.fe-modal{background:#fff;border-radius:8px;padding:20px;width:420px;max-width:92vw;
-  max-height:86vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,.25)}
-.fe-modal h3{margin:0 0 12px;font-size:14px;color:var(--navy)}
-.fe-field{margin-bottom:10px}
-.fe-field label{display:block;font-size:10px;font-weight:600;color:var(--text-lt);margin-bottom:3px}
-.fe-field input,.fe-field textarea{width:100%;padding:6px 8px;font-size:12px;
-  border:1px solid #ccc;border-radius:5px;font-family:inherit;box-sizing:border-box}
-.fe-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
-.fe-modal-actions .fe-btn-cancel{background:#f2f2f2}
-.fe-jumpbar{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px}
-.fe-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:var(--radius);
-  border:1px solid #d0d0d0;background:#fff;cursor:pointer;font-family:inherit;color:var(--navy)}
-.fe-jump-btn:hover{background:#eef4fb;border-color:var(--navy)}
-.fe-jump-count{font-weight:400;color:var(--text-lt);font-size:10px}
-.fe-sec-toggle{cursor:pointer;user-select:none}
-.fe-sec-toggle:hover{opacity:.9}
-.fe-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px}
-.fe-collapsible{overflow:hidden;max-height:0;transition:none}
-.fe-collapsible.fe-open{max-height:none}
-.fe-filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
-.fe-search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
-  border:1px solid #ccc;border-radius:var(--radius);font-family:inherit}
-.fe-filter-select{padding:6px 8px;font-size:12px;border:1px solid #ccc;
-  border-radius:var(--radius);font-family:inherit;max-width:220px}
-.fe-filter-status{font-size:10px;color:var(--text-lt);margin-left:auto}
+.fe-dark-wrap .fe-modal{background:var(--fdw-bg2);border:1px solid var(--fdw-border-gold);border-radius:14px;
+  padding:20px;width:420px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--fdw-text)}
+.fe-dark-wrap .fe-modal h3{margin:0 0 12px;font-size:14px;color:var(--fdw-gold-lt)}
+.fe-dark-wrap .fe-field{margin-bottom:10px}
+.fe-dark-wrap .fe-field label{display:block;font-size:10px;font-weight:600;color:var(--fdw-text-muted);margin-bottom:3px}
+.fe-dark-wrap .fe-field input,.fe-dark-wrap .fe-field textarea{width:100%;padding:6px 8px;font-size:12px;
+  border:1px solid var(--fdw-border);border-radius:6px;font-family:inherit;box-sizing:border-box;
+  background:var(--fdw-bg3);color:var(--fdw-text)}
+.fe-dark-wrap .fe-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.fe-dark-wrap .fe-modal-actions .fe-btn-cancel{background:var(--fdw-bg3)}
+.fe-dark-wrap .fe-jumpbar{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px}
+.fe-dark-wrap .fe-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
+  border:1px solid var(--fdw-border-gold);background:var(--fdw-bg2);cursor:pointer;font-family:inherit;color:var(--fdw-gold-lt)}
+.fe-dark-wrap .fe-jump-btn:hover{background:var(--fdw-bg3);border-color:var(--fdw-gold)}
+.fe-dark-wrap .fe-jump-count{font-weight:400;color:var(--fdw-text-muted);font-size:10px}
+.fe-dark-wrap .fe-sec-toggle{cursor:pointer;user-select:none}
+.fe-dark-wrap .fe-sec-toggle:hover{opacity:.9}
+.fe-dark-wrap .fe-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px;color:var(--fdw-gold-lt)}
+.fe-dark-wrap .fe-collapsible{overflow:hidden;max-height:0;transition:none;
+  background:var(--fdw-bg2);border:1px solid var(--fdw-border-gold);border-top:none;border-radius:0 0 8px 8px}
+.fe-dark-wrap .fe-collapsible.fe-open{max-height:none;padding:10px 14px}
+.fe-dark-wrap .fe-filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.fe-dark-wrap .fe-search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
+  border:1px solid var(--fdw-border);border-radius:8px;font-family:inherit;background:var(--fdw-bg3);color:var(--fdw-text)}
+.fe-dark-wrap .fe-search-input::placeholder{color:var(--fdw-text-dim)}
+.fe-dark-wrap .fe-filter-select{padding:6px 8px;font-size:12px;border:1px solid var(--fdw-border);
+  border-radius:8px;font-family:inherit;max-width:220px;background:var(--fdw-bg3);color:var(--fdw-text)}
+.fe-dark-wrap .fe-filter-status{font-size:10px;color:var(--fdw-text-muted);margin-left:auto}
+
+/* Tables: dark row striping instead of white/g100 */
+.fe-dark-wrap .tbl-wrap{overflow-x:auto}
+.fe-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
+.fe-dark-wrap .tbl-stripe th{text-align:left;color:var(--fdw-gold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--fdw-border-gold);
+  background:var(--fdw-bg3);white-space:nowrap}
+.fe-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--fdw-border);color:var(--fdw-text)}
+.fe-dark-wrap .tbl-stripe tbody tr:nth-child(odd) td{background:var(--fdw-bg2)}
+.fe-dark-wrap .tbl-stripe tbody tr:nth-child(even) td{background:#101d3a}
+.fe-dark-wrap .tbl-stripe tbody tr:hover td{background:var(--fdw-bg3)}
+.fe-dark-wrap .tbl-compact th,.fe-dark-wrap .tbl-compact td{font-size:9px !important;padding:4px 7px !important}
+
+.fe-dark-wrap .empty-state{text-align:center;padding:20px;color:var(--fdw-text-muted)}
+.fe-dark-wrap .empty-state strong{display:block;font-size:13px;color:var(--fdw-gold-lt);margin-bottom:4px}
+
+.fe-dark-wrap .nb{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid}
+.fe-dark-wrap .nb-amb{background:rgba(232,179,57,.15);color:var(--fdw-amb);border-color:rgba(232,179,57,.4)}
 </style>
 
 <div id="fe-modal-root"></div>
@@ -121,6 +208,7 @@
   var _filters = {}; // tKeyName -> {search:'', category:''}
   var STATUS_COL = 'Record Status';
   var _cache = {}; // tableKeyName -> {headers, rows}
+  var _charts = { coverage: null, expiry: null }; // Chart.js instances, destroyed/recreated on each dashboard render
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
 
@@ -309,7 +397,150 @@
   }
 
   function loadAll(){
-    Object.keys(TABLES).forEach(function(k){ loadTab(k); });
+    var keys = Object.keys(TABLES);
+    Promise.all(keys.map(loadTab)).then(function(){
+      renderDashboard();
+    });
+  }
+
+  /* Any single-table reload (after Add/Edit/Remove, or a manual refresh)
+     also recomputes the dashboard, as long as the other 2 tables have
+     loaded at least once — so the 4 cards + 2 charts are never stale
+     relative to what's actually on screen in the tables below them. */
+  function reloadTabAndDashboard(tKeyName){
+    return loadTab(tKeyName).then(function(){
+      if (_cache['master'] && _cache['inspection'] && _cache['service']) renderDashboard();
+    });
+  }
+
+  /* ── Dashboard: 4 KPI cards + 2 charts, computed only from real cached
+     data — nothing here is invented. See CP-105/106 discussion for why
+     "Annual Service Activity" was deliberately dropped: Delivery/Return
+     Date are essentially empty in the real data (2/57 and 0/57 populated),
+     so no honest chart can be drawn from them. ──────────────────────── */
+  function renderDashboard(){
+    var master = _cache['master'], insp = _cache['inspection'], svc = _cache['service'];
+    if (!master || !insp || !svc) return;
+
+    var mIdx = colIdx(master.headers, 'FE Code');
+    var masterCodes = {};
+    master.rows.forEach(function(r){ var c = r[mIdx]; if (c) masterCodes[String(c).trim()] = true; });
+    var totalUnits = Object.keys(masterCodes).length;
+    document.getElementById('fe-kpi-total').textContent = totalUnits;
+
+    // Inspection Log: distinct months present, distinct units per month, distinct units ever inspected
+    var iCodeIdx = colIdx(insp.headers, 'FE Code');
+    var iDateIdx = colIdx(insp.headers, 'Inspection Date');
+    var iSealIdx = colIdx(insp.headers, 'Anti-Tamper Seal');
+    var iPinIdx = colIdx(insp.headers, 'Pin');
+    var iHoseIdx = colIdx(insp.headers, 'Hose');
+
+    var monthUnits = {}; // 'YYYY-MM' -> {code: true}
+    var everInspected = {};
+    var flaggedCount = 0;
+
+    insp.rows.forEach(function(r){
+      var code = r[iCodeIdx] ? String(r[iCodeIdx]).trim() : null;
+      var dateStr = r[iDateIdx] ? String(r[iDateIdx]).trim() : null;
+      if (code) everInspected[code] = true;
+      if (code && dateStr && dateStr.length >= 7){
+        var ym = dateStr.slice(0,7);
+        if (!monthUnits[ym]) monthUnits[ym] = {};
+        monthUnits[ym][code] = true;
+      }
+      if ((r[iSealIdx] && String(r[iSealIdx]).trim()) ||
+          (r[iPinIdx] && String(r[iPinIdx]).trim()) ||
+          (r[iHoseIdx] && String(r[iHoseIdx]).trim())) {
+        flaggedCount++;
+      }
+    });
+
+    var sortedMonths = Object.keys(monthUnits).sort();
+    var neverInspected = totalUnits - Object.keys(everInspected).filter(function(c){ return masterCodes[c]; }).length;
+
+    document.getElementById('fe-kpi-never').textContent = neverInspected;
+    document.getElementById('fe-kpi-flagged').textContent = flaggedCount;
+
+    if (sortedMonths.length){
+      var lastMonth = sortedMonths[sortedMonths.length - 1];
+      var lastCount = Object.keys(monthUnits[lastMonth]).length;
+      var pct = totalUnits ? Math.round(100 * lastCount / totalUnits) : 0;
+      document.getElementById('fe-kpi-coverage').textContent = lastCount + ' / ' + totalUnits + ' (' + pct + '%)';
+      document.getElementById('fe-kpi-coverage-sub').textContent = monthLabel(lastMonth);
+    } else {
+      document.getElementById('fe-kpi-coverage').textContent = 'No data';
+      document.getElementById('fe-kpi-coverage-sub').textContent = '';
+    }
+
+    // Chart 1: Monthly Inspection Coverage (line)
+    var GOLD = '#C9A84C', BLUE = '#5B9BD5';
+    var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
+
+    // Destroy any previous chart instances on these canvases first -- without
+    // this, calling renderDashboard() again after an Add/Edit/Remove throws
+    // "Canvas is already in use" and the charts silently stop updating.
+    if (_charts.coverage) { _charts.coverage.destroy(); _charts.coverage = null; }
+    if (_charts.expiry) { _charts.expiry.destroy(); _charts.expiry = null; }
+
+    if (window.Chart && sortedMonths.length){
+      var coverageLabels = sortedMonths.map(monthLabel);
+      var coveragePct = sortedMonths.map(function(m){
+        return totalUnits ? Math.round(100 * Object.keys(monthUnits[m]).length / totalUnits) : 0;
+      });
+      _charts.coverage = new Chart(document.getElementById('feCoverageChart'), {
+        type: 'line',
+        data: { labels: coverageLabels, datasets: [{
+          label: '% of units inspected', data: coveragePct,
+          borderColor: GOLD, backgroundColor: 'rgba(201,168,76,.15)',
+          pointBackgroundColor: GOLD, pointBorderColor: GOLD,
+          tension: .25, fill: true, pointRadius: 4
+        }]},
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: {
+            y: { beginAtZero:true, max:100, ticks:{ color:TICK, callback:function(v){return v+'%';} }, grid:{ color:GRID } },
+            x: { ticks:{ color:TICK }, grid:{ color:GRID } }
+          },
+          plugins: { legend: { display:false } } }
+      });
+    }
+
+    // Chart 2: Upcoming Service Expiry (bar) -- excludes corrupt entries that
+    // decode to 1899/1900 (clearly not real dates, confirmed during data check)
+    var sExpIdx = colIdx(svc.headers, 'Expire Date');
+    var expiryMonths = {};
+    svc.rows.forEach(function(r){
+      var raw = r[sExpIdx];
+      if (!raw) return;
+      var s = String(raw).trim();
+      if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return; // skip corrupted non-date values
+      var year = parseInt(s.slice(0,4), 10);
+      if (year < 2020) return; // skip corrupted 1899/1900-style values
+      var ym = s.slice(0,7);
+      expiryMonths[ym] = (expiryMonths[ym] || 0) + 1;
+    });
+    var sortedExpiryMonths = Object.keys(expiryMonths).sort();
+    if (window.Chart && sortedExpiryMonths.length){
+      _charts.expiry = new Chart(document.getElementById('feExpiryChart'), {
+        type: 'bar',
+        data: { labels: sortedExpiryMonths.map(monthLabel), datasets: [{
+          label: 'Units expiring', data: sortedExpiryMonths.map(function(m){ return expiryMonths[m]; }),
+          backgroundColor: BLUE, borderRadius: 4
+        }]},
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: {
+            y: { beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } },
+            x: { ticks:{ color:TICK }, grid:{ color:GRID } }
+          },
+          plugins: { legend: { display:false } } }
+      });
+    }
+  }
+
+  function monthLabel(ym){
+    var parts = ym.split('-');
+    var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mi = parseInt(parts[1],10) - 1;
+    return (names[mi] || parts[1]) + ' ' + parts[0];
   }
 
   function setExpanded(tKeyName, expanded){
@@ -403,7 +634,7 @@
         values[STATUS_COL] = 'Active';
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
           close();
-          loadTab(tKeyName);
+          reloadTabAndDashboard(tKeyName);
         }).catch(function(){ alert('Could not save — check your connection.'); });
       });
     },
@@ -419,7 +650,7 @@
       showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
         postJSON('update', {tab: cfg.tabKey, idCol: encodeURIComponent(cfg.idCol), id: encodeURIComponent(idVal)}, values).then(function(res){
           close();
-          loadTab(tKeyName);
+          reloadTabAndDashboard(tKeyName);
         }).catch(function(){ alert('Could not save — check your connection.'); });
       });
     },
@@ -428,7 +659,7 @@
       if (!can('delete')) return;
       if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
       postJSON('update', {tab: cfg.tabKey, idCol: encodeURIComponent(cfg.idCol), id: encodeURIComponent(idVal)}, {'Record Status':'Removed'}).then(function(res){
-        loadTab(tKeyName);
+        reloadTabAndDashboard(tKeyName);
       }).catch(function(){ alert('Could not remove — check your connection.'); });
     }
   };
