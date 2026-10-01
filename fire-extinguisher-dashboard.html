@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Fire Extinguisher Coverage Dashboard</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script><script src="data.js"></script><script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head><body>
+<div class="main"><div id="tb"></div><div class="content"><style>
+/* ══════════════════════════════════════════════════════════════════
+   FIRE EXTINGUISHER — PUBLIC DASHBOARD (summary only, no register)
+   Same dark navy/gold theme and kpi-card/chart-card shapes as the
+   full page (fire-extinguisher-log.html), reused so the two stay
+   visually identical. Cards here are deliberately NOT clickable —
+   this page shows the numbers only; the detailed register lives
+   inside the Safety Operations Hub, behind its login gate.
+   ══════════════════════════════════════════════════════════════════ */
+.fe-dark-wrap{
+  --fdw-bg:#0D1B35; --fdw-bg2:#142140; --fdw-bg3:#1a2a50;
+  --fdw-gold:#C9A84C; --fdw-gold-lt:#E8C97A;
+  --fdw-text:rgba(255,255,255,.92); --fdw-text-muted:rgba(255,255,255,.55);
+  --fdw-text-dim:rgba(255,255,255,.35); --fdw-border:rgba(255,255,255,.08);
+  --fdw-border-gold:rgba(201,168,76,.35);
+  --fdw-blue:#5B9BD5; --fdw-red:#F0685C; --fdw-amb:#E8B339; --fdw-grn:#4FCB9E;
+  background:var(--fdw-bg); color:var(--fdw-text); margin:-24px; padding:24px; min-height:100vh;
+}
+.fe-dark-wrap *{box-sizing:border-box}
+
+.fe-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.fe-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--fdw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--fdw-bg2);
+  border-radius:8px;border:1px solid var(--fdw-border-gold)}
+.fe-dark-wrap .back-link:hover{background:var(--fdw-bg3)}
+
+.fe-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--fdw-bg2);
+  border-radius:8px;border-left:3px solid var(--fdw-gold);margin:10px 0;color:var(--fdw-text-muted)}
+
+.fe-dark-wrap .sec-banner{background:var(--fdw-bg2);color:var(--fdw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--fdw-border-gold);border-bottom:none}
+
+/* Status cards — same "stile" shape as the full page, but NOT clickable:
+   no cursor pointer, no hover lift, no onclick. */
+.fe-dark-wrap .kpi-grid{display:grid;gap:14px}
+.fe-dark-wrap .kpi-card{background:var(--fdw-bg2);border:1px solid var(--fdw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.fe-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.fe-dark-wrap .kpi-card.kc-nvy::before{background:var(--fdw-gold)}
+.fe-dark-wrap .kpi-card.kc-blue::before{background:var(--fdw-blue)}
+.fe-dark-wrap .kpi-card.kc-amb::before{background:var(--fdw-amb)}
+.fe-dark-wrap .kpi-card.kc-red::before{background:var(--fdw-red)}
+.fe-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--fdw-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.fe-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--fdw-text);line-height:1.1;margin-bottom:4px}
+.fe-dark-wrap .kpi-sub{font-size:10px;color:var(--fdw-text-muted)}
+
+/* Chart cards: same dark card shape as the status tiles */
+.fe-dark-wrap .chart-grid{display:grid;gap:14px}
+.fe-dark-wrap .chart-card{background:var(--fdw-bg2);border:1px solid var(--fdw-border);
+  border-radius:14px;padding:16px 18px}
+.fe-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--fdw-text);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.fe-dark-wrap .chart-sub{font-size:10px;color:var(--fdw-text-muted);font-weight:400}
+.fe-dark-wrap .chart-wrap{height:220px;position:relative}
+
+/* "Full register" callout — sits where the jump bar / tables used to be
+   on the full page. Explains why there's nothing clickable here. */
+.fe-dark-wrap .hub-note{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:var(--fdw-bg2);border:1px solid var(--fdw-border-gold);border-radius:12px;
+  padding:14px 18px;margin-top:18px}
+.fe-dark-wrap .hub-note-icon{font-size:20px;line-height:1}
+.fe-dark-wrap .hub-note-text{flex:1 1 260px;font-size:11px;line-height:1.6;color:var(--fdw-text-muted)}
+.fe-dark-wrap .hub-note-text strong{color:var(--fdw-gold-lt);font-weight:700}
+.fe-dark-wrap .hub-note-link{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+  color:#1a1200;background:var(--fdw-gold);padding:8px 16px;border-radius:8px;text-decoration:none;white-space:nowrap}
+.fe-dark-wrap .hub-note-link:hover{background:var(--fdw-gold-lt)}
+</style><div class="fe-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety</a></div><div class="req-text">ISO 45001 §8.1 / Civil Defense Regulations — All fire extinguishers: monthly visual inspection (pressure gauge green; safety pin intact; accessible; tag updated); annual full service by Civil Defense-licensed contractor. Summary shown here is read-only and updates live from the same register used by the Safety Department.</div>
+
+<div class="sec-banner">FEX QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Total Units</div><div class="kpi-val" id="fe-kpi-total">—</div><div class="kpi-sub">Master Inventory</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">This Month's Coverage</div><div class="kpi-val" id="fe-kpi-coverage">—</div><div class="kpi-sub" id="fe-kpi-coverage-sub">Loading…</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Never Inspected</div><div class="kpi-val" id="fe-kpi-never">—</div><div class="kpi-sub">Zero inspections on record</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">Flagged Items</div><div class="kpi-val" id="fe-kpi-flagged">—</div><div class="kpi-sub">Seal / Pin / Hose issues open</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+  <div class="chart-card">
+    <div class="chart-title">Monthly Inspection Coverage<span class="chart-sub">% of units</span></div>
+    <div class="chart-wrap"><canvas id="feCoverageChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Upcoming Service Expiry<span class="chart-sub">units expiring, by month</span></div>
+    <div class="chart-wrap"><canvas id="feExpiryChart"></canvas></div>
+  </div>
+</div>
+
+<div class="hub-note">
+  <div class="hub-note-icon">🔒</div>
+  <div class="hub-note-text"><strong>Detailed register not shown here.</strong> Unit-by-unit inspection records, service history, and Add/Edit controls are maintained inside the Safety Operations Hub, restricted to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>
+  <a href="safety-hub.html" class="hub-note-link">Go to Safety Operations Hub →</a>
+</div>
+
+<div style="margin-top:16px;font-size:10px;color:var(--fdw-text-dim);text-align:right" id="fe-live-ts"></div>
+</div></div></div>
+<script>initPage("fire-extinguisher-dashboard.html");document.getElementById("tb").innerHTML=renderTopbar("Fire Extinguisher Coverage Dashboard","L4-SHEE-PR-13-CL-01 · ISO 45001 §8.1 · Civil Defense · OC-01 §A.17 · Summary view");</script>
+
+<script>
+/* ── Fire Extinguisher PUBLIC DASHBOARD: read-only, live data ─────────────
+   Pulls the same 3 tabs as the full register page and runs the identical
+   KPI/chart math, so the numbers here never drift from what the Safety
+   Operations Hub shows. Nothing here writes, edits, or lists individual
+   rows — no CRUD, no tables, no drill-down. See fire-extinguisher-log.html
+   (inside the Hub) for the full register this summarizes.
+   ────────────────────────────────────────────────────────────────────── */
+(function(){
+
+  var TABS = { master: 'fe_master', inspection: 'fe_inspection_log', service: 'fe_service_log' };
+  var STATUS_COL = 'Record Status';
+  var _cache = {};
+  var _charts = { coverage: null, expiry: null };
+
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+
+  function visibleRows(data){
+    if (!data || !data.rows) return [];
+    var idx = colIdx(data.headers, STATUS_COL);
+    if (idx < 0) return data.rows;
+    return data.rows.filter(function(r){ return String(r[idx]||'').trim().toLowerCase() !== 'removed'; });
+  }
+
+  function loadTab(key){
+    return fetch(SHEETS_URL + '?tab=' + TABS[key] + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){ _cache[key] = data; return data; })
+      .catch(function(){ _cache[key] = null; return null; });
+  }
+
+  function loadAll(){
+    Promise.all(Object.keys(TABS).map(loadTab)).then(function(){
+      renderDashboard();
+      var ts = document.getElementById('fe-live-ts');
+      if (ts) ts.textContent = 'Live · updated ' + new Date().toLocaleString();
+    });
+  }
+
+  function monthLabel(ym){
+    var parts = ym.split('-');
+    var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mi = parseInt(parts[1],10) - 1;
+    return (names[mi] || parts[1]) + ' ' + parts[0];
+  }
+
+  function renderDashboard(){
+    var master = _cache['master'], insp = _cache['inspection'], svc = _cache['service'];
+    if (!master || !insp || !svc) return;
+
+    var mIdx = colIdx(master.headers, 'FE Code');
+    var masterCodes = {};
+    visibleRows(master).forEach(function(r){ var c = r[mIdx]; if (c) masterCodes[String(c).trim()] = true; });
+    var totalUnits = Object.keys(masterCodes).length;
+    document.getElementById('fe-kpi-total').textContent = totalUnits;
+
+    var iCodeIdx = colIdx(insp.headers, 'FE Code');
+    var iDateIdx = colIdx(insp.headers, 'Inspection Date');
+    var iSealIdx = colIdx(insp.headers, 'Anti-Tamper Seal');
+    var iPinIdx = colIdx(insp.headers, 'Pin');
+    var iHoseIdx = colIdx(insp.headers, 'Hose');
+
+    var monthUnits = {};
+    var everInspected = {};
+    var flaggedCount = 0;
+
+    visibleRows(insp).forEach(function(r){
+      var code = r[iCodeIdx] ? String(r[iCodeIdx]).trim() : null;
+      var dateStr = r[iDateIdx] ? String(r[iDateIdx]).trim() : null;
+      if (code) everInspected[code] = true;
+      if (code && dateStr && dateStr.length >= 7){
+        var ym = dateStr.slice(0,7);
+        if (!monthUnits[ym]) monthUnits[ym] = {};
+        monthUnits[ym][code] = true;
+      }
+      if ((r[iSealIdx] && String(r[iSealIdx]).trim()) ||
+          (r[iPinIdx] && String(r[iPinIdx]).trim()) ||
+          (r[iHoseIdx] && String(r[iHoseIdx]).trim())) {
+        flaggedCount++;
+      }
+    });
+
+    var sortedMonths = Object.keys(monthUnits).sort();
+    var neverInspected = totalUnits - Object.keys(everInspected).filter(function(c){ return masterCodes[c]; }).length;
+
+    document.getElementById('fe-kpi-never').textContent = neverInspected;
+    document.getElementById('fe-kpi-flagged').textContent = flaggedCount;
+
+    if (sortedMonths.length){
+      var lastMonth = sortedMonths[sortedMonths.length - 1];
+      var lastCount = Object.keys(monthUnits[lastMonth]).length;
+      var pct = totalUnits ? Math.round(100 * lastCount / totalUnits) : 0;
+      document.getElementById('fe-kpi-coverage').textContent = lastCount + ' / ' + totalUnits + ' (' + pct + '%)';
+      document.getElementById('fe-kpi-coverage-sub').textContent = monthLabel(lastMonth);
+    } else {
+      document.getElementById('fe-kpi-coverage').textContent = 'No data';
+      document.getElementById('fe-kpi-coverage-sub').textContent = '';
+    }
+
+    var GOLD = '#C9A84C', BLUE = '#5B9BD5';
+    var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
+
+    if (_charts.coverage) { _charts.coverage.destroy(); _charts.coverage = null; }
+    if (_charts.expiry) { _charts.expiry.destroy(); _charts.expiry = null; }
+
+    if (window.Chart && sortedMonths.length){
+      var coverageLabels = sortedMonths.map(monthLabel);
+      var coveragePct = sortedMonths.map(function(m){
+        return totalUnits ? Math.round(100 * Object.keys(monthUnits[m]).length / totalUnits) : 0;
+      });
+      _charts.coverage = new Chart(document.getElementById('feCoverageChart'), {
+        type: 'line',
+        data: { labels: coverageLabels, datasets: [{
+          label: '% of units inspected', data: coveragePct,
+          borderColor: GOLD, backgroundColor: 'rgba(201,168,76,.15)',
+          pointBackgroundColor: GOLD, pointBorderColor: GOLD,
+          tension: .25, fill: true, pointRadius: 4
+        }]},
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: {
+            y: { beginAtZero:true, max:100, ticks:{ color:TICK, callback:function(v){return v+'%';} }, grid:{ color:GRID } },
+            x: { ticks:{ color:TICK }, grid:{ color:GRID } }
+          },
+          plugins: { legend: { display:false } } }
+      });
+    }
+
+    var sExpIdx = colIdx(svc.headers, 'Expire Date');
+    var expiryMonths = {};
+    visibleRows(svc).forEach(function(r){
+      var raw = r[sExpIdx];
+      if (!raw) return;
+      var s = String(raw).trim();
+      if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return;
+      var year = parseInt(s.slice(0,4), 10);
+      if (year < 2020) return;
+      var ym = s.slice(0,7);
+      expiryMonths[ym] = (expiryMonths[ym] || 0) + 1;
+    });
+    var sortedExpiryMonths = Object.keys(expiryMonths).sort();
+    if (window.Chart && sortedExpiryMonths.length){
+      _charts.expiry = new Chart(document.getElementById('feExpiryChart'), {
+        type: 'bar',
+        data: { labels: sortedExpiryMonths.map(monthLabel), datasets: [{
+          label: 'Units expiring', data: sortedExpiryMonths.map(function(m){ return expiryMonths[m]; }),
+          backgroundColor: BLUE, borderRadius: 4
+        }]},
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: {
+            y: { beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } },
+            x: { ticks:{ color:TICK }, grid:{ color:GRID } }
+          },
+          plugins: { legend: { display:false } } }
+      });
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(loadAll, 100);
+  });
+})();
+</script>
+
+</body></html>
