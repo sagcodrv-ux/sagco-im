@@ -1,165 +1,881 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SAGCO IMS — PTW Register</title>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Permit to Work Register</title>
 <link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
-</head>
-<body>
-<div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;
-  font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--g100);
-  border-radius:var(--radius);border-left:3px solid var(--gold);margin:10px 0;color:var(--text-lt)}
-.alert-red{background:#FFEBEE;border:1px solid #EF9A9A;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#B71C1C;margin-bottom:10px}
-.alert-amber{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:10px}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-.back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--navy);font-size:11px;
-  font-weight:600;text-decoration:none;padding:5px 10px;background:var(--g100);
-  border-radius:var(--radius);border:1px solid #e0e0e0}
-.back-link:hover{background:#e3f0fa}
-</style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety & Emergency</a></div>
-<div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
-  <div class="kpi-card kc-blue"><div class="kpi-lbl">PTW Types</div><div class="kpi-val">8</div><div class="kpi-sub">Hot Work · Confined Space · WAH · Electrical · Crane · Radiography · Excavation · Demolition</div></div>
-  <div class="kpi-card kc-amb"><div class="kpi-lbl">Active Permits</div><div class="kpi-val">—</div><div class="kpi-sub">Enter current active permits</div></div>
-  <div class="kpi-card kc-blue"><div class="kpi-lbl">Compliance Rate</div><div class="kpi-val">—</div><div class="kpi-sub">% closed within validity period</div></div>
-  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Max Validity</div><div class="kpi-val">72 hrs</div><div class="kpi-sub">Hot Work, Electrical, Radiography, Demolition</div></div>
-  <div class="kpi-card kc-grn"><div class="kpi-lbl">Governed By</div><div class="kpi-val">OC-01 §A.2</div><div class="kpi-sub">L3-IMS-800-OC-01</div></div>
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* This page no longer has the sidebar/topbar shell, so override the
+   parts of style.css's body rule that assumed .content was the only
+   scrolling element (body{overflow:hidden;display:flex}). Without
+   this, the page cannot scroll at all and .ptw-dark-wrap doesn't
+   stretch to full width until content forces it, causing a visible
+   gap on first paint. Same fix as fire-extinguisher-log.html. */
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   PTW REGISTER PAGE — dark navy/gold theme
+   Deliberate structural twin of fire-extinguisher-log.html, so the
+   portal has one consistent "live dashboard + collapsible tables"
+   template going forward. Every class below is renamed fe-*→ptw-*
+   (and fdw-*→pdw-*) from that file — nothing here is copied blind;
+   each CSS rule was re-checked against this page's own needs.
+   ══════════════════════════════════════════════════════════════════ */
+.ptw-dark-wrap{
+  --pdw-bg:#0D1B35; --pdw-bg2:#142140; --pdw-bg3:#1a2a50;
+  --pdw-gold:#C9A84C; --pdw-gold-lt:#E8C97A;
+  --pdw-text:rgba(255,255,255,.92); --pdw-text-muted:rgba(255,255,255,.55);
+  --pdw-text-dim:rgba(255,255,255,.35); --pdw-border:rgba(255,255,255,.08);
+  --pdw-border-gold:rgba(201,168,76,.35);
+  --pdw-blue:#5B9BD5; --pdw-red:#F0685C; --pdw-amb:#E8B339; --pdw-grn:#4FCB9E;
+  background:var(--pdw-bg); color:var(--pdw-text); margin:0; padding:24px; min-height:100vh;
+}
+.ptw-dark-wrap *{box-sizing:border-box}
+
+.ptw-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.ptw-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--pdw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--pdw-bg2);
+  border-radius:8px;border:1px solid var(--pdw-border-gold)}
+.ptw-dark-wrap .back-link:hover{background:var(--pdw-bg3)}
+
+.ptw-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--pdw-bg2);
+  border-radius:8px;border-left:3px solid var(--pdw-gold);margin:10px 0;color:var(--pdw-text-muted)}
+
+.ptw-dark-wrap .sec-banner{background:var(--pdw-bg2);color:var(--pdw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--pdw-border-gold);border-bottom:none}
+
+.ptw-dark-wrap .kpi-grid{display:grid;gap:14px}
+.ptw-dark-wrap .kpi-card{background:var(--pdw-bg2);border:1px solid var(--pdw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.ptw-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.ptw-dark-wrap .kpi-card.kc-nvy::before{background:var(--pdw-gold)}
+.ptw-dark-wrap .kpi-card.kc-blue::before{background:var(--pdw-blue)}
+.ptw-dark-wrap .kpi-card.kc-amb::before{background:var(--pdw-amb)}
+.ptw-dark-wrap .kpi-card.kc-red::before{background:var(--pdw-red)}
+.ptw-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--pdw-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.ptw-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--pdw-text);line-height:1.1;margin-bottom:4px}
+.ptw-dark-wrap .kpi-sub{font-size:10px;color:var(--pdw-text-muted)}
+
+.ptw-dark-wrap .chart-grid{display:grid;gap:14px}
+.ptw-dark-wrap .chart-card{background:var(--pdw-bg2);border:1px solid var(--pdw-border);
+  border-radius:14px;padding:16px 18px}
+.ptw-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--pdw-text);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.ptw-dark-wrap .chart-sub{font-size:10px;color:var(--pdw-text-muted);font-weight:400}
+.ptw-dark-wrap .chart-wrap{height:220px;position:relative}
+
+.ptw-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.ptw-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--pdw-grn)}
+.ptw-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--pdw-red)}
+.ptw-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--pdw-amb)}
+.ptw-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--pdw-blue)}
+.ptw-dark-wrap .badge.kc-nvy{background:var(--pdw-bg3);color:var(--pdw-gold-lt)}
+</style>
+</head><body><div class="ptw-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div><div class="req-text">ISO 45001 §8.1.1 — The PTW system controls all high-hazard work activities. No high-hazard work shall commence without a valid PTW. The issuing authority must verify that all conditions (isolation, PPE, atmosphere testing, exclusion zones) are in place before signing. PTW invalid if conditions change — must be cancelled and reissued. Governed by OC-01 §A.2–A.9.</div>
+
+<div class="sec-banner">PTW QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy ptw-clickable" onclick="PTW.cardClick('total')" title="Click to view the PTW Register"><div class="kpi-lbl">Total Permits</div><div class="kpi-val" id="ptw-kpi-total">—</div><div class="kpi-sub">PTW Register</div></div>
+  <div class="kpi-card kc-blue ptw-clickable" onclick="PTW.cardClick('active')" title="Click to view active permits"><div class="kpi-lbl">Active Permits</div><div class="kpi-val" id="ptw-kpi-active">—</div><div class="kpi-sub" id="ptw-kpi-active-sub">Loading…</div></div>
+  <div class="kpi-card kc-amb ptw-clickable" onclick="PTW.cardClick('overdue')" title="Click to view expiring/overdue permits"><div class="kpi-lbl">Overdue / Expiring</div><div class="kpi-val" id="ptw-kpi-overdue">—</div><div class="kpi-sub" id="ptw-kpi-overdue-sub">Loading…</div></div>
+  <div class="kpi-card kc-red ptw-clickable" onclick="PTW.cardClick('unauthorized')" title="Click to view permits issued by someone not on the Authorized Issuers list"><div class="kpi-lbl">Unauthorized Issuer</div><div class="kpi-val" id="ptw-kpi-unauth">—</div><div class="kpi-sub">Issuer not on Authorized list</div></div>
 </div>
-<div class="req-text">ISO 45001 §8.1.1 — The PTW system controls all high-hazard work activities. No high-hazard work shall commence without a valid PTW. The issuing authority must verify that all conditions (isolation, PPE, atmosphere testing, exclusion zones) are in place before signing. PTW invalid if conditions change — must be cancelled and reissued. Governed by OC-01 §A.2–A.9.</div>
 
-<div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
-<script>initPage("ptw-register.html");document.getElementById("tb").innerHTML=renderTopbar("PTW Register","L4-800-R-01 · ISO 45001 §8.1.1 · 8 PTW Types · OC-01 §A.2–A.9");</script>
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+  <div class="chart-card">
+    <div class="chart-title">Monthly Permit Volume<span class="chart-sub">permits raised, by month</span></div>
+    <div class="chart-wrap"><canvas id="ptwVolumeChart"></canvas></div>
+    <div id="ptw-volume-caption" class="chart-sub" style="display:block;margin-top:6px;text-align:center"></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Permits by Work Involved<span class="chart-sub">breakdown by work type</span></div>
+    <div class="chart-wrap"><canvas id="ptwWorkTypeChart"></canvas></div>
+  </div>
+</div>
+
+<div class="ptw-jumpbar">
+  <button class="ptw-jump-btn" onclick="PTW.jumpTo('register')">PTW Register <span id="ptw-count-register" class="ptw-jump-count"></span></button>
+  <button class="ptw-jump-btn" onclick="PTW.jumpTo('issuers')">Authorized Issuers <span id="ptw-count-issuers" class="ptw-jump-count"></span></button>
+</div>
+
+<div class="sec-banner ptw-sec-toggle" id="ptw-hdr-register" onclick="PTW.toggle('register')"><span class="ptw-chevron">▶</span> PTW REGISTER</div>
+<div id="live-table-register" class="ptw-collapsible" style="margin-top:0"></div>
+
+<div class="sec-banner ptw-sec-toggle" id="ptw-hdr-issuers" style="margin-top:10px" onclick="PTW.toggle('issuers')"><span class="ptw-chevron">▶</span> AUTHORIZED ISSUERS &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(roster used to check every permit's issuer)</span></div>
+<div id="live-table-issuers" class="ptw-collapsible" style="margin-top:0"></div>
+
+<div style="margin-top:16px;font-size:10px;color:var(--pdw-text-dim);text-align:right" id="ptw-live-ts"></div>
+<div id="ptw-modal-root"></div>
+</div>
+<!-- No sidebar/topbar: this page follows the same stand-alone pattern as fire-extinguisher-log.html. -->
+
+<style>
+.ptw-dark-wrap .ptw-toolbar{display:flex;justify-content:flex-end;padding:6px 0}
+.ptw-dark-wrap .ptw-btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;
+  border:1px solid var(--pdw-border);background:var(--pdw-bg3);color:var(--pdw-text);cursor:pointer;font-family:inherit}
+.ptw-dark-wrap .ptw-btn:hover{background:#223457;border-color:var(--pdw-border-gold)}
+.ptw-dark-wrap .ptw-btn-add{background:var(--pdw-gold);color:#1a1200;border-color:var(--pdw-gold);font-weight:700}
+.ptw-dark-wrap .ptw-btn-add:hover{background:var(--pdw-gold-lt)}
+.ptw-dark-wrap .ptw-icon-btn{border:none;background:none;cursor:pointer;font-size:13px;padding:2px 5px;border-radius:4px}
+.ptw-dark-wrap .ptw-icon-btn:hover{background:var(--pdw-bg3)}
+.ptw-dark-wrap .ptw-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
+  align-items:center;justify-content:center;z-index:9999}
+.ptw-dark-wrap .ptw-modal{background:var(--pdw-bg2);border:1px solid var(--pdw-border-gold);border-radius:14px;
+  padding:20px;width:440px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--pdw-text)}
+.ptw-dark-wrap .ptw-modal h3{margin:0 0 12px;font-size:14px;color:var(--pdw-gold-lt)}
+.ptw-dark-wrap .ptw-field{margin-bottom:10px}
+.ptw-dark-wrap .ptw-field label{display:block;font-size:10px;font-weight:600;color:var(--pdw-text-muted);margin-bottom:3px}
+.ptw-dark-wrap .ptw-field input,.ptw-dark-wrap .ptw-field textarea{width:100%;padding:6px 8px;font-size:12px;
+  border:1px solid var(--pdw-border);border-radius:6px;font-family:inherit;box-sizing:border-box;
+  background:var(--pdw-bg3);color:var(--pdw-text)}
+.ptw-dark-wrap .ptw-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.ptw-dark-wrap .ptw-modal-actions .ptw-btn-cancel{background:var(--pdw-bg3)}
+.ptw-dark-wrap .ptw-jumpbar{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px}
+.ptw-dark-wrap .ptw-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
+  border:1px solid var(--pdw-border-gold);background:var(--pdw-bg2);cursor:pointer;font-family:inherit;color:var(--pdw-gold-lt)}
+.ptw-dark-wrap .ptw-jump-btn:hover{background:var(--pdw-bg3);border-color:var(--pdw-gold)}
+.ptw-dark-wrap .ptw-jump-count{font-weight:400;color:var(--pdw-text-muted);font-size:10px}
+.ptw-dark-wrap .ptw-sec-toggle{cursor:pointer;user-select:none}
+.ptw-dark-wrap .ptw-sec-toggle:hover{opacity:.9}
+.ptw-dark-wrap .ptw-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px;color:var(--pdw-gold-lt)}
+.ptw-dark-wrap .ptw-collapsible{overflow:hidden;max-height:0;transition:none;
+  background:var(--pdw-bg2);border:1px solid var(--pdw-border-gold);border-top:none;border-radius:0 0 8px 8px}
+.ptw-dark-wrap .ptw-collapsible.ptw-open{max-height:none;padding:10px 14px}
+.ptw-dark-wrap .ptw-filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.ptw-dark-wrap .ptw-search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
+  border:1px solid var(--pdw-border);border-radius:8px;font-family:inherit;background:var(--pdw-bg3);color:var(--pdw-text)}
+.ptw-dark-wrap .ptw-search-input::placeholder{color:var(--pdw-text-dim)}
+.ptw-dark-wrap .ptw-filter-select{padding:6px 8px;font-size:12px;border:1px solid var(--pdw-border);
+  border-radius:8px;font-family:inherit;max-width:220px;background:var(--pdw-bg3);color:var(--pdw-text)}
+.ptw-dark-wrap .ptw-filter-status{font-size:10px;color:var(--pdw-text-muted);margin-left:auto}
+
+.ptw-dark-wrap .tbl-wrap{overflow-x:auto}
+.ptw-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
+.ptw-dark-wrap .tbl-stripe th{text-align:left;color:var(--pdw-gold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--pdw-border-gold);
+  background:var(--pdw-bg3);white-space:nowrap}
+.ptw-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--pdw-border);color:var(--pdw-text)}
+.ptw-dark-wrap .tbl-stripe tbody tr:nth-child(odd) td{background:var(--pdw-bg2)}
+.ptw-dark-wrap .tbl-stripe tbody tr:nth-child(even) td{background:#101d3a}
+.ptw-dark-wrap .tbl-stripe tbody tr:hover td{background:var(--pdw-bg3)}
+.ptw-dark-wrap .tbl-compact th,.ptw-dark-wrap .tbl-compact td{font-size:9px !important;padding:4px 7px !important}
+
+.ptw-dark-wrap .empty-state{text-align:center;padding:20px;color:var(--pdw-text-muted)}
+.ptw-dark-wrap .empty-state strong{display:block;font-size:13px;color:var(--pdw-gold-lt);margin-bottom:4px}
+
+.ptw-dark-wrap .nb{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid}
+.ptw-dark-wrap .nb-red{background:rgba(240,104,92,.15);color:var(--pdw-red);border-color:rgba(240,104,92,.4)}
+
+.ptw-dark-wrap .kpi-card.ptw-clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.ptw-dark-wrap .kpi-card.ptw-clickable:hover{transform:translateY(-2px);border-color:var(--pdw-gold)}
+.ptw-dark-wrap .ptw-special-pill{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:600;
+  padding:4px 10px;border-radius:14px;background:rgba(201,168,76,.15);color:var(--pdw-gold-lt);
+  border:1px solid var(--pdw-border-gold);margin:6px 0}
+.ptw-dark-wrap .ptw-special-pill-x{cursor:pointer;opacity:.8}
+.ptw-dark-wrap .ptw-special-pill-x:hover{opacity:1}
+</style>
 
 <script>
-/* ── Auto-update summary cards from live Sheets data ── */
+/* ── PTW: 2-table live load + Add/Edit/Remove ─────────────────────────
+   Structural twin of fire-extinguisher-log.html's 3-table pattern,
+   adapted to PTW's 2 real sheets (ptw_register, ptw_authorized_issuers).
+   "Remove" is a SOFT delete — sets Record Status = 'Removed' — same
+   audit-safe behaviour as the FE page.
 
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
-  }
-  return '—';
-}
-
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
-    }
-  }
-}
+   OPTIONAL FIELDS: 'Permit Valid From' / 'Permit Valid To' do not exist
+   on the live sheet yet (confirmed with Issam — the paper PTW form has
+   a validity window, the digital register currently doesn't). These two
+   fields are only shown in the Add/Edit form once the sheet actually has
+   those columns, so nothing typed into them is ever silently lost. Until
+   then, the "Overdue / Expiring" KPI shows a plain placeholder instead of
+   inventing a false zero.
+   ────────────────────────────────────────────────────────────────────── */
 (function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows && d.rows.length > 0){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('Active Permits', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Status","ACTIVE") + countContains("Status","Active") + countContains("Status","Open"); })(d.rows||[],d.headers||[]));
-  updateCard('Compliance Rate', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length > 0 ? Math.round((countContains("Status","CLOSED")+countContains("Status","Closed"))/rows.length*100)+"%" : "—"; })(d.rows||[],d.headers||[]));
-      }
-    };
+
+  var TABLES = {
+    register: {
+      label: 'Permit', tabKey: 'ptw_register', containerId: 'live-table-register',
+      idCol: 'Permit ID', idEditable: true, // sequential PTW-0001 style — user-typed, not auto-generated
+      fields: ['Permit #','Date','Work Involved','Area','Location','Description of Work',
+               'Permit Issuer - Name','Permit Issuer - Dept.','Permit Receiver - Name',
+               'Permit Controller','Permit Valid From','Permit Valid To','Status','Remarks'],
+      optionalFields: ['Permit Valid From','Permit Valid To'], // only shown once the sheet has these columns
+      filterField: 'Area'
+    },
+    issuers: {
+      label: 'Issuer', tabKey: 'ptw_authorized_issuers', containerId: 'live-table-issuers',
+      idCol: 'Issuer ID', idEditable: true, // sequential ISS-001 style — user-typed, not auto-generated
+      fields: ['Employee ID','Name','Category','Department'],
+      filterField: 'Category'
+    }
+  };
+
+  /* Cross-field auto-fill rules, keyed by table. Each rule watches the
+     "from" input inside the Add/Edit modal and, as soon as it matches
+     something already on file, fills the "to" input automatically —
+     same principle as the FE Master Inventory's Location Code → Current
+     Location fix, generalised so future registers can reuse this same
+     block instead of writing bespoke listener code each time. */
+  var AUTO_FILL_RULES = {
+    register: [
+      // Area → Location: this register's own real data shows the same
+      // physical spot recorded with inconsistent spacing/wording across
+      // rows (e.g. an extra space in "Unit 4 -  Line 4.2"). Auto-filling
+      // Location from the most recent Location on file for that Area
+      // stops that drift without forcing a rigid, hard-coded list.
+      { from: 'Area', to: 'Location', sourceTable: 'register', keyField: 'Area', valueField: 'Location' }
+    ]
+  };
+
+  var _filters = {};
+  var STATUS_COL = 'Record Status';
+  var _cache = {};
+  var _charts = { volume: null, worktype: null };
+  var _lastMonthYM = null;
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
   }
+
+  /* Extracts a leading "1876" from "1876 - Hani Abdullah Qadhi", the
+     register's real ID-prefixed naming convention for Issuer/Receiver/
+     Controller fields. Returns null if the value doesn't follow that
+     pattern (e.g. a name typed without an ID yet). */
+  function extractEmployeeId(val){
+    var m = /^\s*(\d+)\s*-/.exec(String(val||''));
+    return m ? m[1] : null;
+  }
+
+  /* Looks up a value in another (or the same) cached table by key field,
+     returning the LAST matching row's value field (most recently
+     appended row wins, same convention as FE's lookupLocationForCode). */
+  function lookupByField(sourceTable, keyField, valueField, keyVal){
+    var data = _cache[sourceTable];
+    if (!data || !data.headers || !data.rows || !keyVal) return '';
+    var kIdx = colIdx(data.headers, keyField);
+    var vIdx = colIdx(data.headers, valueField);
+    if (kIdx < 0 || vIdx < 0) return '';
+    var found = '';
+    data.rows.forEach(function(r){
+      if (String(r[kIdx]||'').trim().toLowerCase() === String(keyVal).trim().toLowerCase()){
+        var v = String(r[vIdx]||'').trim();
+        if (v) found = v;
+      }
+    });
+    return found;
+  }
+
+  /* Permit Issuer - Dept. auto-fill is a special case of the above:
+     matches by the Employee ID embedded in "Permit Issuer - Name"
+     against the Authorized Issuers' own Employee ID column, rather than
+     a raw name-to-name string match — names are typo-prone, IDs aren't. */
+  function lookupIssuerDept(issuerNameFieldVal){
+    var empId = extractEmployeeId(issuerNameFieldVal);
+    var data = _cache['issuers'];
+    if (!data || !data.headers || !data.rows) return '';
+    var idIdx = colIdx(data.headers, 'Employee ID');
+    var nameIdx = colIdx(data.headers, 'Name');
+    var deptIdx = colIdx(data.headers, 'Department');
+    if (deptIdx < 0) return '';
+    var found = '';
+    data.rows.forEach(function(r){
+      if (empId && idIdx >= 0 && String(r[idIdx]||'').trim() === empId){
+        var v = String(r[deptIdx]||'').trim(); if (v) found = v;
+      } else if (!empId && nameIdx >= 0 &&
+                 String(r[nameIdx]||'').trim().toLowerCase() === String(issuerNameFieldVal||'').trim().toLowerCase()){
+        var v2 = String(r[deptIdx]||'').trim(); if (v2) found = v2;
+      }
+    });
+    return found;
+  }
+
+  /* Datalist suggestions for a field. "Permit Issuer - Name" is special:
+     it offers the Authorized Issuers roster as "ID - Name" composite
+     strings (matching the register's own real convention), not the
+     issuers table's raw Name column. Every other field falls back to
+     its own column's previously-used values, same as FE's getSuggestions. */
+  function getSuggestions(tKeyName, fieldName){
+    if (tKeyName === 'register' && fieldName === 'Permit Issuer - Name'){
+      var data = _cache['issuers'];
+      if (!data || !data.headers || !data.rows) return [];
+      var idIdx = colIdx(data.headers, 'Employee ID');
+      var nameIdx = colIdx(data.headers, 'Name');
+      var statusIdx = colIdx(data.headers, STATUS_COL);
+      if (idIdx < 0 || nameIdx < 0) return [];
+      var out = [];
+      data.rows.forEach(function(r){
+        if (statusIdx >= 0 && String(r[statusIdx]||'').trim().toLowerCase() === 'removed') return;
+        var id = String(r[idIdx]||'').trim(), nm = String(r[nameIdx]||'').trim();
+        if (id && nm) out.push(id + ' - ' + nm);
+      });
+      return out;
+    }
+    var data2 = _cache[tKeyName];
+    if (!data2 || !data2.headers || !data2.rows) return [];
+    var idx = colIdx(data2.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}, own = [];
+    data2.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v]) { seen[v] = true; own.push(v); }
+    });
+    own.sort();
+    return own;
+  }
+
+  function getOwnColumnValues(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return [];
+    var idx = colIdx(data.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}, out = [];
+    data.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    });
+    out.sort();
+    return out;
+  }
+
+  /* Only shows optionalFields once the live sheet actually has that
+     column — prevents the modal from offering an input that would
+     silently fail to save. */
+  function effectiveFields(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    if (!cfg.optionalFields || !cfg.optionalFields.length) return cfg.fields;
+    return cfg.fields.filter(function(f){
+      if (cfg.optionalFields.indexOf(f) < 0) return true;
+      return data && data.headers && colIdx(data.headers, f) >= 0;
+    });
+  }
+
+  function renderShell(tKeyName, data){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    if (!data || !data.headers || !data.rows){
+      el.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      return;
+    }
+    _cache[tKeyName] = data;
+    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+    var f = _filters[tKeyName];
+
+    var toolbarHtml = '';
+    if (can('add')){
+      toolbarHtml = '<button class="ptw-btn ptw-btn-add" onclick="PTW.openAdd(\'' + tKeyName + '\')">+ Add Record</button>';
+    }
+
+    var categoryHtml = '';
+    if (cfg.filterField){
+      var opts = getOwnColumnValues(tKeyName, cfg.filterField);
+      categoryHtml = '<select class="ptw-filter-select" onchange="PTW.onCategoryChange(\''+tKeyName+'\', this.value)">' +
+        '<option value="">All ' + cfg.filterField + '</option>' +
+        opts.map(function(o){
+          var sel = (o === f.category) ? ' selected' : '';
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+sel+'>'+o+'</option>';
+        }).join('') + '</select>';
+    }
+
+    var specialLabels = { overdue: 'Overdue / Expiring', unauthorized: 'Unauthorized Issuer' };
+    var specialPillHtml = '';
+    if (f.special && specialLabels[f.special]){
+      specialPillHtml = '<span class="ptw-special-pill">Showing: ' + specialLabels[f.special] +
+        ' <span class="ptw-special-pill-x" onclick="PTW.clearFilters(\''+tKeyName+'\')">✕</span></span>';
+    }
+
+    var html =
+      '<div class="ptw-toolbar">' + toolbarHtml + '</div>' +
+      specialPillHtml +
+      '<div class="ptw-filterbar">' +
+        '<input type="text" class="ptw-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="PTW.onSearchInput(\''+tKeyName+'\', this.value)">' +
+        categoryHtml +
+        '<button class="ptw-btn" onclick="PTW.clearFilters(\''+tKeyName+'\')">Clear</button>' +
+        '<span class="ptw-filter-status" id="ptw-filter-status-'+tKeyName+'"></span>' +
+      '</div>' +
+      '<div class="ptw-table-area" id="ptw-table-area-'+tKeyName+'"></div>';
+    el.innerHTML = html;
+    renderTableArea(tKeyName);
+  }
+
+  function isAuthorizedIssuer(issuerFieldVal){
+    var empId = extractEmployeeId(issuerFieldVal);
+    var data = _cache['issuers'];
+    if (!data || !data.headers || !data.rows) return true; // can't check yet — don't falsely flag
+    var idIdx = colIdx(data.headers, 'Employee ID');
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    if (idIdx < 0 || !empId) return true; // no ID prefix or no ID column — not enough info to flag confidently
+    return data.rows.some(function(r){
+      if (statusIdx >= 0 && String(r[statusIdx]||'').trim().toLowerCase() === 'removed') return false;
+      return String(r[idIdx]||'').trim() === empId;
+    });
+  }
+
+  function isOverdue(row, headers){
+    var toIdx = colIdx(headers, 'Permit Valid To');
+    var statusIdx = colIdx(headers, 'Status');
+    if (toIdx < 0) return false; // column doesn't exist yet on the sheet
+    if (statusIdx >= 0){
+      var st = String(row[statusIdx]||'').trim().toLowerCase();
+      if (st === 'closed') return false;
+    }
+    var raw = row[toIdx];
+    if (!raw) return false;
+    var d = new Date(raw);
+    if (isNaN(d.getTime())) return false;
+    return d < new Date();
+  }
+
+  function renderTableArea(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    var areaEl = document.getElementById('ptw-table-area-' + tKeyName);
+    var statusEl = document.getElementById('ptw-filter-status-' + tKeyName);
+    if (!data || !areaEl) return;
+
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
+    var showActions = can('edit') || can('delete');
+    var f = _filters[tKeyName] || {search:'', category:'', special:null};
+    var searchLower = f.search.trim().toLowerCase();
+
+    var visibleRows = data.rows.filter(function(r){
+      if (statusIdx < 0) return true;
+      return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+    var totalVisible = visibleRows.length;
+
+    if (f.category && filterFieldIdx > -1){
+      visibleRows = visibleRows.filter(function(r){ return String(r[filterFieldIdx]||'').trim() === f.category; });
+    }
+    if (searchLower){
+      visibleRows = visibleRows.filter(function(r){
+        return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
+      });
+    }
+    if (f.special === 'overdue' && tKeyName === 'register'){
+      visibleRows = visibleRows.filter(function(r){ return isOverdue(r, data.headers); });
+    }
+    if (f.special === 'unauthorized' && tKeyName === 'register'){
+      var issuerIdx = colIdx(data.headers, 'Permit Issuer - Name');
+      visibleRows = visibleRows.filter(function(r){ return issuerIdx >= 0 && !isAuthorizedIssuer(r[issuerIdx]); });
+    }
+
+    if (statusEl){
+      var isFiltered = !!(f.search.trim() || f.category || f.special);
+      statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
+    }
+
+    var wide = data.headers.length > 8;
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe' + (wide?' tbl-compact':'') + '">';
+    html += '<thead><tr>';
+    data.headers.forEach(function(h,i){
+      if (i === statusIdx) return;
+      html += '<th>' + h + '</th>';
+    });
+    if (showActions) html += '<th>Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    var issuerColIdx = colIdx(data.headers, 'Permit Issuer - Name');
+
+    if (!visibleRows.length){
+      var colspan = data.headers.length - (statusIdx>-1?1:0) + (showActions?1:0);
+      html += '<tr><td colspan="'+colspan+'"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
+    } else {
+      visibleRows.forEach(function(row){
+        var idVal = idIdx>-1 ? row[idIdx] : '';
+        html += '<tr>';
+        row.forEach(function(cell,ci){
+          if (ci === statusIdx) return;
+          if (tKeyName === 'register' && ci === issuerColIdx && cell && !isAuthorizedIssuer(cell)){
+            html += '<td>' + formatCell(cell) + ' <span class="nb nb-red" title="Not found on the Authorized Issuers list">⚠ Unauthorized</span></td>';
+          } else {
+            html += '<td>' + formatCell(cell) + '</td>';
+          }
+        });
+        if (showActions){
+          html += '<td style="white-space:nowrap">';
+          if (can('edit')) html += '<button class="ptw-icon-btn" title="Edit" onclick="PTW.openEdit(\''+tKeyName+'\',\''+String(idVal).replace(/'/g,"\\'")+'\')">✏️</button>';
+          if (can('delete')) html += '<button class="ptw-icon-btn" title="Remove" onclick="PTW.remove(\''+tKeyName+'\',\''+String(idVal).replace(/'/g,"\\'")+'\')">🗑️</button>';
+          html += '</td>';
+        }
+        html += '</tr>';
+      });
+    }
+    html += '</tbody></table></div>';
+    areaEl.innerHTML = html;
+  }
+
+  function loadTab(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-lt);font-size:11px">⏳ Loading live data…</div>';
+    return fetch(SHEETS_URL + '?tab=' + cfg.tabKey + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        renderShell(tKeyName, data);
+        var countEl = document.getElementById('ptw-count-' + tKeyName);
+        if (countEl && data && data.rows) {
+          var statusIdx = colIdx(data.headers, STATUS_COL);
+          var visibleCount = statusIdx < 0 ? data.rows.length :
+            data.rows.filter(function(r){ return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; }).length;
+          countEl.textContent = '(' + visibleCount + ')';
+        }
+        return data;
+      })
+      .catch(function(){
+        el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
+        return null;
+      });
+  }
+
+  function loadAll(){
+    var keys = Object.keys(TABLES);
+    Promise.all(keys.map(loadTab)).then(function(){
+      renderDashboard();
+    });
+  }
+
+  function reloadTabAndDashboard(tKeyName){
+    return loadTab(tKeyName).then(function(){
+      if (_cache['register'] && _cache['issuers']) renderDashboard();
+    });
+  }
+
+  function renderDashboard(){
+    var reg = _cache['register'], iss = _cache['issuers'];
+    if (!reg || !iss) return;
+
+    var statusIdx = colIdx(reg.headers, STATUS_COL);
+    var visibleRows = reg.rows.filter(function(r){
+      return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+    var totalPermits = visibleRows.length;
+    document.getElementById('ptw-kpi-total').textContent = totalPermits;
+
+    var pStatusIdx = colIdx(reg.headers, 'Status');
+    var activeCount = 0;
+    visibleRows.forEach(function(r){
+      var st = pStatusIdx >= 0 ? String(r[pStatusIdx]||'').trim().toLowerCase() : '';
+      if (st === 'active' || st === 'open') activeCount++;
+    });
+    document.getElementById('ptw-kpi-active').textContent = activeCount;
+    document.getElementById('ptw-kpi-active-sub').textContent = totalPermits
+      ? Math.round(100 * activeCount / totalPermits) + '% of total' : '—';
+
+    var hasValidTo = colIdx(reg.headers, 'Permit Valid To') >= 0;
+    if (hasValidTo){
+      var overdueCount = visibleRows.filter(function(r){ return isOverdue(r, reg.headers); }).length;
+      document.getElementById('ptw-kpi-overdue').textContent = overdueCount;
+      document.getElementById('ptw-kpi-overdue-sub').textContent = 'Past Valid To, not yet Closed';
+    } else {
+      document.getElementById('ptw-kpi-overdue').textContent = '—';
+      document.getElementById('ptw-kpi-overdue-sub').textContent = 'Awaiting Valid From/To columns on sheet';
+    }
+
+    var issuerColIdx = colIdx(reg.headers, 'Permit Issuer - Name');
+    var unauthCount = 0;
+    if (issuerColIdx >= 0){
+      visibleRows.forEach(function(r){
+        if (r[issuerColIdx] && !isAuthorizedIssuer(r[issuerColIdx])) unauthCount++;
+      });
+    }
+    document.getElementById('ptw-kpi-unauth').textContent = unauthCount;
+
+    // Chart 1: Monthly Permit Volume (bar)
+    var dateIdx = colIdx(reg.headers, 'Date');
+    var monthCounts = {};
+    visibleRows.forEach(function(r){
+      var raw = dateIdx >= 0 ? r[dateIdx] : null;
+      if (!raw) return;
+      var s = String(raw).trim();
+      if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return;
+      var ym = s.slice(0,7);
+      monthCounts[ym] = (monthCounts[ym] || 0) + 1;
+    });
+    var sortedMonths = Object.keys(monthCounts).sort();
+
+    var GOLD = '#C9A84C', BLUE = '#5B9BD5';
+    var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
+
+    if (_charts.volume) { _charts.volume.destroy(); _charts.volume = null; }
+    if (_charts.worktype) { _charts.worktype.destroy(); _charts.worktype = null; }
+
+    if (window.Chart && sortedMonths.length){
+      _lastMonthYM = sortedMonths[sortedMonths.length - 1];
+      _charts.volume = new Chart(document.getElementById('ptwVolumeChart'), {
+        type: 'bar',
+        data: { labels: sortedMonths.map(monthLabel), datasets: [{
+          label: 'Permits raised', data: sortedMonths.map(function(m){ return monthCounts[m]; }),
+          backgroundColor: GOLD, borderRadius: 4
+        }]},
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: {
+            y: { beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } },
+            x: { ticks:{ color:TICK }, grid:{ color:GRID } }
+          },
+          plugins: { legend: { display:false } } }
+      });
+      var capEl = document.getElementById('ptw-volume-caption');
+      if (capEl){
+        var lastM = sortedMonths[sortedMonths.length - 1];
+        capEl.textContent = monthLabel(lastM) + ': ' + monthCounts[lastM] + ' permit' + (monthCounts[lastM]===1?'':'s') + ' raised';
+      }
+    } else {
+      var capElEmpty = document.getElementById('ptw-volume-caption');
+      if (capElEmpty) capElEmpty.textContent = '';
+    }
+
+    // Chart 2: Permits by Work Involved (bar)
+    var workIdx = colIdx(reg.headers, 'Work Involved');
+    var workCounts = {};
+    visibleRows.forEach(function(r){
+      var w = workIdx >= 0 ? String(r[workIdx]||'').trim() : '';
+      if (!w) return;
+      workCounts[w] = (workCounts[w] || 0) + 1;
+    });
+    var sortedWork = Object.keys(workCounts).sort(function(a,b){ return workCounts[b]-workCounts[a]; });
+    if (window.Chart && sortedWork.length){
+      _charts.worktype = new Chart(document.getElementById('ptwWorkTypeChart'), {
+        type: 'bar',
+        data: { labels: sortedWork, datasets: [{
+          label: 'Permits', data: sortedWork.map(function(w){ return workCounts[w]; }),
+          backgroundColor: BLUE, borderRadius: 4
+        }]},
+        options: { responsive:true, maintainAspectRatio:false, indexAxis: 'y',
+          scales: {
+            x: { beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } },
+            y: { ticks:{ color:TICK }, grid:{ color:GRID } }
+          },
+          plugins: { legend: { display:false } } }
+      });
+    }
+  }
+
+  function monthLabel(ym){
+    var parts = ym.split('-');
+    var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mi = parseInt(parts[1],10) - 1;
+    return (names[mi] || parts[1]) + ' ' + parts[0];
+  }
+
+  function setExpanded(tKeyName, expanded){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    var hdr = document.getElementById('ptw-hdr-' + tKeyName);
+    var chev = hdr ? hdr.querySelector('.ptw-chevron') : null;
+    if (expanded){
+      el.classList.add('ptw-open');
+      if (chev) chev.style.transform = 'rotate(90deg)';
+    } else {
+      el.classList.remove('ptw-open');
+      if (chev) chev.style.transform = 'rotate(0deg)';
+    }
+  }
+
+  /* ── Modal (shared by Add + Edit) ───────────────────────────────────── */
+  function showModal(tKeyName, title, fields, initialValues, onSubmit){
+    var root = document.getElementById('ptw-modal-root');
+    var fieldsHtml = fields.map(function(f, fi){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEsc = String(v).replace(/"/g,'&quot;');
+      var suggestions = getSuggestions(tKeyName, f);
+      var dlId = 'ptw-dl-' + fi;
+      var dlHtml = '';
+      if (suggestions.length){
+        dlHtml = '<datalist id="'+dlId+'">' + suggestions.map(function(s){
+          return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
+        }).join('') + '</datalist>';
+      }
+      return '<div class="ptw-field"><label>'+f+'</label>' +
+        '<input type="text" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
+        dlHtml + '</div>';
+    }).join('');
+    root.innerHTML = '<div class="ptw-modal-bg" id="ptw-modal-bg"><div class="ptw-modal">' +
+      '<h3>'+title+'</h3>' + fieldsHtml +
+      '<div class="ptw-modal-actions"><button class="ptw-btn ptw-btn-cancel" id="ptw-modal-cancel">Cancel</button>' +
+      '<button class="ptw-btn ptw-btn-add" id="ptw-modal-save">Save</button></div></div></div>';
+
+    document.getElementById('ptw-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('ptw-modal-bg').onclick = function(e){ if(e.target.id==='ptw-modal-bg') root.innerHTML=''; };
+    document.getElementById('ptw-modal-save').onclick = function(){
+      var values = {};
+      root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      onSubmit(values, function(){ root.innerHTML=''; });
+    };
+
+    /* Permit Issuer - Name → Permit Issuer - Dept. (ID-matched, see
+       lookupIssuerDept). Kept separate from the generic AUTO_FILL_RULES
+       loop below since it needs ID-extraction logic, not a plain
+       key/value column lookup. */
+    if (tKeyName === 'register'){
+      var issuerNameInput = root.querySelector('[data-field="Permit Issuer - Name"]');
+      var issuerDeptInput = root.querySelector('[data-field="Permit Issuer - Dept."]');
+      if (issuerNameInput && issuerDeptInput){
+        var fillDept = function(){
+          var v = issuerNameInput.value.trim();
+          if (!v) return;
+          var dept = lookupIssuerDept(v);
+          if (dept) issuerDeptInput.value = dept;
+        };
+        issuerNameInput.addEventListener('input', fillDept);
+        issuerNameInput.addEventListener('change', fillDept);
+      }
+    }
+
+    /* Generic cross-field auto-fill rules (e.g. Area → Location). Any
+       future register reusing this template adds its own rules to
+       AUTO_FILL_RULES instead of writing bespoke listener code. */
+    (AUTO_FILL_RULES[tKeyName] || []).forEach(function(rule){
+      var fromInput = root.querySelector('[data-field="'+rule.from+'"]');
+      var toInput = root.querySelector('[data-field="'+rule.to+'"]');
+      if (!fromInput || !toInput) return;
+      var handler = function(){
+        var kv = fromInput.value.trim();
+        if (!kv) return;
+        var match = lookupByField(rule.sourceTable, rule.keyField, rule.valueField, kv);
+        if (match) toInput.value = match;
+      };
+      fromInput.addEventListener('input', handler);
+      fromInput.addEventListener('change', handler);
+    });
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    }).then(function(r){ return r.json(); });
+  }
+
+  /* ── Public API used by inline onclick handlers ─────────────────────── */
+  window.PTW = {
+    toggle: function(tKeyName){
+      var el = document.getElementById(TABLES[tKeyName].containerId);
+      setExpanded(tKeyName, !el.classList.contains('ptw-open'));
+    },
+    jumpTo: function(tKeyName){
+      setExpanded(tKeyName, true);
+      var hdr = document.getElementById('ptw-hdr-' + tKeyName);
+      if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
+    },
+    onSearchInput: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].search = val;
+      renderTableArea(tKeyName);
+    },
+    onCategoryChange: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].category = val;
+      renderTableArea(tKeyName);
+    },
+    clearFilters: function(tKeyName){
+      _filters[tKeyName] = {search:'', category:'', special:null};
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    cardClick: function(cardName){
+      if (cardName === 'total'){
+        _filters['register'] = {search:'', category:'', special:null};
+        renderShell('register', _cache['register']);
+        setExpanded('register', true);
+        document.getElementById('ptw-hdr-register').scrollIntoView({behavior:'smooth', block:'start'});
+      } else if (cardName === 'active'){
+        _filters['register'] = {search:'active', category:'', special:null};
+        renderShell('register', _cache['register']);
+        setExpanded('register', true);
+        document.getElementById('ptw-hdr-register').scrollIntoView({behavior:'smooth', block:'start'});
+      } else if (cardName === 'overdue'){
+        _filters['register'] = {search:'', category:'', special:'overdue'};
+        renderShell('register', _cache['register']);
+        setExpanded('register', true);
+        document.getElementById('ptw-hdr-register').scrollIntoView({behavior:'smooth', block:'start'});
+      } else if (cardName === 'unauthorized'){
+        _filters['register'] = {search:'', category:'', special:'unauthorized'};
+        renderShell('register', _cache['register']);
+        setExpanded('register', true);
+        document.getElementById('ptw-hdr-register').scrollIntoView({behavior:'smooth', block:'start'});
+      }
+    },
+    openAdd: function(tKeyName){
+      var cfg = TABLES[tKeyName];
+      if (!can('add')) return;
+      showModal(tKeyName, 'Add ' + cfg.label, effectiveFields(tKeyName), {}, function(values, close){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+          close();
+          reloadTabAndDashboard(tKeyName);
+        }).catch(function(){ alert('Could not save — check your connection.'); });
+      });
+    },
+    openEdit: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('edit')) return;
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, effectiveFields(tKeyName), initial, function(values, close){
+        postJSON('update', {tab: cfg.tabKey, idCol: encodeURIComponent(cfg.idCol), id: encodeURIComponent(idVal)}, values).then(function(res){
+          close();
+          reloadTabAndDashboard(tKeyName);
+        }).catch(function(){ alert('Could not save — check your connection.'); });
+      });
+    },
+    remove: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('delete')) return;
+      if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: cfg.tabKey, idCol: encodeURIComponent(cfg.idCol), id: encodeURIComponent(idVal)}, {'Record Status':'Removed'}).then(function(res){
+        reloadTabAndDashboard(tKeyName);
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(loadAll, 100);
+  });
 })();
 </script>
 
 <script>
-(function() {
-  function colIdx(headers, name) {
-    var n = name.toLowerCase();
-    for (var i=0;i<headers.length;i++) {
-      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
-    }
-    return -1;
+/* ── Access gate: same rule as fire-extinguisher-log.html — Safety (SHEE)
+   Department, Managers, CEO, and Superadmin only. PTW has no separate
+   public-dashboard page yet (FE's blockPage links to one); this one
+   links back to the main portal instead. Flagging this choice: if a
+   PTW-specific public summary page should exist, it doesn't yet. ──── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
   }
-  function countVal(rows, col, val) {
-    if (col < 0) return 0;
-    var v = val ? val.toLowerCase() : null;
-    return rows.filter(function(r){
-      var cell = String(r[col]||'').toLowerCase().trim();
-      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
-    }).length;
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The detailed PTW register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
   }
-  function sumCol(rows, col) {
-    if (col < 0) return 0;
-    return rows.reduce(function(s,r){
-      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
-      return s + (isNaN(v) ? 0 : v);
-    }, 0);
-  }
-  function setCard(idx, val) {
-    var cards = document.querySelectorAll('.kpi-val');
-    if (cards[idx]) cards[idx].textContent = val;
-  }
-
-  var origRender = window.renderTable;
-  window.renderTable = function(data, container) {
-    if (origRender) origRender(data, container);
-    if (!data || !data.rows || !data.headers) return;
-    var rows = data.rows, h = data.headers;
-    try { setCard(1, countVal(rows, colIdx(h,"status"), "active") + countVal(rows, colIdx(h,"status"), "open")); } catch(e) {}
-    try { setCard(2, rows.length > 0 ? Math.round(countVal(rows, colIdx(h,"status"), "closed") / rows.length * 100) + "%" : "—"); } catch(e) {}
-  };
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
 })();
 </script>
+
 </body></html>
