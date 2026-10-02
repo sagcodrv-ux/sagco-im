@@ -233,6 +233,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   var _cache = {}; // tableKeyName -> {headers, rows}
   var _charts = { coverage: null, expiry: null }; // Chart.js instances, destroyed/recreated on each dashboard render
   var _lastMonthYM = null; // most recent real inspection month (e.g. '2026-09'), set in renderDashboard, used by the "This Month's Coverage" card's drill-down click
+  var _zoneList = [];                  // canonical Zones (Tier 1) values, loaded once
+  var ZONE_FIELDS = ['Current Location']; // fields that should offer the controlled Zone list first
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
 
@@ -249,16 +251,39 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var cfg = TABLES[tKeyName];
     var sourceTable = (cfg.crossRef && cfg.crossRef[fieldName]) ? cfg.crossRef[fieldName] : tKeyName;
     var data = _cache[sourceTable];
-    if (!data || !data.headers || !data.rows) return [];
-    var idx = colIdx(data.headers, fieldName);
-    if (idx < 0) return [];
-    var seen = {}, out = [];
-    data.rows.forEach(function(r){
-      var v = String(r[idx]||'').trim();
-      if (v && !seen[v]) { seen[v] = true; out.push(v); }
-    });
-    out.sort();
+    var own = [];
+    if (data && data.headers && data.rows) {
+      var idx = colIdx(data.headers, fieldName);
+      if (idx >= 0) {
+        var seen = {};
+        data.rows.forEach(function(r){
+          var v = String(r[idx]||'').trim();
+          if (v && !seen[v]) { seen[v] = true; own.push(v); }
+        });
+        own.sort();
+      }
+    }
+    if (ZONE_FIELDS.indexOf(fieldName) === -1 || !_zoneList.length) return own;
+    // Zone-controlled field: show the canonical Tier-1 list first, then any
+    // genuinely new values already typed into this column that aren't in it yet.
+    var seenZ = {}, out = [];
+    _zoneList.forEach(function(z){ if (z && !seenZ[z]) { seenZ[z] = true; out.push(z); } });
+    own.forEach(function(v){ if (v && !seenZ[v]) { seenZ[v] = true; out.push(v); } });
     return out;
+  }
+
+  function loadZoneList(){
+    return fetch(SHEETS_URL + '?tab=location_zones&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (!data || !data.headers || !data.rows) return;
+        var idx = colIdx(data.headers, 'Zone Name');
+        if (idx < 0) idx = 0; // fall back to first column if header name differs
+        _zoneList = data.rows
+          .map(function(r){ return String(r[idx]||'').trim(); })
+          .filter(function(v){ return v; });
+      })
+      .catch(function(){ _zoneList = []; }); // non-fatal: field just falls back to own-column values
   }
 
   function colIdx(headers, name){
@@ -454,7 +479,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   function loadAll(){
     var keys = Object.keys(TABLES);
-    Promise.all(keys.map(loadTab)).then(function(){
+    Promise.all(keys.map(loadTab).concat([loadZoneList()])).then(function(){
       renderDashboard();
     });
   }
