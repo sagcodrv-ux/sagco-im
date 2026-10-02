@@ -703,6 +703,48 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
       onSubmit(values, function(){ root.innerHTML=''; });
     };
+
+    /* Master Inventory only: auto-fill Current Location as soon as a
+       Location Code that's already on file is typed or picked from its
+       datalist, so the person isn't retyping (and risking a mismatched
+       typo on) a location that's already recorded for other units at
+       that same code. A brand-new code is typed manually once, and is
+       then remembered for every future unit using that code. The person
+       can still overwrite the auto-filled value by hand afterwards. */
+    if (tKeyName === 'master') {
+      var locCodeInput = root.querySelector('[data-field="Location Code"]');
+      var curLocInput  = root.querySelector('[data-field="Current Location"]');
+      if (locCodeInput && curLocInput) {
+        var fillLocationFromCode = function(){
+          var code = locCodeInput.value.trim();
+          if (!code) return;
+          var match = lookupLocationForCode(code);
+          if (match) curLocInput.value = match;
+        };
+        locCodeInput.addEventListener('input', fillLocationFromCode);
+        locCodeInput.addEventListener('change', fillLocationFromCode);
+      }
+    }
+  }
+
+  /* Looks up the most recently recorded Current Location for a given
+     Location Code, from the Master Inventory's own cached rows (last
+     matching row wins, since rows are appended in chronological order).
+     Returns '' when the code hasn't been seen before. */
+  function lookupLocationForCode(code){
+    var data = _cache['master'];
+    if (!data || !data.headers || !data.rows) return '';
+    var codeIdx = colIdx(data.headers, 'Location Code');
+    var locIdx  = colIdx(data.headers, 'Current Location');
+    if (codeIdx < 0 || locIdx < 0) return '';
+    var found = '';
+    data.rows.forEach(function(r){
+      if (String(r[codeIdx]||'').trim().toLowerCase() === code.toLowerCase()) {
+        var v = String(r[locIdx]||'').trim();
+        if (v) found = v;
+      }
+    });
+    return found;
   }
 
   function genId(prefix){
