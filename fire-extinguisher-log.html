@@ -687,8 +687,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
         }).join('') + '</datalist>';
       }
+      // Any field literally called "Date", or ending in "Date" (e.g.
+      // "Inspection Date", "Expire Date"), gets a native calendar
+      // picker instead of a free-text box — keeps entries consistent
+      // and matches how people naturally expect to pick a date.
+      var isDateField = /date$/i.test(f.trim());
+      var inputType = isDateField ? 'date' : 'text';
       return '<div class="fe-field"><label>'+f+'</label>' +
-        '<input type="text" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
+        '<input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
         dlHtml + '</div>';
     }).join('');
     root.innerHTML = '<div class="fe-modal-bg" id="fe-modal-bg"><div class="fe-modal">' +

@@ -199,8 +199,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   var TABLES = {
     register: {
       label: 'Permit', tabKey: 'ptw_register', containerId: 'live-table-register',
-      idCol: 'Permit ID', idEditable: true, // sequential PTW-0001 style — user-typed, not auto-generated
-      fields: ['Permit #','Date','Work Involved','Area','Location','Description of Work',
+      idCol: 'Permit ID', idEditable: true, // auto-suggested PTW-0001 style, but still hand-editable
+      idPrefix: 'PTW-', idPad: 4, // next sequential number is pre-filled into Add forms — see nextSequentialId()
+      fields: ['Permit ID','Permit #','Date','Work Involved','Area','Location','Description of Work',
                'Permit Issuer - Name','Permit Issuer - Dept.','Permit Receiver - Name',
                'Permit Controller','Permit Valid From','Permit Valid To','Status','Remarks'],
       optionalFields: ['Permit Valid From','Permit Valid To'], // only shown once the sheet has these columns
@@ -208,8 +209,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     },
     issuers: {
       label: 'Issuer', tabKey: 'ptw_authorized_issuers', containerId: 'live-table-issuers',
-      idCol: 'Issuer ID', idEditable: true, // sequential ISS-001 style — user-typed, not auto-generated
-      fields: ['Employee ID','Name','Category','Department'],
+      idCol: 'Issuer ID', idEditable: true, // auto-suggested ISS-001 style, but still hand-editable
+      idPrefix: 'ISS-', idPad: 3,
+      fields: ['Issuer ID','Employee ID','Name','Category','Department'],
       filterField: 'Category'
     }
   };
@@ -243,6 +245,36 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var out = -1;
     (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
     return out;
+  }
+
+  /* Looks at every existing ID in a table matching cfg.idPrefix (e.g.
+     "PTW-"), finds the highest numeric suffix on file, and returns the
+     next one in sequence, zero-padded to cfg.idPad digits (e.g.
+     "PTW-0779" after the highest existing is "PTW-0778"). Returns ''
+     if the table has no idPrefix configured, or no matching rows yet
+     (first-ever record — person types the starting ID by hand once). */
+  function nextSequentialId(tKeyName){
+    var cfg = TABLES[tKeyName];
+    if (!cfg.idPrefix) return '';
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return '';
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    if (idIdx < 0) return '';
+    var maxN = 0;
+    var prefixLower = cfg.idPrefix.toLowerCase();
+    data.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(prefixLower) !== 0) return;
+      var numPart = v.slice(cfg.idPrefix.length);
+      var n = parseInt(numPart, 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    if (maxN === 0) return ''; // no existing rows matched the prefix — let the person type the first one
+    var nextN = maxN + 1;
+    var pad = cfg.idPad || 0;
+    var numStr = String(nextN);
+    while (numStr.length < pad) numStr = '0' + numStr;
+    return cfg.idPrefix + numStr;
   }
 
   /* Extracts a leading "1876" from "1876 - Hani Abdullah Qadhi", the
@@ -696,8 +728,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
         }).join('') + '</datalist>';
       }
+      // Any field literally called "Date", or ending in "Date" (e.g. a
+      // future "Permit Valid From Date"), gets a native calendar
+      // picker instead of a free-text box — keeps entries consistent
+      // and matches how people naturally expect to pick a date.
+      var isDateField = /date$/i.test(f.trim());
+      var inputType = isDateField ? 'date' : 'text';
       return '<div class="ptw-field"><label>'+f+'</label>' +
-        '<input type="text" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
+        '<input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
         dlHtml + '</div>';
     }).join('');
     root.innerHTML = '<div class="ptw-modal-bg" id="ptw-modal-bg"><div class="ptw-modal">' +
@@ -809,7 +847,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     openAdd: function(tKeyName){
       var cfg = TABLES[tKeyName];
       if (!can('add')) return;
-      showModal(tKeyName, 'Add ' + cfg.label, effectiveFields(tKeyName), {}, function(values, close){
+      // Pre-fill the ID field with the next sequential number on file
+      // (e.g. "PTW-0779" after the last real "PTW-0778") — still a
+      // plain editable text input, so it can be corrected by hand if
+      // a specific permit needs a different number.
+      var initial = {};
+      var suggestedId = nextSequentialId(tKeyName);
+      if (suggestedId) initial[cfg.idCol] = suggestedId;
+      showModal(tKeyName, 'Add ' + cfg.label, effectiveFields(tKeyName), initial, function(values, close){
         values[STATUS_COL] = 'Active';
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
           close();
