@@ -140,6 +140,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .ptw-dark-wrap .ptw-field input,.ptw-dark-wrap .ptw-field textarea{width:100%;padding:6px 8px;font-size:12px;
   border:1px solid var(--pdw-border);border-radius:6px;font-family:inherit;box-sizing:border-box;
   background:var(--pdw-bg3);color:var(--pdw-text)}
+.ptw-dark-wrap .ptw-cb-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;
+  background:var(--pdw-bg3);border:1px solid var(--pdw-border);border-radius:6px;padding:8px}
+.ptw-dark-wrap .ptw-cb-item{display:flex;align-items:center;gap:6px;font-size:11px;
+  color:var(--pdw-text);cursor:pointer;padding:2px 0}
+.ptw-dark-wrap .ptw-cb-item input[type="checkbox"]{width:auto;margin:0;cursor:pointer;flex-shrink:0}
 .ptw-dark-wrap .ptw-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .ptw-dark-wrap .ptw-modal-actions .ptw-btn-cancel{background:var(--pdw-bg3)}
 .ptw-dark-wrap .ptw-jumpbar{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px}
@@ -204,6 +209,49 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
    ────────────────────────────────────────────────────────────────────── */
 (function(){
 
+  var PTW_WORK_TYPES = [
+    {label:'Hot work', ar:'أعمال ساخنة', match:/hot/i},
+    {label:'Cold work', ar:'أعمال باردة (ذات خطورة منخفضة)', match:/cold/i},
+    {label:'Confined spaces', ar:'أماكن محصورة (دخول بيارات)', match:/confined/i},
+    {label:'Working at height', ar:'العمل على ارتفاعات', match:/height/i},
+    {label:'Lifting', ar:'أعمال رفع', match:/lift/i},
+    {label:'Painting', ar:'دهان', match:/paint/i},
+    {label:'Civil work', ar:'أعمال مدنية', match:/civil/i},
+    {label:'Pipeline works (LPG / Oil)', ar:'أعمال في خطوط الأنابيب (غاز/زيت)', match:/pipeline/i},
+    {label:'Electrical Repairs', ar:'إصلاحات كهربية', match:/electrical/i}
+  ];
+  var PTW_EQUIPMENT = [
+    ['Welding m/c','معدة لحام'],['Grinding m/c','معدة جلخ'],['Drilling m/c','معدة حفر'],
+    ['Ladder','سلم'],['Gas cutting','قطع بالغاز'],['Forklift','رافعة شوكية'],
+    ['Scaffolding','سقالات'],['Hand tools','عدد يدوية'],['Man lift','رافعة الأشخاص'],
+    ['Crane','رافعة'],['Chemicals','كيماويات'],['Others:','أخرى:']
+  ];
+  var PTW_HAZARDS = [
+    ['Fire','حريق'],['High temperature/pressure','حرارة/ضغط عالي'],['Electrical shock','صدمة كهربية'],
+    ['Oxygen deficiency','نقص في الأكسجين'],['Gas/chemical release','انبعاث غاز/كيماويات'],
+    ['Slips & Trips','التعثر والانزلاق'],['Others:','أخرى:']
+  ];
+  var PTW_SAFETY_PRECAUTIONS = [
+    ['Eliminate flammable liquids/vapors','التخلص من السوائل القابلة للاشتعال/الأبخرة'],
+    ['Remove or cover combustible materials','إزالة أو تغطية المواد القابلة للاشتعال'],
+    ['Cover the wall or floor openings','تغطية الحائط والفتحات الأرضية'],
+    ['Floors swept & clean','أرضيات نظيفة'],['Safety tags & locks','علامات وأقفال السلامة'],
+    ['Fire extinguishers','طفايات حريق'],['Electrical isolation','عزل كهربي'],
+    ['Safe welding equipment','معدات اللحام الآمنة'],['Fall protection','حماية الأفراد من السقوط'],
+    ['Warning signs','علامات تحذيرية'],['Safety attendant','حضور ملاحظ من الـSafety'],['Others:','أخرى:']
+  ];
+  var PTW_PPE = [
+    ['Safety shoes','حذاء السلامة'],['Welding mask','قناع اللحام'],['Hand gloves','قفازات اليد'],
+    ['Gum boots','أحذية مطاطية'],['Dust mask','قناع الأتربة'],['Hard helmet','خوذة الرأس'],
+    ['Ear protection','حماية السمع'],['Chemical Mask','قناع للكيماويات'],['Goggles','حماية العين'],
+    ['Safety Harness','حزام السلامة'],['Breathing apparatus','أجهزة للتنفس'],['Others:','أخرى:']
+  ];
+  var PTW_ISOLATION = [
+    ['Electrical energy','عزل الكهرباء'],['Mechanical energy','المصادر الميكانيكية'],
+    ['Thermal energy','المصادر الحرارية'],['Gases','الغازات'],
+    ['Hydraulic energy','المصادر الهيدروليكية'],['Pneumatic energy','المصادر الهوائية']
+  ];
+
   var TABLES = {
     register: {
       label: 'Permit', tabKey: 'ptw_register', containerId: 'live-table-register',
@@ -211,16 +259,34 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       idPrefix: 'PTW-', idPad: 4, // next sequential number is pre-filled into Add forms — see nextSequentialId()
       fields: ['Permit ID','Permit #','Date','Work Involved','Area','Location',
                'Name of Project / Job','Contracting Company','Description of Work','Number of Workers',
+               'Equipment & Tools','Potential Hazards','Safety Precautions','PPE Required','Service Isolation',
                'Permit Issuer - Name','Permit Issuer - Dept.','Permit Receiver - Name',
                'Permit Controller','Unit Manager','Permit Valid From','Permit Valid To','Status','Remarks'],
-      // All five below only appear in the Add/Edit form once the live sheet
-      // actually has that column — matches HSE-FRM-01 paper form fields
-      // that the digital register doesn't track yet (added per Issam's
-      // request, 2026-10-03): Name of Project/Job, Contracting Company,
-      // Number of Workers, Unit Manager (4th signoff role alongside
-      // Issuer/Receiver/Controller), plus the pre-existing Valid From/To.
+      // All eleven below only appear in the Add/Edit form once the live
+      // sheet actually has that column — matches HSE-FRM-01 paper form
+      // fields that the digital register doesn't track yet. First batch
+      // (Name of Project/Job, Contracting Company, Number of Workers,
+      // Unit Manager, Valid From/To) added 2026-10-03 per Issam's request.
+      // Second batch — the five checkbox-group fields — added same day,
+      // completing the HSE-FRM-01 print-template auto-fill so only truly
+      // on-site/manual items (none left) print blank. Each stores its
+      // ticked options as a single semicolon-joined string in one sheet
+      // column (e.g. "Hot work; Confined spaces"), via checkboxGroupFields
+      // below, rather than one column per individual checkbox.
       optionalFields: ['Name of Project / Job','Contracting Company','Number of Workers','Unit Manager',
-                        'Permit Valid From','Permit Valid To'],
+                        'Permit Valid From','Permit Valid To',
+                        'Equipment & Tools','Potential Hazards','Safety Precautions','PPE Required','Service Isolation'],
+      // Fields rendered as a checkbox grid (not a text input) in the
+      // Add/Edit modal. Options match HSE-FRM-01's own checkbox lists
+      // verbatim (see PTW_EQUIPMENT etc. used by the print template) so
+      // the same list drives both data entry and the printed form.
+      checkboxGroupFields: {
+        'Equipment & Tools': PTW_EQUIPMENT.map(function(e){ return e[0]; }),
+        'Potential Hazards': PTW_HAZARDS.map(function(h){ return h[0]; }),
+        'Safety Precautions': PTW_SAFETY_PRECAUTIONS.map(function(p){ return p[0]; }),
+        'PPE Required': PTW_PPE.map(function(p){ return p[0]; }),
+        'Service Isolation': PTW_ISOLATION.map(function(i){ return i[0]; })
+      },
       filterField: 'Area'
     },
     issuers: {
@@ -485,64 +551,33 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // ──────────────────────────────────────────────────────────────────
   // HSE-FRM-01 print template — builds a filled version of the official
   // Permit-to-Work paper form from one register record. Fields that
-  // exist in the digital register are auto-filled; the checkbox-driven
-  // sections (Equipment & Tools, Potential Hazards, Safety Precautions,
-  // Personnel Precaution, Service Isolation) are NOT captured anywhere
-  // in the live sheet today, so they print blank for hand-ticking on
-  // site — confirmed with Issam 2026-10-03 as a deliberate scope call,
-  // not an oversight. Only "Type of work involved" gets a best-effort
-  // auto-tick, matched against the register's free-text "Work Involved"
-  // field by keyword.
+  // exist in the digital register are auto-filled, including the five
+  // checkbox-driven sections (Equipment & Tools, Potential Hazards,
+  // Safety Precautions, PPE Required, Service Isolation) once the sheet
+  // has those columns — each stores its ticked options as a semicolon-
+  // joined string (see checkboxGroupFields on the register TABLES entry
+  // and showModal's checkbox-grid rendering). Until those columns exist
+  // on the live sheet, this print template still falls back gracefully:
+  // an empty/missing value just means every box in that section prints
+  // unticked, same as before this was wired up — never a crash. "Type of
+  // work involved" additionally gets a best-effort auto-tick, matched
+  // against the register's free-text "Work Involved" field by keyword.
   // ──────────────────────────────────────────────────────────────────
-  var PTW_WORK_TYPES = [
-    {label:'Hot work', ar:'أعمال ساخنة', match:/hot/i},
-    {label:'Cold work', ar:'أعمال باردة (ذات خطورة منخفضة)', match:/cold/i},
-    {label:'Confined spaces', ar:'أماكن محصورة (دخول بيارات)', match:/confined/i},
-    {label:'Working at height', ar:'العمل على ارتفاعات', match:/height/i},
-    {label:'Lifting', ar:'أعمال رفع', match:/lift/i},
-    {label:'Painting', ar:'دهان', match:/paint/i},
-    {label:'Civil work', ar:'أعمال مدنية', match:/civil/i},
-    {label:'Pipeline works (LPG / Oil)', ar:'أعمال في خطوط الأنابيب (غاز/زيت)', match:/pipeline/i},
-    {label:'Electrical Repairs', ar:'إصلاحات كهربية', match:/electrical/i}
-  ];
-  var PTW_EQUIPMENT = [
-    ['Welding m/c','معدة لحام'],['Grinding m/c','معدة جلخ'],['Drilling m/c','معدة حفر'],
-    ['Ladder','سلم'],['Gas cutting','قطع بالغاز'],['Forklift','رافعة شوكية'],
-    ['Scaffolding','سقالات'],['Hand tools','عدد يدوية'],['Man lift','رافعة الأشخاص'],
-    ['Crane','رافعة'],['Chemicals','كيماويات'],['Others:','أخرى:']
-  ];
-  var PTW_HAZARDS = [
-    ['Fire','حريق'],['High temperature/pressure','حرارة/ضغط عالي'],['Electrical shock','صدمة كهربية'],
-    ['Oxygen deficiency','نقص في الأكسجين'],['Gas/chemical release','انبعاث غاز/كيماويات'],
-    ['Slips & Trips','التعثر والانزلاق'],['Others:','أخرى:']
-  ];
-  var PTW_SAFETY_PRECAUTIONS = [
-    ['Eliminate flammable liquids/vapors','التخلص من السوائل القابلة للاشتعال/الأبخرة'],
-    ['Remove or cover combustible materials','إزالة أو تغطية المواد القابلة للاشتعال'],
-    ['Cover the wall or floor openings','تغطية الحائط والفتحات الأرضية'],
-    ['Floors swept & clean','أرضيات نظيفة'],['Safety tags & locks','علامات وأقفال السلامة'],
-    ['Fire extinguishers','طفايات حريق'],['Electrical isolation','عزل كهربي'],
-    ['Safe welding equipment','معدات اللحام الآمنة'],['Fall protection','حماية الأفراد من السقوط'],
-    ['Warning signs','علامات تحذيرية'],['Safety attendant','حضور ملاحظ من الـSafety'],['Others:','أخرى:']
-  ];
-  var PTW_PPE = [
-    ['Safety shoes','حذاء السلامة'],['Welding mask','قناع اللحام'],['Hand gloves','قفازات اليد'],
-    ['Gum boots','أحذية مطاطية'],['Dust mask','قناع الأتربة'],['Hard helmet','خوذة الرأس'],
-    ['Ear protection','حماية السمع'],['Chemical Mask','قناع للكيماويات'],['Goggles','حماية العين'],
-    ['Safety Harness','حزام السلامة'],['Breathing apparatus','أجهزة للتنفس'],['Others:','أخرى:']
-  ];
-  var PTW_ISOLATION = [
-    ['Electrical energy','عزل الكهرباء'],['Mechanical energy','المصادر الميكانيكية'],
-    ['Thermal energy','المصادر الحرارية'],['Gases','الغازات'],
-    ['Hydraulic energy','المصادر الهيدروليكية'],['Pneumatic energy','المصادر الهوائية']
-  ];
-
   function pfEsc(v){
     return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
   function pfCb(labelEn, labelAr, checked){
     return '<span class="pf-item"><span class="pf-box">'+(checked?'&#9746;':'&#9744;')+'</span>'
       + '<span class="pf-item-label">'+pfEsc(labelEn)+(labelAr?' <span class="pf-ar">'+pfEsc(labelAr)+'</span>':'')+'</span></span>';
+  }
+  /* Checks whether labelEn appears in a semicolon-joined checkbox-group
+     value (e.g. "Hot work; Confined spaces"), trimmed and case-insensitive
+     so stray spacing around the separator doesn't cause a false miss.
+     Returns false for an empty/missing stored value — never throws. */
+  function pfIsChecked(storedVal, labelEn){
+    if (!storedVal) return false;
+    var parts = String(storedVal).split(';').map(function(s){ return s.trim().toLowerCase(); });
+    return parts.indexOf(String(labelEn).trim().toLowerCase()) > -1;
   }
   function pfField(label, value){
     return '<div class="pf-field"><span class="pf-label">'+pfEsc(label)+'</span><span class="pf-value">'+pfEsc(value||'')+'</span></div>';
@@ -563,11 +598,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var workMatched = PTW_WORK_TYPES.some(function(w){ return w.match.test(workVal); });
     var workNote = (!workMatched && workVal) ? '<div class="pf-note">As recorded in the register: <strong>'+pfEsc(workVal)+'</strong> (did not match a standard checkbox — verify on site)</div>' : '';
 
-    var equipmentHtml = PTW_EQUIPMENT.map(function(e){ return pfCb(e[0], e[1], false); }).join('');
-    var hazardsHtml = PTW_HAZARDS.map(function(h){ return pfCb(h[0], h[1], false); }).join('');
-    var precautionsHtml = PTW_SAFETY_PRECAUTIONS.map(function(p){ return pfCb(p[0], p[1], false); }).join('');
-    var ppeHtml = PTW_PPE.map(function(p){ return pfCb(p[0], p[1], false); }).join('');
-    var isolationHtml = PTW_ISOLATION.map(function(i){ return pfCb(i[0], i[1], false); }).join('');
+    // Each of these five fields stores its ticked options as a
+    // semicolon-joined string (e.g. "Hot work; Confined spaces") once the
+    // sheet has that column — see checkboxGroupFields on TABLES.register
+    // and showModal's checkbox-grid rendering. pfIsChecked() does a
+    // trimmed, case-insensitive membership check against that list; an
+    // empty/missing field just means every box here prints unticked,
+    // same graceful fallback as before this was wired up.
+    var equipmentHtml = PTW_EQUIPMENT.map(function(e){ return pfCb(e[0], e[1], pfIsChecked(rec['Equipment & Tools'], e[0])); }).join('');
+    var hazardsHtml = PTW_HAZARDS.map(function(h){ return pfCb(h[0], h[1], pfIsChecked(rec['Potential Hazards'], h[0])); }).join('');
+    var precautionsHtml = PTW_SAFETY_PRECAUTIONS.map(function(p){ return pfCb(p[0], p[1], pfIsChecked(rec['Safety Precautions'], p[0])); }).join('');
+    var ppeHtml = PTW_PPE.map(function(p){ return pfCb(p[0], p[1], pfIsChecked(rec['PPE Required'], p[0])); }).join('');
+    var isolationHtml = PTW_ISOLATION.map(function(i){ return pfCb(i[0], i[1], pfIsChecked(rec['Service Isolation'], i[0])); }).join('');
 
     var printedAt = new Date().toLocaleString();
     var permitId = rec['Permit ID'] || '';
@@ -949,9 +991,28 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   /* ── Modal (shared by Add + Edit) ───────────────────────────────────── */
   function showModal(tKeyName, title, fields, initialValues, onSubmit){
     var root = document.getElementById('ptw-modal-root');
+    var cfg = TABLES[tKeyName];
+    var cbGroups = cfg.checkboxGroupFields || {};
     var fieldsHtml = fields.map(function(f, fi){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
+
+      // Checkbox-group fields (e.g. Equipment & Tools, Potential Hazards)
+      // render as a grid of checkboxes instead of a text input. Existing
+      // selections are parsed from the semicolon-joined stored value —
+      // same format pfIsChecked() reads on the print side.
+      if (cbGroups[f]){
+        var existing = String(v||'').split(';').map(function(s){ return s.trim().toLowerCase(); });
+        var boxesHtml = cbGroups[f].map(function(opt, oi){
+          var checked = existing.indexOf(String(opt).trim().toLowerCase()) > -1;
+          var cbId = 'ptw-cb-' + fi + '-' + oi;
+          return '<label class="ptw-cb-item" for="'+cbId+'">' +
+            '<input type="checkbox" id="'+cbId+'" data-cbgroup="'+String(f).replace(/"/g,'&quot;')+'" data-cbval="'+String(opt).replace(/"/g,'&quot;')+'"' + (checked?' checked':'') + '>' +
+            '<span>'+opt+'</span></label>';
+        }).join('');
+        return '<div class="ptw-field"><label>'+f+'</label><div class="ptw-cb-grid">'+boxesHtml+'</div></div>';
+      }
+
       var suggestions = getSuggestions(tKeyName, f);
       var dlId = 'ptw-dl-' + fi;
       var dlHtml = '';
@@ -980,6 +1041,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('ptw-modal-save').onclick = function(){
       var values = {};
       root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      // Checkbox groups: collect every checked box per group name and
+      // join into the same semicolon-separated format the print template
+      // and pfIsChecked() expect. A group with nothing ticked saves as
+      // an empty string, same as a blank text field would.
+      var cbByGroup = {};
+      root.querySelectorAll('[data-cbgroup]').forEach(function(cb){
+        var g = cb.getAttribute('data-cbgroup');
+        if (!cbByGroup[g]) cbByGroup[g] = [];
+        if (cb.checked) cbByGroup[g].push(cb.getAttribute('data-cbval'));
+      });
+      Object.keys(cbByGroup).forEach(function(g){ values[g] = cbByGroup[g].join('; '); });
       onSubmit(values, function(){ root.innerHTML=''; });
     };
 
