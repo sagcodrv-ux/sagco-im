@@ -78,6 +78,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 </head><body><div class="ptw-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div><div class="req-text">ISO 45001 §8.1.1 — The PTW system controls all high-hazard work activities. No high-hazard work shall commence without a valid PTW. The issuing authority must verify that all conditions (isolation, PPE, atmosphere testing, exclusion zones) are in place before signing. PTW invalid if conditions change — must be cancelled and reissued. Governed by OC-01 §A.2–A.9.</div>
 
 <div class="sec-banner">PTW QUICK STATUS</div>
+<div class="ptw-daterange-bar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px">
+  <label style="font-size:12px;color:var(--pdw-text-muted)">From</label>
+  <input type="date" id="ptw-date-start" class="ptw-filter-select" onchange="PTW.onDateRangeChange()">
+  <label style="font-size:12px;color:var(--pdw-text-muted)">To</label>
+  <input type="date" id="ptw-date-end" class="ptw-filter-select" onchange="PTW.onDateRangeChange()">
+  <button class="ptw-btn" onclick="PTW.clearDateRange()">Clear</button>
+  <span class="ptw-filter-status" id="ptw-daterange-status"></span>
+</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
   <div class="kpi-card kc-nvy ptw-clickable" onclick="PTW.cardClick('total')" title="Click to view the PTW Register"><div class="kpi-lbl">Total Permits</div><div class="kpi-val" id="ptw-kpi-total">—</div><div class="kpi-sub">PTW Register</div></div>
   <div class="kpi-card kc-blue ptw-clickable" onclick="PTW.cardClick('active')" title="Click to view active permits"><div class="kpi-lbl">Active Permits</div><div class="kpi-val" id="ptw-kpi-active">—</div><div class="kpi-sub" id="ptw-kpi-active-sub">Loading…</div></div>
@@ -583,6 +591,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     });
   }
 
+  /* Date-range filter state for the KPI cards + charts (separate from the
+     table search/category filters in _filters, which govern the two
+     scrollable tables below). Empty strings = no bound on that side. */
+  var _dateRange = { start: '', end: '' };
+
   function renderDashboard(){
     var reg = _cache['register'], iss = _cache['issuers'];
     if (!reg || !iss) return;
@@ -591,6 +604,27 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var visibleRows = reg.rows.filter(function(r){
       return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
     });
+
+    // Apply the Quick Status date range (Date column, inclusive on both
+    // ends) before any card or chart math runs, so every number on the
+    // dashboard reflects the same filtered window consistently.
+    var rangeDateIdx = colIdx(reg.headers, 'Date');
+    if ((_dateRange.start || _dateRange.end) && rangeDateIdx >= 0){
+      visibleRows = visibleRows.filter(function(r){
+        var s = String(r[rangeDateIdx]||'').trim().slice(0,10);
+        if (!s) return false;
+        if (_dateRange.start && s < _dateRange.start) return false;
+        if (_dateRange.end && s > _dateRange.end) return false;
+        return true;
+      });
+    }
+    var statusBarEl = document.getElementById('ptw-daterange-status');
+    if (statusBarEl){
+      statusBarEl.textContent = (_dateRange.start || _dateRange.end)
+        ? 'Filtered: ' + visibleRows.length + ' permit' + (visibleRows.length===1?'':'s') + ' in range'
+        : '';
+    }
+
     var totalPermits = visibleRows.length;
     document.getElementById('ptw-kpi-total').textContent = totalPermits;
 
@@ -798,6 +832,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   /* ── Public API used by inline onclick handlers ─────────────────────── */
   window.PTW = {
+    onDateRangeChange: function(){
+      var s = document.getElementById('ptw-date-start');
+      var e = document.getElementById('ptw-date-end');
+      _dateRange.start = s ? s.value : '';
+      _dateRange.end = e ? e.value : '';
+      renderDashboard();
+    },
+    clearDateRange: function(){
+      _dateRange.start = ''; _dateRange.end = '';
+      var s = document.getElementById('ptw-date-start');
+      var e = document.getElementById('ptw-date-end');
+      if (s) s.value = '';
+      if (e) e.value = '';
+      renderDashboard();
+    },
     toggle: function(tKeyName){
       var el = document.getElementById(TABLES[tKeyName].containerId);
       setExpanded(tKeyName, !el.classList.contains('ptw-open'));
