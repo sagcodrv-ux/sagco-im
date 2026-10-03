@@ -136,9 +136,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
    toolbar — hover and selected states make it clear a row can be
    picked and which one currently is. */
 .ptw-dark-wrap .ptw-row-selectable{cursor:pointer}
-.ptw-dark-wrap .ptw-row-selectable:hover{background:var(--pdw-bg3)}
-.ptw-dark-wrap .ptw-row-selected,
-.ptw-dark-wrap .ptw-row-selected:hover{background:rgba(201,168,76,.18);box-shadow:inset 3px 0 0 var(--pdw-gold)}
+.ptw-dark-wrap .ptw-row-selected td,
+.ptw-dark-wrap .ptw-row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--pdw-gold)}
 .ptw-dark-wrap .ptw-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
   align-items:center;justify-content:center;z-index:9999}
 .ptw-dark-wrap .ptw-modal{background:var(--pdw-bg2);border:1px solid var(--pdw-border-gold);border-radius:14px;
@@ -1225,7 +1224,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var initial = {};
       data.headers.forEach(function(h,i){ initial[h] = row[i]; });
       showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, effectiveFields(tKeyName), initial, function(values, close){
-        postJSON('update', {tab: cfg.tabKey, idCol: encodeURIComponent(cfg.idCol), id: encodeURIComponent(idVal)}, values).then(function(res){
+        // NOTE: postJSON() already URL-encodes every param itself, so
+        // params here must be passed RAW — encoding them again here
+        // double-encodes (e.g. "Permit ID"'s space becomes %20, then
+        // %2520), which the sheet's real column name never matches,
+        // so the save silently fails server-side every time. That
+        // silent failure is also why this now checks res.status
+        // instead of assuming success just because the request
+        // completed.
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+            return;
+          }
           close();
           reloadTabAndDashboard(tKeyName);
         }).catch(function(){ alert('Could not save — check your connection.'); });
@@ -1251,7 +1262,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (!can('delete')) return;
       if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
       if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
-      postJSON('update', {tab: cfg.tabKey, idCol: encodeURIComponent(cfg.idCol), id: encodeURIComponent(idVal)}, {'Record Status':'Removed'}).then(function(res){
+      // See the matching note in openEdit — params passed to postJSON
+      // must be raw, not pre-encoded, or the idCol value gets mangled
+      // and the sheet-side lookup silently fails.
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){
+          alert('Remove failed: ' + (res.message || 'unknown error'));
+          return;
+        }
         _selected[tKeyName] = null;
         reloadTabAndDashboard(tKeyName);
       }).catch(function(){ alert('Could not remove — check your connection.'); });
