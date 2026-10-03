@@ -482,6 +482,192 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return d < new Date();
   }
 
+  // ──────────────────────────────────────────────────────────────────
+  // HSE-FRM-01 print template — builds a filled version of the official
+  // Permit-to-Work paper form from one register record. Fields that
+  // exist in the digital register are auto-filled; the checkbox-driven
+  // sections (Equipment & Tools, Potential Hazards, Safety Precautions,
+  // Personnel Precaution, Service Isolation) are NOT captured anywhere
+  // in the live sheet today, so they print blank for hand-ticking on
+  // site — confirmed with Issam 2026-10-03 as a deliberate scope call,
+  // not an oversight. Only "Type of work involved" gets a best-effort
+  // auto-tick, matched against the register's free-text "Work Involved"
+  // field by keyword.
+  // ──────────────────────────────────────────────────────────────────
+  var PTW_WORK_TYPES = [
+    {label:'Hot work', ar:'أعمال ساخنة', match:/hot/i},
+    {label:'Cold work', ar:'أعمال باردة (ذات خطورة منخفضة)', match:/cold/i},
+    {label:'Confined spaces', ar:'أماكن محصورة (دخول بيارات)', match:/confined/i},
+    {label:'Working at height', ar:'العمل على ارتفاعات', match:/height/i},
+    {label:'Lifting', ar:'أعمال رفع', match:/lift/i},
+    {label:'Painting', ar:'دهان', match:/paint/i},
+    {label:'Civil work', ar:'أعمال مدنية', match:/civil/i},
+    {label:'Pipeline works (LPG / Oil)', ar:'أعمال في خطوط الأنابيب (غاز/زيت)', match:/pipeline/i},
+    {label:'Electrical Repairs', ar:'إصلاحات كهربية', match:/electrical/i}
+  ];
+  var PTW_EQUIPMENT = [
+    ['Welding m/c','معدة لحام'],['Grinding m/c','معدة جلخ'],['Drilling m/c','معدة حفر'],
+    ['Ladder','سلم'],['Gas cutting','قطع بالغاز'],['Forklift','رافعة شوكية'],
+    ['Scaffolding','سقالات'],['Hand tools','عدد يدوية'],['Man lift','رافعة الأشخاص'],
+    ['Crane','رافعة'],['Chemicals','كيماويات'],['Others:','أخرى:']
+  ];
+  var PTW_HAZARDS = [
+    ['Fire','حريق'],['High temperature/pressure','حرارة/ضغط عالي'],['Electrical shock','صدمة كهربية'],
+    ['Oxygen deficiency','نقص في الأكسجين'],['Gas/chemical release','انبعاث غاز/كيماويات'],
+    ['Slips & Trips','التعثر والانزلاق'],['Others:','أخرى:']
+  ];
+  var PTW_SAFETY_PRECAUTIONS = [
+    ['Eliminate flammable liquids/vapors','التخلص من السوائل القابلة للاشتعال/الأبخرة'],
+    ['Remove or cover combustible materials','إزالة أو تغطية المواد القابلة للاشتعال'],
+    ['Cover the wall or floor openings','تغطية الحائط والفتحات الأرضية'],
+    ['Floors swept & clean','أرضيات نظيفة'],['Safety tags & locks','علامات وأقفال السلامة'],
+    ['Fire extinguishers','طفايات حريق'],['Electrical isolation','عزل كهربي'],
+    ['Safe welding equipment','معدات اللحام الآمنة'],['Fall protection','حماية الأفراد من السقوط'],
+    ['Warning signs','علامات تحذيرية'],['Safety attendant','حضور ملاحظ من الـSafety'],['Others:','أخرى:']
+  ];
+  var PTW_PPE = [
+    ['Safety shoes','حذاء السلامة'],['Welding mask','قناع اللحام'],['Hand gloves','قفازات اليد'],
+    ['Gum boots','أحذية مطاطية'],['Dust mask','قناع الأتربة'],['Hard helmet','خوذة الرأس'],
+    ['Ear protection','حماية السمع'],['Chemical Mask','قناع للكيماويات'],['Goggles','حماية العين'],
+    ['Safety Harness','حزام السلامة'],['Breathing apparatus','أجهزة للتنفس'],['Others:','أخرى:']
+  ];
+  var PTW_ISOLATION = [
+    ['Electrical energy','عزل الكهرباء'],['Mechanical energy','المصادر الميكانيكية'],
+    ['Thermal energy','المصادر الحرارية'],['Gases','الغازات'],
+    ['Hydraulic energy','المصادر الهيدروليكية'],['Pneumatic energy','المصادر الهوائية']
+  ];
+
+  function pfEsc(v){
+    return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function pfCb(labelEn, labelAr, checked){
+    return '<span class="pf-item"><span class="pf-box">'+(checked?'&#9746;':'&#9744;')+'</span>'
+      + '<span class="pf-item-label">'+pfEsc(labelEn)+(labelAr?' <span class="pf-ar">'+pfEsc(labelAr)+'</span>':'')+'</span></span>';
+  }
+  function pfField(label, value){
+    return '<div class="pf-field"><span class="pf-label">'+pfEsc(label)+'</span><span class="pf-value">'+pfEsc(value||'')+'</span></div>';
+  }
+  function pfSignBlock(role, roleAr, name){
+    return '<div class="pf-sign-block"><div class="pf-sign-role">'+pfEsc(role)+(roleAr?' <span class="pf-ar">'+pfEsc(roleAr)+'</span>':'')+'</div>'
+      + '<div class="pf-sign-line">Name: <span class="pf-value-inline">'+pfEsc(name||'')+'</span></div>'
+      + '<div class="pf-sign-line">Sign: ______________________&nbsp;&nbsp;&nbsp;Time: __________</div></div>';
+  }
+
+  function buildPermitPrintHtml(rec){
+    var workVal = rec['Work Involved'] || '';
+    var workTypeHtml = PTW_WORK_TYPES.map(function(w){
+      return pfCb(w.label, w.ar, w.match.test(workVal));
+    }).join('');
+    // If the free-text value didn't match any known checkbox, still show
+    // it verbatim so nothing typed on the record is silently lost.
+    var workMatched = PTW_WORK_TYPES.some(function(w){ return w.match.test(workVal); });
+    var workNote = (!workMatched && workVal) ? '<div class="pf-note">As recorded in the register: <strong>'+pfEsc(workVal)+'</strong> (did not match a standard checkbox — verify on site)</div>' : '';
+
+    var equipmentHtml = PTW_EQUIPMENT.map(function(e){ return pfCb(e[0], e[1], false); }).join('');
+    var hazardsHtml = PTW_HAZARDS.map(function(h){ return pfCb(h[0], h[1], false); }).join('');
+    var precautionsHtml = PTW_SAFETY_PRECAUTIONS.map(function(p){ return pfCb(p[0], p[1], false); }).join('');
+    var ppeHtml = PTW_PPE.map(function(p){ return pfCb(p[0], p[1], false); }).join('');
+    var isolationHtml = PTW_ISOLATION.map(function(i){ return pfCb(i[0], i[1], false); }).join('');
+
+    var printedAt = new Date().toLocaleString();
+    var permitId = rec['Permit ID'] || '';
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>PTW ' + pfEsc(permitId) + ' — HSE-FRM-01</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;margin:0;padding:24px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:14px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:800px;margin:0 auto;border:1px solid #333;padding:18px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:8px;margin-bottom:10px}'
+    + '.pf-head h1{font-size:16px;margin:0}'
+    + '.pf-head .pf-code{font-size:11px;text-align:right}'
+    + '.pf-section{border:1px solid #999;margin-bottom:8px;padding:8px}'
+    + '.pf-section-title{font-weight:700;font-size:11px;margin-bottom:6px;text-transform:uppercase}'
+    + '.pf-field{margin-bottom:5px}'
+    + '.pf-label{font-weight:700;margin-right:6px}'
+    + '.pf-value{border-bottom:1px dotted #666;padding:0 4px}'
+    + '.pf-value-inline{border-bottom:1px dotted #666;padding:0 4px;font-weight:600}'
+    + '.pf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}'
+    + '.pf-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 10px}'
+    + '.pf-item{display:flex;align-items:flex-start;gap:4px;font-size:10px;margin-bottom:3px}'
+    + '.pf-box{font-size:13px;line-height:1}'
+    + '.pf-ar{color:#555;font-size:9px}'
+    + '.pf-note{font-size:10px;color:#a05a00;margin-top:4px;font-style:italic}'
+    + '.pf-sign-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}'
+    + '.pf-sign-block{border:1px dashed #999;padding:6px;font-size:10px}'
+    + '.pf-sign-role{font-weight:700;margin-bottom:4px}'
+    + '.pf-sign-line{margin-bottom:4px}'
+    + '.pf-footer{margin-top:10px;font-size:9px;color:#666;border-top:1px solid #999;padding-top:6px}'
+    + '.pf-sysref{margin-top:10px;border:1px dashed #999;padding:6px;font-size:10px;background:#fafafa}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>Permit to Work<br><span style="font-size:11px;font-weight:400">تصريح عمل</span></h1>'
+      + '<div class="pf-code">HSE-FRM-01<br>Permit ID: <strong>'+pfEsc(permitId)+'</strong></div></div>'
+
+      + '<div class="pf-section"><div class="pf-grid2">'
+        + pfField('Department/Division authorizing the work', rec['Permit Issuer - Dept.'])
+        + pfField('Contracting Company (if any)', rec['Contracting Company'])
+        + pfField('Name of Project / Job', rec['Name of Project / Job'])
+        + pfField('Number of Workers', rec['Number of Workers'])
+      + '</div>'
+      + pfField('Work activity / Description of Work', rec['Description of Work'])
+      + '</div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Location</div><div class="pf-grid4">'
+        + pfField('Plant / Area', rec['Area'])
+        + pfField('Unit', '')
+        + pfField('Line', '')
+        + pfField('Location', rec['Location'])
+      + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Permit Validity</div><div class="pf-grid2">'
+        + pfField('From', rec['Permit Valid From'])
+        + pfField('To', rec['Permit Valid To'])
+      + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Type of Work Involved</div>'
+        + '<div class="pf-grid4">' + workTypeHtml + '</div>' + workNote + '</div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Used Equipment &amp; Tools <span style="font-weight:400;text-transform:none">(tick on site)</span></div>'
+        + '<div class="pf-grid4">' + equipmentHtml + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Potential Hazards <span style="font-weight:400;text-transform:none">(tick on site)</span></div>'
+        + '<div class="pf-grid4">' + hazardsHtml + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Safety Precautions <span style="font-weight:400;text-transform:none">(tick on site)</span></div>'
+        + '<div class="pf-grid4">' + precautionsHtml + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Personnel Precaution — PPE <span style="font-weight:400;text-transform:none">(tick on site)</span></div>'
+        + '<div class="pf-grid4">' + ppeHtml + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Service Isolation <span style="font-weight:400;text-transform:none">(tick on site)</span></div>'
+        + '<div class="pf-grid4">' + isolationHtml + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Responsibility — Start PTW</div><div class="pf-sign-grid">'
+        + pfSignBlock('Permit Issuer', 'مانح التصريح', rec['Permit Issuer - Name'])
+        + pfSignBlock('Permit Receiver', 'مستقبل التصريح', rec['Permit Receiver - Name'])
+        + pfSignBlock('Unit Manager', 'مدير الوحدة', rec['Unit Manager'])
+        + pfSignBlock('HSE Attendant', 'ضابط السلامة', rec['Permit Controller'])
+      + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Responsibility — Close PTW</div><div class="pf-sign-grid">'
+        + pfSignBlock('Permit Issuer', 'مانح التصريح', '')
+        + pfSignBlock('Permit Receiver', 'مستقبل التصريح', '')
+        + pfSignBlock('HSE Attendant', 'ضابط السلامة', '')
+      + '</div></div>'
+
+      + '<div class="pf-sysref"><strong>Digital record reference</strong> (not part of the official HSE-FRM-01 form) — '
+        + 'Status: <strong>'+pfEsc(rec['Status'])+'</strong>'
+        + (rec['Remarks'] ? ' &nbsp;|&nbsp; Remarks: '+pfEsc(rec['Remarks']) : '')
+      + '</div>'
+
+      + '<div class="pf-footer">Generated from the SAGCO IMS Portal on '+pfEsc(printedAt)+'. Checkbox sections are not captured digitally and must be completed by hand on site. Not valid without original signatures.</div>'
+    + '</div></body></html>';
+  }
+
   function renderTableArea(tKeyName){
     var cfg = TABLES[tKeyName];
     var data = _cache[tKeyName];
@@ -552,6 +738,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         });
         if (showActions){
           html += '<td style="white-space:nowrap">';
+          // Print only applies to the register table — it's the one tied
+          // to the official HSE-FRM-01 paper form; Authorized Issuers has
+          // no paper-form equivalent.
+          if (tKeyName === 'register') html += '<button class="ptw-icon-btn" title="Print HSE-FRM-01" onclick="PTW.printPermit(\''+tKeyName+'\',\''+String(idVal).replace(/'/g,"\\'")+'\')">🖨️</button>';
           if (can('edit')) html += '<button class="ptw-icon-btn" title="Edit" onclick="PTW.openEdit(\''+tKeyName+'\',\''+String(idVal).replace(/'/g,"\\'")+'\')">✏️</button>';
           if (can('delete')) html += '<button class="ptw-icon-btn" title="Remove" onclick="PTW.remove(\''+tKeyName+'\',\''+String(idVal).replace(/'/g,"\\'")+'\')">🗑️</button>';
           html += '</td>';
@@ -934,6 +1124,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           reloadTabAndDashboard(tKeyName);
         }).catch(function(){ alert('Could not save — check your connection.'); });
       });
+    },
+    printPermit: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var rec = {};
+      data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print the permit.'); return; }
+      w.document.open();
+      w.document.write(buildPermitPrintHtml(rec));
+      w.document.close();
     },
     remove: function(tKeyName, idVal){
       var cfg = TABLES[tKeyName];
