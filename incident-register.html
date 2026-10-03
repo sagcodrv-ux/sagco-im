@@ -1,166 +1,789 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SAGCO IMS — Incident Register</title>
 <link rel="stylesheet" href="style.css">
+<script src="auth.js"></script><script src="data.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="data.js"></script><script src="nav.js"></script>
-</head>
-<body>
-<div class="loader hidden" id="loader"><div class="loader-spin"></div><div class="loader-text">Loading…</div></div>
-<div class="main"><div id="tb"></div><div class="content">
 <style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20} .badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000} .badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0} .badge.kc-gold{background:#FFF3CD;color:#7a5800}
-.card{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
-.card-hdr{background:var(--navy);color:var(--gold-lt);padding:10px 18px;font-size:12px;font-weight:600;letter-spacing:.04em}
-.card-body{padding:16px 18px}
-.section-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-.req-text{font-size:11px;color:var(--text-lt);margin:10px 0;line-height:1.6;padding:10px 14px;background:var(--g100);border-radius:var(--radius);border-left:3px solid var(--gold)}
-.alert-amber{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:12px}
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 </style>
-<div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
-  <div class="kpi-card kc-blue"><div class="kpi-lbl">Total Incidents 2026</div><div class="kpi-val">0</div><div class="kpi-sub">No incidents recorded yet</div></div>
-  <div class="kpi-card kc-grn"><div class="kpi-lbl">Fatalities / LTIs</div><div class="kpi-val">0</div><div class="kpi-sub">Target: zero</div></div>
-  <div class="kpi-card kc-amb"><div class="kpi-lbl">Near-Misses</div><div class="kpi-val">0</div><div class="kpi-sub">Target: ≥5/month — see Sheet 12</div></div>
-  <div class="kpi-card kc-blue"><div class="kpi-lbl">Open Investigations</div><div class="kpi-val">0</div><div class="kpi-sub">—</div></div>
-  <div class="kpi-card kc-gold"><div class="kpi-lbl">Regulatory Notifications</div><div class="kpi-val">0</div><div class="kpi-sub">MODON / MEWA / Civil Defense / MHRSD</div></div>
+<style>
+/* This page no longer has the sidebar/topbar shell, so override the
+   parts of style.css's body rule that assumed .content was the only
+   scrolling element (body{overflow:hidden;display:flex}). Without
+   this, the page cannot scroll at all and .inc-dark-wrap doesn't
+   stretch to full width until content forces it, causing a visible
+   gap on first paint. Same fix as fire-extinguisher-log.html. */
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   INCIDENT REGISTER PAGE — dark navy/gold theme
+   Deliberate structural twin of fire-extinguisher-log.html, so the
+   portal has one consistent "live dashboard + collapsible tables"
+   template going forward. Every class below is renamed fe-*→inc-*
+   (and fdw-*→idw-*) from that file — nothing here is copied blind;
+   each CSS rule was re-checked against this page's own needs.
+   ══════════════════════════════════════════════════════════════════ */
+.inc-dark-wrap{
+  --idw-bg:#0D1B35; --idw-bg2:#142140; --idw-bg3:#1a2a50;
+  --idw-gold:#C9A84C; --idw-gold-lt:#E8C97A;
+  --idw-text:rgba(255,255,255,.92); --idw-text-muted:rgba(255,255,255,.55);
+  --idw-text-dim:rgba(255,255,255,.35); --idw-border:rgba(255,255,255,.08);
+  --idw-border-gold:rgba(201,168,76,.35);
+  --idw-blue:#5B9BD5; --idw-red:#F0685C; --idw-amb:#E8B339; --idw-grn:#4FCB9E;
+  background:var(--idw-bg); color:var(--idw-text); margin:0; padding:24px; min-height:100vh;
+}
+.inc-dark-wrap *{box-sizing:border-box}
+
+.inc-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.inc-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--idw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--idw-bg2);
+  border-radius:8px;border:1px solid var(--idw-border-gold)}
+.inc-dark-wrap .back-link:hover{background:var(--idw-bg3)}
+
+.inc-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--idw-bg2);
+  border-radius:8px;border-left:3px solid var(--idw-gold);margin:10px 0;color:var(--idw-text-muted)}
+
+.inc-dark-wrap .sec-banner{background:var(--idw-bg2);color:var(--idw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--idw-border-gold);border-bottom:none}
+
+.inc-dark-wrap .kpi-grid{display:grid;gap:14px}
+.inc-dark-wrap .kpi-card{background:var(--idw-bg2);border:1px solid var(--idw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.inc-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.inc-dark-wrap .kpi-card.kc-nvy::before{background:var(--idw-gold)}
+.inc-dark-wrap .kpi-card.kc-blue::before{background:var(--idw-blue)}
+.inc-dark-wrap .kpi-card.kc-amb::before{background:var(--idw-amb)}
+.inc-dark-wrap .kpi-card.kc-red::before{background:var(--idw-red)}
+.inc-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--idw-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.inc-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--idw-text);line-height:1.1;margin-bottom:4px}
+.inc-dark-wrap .kpi-sub{font-size:10px;color:var(--idw-text-muted)}
+
+.inc-dark-wrap .chart-grid{display:grid;gap:14px}
+.inc-dark-wrap .chart-card{background:var(--idw-bg2);border:1px solid var(--idw-border);
+  border-radius:14px;padding:16px 18px}
+.inc-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--idw-text);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.inc-dark-wrap .chart-sub{font-size:10px;color:var(--idw-text-muted);font-weight:400}
+.inc-dark-wrap .chart-wrap{height:220px;position:relative}
+
+.inc-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.inc-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--idw-grn)}
+.inc-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--idw-red)}
+.inc-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--idw-amb)}
+.inc-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--idw-blue)}
+.inc-dark-wrap .badge.kc-nvy{background:var(--idw-bg3);color:var(--idw-gold-lt)}
+</style>
+<style>
+.inc-dark-wrap .inc-toolbar{display:flex;justify-content:flex-end;padding:6px 0}
+.inc-dark-wrap .inc-btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;
+  border:1px solid var(--idw-border);background:var(--idw-bg3);color:var(--idw-text);cursor:pointer;font-family:inherit}
+.inc-dark-wrap .inc-btn:hover{background:#223457;border-color:var(--idw-border-gold)}
+.inc-dark-wrap .inc-btn-add{background:var(--idw-gold);color:#1a1200;border-color:var(--idw-gold);font-weight:700}
+.inc-dark-wrap .inc-btn-add:hover{background:var(--idw-gold-lt)}
+.inc-dark-wrap .inc-icon-btn{border:none;background:none;cursor:pointer;font-size:13px;padding:2px 5px;border-radius:4px}
+.inc-dark-wrap .inc-icon-btn:hover{background:var(--idw-bg3)}
+.inc-dark-wrap .inc-btn:disabled{opacity:.35;cursor:not-allowed}
+.inc-dark-wrap .inc-btn:disabled:hover{background:var(--idw-bg3);border-color:var(--idw-border)}
+/* Rows select on click now that Edit/Remove/Print moved up to the
+   toolbar — hover and selected states make it clear a row can be
+   picked and which one currently is. */
+.inc-dark-wrap .inc-row-selectable{cursor:pointer}
+.inc-dark-wrap .inc-row-selected td,
+.inc-dark-wrap .inc-row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--idw-gold)}
+.inc-dark-wrap .inc-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
+  align-items:center;justify-content:center;z-index:9999}
+.inc-dark-wrap .inc-modal{background:var(--idw-bg2);border:1px solid var(--idw-border-gold);border-radius:14px;
+  padding:20px;width:440px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--idw-text)}
+.inc-dark-wrap .inc-modal h3{margin:0 0 12px;font-size:14px;color:var(--idw-gold-lt)}
+.inc-dark-wrap .inc-field{margin-bottom:10px}
+.inc-dark-wrap .inc-field label{display:block;font-size:10px;font-weight:600;color:var(--idw-text-muted);margin-bottom:3px}
+.inc-dark-wrap .inc-field input,.inc-dark-wrap .inc-field textarea{width:100%;padding:6px 8px;font-size:12px;
+  border:1px solid var(--idw-border);border-radius:6px;font-family:inherit;box-sizing:border-box;
+  background:var(--idw-bg3);color:var(--idw-text)}
+.inc-dark-wrap .inc-cb-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;
+  background:var(--idw-bg3);border:1px solid var(--idw-border);border-radius:6px;padding:8px}
+.inc-dark-wrap .inc-cb-item{display:flex;align-items:center;gap:6px;font-size:11px;
+  color:var(--idw-text);cursor:pointer;padding:2px 0}
+.inc-dark-wrap .inc-cb-item input[type="checkbox"]{width:auto;margin:0;cursor:pointer;flex-shrink:0}
+.inc-dark-wrap .inc-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.inc-dark-wrap .inc-modal-actions .inc-btn-cancel{background:var(--idw-bg3)}
+/* Photo evidence gallery — thumbnail grid with hover-delete, inside the
+   same modal shell used for Add/Edit. */
+.inc-dark-wrap .inc-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+  margin-top:10px;max-height:340px;overflow-y:auto}
+.inc-dark-wrap .inc-photo-item{position:relative;border:1px solid var(--idw-border);border-radius:8px;
+  overflow:hidden;background:var(--idw-bg3)}
+.inc-dark-wrap .inc-photo-item img{display:block;width:100%;height:90px;object-fit:cover}
+.inc-dark-wrap .inc-photo-meta{font-size:8px;color:var(--idw-text-muted);padding:3px 5px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.inc-dark-wrap .inc-photo-del{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;
+  background:rgba(20,10,10,.75);color:#fff;font-size:11px;line-height:18px;text-align:center;cursor:pointer}
+.inc-dark-wrap .inc-photo-del:hover{background:#E06060}
+.inc-dark-wrap .inc-photo-pick-row{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 2px}
+.inc-dark-wrap .inc-photo-pick-btn{display:inline-flex;align-items:center;gap:5px;font-size:11px;
+  cursor:pointer;margin:0}
+.inc-dark-wrap .inc-photo-stage{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;min-height:0}
+.inc-dark-wrap .inc-photo-stage-chip{display:inline-flex;align-items:center;gap:5px;font-size:10px;
+  background:var(--idw-bg3);border:1px solid var(--idw-border);border-radius:12px;padding:4px 6px 4px 9px;
+  color:var(--idw-text-muted);max-width:220px}
+.inc-dark-wrap .inc-photo-stage-chip-x{display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;border-radius:50%;background:rgba(224,96,96,.18);color:#E06060;cursor:pointer;
+  font-size:12px;line-height:1}
+.inc-dark-wrap .inc-photo-stage-chip-x:hover{background:#E06060;color:#fff}
+.inc-dark-wrap .inc-jumpbar{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px}
+.inc-dark-wrap .inc-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
+  border:1px solid var(--idw-border-gold);background:var(--idw-bg2);cursor:pointer;font-family:inherit;color:var(--idw-gold-lt)}
+.inc-dark-wrap .inc-jump-btn:hover{background:var(--idw-bg3);border-color:var(--idw-gold)}
+.inc-dark-wrap .inc-jump-count{font-weight:400;color:var(--idw-text-muted);font-size:10px}
+.inc-dark-wrap .inc-sec-toggle{cursor:pointer;user-select:none}
+.inc-dark-wrap .inc-sec-toggle:hover{opacity:.9}
+.inc-dark-wrap .inc-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px;color:var(--idw-gold-lt)}
+.inc-dark-wrap .inc-collapsible{overflow:hidden;max-height:0;transition:none;
+  background:var(--idw-bg2);border:1px solid var(--idw-border-gold);border-top:none;border-radius:0 0 8px 8px}
+.inc-dark-wrap .inc-collapsible.inc-open{max-height:none;padding:10px 14px}
+.inc-dark-wrap .inc-filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.inc-dark-wrap .inc-search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
+  border:1px solid var(--idw-border);border-radius:8px;font-family:inherit;background:var(--idw-bg3);color:var(--idw-text)}
+.inc-dark-wrap .inc-search-input::placeholder{color:var(--idw-text-dim)}
+.inc-dark-wrap .inc-filter-select{padding:6px 8px;font-size:12px;border:1px solid var(--idw-border);
+  border-radius:8px;font-family:inherit;max-width:220px;background:var(--idw-bg3);color:var(--idw-text)}
+.inc-dark-wrap .inc-filter-status{font-size:10px;color:var(--idw-text-muted);margin-left:auto}
+
+.inc-dark-wrap .tbl-wrap{overflow-x:auto}
+/* Thin scroll strip mirrored above the table — same scrollbar, just
+   reachable without scrolling past every row first. Height is just
+   enough to show a scrollbar track/thumb; the spacer inside gives it
+   something the same width as the table to scroll against. Hidden by
+   JS when the table isn't wide enough to need scrolling at all. */
+.inc-dark-wrap .inc-topscroll{overflow-x:auto;overflow-y:hidden;height:14px;margin-bottom:2px;display:none}
+.inc-dark-wrap .inc-topscroll-spacer{height:1px}
+.inc-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
+.inc-dark-wrap .tbl-stripe th{text-align:left;color:var(--idw-gold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--idw-border-gold);
+  background:var(--idw-bg3);white-space:nowrap}
+.inc-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--idw-border);color:var(--idw-text)}
+.inc-dark-wrap .tbl-stripe tbody tr:nth-child(odd) td{background:var(--idw-bg2)}
+.inc-dark-wrap .tbl-stripe tbody tr:nth-child(even) td{background:#101d3a}
+.inc-dark-wrap .tbl-stripe tbody tr:hover td{background:var(--idw-bg3)}
+.inc-dark-wrap .tbl-compact th,.inc-dark-wrap .tbl-compact td{font-size:9px !important;padding:4px 7px !important}
+
+.inc-dark-wrap .empty-state{text-align:center;padding:20px;color:var(--idw-text-muted)}
+.inc-dark-wrap .empty-state strong{display:block;font-size:13px;color:var(--idw-gold-lt);margin-bottom:4px}
+
+.inc-dark-wrap .nb{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid}
+.inc-dark-wrap .nb-red{background:rgba(240,104,92,.15);color:var(--idw-red);border-color:rgba(240,104,92,.4)}
+
+.inc-dark-wrap .kpi-card.inc-clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.inc-dark-wrap .kpi-card.inc-clickable:hover{transform:translateY(-2px);border-color:var(--idw-gold)}
+.inc-dark-wrap .inc-special-pill{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:600;
+  padding:4px 10px;border-radius:14px;background:rgba(201,168,76,.15);color:var(--idw-gold-lt);
+  border:1px solid var(--idw-border-gold);margin:6px 0}
+.inc-dark-wrap .inc-special-pill-x{cursor:pointer;opacity:.8}
+.inc-dark-wrap .inc-special-pill-x:hover{opacity:1}
+</style>
+<style>
+.inc-dark-wrap .inc-daterange-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.inc-dark-wrap .req-box{font-size:11px;line-height:1.7;padding:12px 14px;background:var(--idw-bg2);
+  border-radius:8px;border-left:3px solid var(--idw-gold);margin:10px 0 14px;color:var(--idw-text-muted)}
+.inc-dark-wrap .req-box strong{color:var(--idw-gold-lt)}
+</style>
+
+</head>
+<body><div class="inc-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-1000-P-07</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div>
+<div class="req-text">ISO 45001 §10.2 / ISO 9001 §10.2 — All incidents, injuries, near-misses, damage-only events, and environmental releases are recorded, classified, and investigated (root cause + direct cause). Statutory notification timelines apply per L2-IMS-1000-P-07 §6.2: Civil Defense (fire/life-safety, immediate), MODON (industrial-city incidents, within 24h), MEWA (environmental releases), MHRSD (lost-time injuries). "Report Filed" below reflects SAGCO's own internal reporting record — it is not confirmation that the relevant external authority was notified.</div>
+
+<div class="sec-banner">INCIDENT QUICK STATUS — 2026</div>
+<div class="inc-daterange-bar">
+  <label style="font-size:12px;color:var(--idw-text-muted)">From</label>
+  <input type="date" id="inc-date-start" class="inc-filter-select" onchange="INC.onDateRangeChange()">
+  <label style="font-size:12px;color:var(--idw-text-muted)">To</label>
+  <input type="date" id="inc-date-end" class="inc-filter-select" onchange="INC.onDateRangeChange()">
+  <button class="inc-btn" onclick="INC.clearDateRange()">Clear</button>
+  <span class="inc-filter-status" id="inc-daterange-status"></span>
 </div>
-<div class="req-text" style="background:#FFF8E1;border-left-color:#F9A825"><strong>Statutory notification requirements (L2-IMS-1000-P-07 §6.2):</strong> MODON — all LTIs and dangerous occurrences within 24 hours | MEWA — environmental release reaching site boundary within 24 hours | Civil Defense — all fires and explosions immediately | MHRSD — fatality or multiple serious injuries immediately. Record: date, time, authority, notification reference number.</div>
-<div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
-<script>
-initPage("incident-register.html");
-document.getElementById("tb").innerHTML = renderTopbar("Incident Register", "ISO 45001 §10.2 · All Incidents + Dangerous Occurrences + Statutory Notifications · L4-1020-R-01");
-</script>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy inc-clickable" onclick="INC.cardClick('total')" title="Click to view the Incident Register"><div class="kpi-lbl">Total Incidents</div><div class="kpi-val" id="inc-kpi-total">—</div><div class="kpi-sub">2026 — Incident Register</div></div>
+  <div class="kpi-card kc-red inc-clickable" onclick="INC.cardClick('lti')" title="Click to view the Incident Register"><div class="kpi-lbl">LTI Count</div><div class="kpi-val" id="inc-kpi-lti">—</div><div class="kpi-sub" id="inc-kpi-lti-sub">Loading…</div></div>
+  <div class="kpi-card kc-amb inc-clickable" onclick="INC.cardClick('fatal')" title="Click to view the Incident Register"><div class="kpi-lbl">Fatalities / High-Severity</div><div class="kpi-val" id="inc-kpi-fatal">—</div><div class="kpi-sub">Nature of Injury = Fatality</div></div>
+  <div class="kpi-card kc-blue inc-clickable" onclick="INC.cardClick('risk')" title="Click to view the Incident Register"><div class="kpi-lbl">Moderate+ Risk (RA Level)</div><div class="kpi-val" id="inc-kpi-risk">—</div><div class="kpi-sub">RA Level ≥ Moderate — no High/Critical on file for 2026</div></div>
+</div>
 
-<script>
-/* ── Auto-update summary cards from live Sheets data ── */
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+  <div class="chart-card">
+    <div class="chart-title">Monthly Trend by Classification<span class="chart-sub">2026, stacked by Classification</span></div>
+    <div class="chart-wrap"><canvas id="incMonthlyChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Incident Classification Breakdown<span class="chart-sub">by Classification</span></div>
+    <div class="chart-wrap"><canvas id="incTypeChart"></canvas></div>
+  </div>
+</div>
 
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
+<div class="sec-banner" id="inc-hdr-register">INCIDENT REGISTER</div>
+<div id="live-table-register" style="margin-top:0;background:var(--idw-bg2);border:1px solid var(--idw-border-gold);border-top:none;border-radius:0 0 8px 8px;padding:10px 14px"></div>
+
+<div id="inc-modal-root"></div>
+
+</div>
+<script>
+(function(){
+
+  var TABLES = {
+    register: {
+      label: 'Incident', tabKey: 'incidents', containerId: 'live-table-register',
+      idCol: 'Incident ID', idEditable: true,
+      idPrefix: 'INC-2026-', idPad: 3,
+      fields: ['Incident ID','Date','Classification','Location','Description','Injured Person',
+               'Nature of Injury','LTI?','Root Cause','Direct Cause','LWD','Total Cost',
+               'RA Score','RA Level','Corrective Action','Notification Required','Status'],
+      filterField: 'Classification'
+    }
+  };
+
+  var _filters = {};
+  var _selected = {};
+  var STATUS_COL = 'Record Status';
+  var _cache = {};
+  var _charts = { monthly: null, type: null };
+  var _dateRange = { start: '', end: '' };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
   }
-  return '—';
-}
 
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
+  /* Next sequential INC-2026-0XX id, same pattern as PTW/FE's nextSequentialId. */
+  function nextSequentialId(tKeyName){
+    var cfg = TABLES[tKeyName];
+    if (!cfg.idPrefix) return '';
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return '';
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    if (idIdx < 0) return '';
+    var maxN = 0;
+    var prefixLower = cfg.idPrefix.toLowerCase();
+    data.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(prefixLower) !== 0) return;
+      var numPart = v.slice(cfg.idPrefix.length);
+      var n = parseInt(numPart, 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    var nextN = maxN + 1;
+    var pad = cfg.idPad || 0;
+    var numStr = String(nextN);
+    while (numStr.length < pad) numStr = '0' + numStr;
+    return cfg.idPrefix + numStr;
+  }
+
+  function getSuggestions(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return [];
+    var idx = colIdx(data.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}, out = [];
+    data.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v] && v.toLowerCase()!=='n/a') { seen[v] = true; out.push(v); }
+    });
+    out.sort();
+    return out.slice(0, 50);
+  }
+
+  function getOwnColumnValues(tKeyName, fieldName){
+    return getSuggestions(tKeyName, fieldName);
+  }
+
+  function effectiveFields(tKeyName){
+    return TABLES[tKeyName].fields;
+  }
+
+  function renderShell(tKeyName, data){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    if (!data || !data.headers || !data.rows){
+      el.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      return;
+    }
+    _cache[tKeyName] = data;
+    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+    var f = _filters[tKeyName];
+
+    var sel = _selected[tKeyName];
+    var toolbarHtml = '';
+    if (can('add')){
+      toolbarHtml += '<button class="inc-btn inc-btn-add" onclick="INC.openAdd(\''+tKeyName+'\')">+ Add Incident</button>';
+    }
+    var disabledAttr = sel ? '' : ' disabled';
+    if (can('edit')){
+      toolbarHtml += '<button class="inc-btn" id="inc-tb-edit-'+tKeyName+'"' + disabledAttr + ' onclick="INC.openEdit(\''+tKeyName+'\', INC.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
+    }
+    if (can('delete')){
+      toolbarHtml += '<button class="inc-btn" id="inc-tb-remove-'+tKeyName+'"' + disabledAttr + ' onclick="INC.remove(\''+tKeyName+'\', INC.getSelected(\''+tKeyName+'\'))">🗑️ Remove</button>';
+    }
+
+    var categoryHtml = '';
+    if (cfg.filterField){
+      var opts = getOwnColumnValues(tKeyName, cfg.filterField);
+      categoryHtml = '<select class="inc-filter-select" onchange="INC.onCategoryChange(\''+tKeyName+'\', this.value)">' +
+        '<option value="">All ' + cfg.filterField + '</option>' +
+        opts.map(function(o){
+          var sel2 = (o === f.category) ? ' selected' : '';
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+sel2+'>'+o+'</option>';
+        }).join('') + '</select>';
+    }
+
+    var html =
+      '<div class="inc-toolbar">' + toolbarHtml + '</div>' +
+      '<div class="inc-filterbar">' +
+        '<input type="text" class="inc-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="INC.onSearchInput(\''+tKeyName+'\', this.value)">' +
+        categoryHtml +
+        '<button class="inc-btn" onclick="INC.clearFilters(\''+tKeyName+'\')">Clear</button>' +
+        '<span class="inc-filter-status" id="inc-filter-status-'+tKeyName+'"></span>' +
+      '</div>' +
+      '<div class="inc-table-area" id="inc-table-area-'+tKeyName+'"></div>';
+    el.innerHTML = html;
+    renderTableArea(tKeyName);
+  }
+
+  function renderTableArea(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    var areaEl = document.getElementById('inc-table-area-' + tKeyName);
+    var statusEl = document.getElementById('inc-filter-status-' + tKeyName);
+    if (!data || !areaEl) return;
+
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
+    var f = _filters[tKeyName] || {search:'', category:'', special:null};
+    var searchLower = f.search.trim().toLowerCase();
+
+    var visibleRows = data.rows.filter(function(r){
+      if (statusIdx < 0) return true;
+      return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+    var totalVisible = visibleRows.length;
+
+    if (f.category && filterFieldIdx > -1){
+      visibleRows = visibleRows.filter(function(r){ return String(r[filterFieldIdx]||'').trim() === f.category; });
+    }
+    if (searchLower){
+      visibleRows = visibleRows.filter(function(r){
+        return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
+      });
+    }
+
+    if (statusEl){
+      var isFiltered = !!(f.search.trim() || f.category);
+      statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
+    }
+
+    var wide = data.headers.length > 8;
+    var html = '<div class="inc-topscroll" id="inc-topscroll-'+tKeyName+'"><div class="inc-topscroll-spacer" id="inc-topscroll-spacer-'+tKeyName+'"></div></div>' +
+      '<div class="tbl-wrap" id="inc-tblwrap-'+tKeyName+'"><table class="tbl-stripe' + (wide?' tbl-compact':'') + '">';
+    html += '<thead><tr>';
+    data.headers.forEach(function(h,i){
+      if (i === statusIdx) return;
+      html += '<th>' + h + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    if (!visibleRows.length){
+      var colspan = data.headers.length - (statusIdx>-1?1:0);
+      html += '<tr><td colspan="'+colspan+'"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
+    } else {
+      var selId = _selected[tKeyName];
+      visibleRows.forEach(function(row){
+        var idVal = idIdx>-1 ? row[idIdx] : '';
+        var idValEsc = String(idVal).replace(/'/g,"\\'");
+        var isSel = selId !== undefined && selId !== null && String(selId) === String(idVal);
+        html += '<tr class="inc-row-selectable' + (isSel?' inc-row-selected':'') + '" onclick="INC.selectRow(\''+tKeyName+'\',\''+idValEsc+'\')">';
+        row.forEach(function(cell,ci){
+          if (ci === statusIdx) return;
+          html += '<td>' + formatCell(cell) + '</td>';
+        });
+        html += '</tr>';
+      });
+    }
+    html += '</tbody></table></div>';
+    areaEl.innerHTML = html;
+
+    var topScroll = document.getElementById('inc-topscroll-' + tKeyName);
+    var topSpacer = document.getElementById('inc-topscroll-spacer-' + tKeyName);
+    var tblWrap = document.getElementById('inc-tblwrap-' + tKeyName);
+    if (topScroll && topSpacer && tblWrap){
+      var table = tblWrap.querySelector('table');
+      topSpacer.style.width = (table ? table.scrollWidth : tblWrap.scrollWidth) + 'px';
+      topScroll.style.display = (tblWrap.scrollWidth > tblWrap.clientWidth) ? 'block' : 'none';
+      var syncing = false;
+      topScroll.onscroll = function(){
+        if (syncing) return; syncing = true;
+        tblWrap.scrollLeft = topScroll.scrollLeft;
+        syncing = false;
+      };
+      tblWrap.onscroll = function(){
+        if (syncing) return; syncing = true;
+        topScroll.scrollLeft = tblWrap.scrollLeft;
+        syncing = false;
+      };
     }
   }
-}
-(function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows && d.rows.length > 0){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('Total Incidents 2026', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
-  updateCard('Fatalities / LTIs', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Classification","LTI") + countContains("Classification","Fatality"); })(d.rows||[],d.headers||[]));
-  updateCard('Near-Misses', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Type","Near-Miss") + countContains("Type","Near Miss"); })(d.rows||[],d.headers||[]));
-  updateCard('Open Investigations', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Status","OPEN") + countContains("Status","In Progress"); })(d.rows||[],d.headers||[]));
+
+  function loadTab(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--idw-text-muted);font-size:11px">⏳ Loading live data…</div>';
+    return fetch(SHEETS_URL + '?tab=' + cfg.tabKey + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        renderShell(tKeyName, data);
+        return data;
+      })
+      .catch(function(){
+        el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
+        return null;
+      });
+  }
+
+  function loadAll(){
+    loadTab('register').then(function(){ renderDashboard(); });
+  }
+
+  function reloadTabAndDashboard(tKeyName){
+    return loadTab(tKeyName).then(function(){ renderDashboard(); });
+  }
+
+  function renderDashboard(){
+    var reg = _cache['register'];
+    if (!reg) return;
+
+    var statusIdx = colIdx(reg.headers, STATUS_COL);
+    var visibleRows = reg.rows.filter(function(r){
+      return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+
+    var rangeDateIdx = colIdx(reg.headers, 'Date');
+    if ((_dateRange.start || _dateRange.end) && rangeDateIdx >= 0){
+      visibleRows = visibleRows.filter(function(r){
+        var s = String(r[rangeDateIdx]||'').trim().slice(0,10);
+        if (!s) return false;
+        if (_dateRange.start && s < _dateRange.start) return false;
+        if (_dateRange.end && s > _dateRange.end) return false;
+        return true;
+      });
+    }
+    var statusBarEl = document.getElementById('inc-daterange-status');
+    if (statusBarEl){
+      statusBarEl.textContent = (_dateRange.start || _dateRange.end)
+        ? 'Filtered: ' + visibleRows.length + ' incident' + (visibleRows.length===1?'':'s') + ' in range'
+        : '';
+    }
+
+    var total = visibleRows.length;
+    document.getElementById('inc-kpi-total').textContent = total;
+
+    var ltiIdx = colIdx(reg.headers, 'LTI?');
+    var lwdIdx = colIdx(reg.headers, 'LWD');
+    var ltiCount = 0, lwdSum = 0;
+    visibleRows.forEach(function(r){
+      if (ltiIdx>=0 && String(r[ltiIdx]||'').trim().toUpperCase()==='YES') ltiCount++;
+      if (lwdIdx>=0){ var n = parseFloat(r[lwdIdx]); if (!isNaN(n)) lwdSum += n; }
+    });
+    document.getElementById('inc-kpi-lti').textContent = ltiCount;
+    document.getElementById('inc-kpi-lti-sub').textContent = lwdSum + ' lost work day' + (lwdSum===1?'':'s') + ' total';
+
+    var natIdx = colIdx(reg.headers, 'Nature of Injury');
+    var fatalCount = 0;
+    visibleRows.forEach(function(r){
+      if (natIdx>=0 && String(r[natIdx]||'').trim().toLowerCase()==='fatality') fatalCount++;
+    });
+    document.getElementById('inc-kpi-fatal').textContent = fatalCount;
+
+    var raLevelIdx = colIdx(reg.headers, 'RA Level');
+    var raScoreIdx = colIdx(reg.headers, 'RA Score');
+    var highRiskCount = 0;
+    visibleRows.forEach(function(r){
+      var lvl = raLevelIdx>=0 ? String(r[raLevelIdx]||'').trim().toLowerCase() : '';
+      if (lvl === 'moderate' || lvl === 'high' || lvl === 'critical') highRiskCount++;
+    });
+    document.getElementById('inc-kpi-risk').textContent = highRiskCount;
+
+    renderMonthlyChart(visibleRows, reg.headers);
+    renderTypeChart(visibleRows, reg.headers);
+  }
+
+  function renderMonthlyChart(rows, headers){
+    var dateIdx = colIdx(headers, 'Date');
+    var typeIdx = colIdx(headers, 'Classification');
+    if (dateIdx < 0) return;
+    var months = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08','2026-09','2026-10','2026-11','2026-12'];
+    var cats = ['Damage-Only','Injury','Glass Leak','Environmental'];
+    var colors = { 'Damage-Only':'#5B9BD5', 'Injury':'#F0685C', 'Glass Leak':'#E8B339', 'Environmental':'#4FCB9E' };
+    var byMonth = {};
+    months.forEach(function(m){ byMonth[m] = {}; cats.forEach(function(c){ byMonth[m][c]=0; }); });
+    rows.forEach(function(r){
+      var d = String(r[dateIdx]||'').trim().slice(0,7);
+      var t = typeIdx>=0 ? String(r[typeIdx]||'').trim() : '';
+      if (byMonth[d]){
+        if (!byMonth[d][t]) byMonth[d][t] = 0;
+        byMonth[d][t]++;
       }
+    });
+    // Only chart months that actually have any data, plus keep chronological order
+    var usedMonths = months.filter(function(m){
+      return Object.keys(byMonth[m]).some(function(c){ return byMonth[m][c] > 0; });
+    });
+    if (!usedMonths.length) usedMonths = months.slice(0,9);
+    var allCats = {};
+    usedMonths.forEach(function(m){ Object.keys(byMonth[m]).forEach(function(c){ allCats[c]=true; }); });
+    var catList = Object.keys(allCats).length ? Object.keys(allCats) : cats;
+
+    var ctx = document.getElementById('incMonthlyChart');
+    if (!ctx) return;
+    if (_charts.monthly) _charts.monthly.destroy();
+    _charts.monthly = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: usedMonths.map(function(m){ return m; }),
+        datasets: catList.map(function(c){
+          return {
+            label: c,
+            data: usedMonths.map(function(m){ return byMonth[m][c] || 0; }),
+            backgroundColor: colors[c] || '#888'
+          };
+        })
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: { x: { stacked: true, grid:{display:false}, ticks:{color:'rgba(255,255,255,.55)',font:{size:9}} },
+                  y: { stacked: true, beginAtZero:true, grid:{color:'rgba(255,255,255,.08)'}, ticks:{color:'rgba(255,255,255,.55)',font:{size:9}} } },
+        plugins: { legend: { position:'bottom', labels:{color:'rgba(255,255,255,.75)',font:{size:9},boxWidth:10} } }
+      }
+    });
+  }
+
+  function renderTypeChart(rows, headers){
+    var idx = colIdx(headers, 'Description'); // placeholder, real source col not in portal table
+    var ctx = document.getElementById('incTypeChart');
+    if (!ctx) return;
+    // Type breakdown chart uses the Classification-derived "Type" column
+    // (Damage-Only/Injury/Glass Leak/Environmental) since that's what the
+    // live sheet actually stores — the raw register's finer-grained
+    // "Type" field (Product/Fire/LTI/FAC/MTC...) isn't a portal column,
+    // so this chart intentionally mirrors the Monthly Trend categories
+    // rather than inventing a second taxonomy the table can't show.
+    var typeIdx = colIdx(headers, 'Classification');
+    var counts = {};
+    rows.forEach(function(r){
+      var t = typeIdx>=0 ? String(r[typeIdx]||'').trim() : 'Unknown';
+      counts[t] = (counts[t]||0) + 1;
+    });
+    var labels = Object.keys(counts);
+    var colors = { 'Damage-Only':'#5B9BD5', 'Injury':'#F0685C', 'Glass Leak':'#E8B339', 'Environmental':'#4FCB9E' };
+    if (_charts.type) _charts.type.destroy();
+    _charts.type = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{ data: labels.map(function(l){ return counts[l]; }), backgroundColor: labels.map(function(l){ return colors[l]||'#8899bb'; }) }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        scales: { x: { beginAtZero:true, grid:{color:'rgba(255,255,255,.08)'}, ticks:{color:'rgba(255,255,255,.55)',font:{size:9}} },
+                  y: { grid:{display:false}, ticks:{color:'rgba(255,255,255,.75)',font:{size:10}} } },
+        plugins: { legend: { display:false } }
+      }
+    });
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    }).then(function(r){ return r.json(); });
+  }
+
+  function showModal(tKeyName, title, fields, initialValues, onSubmit){
+    var root = document.getElementById('inc-modal-root');
+    var fieldsHtml = fields.map(function(f, fi){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEsc = String(v).replace(/"/g,'&quot;');
+      var suggestions = getSuggestions(tKeyName, f);
+      var dlId = 'inc-dl-' + fi;
+      var dlHtml = '';
+      if (suggestions.length){
+        dlHtml = '<datalist id="'+dlId+'">' + suggestions.map(function(s){
+          return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
+        }).join('') + '</datalist>';
+      }
+      var isDateField = /date$/i.test(f.trim());
+      var isTextarea = (f === 'Description' || f === 'Corrective Action' || f === 'Root Cause' || f === 'Direct Cause');
+      var inputType = isDateField ? 'date' : 'text';
+      if (isTextarea){
+        return '<div class="inc-field"><label>'+f+'</label>' +
+          '<textarea data-field="'+f+'" rows="2">'+vEsc+'</textarea></div>';
+      }
+      return '<div class="inc-field"><label>'+f+'</label>' +
+        '<input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
+        dlHtml + '</div>';
+    }).join('');
+
+    root.innerHTML = '<div class="inc-modal-bg" id="inc-modal-bg"><div class="inc-modal">' +
+      '<h3>'+title+'</h3>' + fieldsHtml +
+      '<div id="inc-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
+      '<div class="inc-modal-actions"><button class="inc-btn inc-btn-cancel" id="inc-modal-cancel">Cancel</button>' +
+      '<button class="inc-btn inc-btn-add" id="inc-modal-save">Save</button></div></div></div>';
+
+    document.getElementById('inc-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('inc-modal-bg').onclick = function(e){ if(e.target.id==='inc-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('inc-modal-save').onclick = function(){
+      var values = {};
+      root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      var saveBtn = document.getElementById('inc-modal-save');
+      saveBtn.disabled = true;
+      window._incReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
+      onSubmit(values, function(){ root.innerHTML = ''; });
     };
   }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(loadAll, 100);
+  });
+
+  window.INC = {
+    onDateRangeChange: function(){
+      var s = document.getElementById('inc-date-start');
+      var e = document.getElementById('inc-date-end');
+      _dateRange.start = s ? s.value : '';
+      _dateRange.end = e ? e.value : '';
+      renderDashboard();
+    },
+    clearDateRange: function(){
+      _dateRange.start = ''; _dateRange.end = '';
+      var s = document.getElementById('inc-date-start'); if (s) s.value='';
+      var e = document.getElementById('inc-date-end'); if (e) e.value='';
+      renderDashboard();
+    },
+    onSearchInput: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].search = val;
+      renderTableArea(tKeyName);
+    },
+    onCategoryChange: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].category = val;
+      renderTableArea(tKeyName);
+    },
+    clearFilters: function(tKeyName){
+      _filters[tKeyName] = {search:'', category:'', special:null};
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    cardClick: function(cardName){
+      _filters['register'] = {search:'', category:'', special:null};
+      renderShell('register', _cache['register']);
+      document.getElementById('inc-hdr-register').scrollIntoView({behavior:'smooth', block:'start'});
+    },
+    selectRow: function(tKeyName, idVal){
+      var cur = _selected[tKeyName];
+      _selected[tKeyName] = (cur !== undefined && cur !== null && String(cur) === String(idVal)) ? null : idVal;
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    getSelected: function(tKeyName){
+      return _selected[tKeyName];
+    },
+    openAdd: function(tKeyName){
+      var cfg = TABLES[tKeyName];
+      if (!can('add')) return;
+      var initial = {};
+      var suggestedId = nextSequentialId(tKeyName);
+      if (suggestedId) initial[cfg.idCol] = suggestedId;
+      initial['Status'] = 'OPEN';
+      showModal(tKeyName, 'Add ' + cfg.label, effectiveFields(tKeyName), initial, function(values, close){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+          close();
+          reloadTabAndDashboard(tKeyName);
+        }).catch(function(){
+          alert('Could not save — check your connection.');
+          if (window._incReenableModalSave) window._incReenableModalSave();
+        });
+      });
+    },
+    openEdit: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('edit')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try reloading.');
+      var initial = {};
+      data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal(tKeyName, 'Edit ' + cfg.label, effectiveFields(tKeyName), initial, function(values, close){
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Could not save — ' + (res.error || 'unknown error'));
+            if (window._incReenableModalSave) window._incReenableModalSave();
+            return;
+          }
+          close();
+          _selected[tKeyName] = null;
+          reloadTabAndDashboard(tKeyName);
+        }).catch(function(){
+          alert('Could not save — check your connection.');
+          if (window._incReenableModalSave) window._incReenableModalSave();
+        });
+      });
+    },
+    remove: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('delete')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      if (!confirm('Remove ' + idVal + '? It will be hidden from the register but kept on file.')) return;
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, {'Record Status':'Removed'}).then(function(res){
+        _selected[tKeyName] = null;
+        reloadTabAndDashboard(tKeyName);
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    }
+  };
 })();
+
 </script>
 
 <script>
-(function() {
-  function colIdx(headers, name) {
-    var n = name.toLowerCase();
-    for (var i=0;i<headers.length;i++) {
-      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
-    }
-    return -1;
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
   }
-  function countVal(rows, col, val) {
-    if (col < 0) return 0;
-    var v = val ? val.toLowerCase() : null;
-    return rows.filter(function(r){
-      var cell = String(r[col]||'').toLowerCase().trim();
-      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
-    }).length;
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The detailed Incident Register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
   }
-  function sumCol(rows, col) {
-    if (col < 0) return 0;
-    return rows.reduce(function(s,r){
-      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
-      return s + (isNaN(v) ? 0 : v);
-    }, 0);
-  }
-  function setCard(idx, val) {
-    var cards = document.querySelectorAll('.kpi-val');
-    if (cards[idx]) cards[idx].textContent = val;
-  }
-
-  var origRender = window.renderTable;
-  window.renderTable = function(data, container) {
-    if (origRender) origRender(data, container);
-    if (!data || !data.rows || !data.headers) return;
-    var rows = data.rows, h = data.headers;
-    try { setCard(0, rows.length); } catch(e) {}
-    try { setCard(2, countVal(rows, colIdx(h,"classif"), "near")); } catch(e) {}
-    try { setCard(3, countVal(rows, colIdx(h,"status"), "open")); } catch(e) {}
-  };
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
 })();
 </script>
-</body>
-</html>
+
+</body></html>
