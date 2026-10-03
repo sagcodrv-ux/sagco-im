@@ -207,25 +207,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <span class="inc-filter-status" id="inc-daterange-status"></span>
 </div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
-  <div class="kpi-card kc-nvy inc-clickable" onclick="INC.cardClick('total')" title="Click to view the Incident Register"><div class="kpi-lbl">Total Incidents</div><div class="kpi-val" id="inc-kpi-total">—</div><div class="kpi-sub">2026 — Incident Register</div></div>
-  <div class="kpi-card kc-red inc-clickable" onclick="INC.cardClick('lti')" title="Click to view the Incident Register"><div class="kpi-lbl">LTI Count</div><div class="kpi-val" id="inc-kpi-lti">—</div><div class="kpi-sub" id="inc-kpi-lti-sub">Loading…</div></div>
-  <div class="kpi-card kc-amb inc-clickable" onclick="INC.cardClick('fatal')" title="Click to view the Incident Register"><div class="kpi-lbl">Fatalities / High-Severity</div><div class="kpi-val" id="inc-kpi-fatal">—</div><div class="kpi-sub">Nature of Injury = Fatality</div></div>
-  <div class="kpi-card kc-blue inc-clickable" onclick="INC.cardClick('risk')" title="Click to view the Incident Register"><div class="kpi-lbl">Moderate+ Risk (RA Level)</div><div class="kpi-val" id="inc-kpi-risk">—</div><div class="kpi-sub">RA Level ≥ Moderate — no High/Critical on file for 2026</div></div>
+  <div class="kpi-card kc-nvy inc-clickable" onclick="INC.cardClick('total')" title="Click to view the full Incident Register"><div class="kpi-lbl">Total Incidents</div><div class="kpi-val" id="inc-kpi-total">—</div><div class="kpi-sub">2026 — Incident Register</div></div>
+  <div class="kpi-card kc-red inc-clickable" onclick="INC.cardClick('lti')" title="Click to filter the register to LTI incidents"><div class="kpi-lbl">LTI Count</div><div class="kpi-val" id="inc-kpi-lti">—</div><div class="kpi-sub" id="inc-kpi-lti-sub">Loading…</div></div>
+  <div class="kpi-card kc-amb inc-clickable" onclick="INC.cardClick('fatal')" title="Click to filter the register to fatalities"><div class="kpi-lbl">Fatalities / High-Severity</div><div class="kpi-val" id="inc-kpi-fatal">—</div><div class="kpi-sub">Nature of Injury = Fatality</div></div>
+  <div class="kpi-card kc-blue inc-clickable" onclick="INC.cardClick('risk')" title="Click to filter the register to Moderate+ Risk incidents"><div class="kpi-lbl">Moderate+ Risk (RA Level)</div><div class="kpi-val" id="inc-kpi-risk">—</div><div class="kpi-sub">RA Level ≥ Moderate — no High/Critical on file for 2026</div></div>
 </div>
 
 <div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
   <div class="chart-card">
-    <div class="chart-title">Monthly Trend by Classification<span class="chart-sub">2026, stacked by Classification</span></div>
+    <div class="chart-title">Monthly Trend by Classification<span class="chart-sub">2026, stacked by Classification — click a segment or legend to filter</span></div>
     <div class="chart-wrap"><canvas id="incMonthlyChart"></canvas></div>
   </div>
   <div class="chart-card">
-    <div class="chart-title">Incident Classification Breakdown<span class="chart-sub">by Classification</span></div>
+    <div class="chart-title">Incident Classification Breakdown<span class="chart-sub">by Classification — click a bar to filter</span></div>
     <div class="chart-wrap"><canvas id="incTypeChart"></canvas></div>
   </div>
 </div>
 
-<div class="sec-banner" id="inc-hdr-register">INCIDENT REGISTER</div>
-<div id="live-table-register" style="margin-top:0;background:var(--idw-bg2);border:1px solid var(--idw-border-gold);border-top:none;border-radius:0 0 8px 8px;padding:10px 14px"></div>
+<div class="sec-banner inc-sec-toggle" id="inc-hdr-register" onclick="INC.toggle('register')"><span class="inc-chevron">▶</span> INCIDENT REGISTER</div>
+<div id="live-table-register" class="inc-collapsible" style="margin-top:0;background:var(--idw-bg2);border:1px solid var(--idw-border-gold);border-top:none;border-radius:0 0 8px 8px"></div>
 
 <div id="inc-modal-root"></div>
 
@@ -329,6 +329,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (can('delete')){
       toolbarHtml += '<button class="inc-btn" id="inc-tb-remove-'+tKeyName+'"' + disabledAttr + ' onclick="INC.remove(\''+tKeyName+'\', INC.getSelected(\''+tKeyName+'\'))">🗑️ Remove</button>';
     }
+    // Photo evidence — same pattern as PTW/FE: viewing is open to anyone
+    // (button just needs a row selected), uploading/deleting is gated
+    // inside the modal itself by can('edit')/can('delete').
+    toolbarHtml += '<button class="inc-btn" id="inc-tb-photos-'+tKeyName+'"' + disabledAttr + ' onclick="INC.managePhotos(\''+tKeyName+'\', INC.getSelected(\''+tKeyName+'\'))">📷 Photos</button>';
 
     var categoryHtml = '';
     if (cfg.filterField){
@@ -341,12 +345,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         }).join('') + '</select>';
     }
 
+    var specialLabels = { lti: 'LTI only', fatal: 'Fatalities only', risk: 'Moderate+ Risk only' };
+    var specialPillHtml = f.special ? ('<span class="inc-special-pill">' + (specialLabels[f.special] || f.special) +
+      ' <span class="inc-special-pill-x" onclick="INC.clearFilters(\''+tKeyName+'\')">✕</span></span>') : '';
+
     var html =
       '<div class="inc-toolbar">' + toolbarHtml + '</div>' +
       '<div class="inc-filterbar">' +
         '<input type="text" class="inc-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="INC.onSearchInput(\''+tKeyName+'\', this.value)">' +
         categoryHtml +
         '<button class="inc-btn" onclick="INC.clearFilters(\''+tKeyName+'\')">Clear</button>' +
+        specialPillHtml +
         '<span class="inc-filter-status" id="inc-filter-status-'+tKeyName+'"></span>' +
       '</div>' +
       '<div class="inc-table-area" id="inc-table-area-'+tKeyName+'"></div>';
@@ -376,6 +385,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (f.category && filterFieldIdx > -1){
       visibleRows = visibleRows.filter(function(r){ return String(r[filterFieldIdx]||'').trim() === f.category; });
     }
+    if (f.special){
+      var ltiIdxF = colIdx(data.headers, 'LTI?');
+      var natIdxF = colIdx(data.headers, 'Nature of Injury');
+      var raLevelIdxF = colIdx(data.headers, 'RA Level');
+      if (f.special === 'lti'){
+        visibleRows = visibleRows.filter(function(r){ return ltiIdxF>=0 && String(r[ltiIdxF]||'').trim().toUpperCase()==='YES'; });
+      } else if (f.special === 'fatal'){
+        visibleRows = visibleRows.filter(function(r){ return natIdxF>=0 && String(r[natIdxF]||'').trim().toLowerCase()==='fatality'; });
+      } else if (f.special === 'risk'){
+        visibleRows = visibleRows.filter(function(r){
+          var lvl = raLevelIdxF>=0 ? String(r[raLevelIdxF]||'').trim().toLowerCase() : '';
+          return lvl==='moderate' || lvl==='high' || lvl==='critical';
+        });
+      }
+    }
     if (searchLower){
       visibleRows = visibleRows.filter(function(r){
         return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
@@ -383,7 +407,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
 
     if (statusEl){
-      var isFiltered = !!(f.search.trim() || f.category);
+      var isFiltered = !!(f.search.trim() || f.category || f.special);
       statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
     }
 
@@ -435,6 +459,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         topScroll.scrollLeft = tblWrap.scrollLeft;
         syncing = false;
       };
+    }
+  }
+
+  function setExpanded(tKeyName, expanded){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    var hdr = document.getElementById('inc-hdr-' + tKeyName);
+    var chev = hdr ? hdr.querySelector('.inc-chevron') : null;
+    if (!el) return;
+    if (expanded){
+      el.classList.add('inc-open');
+      if (chev) chev.style.transform = 'rotate(90deg)';
+    } else {
+      el.classList.remove('inc-open');
+      if (chev) chev.style.transform = 'rotate(0deg)';
     }
   }
 
@@ -521,6 +560,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     renderTypeChart(visibleRows, reg.headers);
   }
 
+  /* Shared by both chart onClick handlers and the KPI cards: filters the
+     register to one Classification value, expands it if collapsed, and
+     scrolls it into view — so clicking "Injury" on either chart behaves
+     exactly like clicking the matching KPI card would. */
+  function filterRegisterByClassification(value){
+    _filters['register'] = { search:'', category: value, special: null };
+    renderShell('register', _cache['register']);
+    setExpanded('register', true);
+    var hdr = document.getElementById('inc-hdr-register');
+    if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
   function renderMonthlyChart(rows, headers){
     var dateIdx = colIdx(headers, 'Date');
     var typeIdx = colIdx(headers, 'Classification');
@@ -564,9 +615,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       },
       options: {
         responsive: true, maintainAspectRatio: false,
+        onClick: function(evt, elements, chart){
+          if (!elements || !elements.length) return;
+          var ds = chart.data.datasets[elements[0].datasetIndex];
+          if (ds && ds.label) filterRegisterByClassification(ds.label);
+        },
+        onHover: function(evt, elements){ evt.native.target.style.cursor = (elements && elements.length) ? 'pointer' : 'default'; },
         scales: { x: { stacked: true, grid:{display:false}, ticks:{color:'rgba(255,255,255,.55)',font:{size:9}} },
                   y: { stacked: true, beginAtZero:true, grid:{color:'rgba(255,255,255,.08)'}, ticks:{color:'rgba(255,255,255,.55)',font:{size:9}} } },
-        plugins: { legend: { position:'bottom', labels:{color:'rgba(255,255,255,.75)',font:{size:9},boxWidth:10} } }
+        plugins: { legend: { position:'bottom', labels:{color:'rgba(255,255,255,.75)',font:{size:9},boxWidth:10},
+          onClick: function(evt, legendItem){ filterRegisterByClassification(legendItem.text); } } }
       }
     });
   }
@@ -599,6 +657,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       options: {
         indexAxis: 'y',
         responsive: true, maintainAspectRatio: false,
+        onClick: function(evt, elements, chart){
+          if (!elements || !elements.length) return;
+          var lbl = chart.data.labels[elements[0].index];
+          if (lbl) filterRegisterByClassification(lbl);
+        },
+        onHover: function(evt, elements){ evt.native.target.style.cursor = (elements && elements.length) ? 'pointer' : 'default'; },
         scales: { x: { beginAtZero:true, grid:{color:'rgba(255,255,255,.08)'}, ticks:{color:'rgba(255,255,255,.55)',font:{size:9}} },
                   y: { grid:{display:false}, ticks:{color:'rgba(255,255,255,.75)',font:{size:10}} } },
         plugins: { legend: { display:false } }
@@ -612,6 +676,117 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       method: 'POST',
       body: JSON.stringify(body)
     }).then(function(r){ return r.json(); });
+  }
+
+  function photoThumbUrl(fileId){
+    // Google's documented inline-thumbnail endpoint — works for files
+    // shared "anyone with the link" (which the upload action already
+    // sets), without needing to proxy the image through our own server.
+    return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w400';
+  }
+
+  function loadAndRenderPhotoGrid(idVal){
+    var gridEl = document.getElementById('inc-photo-grid');
+    if (!gridEl) return;
+    gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--idw-text-muted);font-size:11px">⏳ Loading photos…</div>';
+    fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(idVal))
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        var files = (res && res.files) || [];
+        if (!files.length){
+          gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--idw-text-muted);font-size:11px">No photos attached to this incident yet.</div>';
+          return;
+        }
+        var canDel = can('delete');
+        gridEl.innerHTML = files.map(function(f){
+          return '<div class="inc-photo-item">' +
+            '<a href="'+String(f.webViewLink||'#').replace(/"/g,'&quot;')+'" target="_blank" title="'+String(f.fileName||'').replace(/"/g,'&quot;')+'">' +
+              '<img src="'+photoThumbUrl(f.fileId)+'" alt="" loading="lazy">' +
+            '</a>' +
+            (canDel ? '<span class="inc-photo-del" title="Remove photo" onclick="INC.deletePhoto(\''+idVal+'\',\''+String(f.fileId).replace(/'/g,"\\'")+'\')">✕</span>' : '') +
+            '<div class="inc-photo-meta">'+String(f.date||f.uploadedDate||'').replace(/</g,'&lt;')+(f.uploadedBy?' · '+String(f.uploadedBy).replace(/</g,'&lt;'):'')+'</div>' +
+          '</div>';
+        }).join('');
+      })
+      .catch(function(){
+        gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:#E06060;font-size:11px">Could not load photos — check your connection.</div>';
+      });
+  }
+
+  // Shared by both the standalone Photos-button uploader and the on-form
+  // photo field — uploads a plain array of File objects to Drive one at a
+  // time (sequential, to stay gentle on Apps Script's execution quota),
+  // keyed by whatever ID string is passed in. Calls back (uploaded, failed).
+  function uploadStagedPhotos(files, idVal, done){
+    var uploaded = 0, failed = 0;
+    function uploadOne(file){
+      return new Promise(function(resolve){
+        var reader = new FileReader();
+        reader.onerror = function(){ failed++; resolve(); };
+        reader.onload = function(ev){
+          var b64 = ev.target.result.split(',')[1];
+          fetch(SHEETS_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'uploadFilePicker',
+              docId: idVal,
+              username: (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUser) ? (IMS_AUTH.getUser().username||'') : '',
+              fileName: file.name,
+              mimeType: file.type || 'image/jpeg',
+              b64: b64
+            })
+          }).then(function(r){ return r.json(); })
+            .then(function(res){ if (res && res.ok) uploaded++; else failed++; resolve(); })
+            .catch(function(){ failed++; resolve(); });
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    var chain = Promise.resolve();
+    files.forEach(function(file){ chain = chain.then(function(){ return uploadOne(file); }); });
+    chain.then(function(){ done(uploaded, failed); });
+  }
+
+  function managePhotosModal(tKeyName, idVal){
+    var root = document.getElementById('inc-modal-root');
+    var canUpload = can('edit');
+    root.innerHTML = '<div class="inc-modal-bg" id="inc-photo-modal-bg"><div class="inc-modal" style="width:560px">' +
+      '<h3>📷 Photos — ' + String(idVal).replace(/</g,'&lt;') + '</h3>' +
+      (canUpload ?
+        '<div class="inc-field">' +
+          '<label>Add Photos <span style="font-weight:400;opacity:.7">(select one or more, JPG/PNG)</span></label>' +
+          '<input type="file" id="inc-photo-input" accept="image/*" multiple>' +
+          '<div id="inc-photo-upload-status" style="font-size:10px;margin-top:6px;min-height:14px"></div>' +
+        '</div>'
+        : '') +
+      '<div id="inc-photo-grid" class="inc-photo-grid"></div>' +
+      '<div class="inc-modal-actions"><button class="inc-btn inc-btn-cancel" id="inc-photo-close">Close</button></div>' +
+    '</div></div>';
+
+    document.getElementById('inc-photo-close').onclick = function(){ root.innerHTML = ''; };
+    document.getElementById('inc-photo-modal-bg').onclick = function(e){ if (e.target.id === 'inc-photo-modal-bg') root.innerHTML = ''; };
+
+    loadAndRenderPhotoGrid(idVal);
+
+    if (canUpload){
+      var fi = document.getElementById('inc-photo-input');
+      fi.addEventListener('change', function(){
+        var files = Array.from(fi.files || []);
+        if (!files.length) return;
+        var statusEl = document.getElementById('inc-photo-upload-status');
+        fi.disabled = true;
+        if (statusEl) statusEl.textContent = 'Uploading ' + files.length + ' photo(s)…';
+        uploadStagedPhotos(files, idVal, function(done, failed){
+          fi.disabled = false;
+          fi.value = '';
+          if (statusEl){
+            statusEl.textContent = done + ' uploaded' + (failed ? ', ' + failed + ' failed' : '') + '.';
+            statusEl.style.color = failed ? '#E06060' : '#6FCF97';
+          }
+          loadAndRenderPhotoGrid(idVal);
+        });
+      });
+    }
   }
 
   function showModal(tKeyName, title, fields, initialValues, onSubmit){
@@ -639,8 +814,26 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         dlHtml + '</div>';
     }).join('');
 
+    // Photo evidence can be attached right on the Add/Edit form itself,
+    // same as PTW — files picked here are only staged in the browser
+    // until Save is clicked, at which point whatever Incident ID is in
+    // the form at that moment is what they get filed under.
+    var photoFieldHtml = (tKeyName === 'register' && can('edit')) ?
+      '<div class="inc-field">' +
+        '<label>Photo Evidence <span style="font-weight:400;opacity:.7">(optional — attached when you Save)</span></label>' +
+        '<div class="inc-photo-pick-row">' +
+          '<label class="inc-btn inc-photo-pick-btn" for="inc-modal-photo-camera">📸 Take Photo' +
+            '<input type="file" id="inc-modal-photo-camera" accept="image/*" capture="environment" style="display:none">' +
+          '</label>' +
+          '<label class="inc-btn inc-photo-pick-btn" for="inc-modal-photo-gallery">🖼️ Choose From Gallery' +
+            '<input type="file" id="inc-modal-photo-gallery" accept="image/*" multiple style="display:none">' +
+          '</label>' +
+        '</div>' +
+        '<div id="inc-modal-photo-preview" class="inc-photo-stage"></div>' +
+      '</div>' : '';
+
     root.innerHTML = '<div class="inc-modal-bg" id="inc-modal-bg"><div class="inc-modal">' +
-      '<h3>'+title+'</h3>' + fieldsHtml +
+      '<h3>'+title+'</h3>' + fieldsHtml + photoFieldHtml +
       '<div id="inc-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
       '<div class="inc-modal-actions"><button class="inc-btn inc-btn-cancel" id="inc-modal-cancel">Cancel</button>' +
       '<button class="inc-btn inc-btn-add" id="inc-modal-save">Save</button></div></div></div>';
@@ -648,13 +841,65 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('inc-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('inc-modal-bg').onclick = function(e){ if(e.target.id==='inc-modal-bg') root.innerHTML=''; };
 
+    // Staged photo files, picked but not yet uploaded. Take Photo and
+    // Choose From Gallery both ADD to this shared list (rather than
+    // replacing it), each with its own × to drop a mis-picked file.
+    var stagedPhotoFiles = [];
+    function renderPhotoStage(){
+      var preview = document.getElementById('inc-modal-photo-preview');
+      if (!preview) return;
+      preview.innerHTML = stagedPhotoFiles.map(function(file, i){
+        return '<span class="inc-photo-stage-chip">📷 ' + String(file.name).replace(/</g,'&lt;') +
+          ' <span class="inc-photo-stage-chip-x" data-stage-idx="'+i+'" title="Remove">×</span></span>';
+      }).join('');
+      preview.querySelectorAll('.inc-photo-stage-chip-x').forEach(function(x){
+        x.onclick = function(){
+          stagedPhotoFiles.splice(parseInt(x.getAttribute('data-stage-idx'), 10), 1);
+          renderPhotoStage();
+        };
+      });
+    }
+    function addStagedFiles(fileList){
+      Array.from(fileList || []).forEach(function(f){ stagedPhotoFiles.push(f); });
+      renderPhotoStage();
+    }
+    var photoCameraInput = document.getElementById('inc-modal-photo-camera');
+    if (photoCameraInput){
+      photoCameraInput.addEventListener('change', function(){
+        addStagedFiles(photoCameraInput.files);
+        photoCameraInput.value = ''; // allow taking another shot immediately after
+      });
+    }
+    var photoGalleryInput = document.getElementById('inc-modal-photo-gallery');
+    if (photoGalleryInput){
+      photoGalleryInput.addEventListener('change', function(){
+        addStagedFiles(photoGalleryInput.files);
+        photoGalleryInput.value = '';
+      });
+    }
+
     document.getElementById('inc-modal-save').onclick = function(){
       var values = {};
       root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
       var saveBtn = document.getElementById('inc-modal-save');
+      var statusEl = document.getElementById('inc-modal-save-status');
       saveBtn.disabled = true;
       window._incReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
-      onSubmit(values, function(){ root.innerHTML = ''; });
+      onSubmit(values, function(){
+        var idForPhotos = values[TABLES[tKeyName].idCol];
+        if (stagedPhotoFiles.length && idForPhotos){
+          if (statusEl) statusEl.textContent = 'Saved. Uploading ' + stagedPhotoFiles.length + ' photo(s)…';
+          uploadStagedPhotos(stagedPhotoFiles, idForPhotos, function(uploaded, failed){
+            root.innerHTML = '';
+            if (failed){
+              alert(idForPhotos + ' saved, but ' + failed + ' of ' + stagedPhotoFiles.length +
+                ' photo(s) failed to upload. Use the Photos button to retry.');
+            }
+          });
+        } else {
+          root.innerHTML = '';
+        }
+      });
     };
   }
 
@@ -690,10 +935,29 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       _filters[tKeyName] = {search:'', category:'', special:null};
       renderShell(tKeyName, _cache[tKeyName]);
     },
+    toggle: function(tKeyName){
+      var el = document.getElementById(TABLES[tKeyName].containerId);
+      setExpanded(tKeyName, !el.classList.contains('inc-open'));
+    },
+    jumpTo: function(tKeyName){
+      setExpanded(tKeyName, true);
+      var hdr = document.getElementById('inc-hdr-' + tKeyName);
+      if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
+    },
     cardClick: function(cardName){
-      _filters['register'] = {search:'', category:'', special:null};
+      if (cardName === 'total'){
+        _filters['register'] = {search:'', category:'', special:null};
+      } else if (cardName === 'lti'){
+        _filters['register'] = {search:'', category:'', special:'lti'};
+      } else if (cardName === 'fatal'){
+        _filters['register'] = {search:'', category:'', special:'fatal'};
+      } else if (cardName === 'risk'){
+        _filters['register'] = {search:'', category:'', special:'risk'};
+      }
       renderShell('register', _cache['register']);
-      document.getElementById('inc-hdr-register').scrollIntoView({behavior:'smooth', block:'start'});
+      setExpanded('register', true);
+      var hdr = document.getElementById('inc-hdr-register');
+      if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
     },
     selectRow: function(tKeyName, idVal){
       var cur = _selected[tKeyName];
@@ -702,6 +966,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     },
     getSelected: function(tKeyName){
       return _selected[tKeyName];
+    },
+    managePhotos: function(tKeyName, idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      managePhotosModal(tKeyName, idVal);
+    },
+    deletePhoto: function(idVal, fileId){
+      if (!can('delete')) return;
+      if (!confirm('Remove this photo? It will stay in Google Drive but no longer show here.')) return;
+      fetch(SHEETS_URL + '?action=deleteAttachment&fileId=' + encodeURIComponent(fileId) + '&docId=' + encodeURIComponent(idVal))
+        .then(function(){ loadAndRenderPhotoGrid(idVal); })
+        .catch(function(){ alert('Could not remove the photo — check your connection.'); });
     },
     openAdd: function(tKeyName){
       var cfg = TABLES[tKeyName];
