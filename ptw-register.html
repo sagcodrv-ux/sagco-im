@@ -130,6 +130,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .ptw-dark-wrap .ptw-btn-add:hover{background:var(--pdw-gold-lt)}
 .ptw-dark-wrap .ptw-icon-btn{border:none;background:none;cursor:pointer;font-size:13px;padding:2px 5px;border-radius:4px}
 .ptw-dark-wrap .ptw-icon-btn:hover{background:var(--pdw-bg3)}
+.ptw-dark-wrap .ptw-btn:disabled{opacity:.35;cursor:not-allowed}
+.ptw-dark-wrap .ptw-btn:disabled:hover{background:var(--pdw-bg3);border-color:var(--pdw-border)}
+/* Rows select on click now that Edit/Remove/Print moved up to the
+   toolbar — hover and selected states make it clear a row can be
+   picked and which one currently is. */
+.ptw-dark-wrap .ptw-row-selectable{cursor:pointer}
+.ptw-dark-wrap .ptw-row-selectable:hover{background:var(--pdw-bg3)}
+.ptw-dark-wrap .ptw-row-selected,
+.ptw-dark-wrap .ptw-row-selected:hover{background:rgba(201,168,76,.18);box-shadow:inset 3px 0 0 var(--pdw-gold)}
 .ptw-dark-wrap .ptw-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
   align-items:center;justify-content:center;z-index:9999}
 .ptw-dark-wrap .ptw-modal{background:var(--pdw-bg2);border:1px solid var(--pdw-border-gold);border-radius:14px;
@@ -316,6 +325,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   };
 
   var _filters = {};
+  // Tracks which row (by its ID column value) is currently selected per
+  // table, now that Edit/Remove/Print live in the toolbar instead of
+  // one icon set per row. Cleared whenever the table reloads or the
+  // selected row is removed.
+  var _selected = {};
   var STATUS_COL = 'Record Status';
   var _cache = {};
   var _charts = { volume: null, worktype: null };
@@ -483,9 +497,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
     var f = _filters[tKeyName];
 
+    var sel = _selected[tKeyName];
     var toolbarHtml = '';
     if (can('add')){
-      toolbarHtml = '<button class="ptw-btn ptw-btn-add" onclick="PTW.openAdd(\'' + tKeyName + '\')">+ Add Record</button>';
+      toolbarHtml += '<button class="ptw-btn ptw-btn-add" onclick="PTW.openAdd(\'' + tKeyName + '\')">+ Add Record</button>';
+    }
+    // Edit / Remove / Print now live here in the toolbar instead of one
+    // icon set per row -- they act on whichever row is currently selected
+    // (click a row to select it). Disabled and dimmed until a row is
+    // picked, so it's clear they need a selection first.
+    var disabledAttr = sel ? '' : ' disabled';
+    if (tKeyName === 'register'){
+      toolbarHtml += '<button class="ptw-btn" id="ptw-tb-print-'+tKeyName+'"' + disabledAttr + ' onclick="PTW.printPermit(\''+tKeyName+'\', PTW.getSelected(\''+tKeyName+'\'))">🖨️ Print</button>';
+    }
+    if (can('edit')){
+      toolbarHtml += '<button class="ptw-btn" id="ptw-tb-edit-'+tKeyName+'"' + disabledAttr + ' onclick="PTW.openEdit(\''+tKeyName+'\', PTW.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
+    }
+    if (can('delete')){
+      toolbarHtml += '<button class="ptw-btn" id="ptw-tb-remove-'+tKeyName+'"' + disabledAttr + ' onclick="PTW.remove(\''+tKeyName+'\', PTW.getSelected(\''+tKeyName+'\'))">🗑️ Remove</button>';
     }
 
     var categoryHtml = '';
@@ -720,7 +749,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var statusIdx = colIdx(data.headers, STATUS_COL);
     var idIdx = colIdx(data.headers, cfg.idCol);
     var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
-    var showActions = can('edit') || can('delete');
     var f = _filters[tKeyName] || {search:'', category:'', special:null};
     var searchLower = f.search.trim().toLowerCase();
 
@@ -758,18 +786,23 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (i === statusIdx) return;
       html += '<th>' + h + '</th>';
     });
-    if (showActions) html += '<th>Actions</th>';
     html += '</tr></thead><tbody>';
 
     var issuerColIdx = colIdx(data.headers, 'Permit Issuer - Name');
 
     if (!visibleRows.length){
-      var colspan = data.headers.length - (statusIdx>-1?1:0) + (showActions?1:0);
+      var colspan = data.headers.length - (statusIdx>-1?1:0);
       html += '<tr><td colspan="'+colspan+'"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
     } else {
+      var selId = _selected[tKeyName];
       visibleRows.forEach(function(row){
         var idVal = idIdx>-1 ? row[idIdx] : '';
-        html += '<tr>';
+        var idValEsc = String(idVal).replace(/'/g,"\\'");
+        var isSel = selId !== undefined && selId !== null && String(selId) === String(idVal);
+        // Rows are clickable instead of carrying their own Edit/Remove/
+        // Print icons — clicking selects the row (highlighted below) and
+        // the toolbar's Edit/Remove/Print buttons then act on it.
+        html += '<tr class="ptw-row-selectable' + (isSel?' ptw-row-selected':'') + '" onclick="PTW.selectRow(\''+tKeyName+'\',\''+idValEsc+'\')">';
         row.forEach(function(cell,ci){
           if (ci === statusIdx) return;
           if (tKeyName === 'register' && ci === issuerColIdx && cell && !isAuthorizedIssuer(cell)){
@@ -778,16 +811,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             html += '<td>' + formatCell(cell) + '</td>';
           }
         });
-        if (showActions){
-          html += '<td style="white-space:nowrap">';
-          // Print only applies to the register table — it's the one tied
-          // to the official HSE-FRM-01 paper form; Authorized Issuers has
-          // no paper-form equivalent.
-          if (tKeyName === 'register') html += '<button class="ptw-icon-btn" title="Print HSE-FRM-01" onclick="PTW.printPermit(\''+tKeyName+'\',\''+String(idVal).replace(/'/g,"\\'")+'\')">🖨️</button>';
-          if (can('edit')) html += '<button class="ptw-icon-btn" title="Edit" onclick="PTW.openEdit(\''+tKeyName+'\',\''+String(idVal).replace(/'/g,"\\'")+'\')">✏️</button>';
-          if (can('delete')) html += '<button class="ptw-icon-btn" title="Remove" onclick="PTW.remove(\''+tKeyName+'\',\''+String(idVal).replace(/'/g,"\\'")+'\')">🗑️</button>';
-          html += '</td>';
-        }
         html += '</tr>';
       });
     }
@@ -1163,6 +1186,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         document.getElementById('ptw-hdr-register').scrollIntoView({behavior:'smooth', block:'start'});
       }
     },
+    selectRow: function(tKeyName, idVal){
+      // Clicking a row that's already selected de-selects it (toggle);
+      // clicking a different row switches the selection to it.
+      var cur = _selected[tKeyName];
+      _selected[tKeyName] = (cur !== undefined && cur !== null && String(cur) === String(idVal)) ? null : idVal;
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    getSelected: function(tKeyName){
+      return _selected[tKeyName];
+    },
     openAdd: function(tKeyName){
       var cfg = TABLES[tKeyName];
       if (!can('add')) return;
@@ -1184,6 +1217,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     openEdit: function(tKeyName, idVal){
       var cfg = TABLES[tKeyName];
       if (!can('edit')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
       var data = _cache[tKeyName];
       var idIdx = colIdx(data.headers, cfg.idCol);
       var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
@@ -1198,6 +1232,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       });
     },
     printPermit: function(tKeyName, idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
       var cfg = TABLES[tKeyName];
       var data = _cache[tKeyName];
       var idIdx = colIdx(data.headers, cfg.idCol);
@@ -1214,8 +1249,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     remove: function(tKeyName, idVal){
       var cfg = TABLES[tKeyName];
       if (!can('delete')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
       if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
       postJSON('update', {tab: cfg.tabKey, idCol: encodeURIComponent(cfg.idCol), id: encodeURIComponent(idVal)}, {'Record Status':'Removed'}).then(function(res){
+        _selected[tKeyName] = null;
         reloadTabAndDashboard(tKeyName);
       }).catch(function(){ alert('Could not remove — check your connection.'); });
     }
