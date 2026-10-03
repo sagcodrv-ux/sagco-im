@@ -155,6 +155,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .ptw-dark-wrap .ptw-cb-item input[type="checkbox"]{width:auto;margin:0;cursor:pointer;flex-shrink:0}
 .ptw-dark-wrap .ptw-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .ptw-dark-wrap .ptw-modal-actions .ptw-btn-cancel{background:var(--pdw-bg3)}
+/* Photo evidence gallery — thumbnail grid with hover-delete, inside the
+   same modal shell used for Add/Edit. */
+.ptw-dark-wrap .ptw-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+  margin-top:10px;max-height:340px;overflow-y:auto}
+.ptw-dark-wrap .ptw-photo-item{position:relative;border:1px solid var(--pdw-border);border-radius:8px;
+  overflow:hidden;background:var(--pdw-bg3)}
+.ptw-dark-wrap .ptw-photo-item img{display:block;width:100%;height:90px;object-fit:cover}
+.ptw-dark-wrap .ptw-photo-meta{font-size:8px;color:var(--pdw-text-muted);padding:3px 5px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.ptw-dark-wrap .ptw-photo-del{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;
+  background:rgba(20,10,10,.75);color:#fff;font-size:11px;line-height:18px;text-align:center;cursor:pointer}
+.ptw-dark-wrap .ptw-photo-del:hover{background:#E06060}
 .ptw-dark-wrap .ptw-jumpbar{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px}
 .ptw-dark-wrap .ptw-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
   border:1px solid var(--pdw-border-gold);background:var(--pdw-bg2);cursor:pointer;font-family:inherit;color:var(--pdw-gold-lt)}
@@ -175,6 +187,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .ptw-dark-wrap .ptw-filter-status{font-size:10px;color:var(--pdw-text-muted);margin-left:auto}
 
 .ptw-dark-wrap .tbl-wrap{overflow-x:auto}
+/* Thin scroll strip mirrored above the table — same scrollbar, just
+   reachable without scrolling past every row first. Height is just
+   enough to show a scrollbar track/thumb; the spacer inside gives it
+   something the same width as the table to scroll against. Hidden by
+   JS when the table isn't wide enough to need scrolling at all. */
+.ptw-dark-wrap .ptw-topscroll{overflow-x:auto;overflow-y:hidden;height:14px;margin-bottom:2px;display:none}
+.ptw-dark-wrap .ptw-topscroll-spacer{height:1px}
 .ptw-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
 .ptw-dark-wrap .tbl-stripe th{text-align:left;color:var(--pdw-gold-lt);font-weight:700;font-size:10px;
   text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--pdw-border-gold);
@@ -335,6 +354,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   var _lastMonthYM = null;
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+
+  // Same pattern document-management.html uses — just for attributing
+  // "uploaded by" on photo evidence, not an access-control check.
+  function currentUsername(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    return (s && s.username) || 'unknown';
+  }
 
   function colIdx(headers, name){
     var out = -1;
@@ -508,6 +534,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var disabledAttr = sel ? '' : ' disabled';
     if (tKeyName === 'register'){
       toolbarHtml += '<button class="ptw-btn" id="ptw-tb-print-'+tKeyName+'"' + disabledAttr + ' onclick="PTW.printPermit(\''+tKeyName+'\', PTW.getSelected(\''+tKeyName+'\'))">🖨️ Print</button>';
+      // Photo evidence for the permit — e.g. the Safety Attendant
+      // documenting the actual work area/situation. Anyone can open
+      // the gallery to view what's attached; uploading/deleting is
+      // gated inside the modal itself by the same can('edit') /
+      // can('delete') rules as everything else here.
+      toolbarHtml += '<button class="ptw-btn" id="ptw-tb-photos-'+tKeyName+'"' + disabledAttr + ' onclick="PTW.managePhotos(\''+tKeyName+'\', PTW.getSelected(\''+tKeyName+'\'))">📷 Photos</button>';
     }
     if (can('edit')){
       toolbarHtml += '<button class="ptw-btn" id="ptw-tb-edit-'+tKeyName+'"' + disabledAttr + ' onclick="PTW.openEdit(\''+tKeyName+'\', PTW.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
@@ -779,7 +811,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
 
     var wide = data.headers.length > 8;
-    var html = '<div class="tbl-wrap"><table class="tbl-stripe' + (wide?' tbl-compact':'') + '">';
+    // A thin scrollbar strip ABOVE the table, synced to the real
+    // horizontal scroll below it — so scrolling sideways through a
+    // wide table like this one doesn't require scrolling all the way
+    // down the record list first just to reach the scrollbar at the
+    // bottom. The inner spacer div's width is set to match the
+    // table's actual rendered width right after this HTML is injected
+    // (see the width-sync code just after areaEl.innerHTML = html).
+    var html = '<div class="ptw-topscroll" id="ptw-topscroll-'+tKeyName+'"><div class="ptw-topscroll-spacer" id="ptw-topscroll-spacer-'+tKeyName+'"></div></div>' +
+      '<div class="tbl-wrap" id="ptw-tblwrap-'+tKeyName+'"><table class="tbl-stripe' + (wide?' tbl-compact':'') + '">';
     html += '<thead><tr>';
     data.headers.forEach(function(h,i){
       if (i === statusIdx) return;
@@ -815,6 +855,31 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
     html += '</tbody></table></div>';
     areaEl.innerHTML = html;
+
+    // Sync the top scroll strip to the real table wrapper below it.
+    // The spacer's width has to match the table's actual scrollable
+    // width (not just 100%), or there'd be nothing extra to scroll —
+    // measured after render since it depends on the real column
+    // widths/content, not something known in advance.
+    var topScroll = document.getElementById('ptw-topscroll-' + tKeyName);
+    var topSpacer = document.getElementById('ptw-topscroll-spacer-' + tKeyName);
+    var tblWrap = document.getElementById('ptw-tblwrap-' + tKeyName);
+    if (topScroll && topSpacer && tblWrap){
+      var table = tblWrap.querySelector('table');
+      topSpacer.style.width = (table ? table.scrollWidth : tblWrap.scrollWidth) + 'px';
+      topScroll.style.display = (tblWrap.scrollWidth > tblWrap.clientWidth) ? 'block' : 'none';
+      var syncing = false;
+      topScroll.onscroll = function(){
+        if (syncing) return; syncing = true;
+        tblWrap.scrollLeft = topScroll.scrollLeft;
+        syncing = false;
+      };
+      tblWrap.onscroll = function(){
+        if (syncing) return; syncing = true;
+        topScroll.scrollLeft = tblWrap.scrollLeft;
+        syncing = false;
+      };
+    }
   }
 
   function loadTab(tKeyName){
@@ -1114,6 +1179,124 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     });
   }
 
+  /* ── Photo evidence gallery ───────────────────────────────────────────
+     Reuses the SAME Google Drive attachment mechanism already built for
+     the Document Register (uploadFilePicker / listFiles / deleteAttachment
+     in google-apps-script.js) — those endpoints key everything off a
+     plain "docId" string with no actual tie to documents specifically,
+     so passing a Permit ID (e.g. "PTW-0005") in that same slot files
+     these photos under their own permit, in the same shared " Attachments"
+     sheet, with ZERO backend changes needed. */
+
+  function photoThumbUrl(fileId){
+    // Google's documented inline-thumbnail endpoint — works for files
+    // shared "anyone with the link" (which uploadFileFromPicker already
+    // sets), without needing to proxy the image through our own server.
+    return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w400';
+  }
+
+  function loadAndRenderPhotoGrid(idVal){
+    var gridEl = document.getElementById('ptw-photo-grid');
+    if (!gridEl) return;
+    gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--pdw-text-muted);font-size:11px">⏳ Loading photos…</div>';
+    fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(idVal))
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        var files = (res && res.files) || [];
+        if (!files.length){
+          gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--pdw-text-muted);font-size:11px">No photos attached to this permit yet.</div>';
+          return;
+        }
+        var canDel = can('delete');
+        gridEl.innerHTML = files.map(function(f, i){
+          return '<div class="ptw-photo-item">' +
+            '<a href="'+String(f.webViewLink||'#').replace(/"/g,'&quot;')+'" target="_blank" title="'+String(f.fileName||'').replace(/"/g,'&quot;')+'">' +
+              '<img src="'+photoThumbUrl(f.fileId)+'" alt="" loading="lazy">' +
+            '</a>' +
+            (canDel ? '<span class="ptw-photo-del" title="Remove photo" onclick="PTW.deletePhoto(\''+idVal+'\',\''+String(f.fileId).replace(/'/g,"\\'")+'\')">✕</span>' : '') +
+            '<div class="ptw-photo-meta">'+String(f.date||f.uploadedDate||'').replace(/</g,'&lt;')+(f.uploadedBy?' · '+String(f.uploadedBy).replace(/</g,'&lt;'):'')+'</div>' +
+          '</div>';
+        }).join('');
+      })
+      .catch(function(){
+        gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:#E06060;font-size:11px">Could not load photos — check your connection.</div>';
+      });
+  }
+
+  function managePhotosModal(tKeyName, idVal){
+    var root = document.getElementById('ptw-modal-root');
+    var canUpload = can('edit');
+    root.innerHTML = '<div class="ptw-modal-bg" id="ptw-photo-modal-bg"><div class="ptw-modal" style="width:560px">' +
+      '<h3>📷 Photos — ' + String(idVal).replace(/</g,'&lt;') + '</h3>' +
+      (canUpload ?
+        '<div class="ptw-field">' +
+          '<label>Add Photos <span style="font-weight:400;opacity:.7">(select one or more, JPG/PNG)</span></label>' +
+          '<input type="file" id="ptw-photo-input" accept="image/*" multiple>' +
+          '<div id="ptw-photo-upload-status" style="font-size:10px;margin-top:6px;min-height:14px"></div>' +
+        '</div>'
+        : '') +
+      '<div id="ptw-photo-grid" class="ptw-photo-grid"></div>' +
+      '<div class="ptw-modal-actions"><button class="ptw-btn ptw-btn-cancel" id="ptw-photo-close">Close</button></div>' +
+    '</div></div>';
+
+    document.getElementById('ptw-photo-close').onclick = function(){ root.innerHTML = ''; };
+    document.getElementById('ptw-photo-modal-bg').onclick = function(e){ if (e.target.id === 'ptw-photo-modal-bg') root.innerHTML = ''; };
+
+    loadAndRenderPhotoGrid(idVal);
+
+    if (canUpload){
+      var fi = document.getElementById('ptw-photo-input');
+      fi.addEventListener('change', function(){
+        var files = Array.from(fi.files || []);
+        if (!files.length) return;
+        var statusEl = document.getElementById('ptw-photo-upload-status');
+        var total = files.length, done = 0, failed = 0;
+        fi.disabled = true;
+
+        function uploadOne(file){
+          return new Promise(function(resolve){
+            var reader = new FileReader();
+            reader.onerror = function(){ failed++; resolve(); };
+            reader.onload = function(ev){
+              var b64 = ev.target.result.split(',')[1];
+              fetch(SHEETS_URL, {
+                method: 'POST',
+                body: JSON.stringify({
+                  action: 'uploadFilePicker',
+                  docId: idVal,
+                  username: currentUsername(),
+                  fileName: file.name,
+                  mimeType: file.type || 'image/jpeg',
+                  b64: b64
+                })
+              }).then(function(r){ return r.json(); })
+                .then(function(res){ if (res && res.ok) done++; else failed++; resolve(); })
+                .catch(function(){ failed++; resolve(); });
+            };
+            reader.readAsDataURL(file);
+          });
+        }
+
+        var chain = Promise.resolve();
+        files.forEach(function(file, idx){
+          chain = chain.then(function(){
+            if (statusEl) statusEl.textContent = 'Uploading ' + (idx+1) + ' of ' + total + '…';
+            return uploadOne(file);
+          });
+        });
+        chain.then(function(){
+          fi.disabled = false;
+          fi.value = '';
+          if (statusEl){
+            statusEl.textContent = done + ' uploaded' + (failed ? ', ' + failed + ' failed' : '') + '.';
+            statusEl.style.color = failed ? '#E06060' : '#6FCF97';
+          }
+          loadAndRenderPhotoGrid(idVal);
+        });
+      });
+    }
+  }
+
   function postJSON(action, params, body){
     var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
     return fetch(SHEETS_URL + '?action=' + action + '&' + qs, {
@@ -1194,6 +1377,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     },
     getSelected: function(tKeyName){
       return _selected[tKeyName];
+    },
+    managePhotos: function(tKeyName, idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      managePhotosModal(tKeyName, idVal);
+    },
+    deletePhoto: function(idVal, fileId){
+      if (!can('delete')) return;
+      if (!confirm('Remove this photo? It will stay in Google Drive but no longer show here.')) return;
+      fetch(SHEETS_URL + '?action=deleteAttachment&fileId=' + encodeURIComponent(fileId) + '&docId=' + encodeURIComponent(idVal))
+        .then(function(){ loadAndRenderPhotoGrid(idVal); })
+        .catch(function(){ alert('Could not remove the photo — check your connection.'); });
     },
     openAdd: function(tKeyName){
       var cfg = TABLES[tKeyName];
