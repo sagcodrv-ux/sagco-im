@@ -167,6 +167,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .ptw-dark-wrap .ptw-photo-del{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;
   background:rgba(20,10,10,.75);color:#fff;font-size:11px;line-height:18px;text-align:center;cursor:pointer}
 .ptw-dark-wrap .ptw-photo-del:hover{background:#E06060}
+.ptw-dark-wrap .ptw-photo-pick-row{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 2px}
+.ptw-dark-wrap .ptw-photo-pick-btn{display:inline-flex;align-items:center;gap:5px;font-size:11px;
+  cursor:pointer;margin:0}
+.ptw-dark-wrap .ptw-photo-stage{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;min-height:0}
+.ptw-dark-wrap .ptw-photo-stage-chip{display:inline-flex;align-items:center;gap:5px;font-size:10px;
+  background:var(--pdw-bg3);border:1px solid var(--pdw-border);border-radius:12px;padding:4px 6px 4px 9px;
+  color:var(--pdw-text-muted);max-width:220px}
+.ptw-dark-wrap .ptw-photo-stage-chip-x{display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;border-radius:50%;background:rgba(224,96,96,.18);color:#E06060;cursor:pointer;
+  font-size:12px;line-height:1}
+.ptw-dark-wrap .ptw-photo-stage-chip-x:hover{background:#E06060;color:#fff}
 .ptw-dark-wrap .ptw-jumpbar{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px}
 .ptw-dark-wrap .ptw-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
   border:1px solid var(--pdw-border-gold);background:var(--pdw-bg2);cursor:pointer;font-family:inherit;color:var(--pdw-gold-lt)}
@@ -1118,13 +1129,81 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         '<input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
         dlHtml + '</div>';
     }).join('');
+    // Photo evidence can now be attached right on the Add/Edit form
+    // itself (register table only), instead of requiring a separate trip
+    // through the toolbar's Photos button afterward. Files selected here
+    // are only staged in the browser — nothing uploads to Drive until
+    // Save is clicked (see ptw-modal-save handler below), at which point
+    // whatever Permit ID is in the form at that moment (the auto-suggested
+    // one, or a hand-edited one) is what they get filed under.
+    var photoFieldHtml = '';
+    if (tKeyName === 'register' && can('edit')){
+      photoFieldHtml = '<div class="ptw-field">' +
+        '<label>Photo Evidence <span style="font-weight:400;opacity:.7">(optional — attached when you Save)</span></label>' +
+        '<div class="ptw-photo-pick-row">' +
+          '<label class="ptw-btn ptw-photo-pick-btn" for="ptw-modal-photo-camera">📸 Take Photo' +
+            '<input type="file" id="ptw-modal-photo-camera" accept="image/*" capture="environment" style="display:none">' +
+          '</label>' +
+          '<label class="ptw-btn ptw-photo-pick-btn" for="ptw-modal-photo-gallery">🖼️ Choose From Gallery' +
+            '<input type="file" id="ptw-modal-photo-gallery" accept="image/*" multiple style="display:none">' +
+          '</label>' +
+        '</div>' +
+        '<div id="ptw-modal-photo-preview" class="ptw-photo-stage"></div>' +
+      '</div>';
+    }
+
     root.innerHTML = '<div class="ptw-modal-bg" id="ptw-modal-bg"><div class="ptw-modal">' +
-      '<h3>'+title+'</h3>' + fieldsHtml +
+      '<h3>'+title+'</h3>' + fieldsHtml + photoFieldHtml +
+      '<div id="ptw-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
       '<div class="ptw-modal-actions"><button class="ptw-btn ptw-btn-cancel" id="ptw-modal-cancel">Cancel</button>' +
       '<button class="ptw-btn ptw-btn-add" id="ptw-modal-save">Save</button></div></div></div>';
 
     document.getElementById('ptw-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('ptw-modal-bg').onclick = function(e){ if(e.target.id==='ptw-modal-bg') root.innerHTML=''; };
+
+    // Staged photo files, picked but not yet uploaded. Re-picking the
+    // file input replaces the whole staged batch (standard file-input
+    // behaviour) — the little preview strip just mirrors whatever the
+    // input currently holds so there's no separate state to lose sync.
+    // Staged photo files, picked but not yet uploaded. Unlike a single
+    // plain file input, Take Photo and Choose From Gallery both ADD to
+    // this shared list (rather than replacing it) — so snapping a photo
+    // with the camera, then picking two more from the gallery, keeps
+    // all three staged together. Each chip has its own remove (×) so a
+    // mis-picked photo can be dropped before Save without starting over.
+    var stagedPhotoFiles = [];
+    function renderPhotoStage(){
+      var preview = document.getElementById('ptw-modal-photo-preview');
+      if (!preview) return;
+      preview.innerHTML = stagedPhotoFiles.map(function(file, i){
+        return '<span class="ptw-photo-stage-chip">📷 ' + String(file.name).replace(/</g,'&lt;') +
+          ' <span class="ptw-photo-stage-chip-x" data-stage-idx="'+i+'" title="Remove">×</span></span>';
+      }).join('');
+      preview.querySelectorAll('.ptw-photo-stage-chip-x').forEach(function(x){
+        x.onclick = function(){
+          stagedPhotoFiles.splice(parseInt(x.getAttribute('data-stage-idx'), 10), 1);
+          renderPhotoStage();
+        };
+      });
+    }
+    function addStagedFiles(fileList){
+      Array.from(fileList || []).forEach(function(f){ stagedPhotoFiles.push(f); });
+      renderPhotoStage();
+    }
+    var photoCameraInput = document.getElementById('ptw-modal-photo-camera');
+    if (photoCameraInput){
+      photoCameraInput.addEventListener('change', function(){
+        addStagedFiles(photoCameraInput.files);
+        photoCameraInput.value = ''; // allow taking another shot immediately after
+      });
+    }
+    var photoGalleryInput = document.getElementById('ptw-modal-photo-gallery');
+    if (photoGalleryInput){
+      photoGalleryInput.addEventListener('change', function(){
+        addStagedFiles(photoGalleryInput.files);
+        photoGalleryInput.value = '';
+      });
+    }
     document.getElementById('ptw-modal-save').onclick = function(){
       var values = {};
       root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
@@ -1139,7 +1218,37 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (cb.checked) cbByGroup[g].push(cb.getAttribute('data-cbval'));
       });
       Object.keys(cbByGroup).forEach(function(g){ values[g] = cbByGroup[g].join('; '); });
-      onSubmit(values, function(){ root.innerHTML=''; });
+
+      // Photos staged above (if any) upload to Drive AFTER the record
+      // itself is confirmed saved, filed under whatever Permit ID is in
+      // the form right now — the auto-suggested one on Add, or the
+      // existing one on Edit. Uploading before the record write would
+      // risk orphaned photos if the write then failed; doing it after
+      // means a failed photo upload never blocks the record from saving.
+      var saveBtn = document.getElementById('ptw-modal-save');
+      var statusEl = document.getElementById('ptw-modal-save-status');
+      saveBtn.disabled = true;
+      // Exposed so openAdd/openEdit's error paths (which alert() and
+      // return WITHOUT calling the success callback below) can re-enable
+      // Save immediately, instead of leaving it stuck disabled after a
+      // failed write — see PTW.reenableModalSave().
+      window._ptwReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
+
+      onSubmit(values, function(){
+        var idForPhotos = values[cfg.idCol];
+        if (stagedPhotoFiles.length && idForPhotos){
+          if (statusEl) statusEl.textContent = 'Saved. Uploading ' + stagedPhotoFiles.length + ' photo(s)…';
+          uploadStagedPhotos(stagedPhotoFiles, idForPhotos, function(uploaded, failed){
+            root.innerHTML = '';
+            if (failed){
+              alert(idForPhotos + ' saved, but ' + failed + ' of ' + stagedPhotoFiles.length +
+                ' photo(s) failed to upload. Use the Photos button to retry.');
+            }
+          });
+        } else {
+          root.innerHTML = '';
+        }
+      });
     };
 
     /* Permit Issuer - Name → Permit Issuer - Dept. (ID-matched, see
@@ -1223,6 +1332,41 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       });
   }
 
+  // Shared by both the standalone Photos-button uploader and the
+  // new on-form photo field — uploads a plain array of File objects to
+  // Drive one at a time (sequential, not parallel, to stay gentle on
+  // Apps Script's execution quota), keyed by whatever ID string is
+  // passed in. Calls back with (uploadedCount, failedCount).
+  function uploadStagedPhotos(files, idVal, done){
+    var uploaded = 0, failed = 0;
+    function uploadOne(file){
+      return new Promise(function(resolve){
+        var reader = new FileReader();
+        reader.onerror = function(){ failed++; resolve(); };
+        reader.onload = function(ev){
+          var b64 = ev.target.result.split(',')[1];
+          fetch(SHEETS_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'uploadFilePicker',
+              docId: idVal,
+              username: currentUsername(),
+              fileName: file.name,
+              mimeType: file.type || 'image/jpeg',
+              b64: b64
+            })
+          }).then(function(r){ return r.json(); })
+            .then(function(res){ if (res && res.ok) uploaded++; else failed++; resolve(); })
+            .catch(function(){ failed++; resolve(); });
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    var chain = Promise.resolve();
+    files.forEach(function(file){ chain = chain.then(function(){ return uploadOne(file); }); });
+    chain.then(function(){ done(uploaded, failed); });
+  }
+
   function managePhotosModal(tKeyName, idVal){
     var root = document.getElementById('ptw-modal-root');
     var canUpload = can('edit');
@@ -1250,41 +1394,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         var files = Array.from(fi.files || []);
         if (!files.length) return;
         var statusEl = document.getElementById('ptw-photo-upload-status');
-        var total = files.length, done = 0, failed = 0;
         fi.disabled = true;
-
-        function uploadOne(file){
-          return new Promise(function(resolve){
-            var reader = new FileReader();
-            reader.onerror = function(){ failed++; resolve(); };
-            reader.onload = function(ev){
-              var b64 = ev.target.result.split(',')[1];
-              fetch(SHEETS_URL, {
-                method: 'POST',
-                body: JSON.stringify({
-                  action: 'uploadFilePicker',
-                  docId: idVal,
-                  username: currentUsername(),
-                  fileName: file.name,
-                  mimeType: file.type || 'image/jpeg',
-                  b64: b64
-                })
-              }).then(function(r){ return r.json(); })
-                .then(function(res){ if (res && res.ok) done++; else failed++; resolve(); })
-                .catch(function(){ failed++; resolve(); });
-            };
-            reader.readAsDataURL(file);
-          });
-        }
-
-        var chain = Promise.resolve();
-        files.forEach(function(file, idx){
-          chain = chain.then(function(){
-            if (statusEl) statusEl.textContent = 'Uploading ' + (idx+1) + ' of ' + total + '…';
-            return uploadOne(file);
-          });
-        });
-        chain.then(function(){
+        if (statusEl) statusEl.textContent = 'Uploading ' + files.length + ' photo(s)…';
+        uploadStagedPhotos(files, idVal, function(done, failed){
           fi.disabled = false;
           fi.value = '';
           if (statusEl){
@@ -1404,7 +1516,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
           close();
           reloadTabAndDashboard(tKeyName);
-        }).catch(function(){ alert('Could not save — check your connection.'); });
+        }).catch(function(){
+          alert('Could not save — check your connection.');
+          if (window._ptwReenableModalSave) window._ptwReenableModalSave();
+        });
       });
     },
     openEdit: function(tKeyName, idVal){
@@ -1429,11 +1544,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
           if (res && res.status === 'error'){
             alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+            if (window._ptwReenableModalSave) window._ptwReenableModalSave();
             return;
           }
           close();
           reloadTabAndDashboard(tKeyName);
-        }).catch(function(){ alert('Could not save — check your connection.'); });
+        }).catch(function(){
+          alert('Could not save — check your connection.');
+          if (window._ptwReenableModalSave) window._ptwReenableModalSave();
+        });
       });
     },
     printPermit: function(tKeyName, idVal){
