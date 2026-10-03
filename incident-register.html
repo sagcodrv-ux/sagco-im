@@ -254,6 +254,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
 
+  /* RA Score -> RA Level, derived from the 2026 historical register:
+     every score 1-6 on file is Low, every score 9-15 on file is Moderate
+     - nothing in between exists yet. 8 is placed in Low and 9 is the
+     start of Moderate, following the same break point as the data;
+     High/Critical bands follow the standard 5x5 matrix progression
+     above the range actually seen so far, and should be reviewed by
+     the SHEE team once a real High/Critical incident occurs. */
+  function raScoreToLevel(score){
+    var n = parseFloat(score);
+    if (isNaN(n)) return '';
+    if (n <= 8) return 'Low';
+    if (n <= 15) return 'Moderate';
+    if (n <= 20) return 'High';
+    return 'Critical';
+  }
+
   function colIdx(headers, name){
     var out = -1;
     (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
@@ -809,8 +825,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         return '<div class="inc-field"><label>'+f+'</label>' +
           '<textarea data-field="'+f+'" rows="2">'+vEsc+'</textarea></div>';
       }
+      // RA Level is derived from RA Score, not typed in directly - keep
+      // it read-only in the form so it can never drift out of sync.
+      if (f === 'RA Level'){
+        var lvlAuto = raScoreToLevel(initialValues && initialValues['RA Score']);
+        return '<div class="inc-field"><label>'+f+' <span style="font-weight:400;opacity:.7">(auto, from RA Score)</span></label>' +
+          '<input type="text" data-field="'+f+'" id="inc-modal-ra-level" value="'+(lvlAuto||vEsc)+'" readonly style="background:#f0f0f0;cursor:not-allowed">' +
+          '</div>';
+      }
+      var extraAttr = (f === 'RA Score') ? ' id="inc-modal-ra-score"' : '';
       return '<div class="inc-field"><label>'+f+'</label>' +
-        '<input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
+        '<input type="'+inputType+'" data-field="'+f+'"'+extraAttr+' value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
         dlHtml + '</div>';
     }).join('');
 
@@ -840,6 +865,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
     document.getElementById('inc-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('inc-modal-bg').onclick = function(e){ if(e.target.id==='inc-modal-bg') root.innerHTML=''; };
+
+    // Keep RA Level glued to whatever RA Score is typed, live.
+    var raScoreEl = document.getElementById('inc-modal-ra-score');
+    var raLevelEl = document.getElementById('inc-modal-ra-level');
+    if (raScoreEl && raLevelEl){
+      raScoreEl.addEventListener('input', function(){
+        raLevelEl.value = raScoreToLevel(raScoreEl.value);
+      });
+    }
 
     // Staged photo files, picked but not yet uploaded. Take Photo and
     // Choose From Gallery both ADD to this shared list (rather than
