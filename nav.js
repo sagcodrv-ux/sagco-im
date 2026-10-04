@@ -146,6 +146,7 @@ var TREE = [
       children:[
         { id:'p07-cap', label:'CAPA Register',     file:'capa-register.html',    level:'L4', tag:'Sh.23' },
         { id:'p07-inc', label:'Incident Register', file:'incident-register.html',level:'L4', tag:'Sh.24' },
+        { id:'p07-obs', label:'Observations Register', file:'observations-register.html', level:'L4', badge:'Live' },
       ]
     },
 
