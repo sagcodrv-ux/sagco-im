@@ -143,7 +143,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 <div class="kpi-grid">
   <div class="kpi-card kc-nvy" onclick="OBS.cardFilter('all')"><div class="kpi-lbl">Total Observations</div><div class="kpi-val">—</div><div class="kpi-sub">All categories, all time</div></div>
   <div class="kpi-card kc-red" onclick="OBS.cardFilter('attention')"><div class="kpi-lbl">Needs Attention</div><div class="kpi-val">—</div><div class="kpi-sub">Unreviewed confirmed events + recurrence-flagged</div></div>
-  <div class="kpi-card kc-amb" onclick="OBS.cardFilter('escalation_review')"><div class="kpi-lbl">Needs Escalation Review</div><div class="kpi-val">—</div><div class="kpi-sub">Accepted cases only — High/Extremely High priority, property damage, or recurrence-flagged</div></div>
+  <div class="kpi-card kc-amb" onclick="OBS.cardFilter('escalation_review')"><div class="kpi-lbl">Needs Escalation Review</div><div class="kpi-val">—</div><div class="kpi-sub">Evaluated cases (accepted or rejected) not yet redirected</div></div>
   <div class="kpi-card kc-blue" onclick="OBS.cardFilter('recurrence')"><div class="kpi-lbl">Recurrence Flagged</div><div class="kpi-val">—</div><div class="kpi-sub">"Did the same event happen before?" = Yes</div></div>
 </div>
 
@@ -418,16 +418,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     });
   }
 
-  /* "Needs Escalation Review" rule — a case is a candidate if it's High
-     (or Extremely High) priority, Property Damage, or Recurrence Flagged.
-     Shared by the KPI count and the table row filter so the two numbers
-     never drift apart. */
+  /* "Needs Escalation Review" rule — depends ONLY on evaluation stage:
+     a case is a candidate once it has been evaluated (Reviewed = Accepted
+     OR Rejected), with no further condition on priority, category, or
+     recurrence. Shared by the KPI count and the table row filter so the
+     two numbers never drift apart. */
   function isEscalationCandidate(r){
-    if (r.Accepted !== 'Yes') return false; /* must have cleared the acceptance stage first */
+    if (r.Reviewed !== 'Yes') return false; /* must have been evaluated (accepted OR rejected) first */
     if (r.Escalated) return false; /* already redirected — handled, drop off the review queue */
-    return r.Priority === 'High' || r.Priority === 'Extremely High' ||
-      r.Category === 'Property Damage (Damage Only)' ||
-      r['Recurrence Flagged'] === 'Yes';
+    return true;
   }
 
   /* Decides the routing available for an accepted case — NOT a free choice
