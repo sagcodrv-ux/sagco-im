@@ -112,6 +112,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .inc-dark-wrap .inc-cb-item input[type="checkbox"]{width:auto;margin:0;cursor:pointer;flex-shrink:0}
 .inc-dark-wrap .inc-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .inc-dark-wrap .inc-modal-actions .inc-btn-cancel{background:var(--idw-bg3)}
+/* Add Action modal — repeatable rows (Description/Owner/Due), separate
+   from the generic Add/Edit form: these are NOT a field on the incident
+   record itself (Corrective Action stays untouched), they're entries
+   meant for the Action Tracker, addable at any time a row is selected,
+   not just when the incident is first created. */
+.inc-dark-wrap .inc-action-row{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.inc-dark-wrap .inc-action-row input{flex:1;margin:0;width:auto}
+.inc-dark-wrap .inc-action-row input.inc-action-due{flex:0 0 128px}
+.inc-dark-wrap .inc-action-remove{flex:0 0 auto;background:var(--idw-bg3);border:1px solid var(--idw-border);
+  border-radius:6px;color:var(--idw-text-muted);cursor:pointer;padding:5px 9px;font-size:12px;line-height:1}
+.inc-dark-wrap .inc-action-remove:hover{color:var(--idw-red);border-color:var(--idw-red)}
+.inc-dark-wrap .inc-btn-sm{font-size:10px;padding:4px 10px;width:auto!important}
+.inc-dark-wrap .inc-linked-actions{font-size:10px;color:var(--idw-gold-lt);white-space:nowrap}
+.inc-dark-wrap .inc-linked-actions.inc-none{color:var(--idw-text-dim)}
 /* Photo evidence gallery — thumbnail grid with hover-delete, inside the
    same modal shell used for Add/Edit. */
 .inc-dark-wrap .inc-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
@@ -252,6 +266,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   var _charts = { monthly: null, type: null };
   var _dateRange = { start: '', end: '' };
 
+  /* Actions linked to an incident (<Incident ID>-ACT-01, -02, ...),
+     keyed by Incident ID. Deliberately kept separate from the sheet's
+     own 'Corrective Action' column — that field is never touched by
+     this feature. Session-only for now: there is no live Action
+     Tracker sheet/endpoint to write these to yet, so they reset on
+     page reload, same caveat as the rest of this page's write-paths
+     until that backend exists. Can be added to at any time a row is
+     selected, not just when the incident is first created or edited. */
+  var _pendingActions = {};
+
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
 
   /* RA Score -> RA Level, derived from the 2026 historical register:
@@ -371,6 +395,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // (button just needs a row selected), uploading/deleting is gated
     // inside the modal itself by can('edit')/can('delete').
     toolbarHtml += '<button class="inc-btn" id="inc-tb-photos-'+tKeyName+'"' + disabledAttr + ' onclick="INC.managePhotos(\''+tKeyName+'\', INC.getSelected(\''+tKeyName+'\'))">📷 Photos</button>';
+    // Add Action — select any row, at any time (not just when the
+    // incident is first forwarded/created), and attach one or more
+    // corrective actions to it. Gated on can('edit') like Edit/Remove,
+    // since this is incident-response content, not a read-only view.
+    if (can('edit')){
+      toolbarHtml += '<button class="inc-btn" id="inc-tb-addaction-'+tKeyName+'"' + disabledAttr + ' onclick="INC.openAddAction(\''+tKeyName+'\', INC.getSelected(\''+tKeyName+'\'))">✚ Add Action</button>';
+    }
 
     var categoryHtml = '';
     if (cfg.filterField){
@@ -457,10 +488,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (i === statusIdx) return;
       html += '<th>' + h + '</th>';
     });
+    // Linked Actions is a client-side column, not part of the sheet's
+    // own fields — it only shows up for the 'register' table, where
+    // actions can be attached via the toolbar button above.
+    var showActionsCol = (tKeyName === 'register');
+    if (showActionsCol) html += '<th>Linked Actions</th>';
     html += '</tr></thead><tbody>';
 
     if (!visibleRows.length){
-      var colspan = data.headers.length - (statusIdx>-1?1:0);
+      var colspan = data.headers.length - (statusIdx>-1?1:0) + (showActionsCol?1:0);
       html += '<tr><td colspan="'+colspan+'"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
     } else {
       var selId = _selected[tKeyName];
@@ -473,6 +509,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           if (ci === statusIdx) return;
           html += '<td>' + formatCell(cell) + '</td>';
         });
+        if (showActionsCol){
+          var linked = _pendingActions[idVal] || [];
+          if (linked.length){
+            var shortIds = linked.map(function(a){
+              var m = /-ACT-(\d+)$/.exec(a.id);
+              return m ? 'ACT-' + m[1] : a.id;
+            });
+            html += '<td><span class="inc-linked-actions">' + shortIds.join(', ') + '</span></td>';
+          } else {
+            html += '<td><span class="inc-linked-actions inc-none">—</span></td>';
+          }
+        }
         html += '</tr>';
       });
     }
@@ -827,6 +875,83 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
   }
 
+  /* One row of the repeatable Actions list (Description/Owner/Due Date
+     + remove button). Can be pre-filled with an existing action so
+     reopening the modal to add more doesn't lose what's already there.
+     Kept as plain DOM manipulation (addActionRow/removeActionRow
+     append/remove actual elements) rather than a re-render of the
+     whole modal, so values typed into other rows are never lost. */
+  function actionRowHtml(existing){
+    var d = existing || {};
+    var descV = String(d.description||'').replace(/"/g,'&quot;');
+    var ownerV = String(d.owner||'').replace(/"/g,'&quot;');
+    var dueV = String(d.dueDate||'').replace(/"/g,'&quot;');
+    return '<div class="inc-action-row">' +
+      '<input type="text" class="inc-action-desc" placeholder="Action description" value="'+descV+'">' +
+      '<input type="text" class="inc-action-owner" placeholder="Owner" value="'+ownerV+'">' +
+      '<input type="date" class="inc-action-due" title="Due date" value="'+dueV+'">' +
+      '<button type="button" class="inc-action-remove" onclick="INC.removeActionRow(this)" title="Remove this action">✕</button>' +
+    '</div>';
+  }
+
+  function addActionRow(){
+    var list = document.getElementById('inc-actions-list');
+    if (!list) return;
+    var wrap = document.createElement('div');
+    wrap.innerHTML = actionRowHtml();
+    list.appendChild(wrap.firstChild);
+  }
+
+  function removeActionRow(btn){
+    var row = btn.closest('.inc-action-row');
+    if (row) row.remove();
+  }
+
+  /* Add Action — reachable any time a row is selected (toolbar), not
+     just at the moment an incident is first created or forwarded.
+     Reopening this modal for an incident that already has actions
+     shows them pre-filled, so adding a 4th action doesn't require
+     retyping the first three. Saved actions are NOT written to the
+     incident's own fields (Corrective Action stays exactly as the
+     sheet has it) — they're held client-side, meant to become their
+     own rows in the Action Tracker once that backend exists. */
+  function openAddActionModal(tKeyName, idVal){
+    var root = document.getElementById('inc-modal-root');
+    var existing = _pendingActions[idVal] || [];
+    var rowsHtml = existing.length ? existing.map(actionRowHtml).join('') : actionRowHtml();
+    root.innerHTML = '<div class="inc-modal-bg" id="inc-action-modal-bg"><div class="inc-modal">' +
+      '<h3>✚ Add Action — ' + String(idVal).replace(/</g,'&lt;') + '</h3>' +
+      '<div class="req-text">Actions added here are separate from this incident\'s own fields (Corrective Action, Root Cause, etc. are untouched). Each one gets its own ID (' + String(idVal).replace(/</g,'&lt;') + '-ACT-01, -02, ...) and is meant to become its own row in the Action Tracker once that backend exists — for now this is saved in this browser session only.</div>' +
+      '<div id="inc-actions-list">' + rowsHtml + '</div>' +
+      '<button type="button" class="inc-btn inc-btn-sm" onclick="INC.addActionRow()">+ Add Action</button>' +
+      '<div class="inc-modal-actions">' +
+        '<button class="inc-btn inc-btn-cancel" id="inc-action-cancel">Cancel</button>' +
+        '<button class="inc-btn inc-btn-add" onclick="INC.saveActions(\''+tKeyName+'\', \''+String(idVal).replace(/'/g,"\\'")+'\')">Save</button>' +
+      '</div>' +
+    '</div></div>';
+    document.getElementById('inc-action-cancel').onclick = function(){ root.innerHTML = ''; };
+    document.getElementById('inc-action-modal-bg').onclick = function(e){ if (e.target.id === 'inc-action-modal-bg') root.innerHTML = ''; };
+  }
+
+  function saveActions(tKeyName, idVal){
+    var rows = document.querySelectorAll('#inc-actions-list .inc-action-row');
+    var actions = [];
+    rows.forEach(function(row){
+      var desc = row.querySelector('.inc-action-desc').value.trim();
+      var owner = row.querySelector('.inc-action-owner').value.trim();
+      var due = row.querySelector('.inc-action-due').value;
+      if (!desc && !owner && !due) return; /* fully blank row — skip */
+      actions.push({ description: desc, owner: owner, dueDate: due });
+    });
+    actions.forEach(function(a, i){
+      a.id = idVal + '-ACT-' + String(i + 1).padStart(2, '0');
+    });
+    _pendingActions[idVal] = actions;
+    var root = document.getElementById('inc-modal-root');
+    root.innerHTML = '';
+    renderTableArea(tKeyName);
+  }
+
   function showModal(tKeyName, title, fields, initialValues, onSubmit){
     var root = document.getElementById('inc-modal-root');
     var fieldsHtml = fields.map(function(f, fi){
@@ -1081,6 +1206,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
       managePhotosModal(tKeyName, idVal);
     },
+    openAddAction: function(tKeyName, idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      openAddActionModal(tKeyName, idVal);
+    },
+    addActionRow: addActionRow,
+    removeActionRow: removeActionRow,
+    saveActions: saveActions,
     deletePhoto: function(idVal, fileId){
       if (!can('delete')) return;
       if (!confirm('Remove this photo? It will stay in Google Drive but no longer show here.')) return;
