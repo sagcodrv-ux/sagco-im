@@ -276,6 +276,28 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return out;
   }
 
+  /* Consequence / Likelihood 1-5 scale definitions, same scoring
+     logic as the Risk Register's Consequence x Likelihood model.
+     Shown as dropdown option text so whoever fills the form sees
+     what each number actually means instead of guessing at a bare
+     digit. */
+  var CL_SCALE = {
+    'Consequence': [
+      '1 - Negligible (no injury, negligible impact)',
+      '2 - Minor (first aid only, minor damage)',
+      '3 - Moderate (medical treatment / LTI under 7 days)',
+      '4 - Major (serious injury / LTI over 7 days, significant damage)',
+      '5 - Catastrophic (fatality or permanent disability)'
+    ],
+    'Likelihood': [
+      '1 - Rare (not expected to occur)',
+      '2 - Unlikely (could occur, but not expected)',
+      '3 - Possible (might occur at some point)',
+      '4 - Likely (will probably occur)',
+      '5 - Almost Certain (expected to occur / has occurred frequently)'
+    ]
+  };
+
   /* Next sequential INC-2026-0XX id, same pattern as PTW/FE's nextSequentialId. */
   function nextSequentialId(tKeyName){
     var cfg = TABLES[tKeyName];
@@ -851,8 +873,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             '<input type="text" data-field="'+f+'" id="inc-modal-'+f.toLowerCase()+'" value="'+vEsc+'" readonly style="background:#f0f0f0;color:#222;font-style:italic;cursor:not-allowed">' +
             '</div>';
         }
-        return '<div class="inc-field"><label>'+f+' <span style="font-weight:400;opacity:.7">(1-5)</span></label>' +
-          '<input type="number" min="1" max="5" step="1" data-field="'+f+'" id="inc-modal-'+f.toLowerCase()+'" value="'+vEsc+'">' +
+        var curNum = parseFloat(v);
+        var optsHtml = '<option value="">-- select --</option>' + CL_SCALE[f].map(function(label, idx){
+          var n = idx + 1;
+          var sel = (curNum === n) ? ' selected' : '';
+          return '<option value="'+n+'"'+sel+'>'+label+'</option>';
+        }).join('');
+        return '<div class="inc-field"><label>'+f+'</label>' +
+          '<select data-field="'+f+'" id="inc-modal-'+f.toLowerCase()+'">'+optsHtml+'</select>' +
           '</div>';
       }
       if (f === 'RA Score'){
@@ -914,8 +942,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (raLevelEl) raLevelEl.value = '';
       }
     }
-    if (consequenceEl) consequenceEl.addEventListener('input', recalcFromCxL);
-    if (likelihoodEl) likelihoodEl.addEventListener('input', recalcFromCxL);
+    if (consequenceEl){ consequenceEl.addEventListener('input', recalcFromCxL); consequenceEl.addEventListener('change', recalcFromCxL); }
+    if (likelihoodEl){ likelihoodEl.addEventListener('input', recalcFromCxL); likelihoodEl.addEventListener('change', recalcFromCxL); }
     // Pre-June legacy records: Consequence/Likelihood were never
     // recorded, so if both are blank on load, leave the stored RA
     // Score/RA Level exactly as they are rather than wiping them.
