@@ -94,6 +94,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 .obs-wrap .badge.b-amb{background:rgba(232,179,57,.15);color:var(--w-amb)}
 .obs-wrap .badge.b-blue{background:rgba(91,155,213,.15);color:var(--w-blue)}
 .obs-wrap .badge.b-dim{background:var(--w-bg3);color:var(--w-text-muted)}
+.obs-wrap .action-dim{color:var(--w-text-muted);font-size:11px}
 .obs-wrap .empty-state{text-align:center;padding:20px;color:var(--w-text-muted)}
 .obs-wrap .modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
   align-items:center;justify-content:center;z-index:9999}
@@ -106,6 +107,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 .obs-wrap .modal-actions .btn{width:100%;padding:9px 12px;font-size:12px}
 .obs-wrap .modal-close{background:var(--w-bg3)}
 .obs-wrap .esc-note{font-size:10px;color:var(--w-text-muted);background:var(--w-bg3);border-radius:8px;padding:8px 10px;margin-top:10px}
+.obs-wrap .esc-form-row{margin:10px 0}
+.obs-wrap .esc-form-row label{display:block;font-size:11px;color:var(--w-text-muted);margin-bottom:3px}
+.obs-wrap .esc-form-row .req{color:var(--w-red,#e05d5d)}
+.obs-wrap .esc-form-row input,.obs-wrap .esc-form-row select,.obs-wrap .esc-form-row textarea{
+  width:100%;box-sizing:border-box;background:var(--w-bg3);border:1px solid var(--w-border);
+  border-radius:6px;padding:6px 8px;font-size:12px;color:var(--w-text);font-family:inherit}
+.obs-wrap .esc-form-error{color:var(--w-red,#e05d5d);font-size:11px;margin-top:6px}
 .obs-wrap .pagebar{display:flex;justify-content:space-between;align-items:center;padding:8px 2px;font-size:10px;color:var(--w-text-muted)}
 .obs-wrap .photo-lightbox-bg{position:fixed;inset:0;background:rgba(4,7,20,.92);display:flex;
   align-items:center;justify-content:center;z-index:10000;cursor:zoom-out}
@@ -135,7 +143,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 <div class="kpi-grid">
   <div class="kpi-card kc-nvy" onclick="OBS.cardFilter('all')"><div class="kpi-lbl">Total Observations</div><div class="kpi-val">—</div><div class="kpi-sub">All categories, all time</div></div>
   <div class="kpi-card kc-red" onclick="OBS.cardFilter('attention')"><div class="kpi-lbl">Needs Attention</div><div class="kpi-val">—</div><div class="kpi-sub">Unreviewed confirmed events + recurrence-flagged</div></div>
-  <div class="kpi-card kc-amb" onclick="OBS.cardFilter('unreviewed_pd')"><div class="kpi-lbl">Unreviewed Property Damage</div><div class="kpi-val">—</div><div class="kpi-sub">Confirmed events never accepted/reviewed</div></div>
+  <div class="kpi-card kc-amb" onclick="OBS.cardFilter('escalation_review')"><div class="kpi-lbl">Needs Escalation Review</div><div class="kpi-val">—</div><div class="kpi-sub">Accepted cases only — High/Extremely High priority, property damage, or recurrence-flagged</div></div>
   <div class="kpi-card kc-blue" onclick="OBS.cardFilter('recurrence')"><div class="kpi-lbl">Recurrence Flagged</div><div class="kpi-val">—</div><div class="kpi-sub">"Did the same event happen before?" = Yes</div></div>
 </div>
 
@@ -320,10 +328,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
      would silently un-escalate anything marked since the last pull. */
   function carryForwardEscalations(freshData){
     var marks = {};
-    DATA.forEach(function(r){ if (r.Escalated) marks[r['Case ID']] = r.Escalated; });
+    DATA.forEach(function(r){
+      if (r.Escalated) marks[r['Case ID']] = { Escalated: r.Escalated, _incidentFields: r._incidentFields };
+    });
     if (!Object.keys(marks).length) return;
     freshData.forEach(function(r){
-      if (marks[r['Case ID']]) r.Escalated = marks[r['Case ID']];
+      var m = marks[r['Case ID']];
+      if (m){
+        r.Escalated = m.Escalated;
+        if (m._incidentFields) r._incidentFields = m._incidentFields;
+      }
     });
   }
 
@@ -341,10 +355,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       qr.rows.forEach(function(r){ qrLoc[r[qCid]] = r[qLoc]; });
     }
 
-    /* Acceptance / Rejection: sets of reviewed case_ids */
+    /* Acceptance / Rejection: sets of reviewed case_ids.
+       acceptedIds is ACCEPTED ONLY (not rejected) — this is what gates
+       escalation eligibility: a case can't be flagged for escalation
+       until it has cleared the acceptance stage. reviewedIds (accepted
+       OR rejected) stays as-is for the existing "Needs Attention" rule. */
     var reviewedIds = {};
+    var acceptedIds = {};
     var aCid = colIdx(acc.headers, 'case_id');
-    if (aCid >= 0) acc.rows.forEach(function(r){ reviewedIds[r[aCid]] = true; });
+    if (aCid >= 0) acc.rows.forEach(function(r){ reviewedIds[r[aCid]] = true; acceptedIds[r[aCid]] = true; });
     var jCid = colIdx(rej.headers, 'case_id');
     if (jCid >= 0) rej.rows.forEach(function(r){ reviewedIds[r[jCid]] = true; });
 
@@ -375,6 +394,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       var isRecurrenceKnown = Object.prototype.hasOwnProperty.call(riskLookup, cid);
       var isRecurrence = riskInfo.recurrence === 1 || riskInfo.recurrence === '1' || riskInfo.recurrence === true;
       var isReviewed = !!reviewedIds[cid];
+      var isAccepted = !!acceptedIds[cid];
       var isRealEvent = category === 'Property Damage (Damage Only)';
       var needsAttention = (isRealEvent && !isReviewed) || isRecurrence;
 
@@ -388,6 +408,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         'Description': iDesc >= 0 ? r[iDesc] : '',
         'Status': iStatus >= 0 ? r[iStatus] : '',
         'Reviewed': isReviewed ? 'Yes' : 'No',
+        'Accepted': isAccepted ? 'Yes' : 'No',
         'Recurrence Flagged': isRecurrence ? 'Yes' : (isRecurrenceKnown ? 'No' : ''),
         'Raw Risk Level': riskInfo.rawRiskLevel || '',
         'Needs Attention': needsAttention ? 'Yes' : 'No',
@@ -395,6 +416,36 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         'Employee Num': iEmp >= 0 ? normalizeEmployeeNum(r[iEmp]) : '',
       };
     });
+  }
+
+  /* "Needs Escalation Review" rule — a case is a candidate if it's High
+     (or Extremely High) priority, Property Damage, or Recurrence Flagged.
+     Shared by the KPI count and the table row filter so the two numbers
+     never drift apart. */
+  function isEscalationCandidate(r){
+    if (r.Accepted !== 'Yes') return false; /* must have cleared the acceptance stage first */
+    if (r.Escalated) return false; /* already redirected — handled, drop off the review queue */
+    return r.Priority === 'High' || r.Priority === 'Extremely High' ||
+      r.Category === 'Property Damage (Damage Only)' ||
+      r['Recurrence Flagged'] === 'Yes';
+  }
+
+  /* Decides the routing available for an accepted case — NOT a free choice
+     in both directions:
+       'incident' — High / Extremely High priority, or Property Damage.
+                    Mandatory: the ONLY action is forward to the Incident
+                    Register. There is no "reviewed only / close" shortcut
+                    for this tier — even a case that turns out to be minor
+                    gets closed *inside* the Incident Register, not here.
+       'tracker'  — Medium or Low priority (and not Property Damage).
+                    Free choice: forward to the Action Tracker, OR mark
+                    Closed with no further action.
+       null       — not yet Accepted; nothing to route yet. */
+  function escalationTier(r){
+    if (r.Accepted !== 'Yes') return null;
+    var mustGoToIncident = (r.Priority === 'High' || r.Priority === 'Extremely High' ||
+      r.Category === 'Property Damage (Damage Only)');
+    return mustGoToIncident ? 'incident' : 'tracker';
   }
 
   function badgeForCategory(cat){
@@ -419,7 +470,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     if (cat && r.Category !== cat) return false;
     if (attnSel === 'attention' && r['Needs Attention'] !== 'Yes') return false;
     if (_filterState.special === 'attention' && r['Needs Attention'] !== 'Yes') return false;
-    if (_filterState.special === 'unreviewed_pd' && !(r.Category === 'Property Damage (Damage Only)' && r.Reviewed === 'No')) return false;
+    if (_filterState.special === 'escalation_review' && !isEscalationCandidate(r)) return false;
     if (_filterState.special === 'recurrence' && r['Recurrence Flagged'] !== 'Yes') return false;
     if (search){
       var hay = (r['Case ID']+' '+r.Location+' '+r.Description+' '+r.Category+' '+r['Date Reported']).toLowerCase();
@@ -482,11 +533,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var d = dashboardData();
     var total = d.length;
     var attn = d.filter(function(r){ return r['Needs Attention']==='Yes'; }).length;
-    var pd = d.filter(function(r){ return r.Category==='Property Damage (Damage Only)' && r.Reviewed==='No'; }).length;
+    var esc = d.filter(isEscalationCandidate).length;
     var rec = d.filter(function(r){ return r['Recurrence Flagged']==='Yes'; }).length;
     document.querySelectorAll('.kpi-val')[0].textContent = total;
     document.querySelectorAll('.kpi-val')[1].textContent = attn;
-    document.querySelectorAll('.kpi-val')[2].textContent = pd;
+    document.querySelectorAll('.kpi-val')[2].textContent = esc;
     document.querySelectorAll('.kpi-val')[3].textContent = rec;
   }
 
@@ -675,8 +726,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         var caseId = r['Case ID'];
         var isSel = (_selectedCaseId !== null && String(_selectedCaseId) === String(caseId));
         var rowCls = ' class="row-selectable' + (r['Needs Attention'] === 'Yes' ? ' attn-row' : '') + (isSel ? ' row-selected' : '') + '"';
-        var escBtn = r.Escalated ? '<span class="badge b-grn">Escalated → '+escHtml(r.Escalated)+'</span>' :
-          '<button class="btn btn-gold" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Review / Escalate</button>';
+        var escBtn;
+        if (r.Escalated === 'Closed') {
+          escBtn = '<span class="badge b-dim">Closed — No Action</span>';
+        } else if (r.Escalated) {
+          escBtn = '<span class="badge b-grn">Redirected → '+escHtml(r.Escalated)+'</span>';
+        } else {
+          var tier = escalationTier(r);
+          if (tier === 'incident') {
+            escBtn = '<button class="btn btn-gold" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Forward to Incident Register</button>';
+          } else if (tier === 'tracker') {
+            escBtn = '<button class="btn btn-gold" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Review / Forward</button>';
+          } else {
+            escBtn = '<span class="action-dim">—</span>';
+          }
+        }
         return '<tr'+rowCls+' onclick="OBS.selectRow(\''+escHtml(caseId)+'\')">' +
           '<td>'+escHtml(r['Case ID'])+'</td>' +
           '<td>'+escHtml(r['Date Reported'])+'</td>' +
@@ -728,23 +792,136 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     render();
   }
 
+  /* Consequence/Likelihood scale — kept identical in wording to the live
+     Incident Register's own CL_SCALE so a forwarded case's classification
+     means the same thing in both places. */
+  var OBS_CL_SCALE = {
+    'Consequence': [
+      '1 - Negligible (no injury, negligible impact)',
+      '2 - Minor (first aid only, minor damage)',
+      '3 - Moderate (medical treatment / LTI under 7 days)',
+      '4 - Major (serious injury / LTI over 7 days, significant damage)',
+      '5 - Catastrophic (fatality or permanent disability)'
+    ],
+    'Likelihood': [
+      '1 - Rare (not expected to occur)',
+      '2 - Unlikely (could occur, but not expected)',
+      '3 - Possible (might occur at some point)',
+      '4 - Likely (will probably occur)',
+      '5 - Almost Certain (expected to occur / has occurred frequently)'
+    ]
+  };
+
+  function clSelectHtml(field, id){
+    var opts = '<option value="">-- select --</option>' + OBS_CL_SCALE[field].map(function(label, i){
+      return '<option value="'+(i+1)+'">'+label+'</option>';
+    }).join('');
+    return '<select id="'+id+'">'+opts+'</select>';
+  }
+
   function openEscalate(idx){
+    var r = DATA[idx];
+    var tier = escalationTier(r);
+    if (tier === 'incident') openForwardIncident(idx);
+    else if (tier === 'tracker') openForwardTracker(idx);
+    /* tier === null: no button renders for this case, so this shouldn't
+       be reachable, but guard against a stale idx just in case. */
+  }
+
+  /* Incident-tier (High/Extremely High priority, or Property Damage):
+     the ONLY path is forward to the Incident Register — no "close
+     instead" shortcut. Required fields here are the ones needed to
+     classify and triage the incident immediately (for statutory
+     notification timelines); Root Cause / Direct Cause / Corrective
+     Action are left completable inside the Incident Register itself,
+     once the real investigation happens. */
+  function openForwardIncident(idx){
     _modalOpen = true;
     var r = DATA[idx];
     var caseId = r['Case ID'];
     var root = document.getElementById('obs-modal-root');
     root.innerHTML = '<div class="modal-bg"><div class="modal">' +
-      '<h3>Review / Escalate — '+escHtml(caseId)+'</h3>' +
+      '<h3>Forward to Incident Register — '+escHtml(caseId)+'</h3>' +
+      '<div class="esc-note" style="margin:0 0 14px">This case is High/Extremely High priority or Property Damage — it must be forwarded to the Incident Register; there is no \'reviewed only\' option at this tier. Fill in the classification fields below (Root Cause, Direct Cause, and Corrective Action can be completed later, inside the Incident Register, once investigated).</div>' +
       '<div class="mf">Description</div><div class="mv">'+escHtml(r.Description)+'</div>' +
       '<div class="mf">Location</div><div class="mv">'+escHtml(r.Location)+'</div>' +
       '<div class="mf">Category</div><div class="mv">'+badgeForCategory(r.Category)+'</div>' +
-      '<div class="mf">Recurrence Flagged</div><div class="mv">'+badgeForRecurrence(r['Recurrence Flagged'])+'</div>' +
+      '<div class="mf">Priority</div><div class="mv">'+escHtml(r.Priority)+'</div>' +
+      '<div class="esc-form-row"><label>Classification <span class="req">*</span></label>' +
+        '<input type="text" id="esc-classification" placeholder="e.g. Property Damage, Near Miss, Injury"></div>' +
+      '<div class="esc-form-row"><label>Injured Person</label>' +
+        '<input type="text" id="esc-injured" placeholder="Name, or leave blank if none"></div>' +
+      '<div class="esc-form-row"><label>LTI? (Lost Time Injury) <span class="req">*</span></label>' +
+        '<select id="esc-lti"><option value="">-- select --</option><option value="No">No</option><option value="Yes">Yes</option></select></div>' +
+      '<div class="esc-form-row"><label>Notification Required? <span class="req">*</span></label>' +
+        '<select id="esc-notify"><option value="">-- select --</option><option value="No">No</option><option value="Yes">Yes</option></select></div>' +
+      '<div class="esc-form-row"><label>Consequence <span class="req">*</span></label>' + clSelectHtml('Consequence', 'esc-consequence') + '</div>' +
+      '<div class="esc-form-row"><label>Likelihood <span class="req">*</span></label>' + clSelectHtml('Likelihood', 'esc-likelihood') + '</div>' +
+      '<div class="esc-form-row"><label>Corrective Action (optional for now)</label>' +
+        '<textarea id="esc-corrective" rows="2" placeholder="Can be completed later in the Incident Register"></textarea></div>' +
+      '<div class="esc-form-error" id="esc-form-error" style="display:none"></div>' +
       '<div class="modal-actions">' +
-        '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'Action Tracker\')">Escalate to Action Tracker</button>' +
-        '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'Incident Register\')">Escalate to Incident Register</button>' +
+        '<button class="btn btn-gold" onclick="OBS.submitForwardIncident('+idx+')">Confirm &amp; Forward to Incident Register</button>' +
         '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>' +
       '</div>' +
-      '<div class="esc-note">Reading live data now — but escalating here still only updates this page\'s local view. Once the Action Tracker register exists on the IMS side, this will create the real ACT-2026-00X or INC-2026-0XX record automatically and mark this observation Escalated.</div>' +
+      '<div class="esc-note">This page has no live write-path to the Incident Register yet — confirming here updates this page\'s own view only (marks the observation Redirected). Once the Incident Register\'s intake endpoint exists, this same form will create the real INC-2026-0XX record.</div>' +
+    '</div></div>';
+  }
+
+  function submitForwardIncident(idx){
+    var get = function(id){ return document.getElementById(id).value; };
+    var classification = get('esc-classification').trim();
+    var lti = get('esc-lti');
+    var notify = get('esc-notify');
+    var consequence = get('esc-consequence');
+    var likelihood = get('esc-likelihood');
+    var missing = [];
+    if (!classification) missing.push('Classification');
+    if (!lti) missing.push('LTI?');
+    if (!notify) missing.push('Notification Required?');
+    if (!consequence) missing.push('Consequence');
+    if (!likelihood) missing.push('Likelihood');
+    if (missing.length){
+      var errEl = document.getElementById('esc-form-error');
+      errEl.style.display = 'block';
+      errEl.textContent = 'Please fill in: ' + missing.join(', ');
+      return;
+    }
+    var fields = {
+      Classification: classification,
+      'Injured Person': get('esc-injured').trim(),
+      'LTI?': lti,
+      'Notification Required': notify,
+      Consequence: consequence,
+      Likelihood: likelihood,
+      'Corrective Action': get('esc-corrective').trim()
+    };
+    escalate(idx, 'Incident Register', fields);
+  }
+
+  /* Tracker-tier (Medium or Low priority, not Property Damage): a real
+     choice between forwarding to the Action Tracker or closing it here
+     with no further action — a simple confirmation either way, not a
+     full form, since the Action Tracker's own fields (owner, due date)
+     get filled in there, not at the point of forwarding. */
+  function openForwardTracker(idx){
+    _modalOpen = true;
+    var r = DATA[idx];
+    var caseId = r['Case ID'];
+    var root = document.getElementById('obs-modal-root');
+    root.innerHTML = '<div class="modal-bg"><div class="modal">' +
+      '<h3>Review — '+escHtml(caseId)+'</h3>' +
+      '<div class="mf">Description</div><div class="mv">'+escHtml(r.Description)+'</div>' +
+      '<div class="mf">Location</div><div class="mv">'+escHtml(r.Location)+'</div>' +
+      '<div class="mf">Category</div><div class="mv">'+badgeForCategory(r.Category)+'</div>' +
+      '<div class="mf">Priority</div><div class="mv">'+escHtml(r.Priority)+'</div>' +
+      '<div class="mf">Recurrence Flagged</div><div class="mv">'+badgeForRecurrence(r['Recurrence Flagged'])+'</div>' +
+      '<div class="modal-actions">' +
+        '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'Action Tracker\')">Confirm — Forward to Action Tracker</button>' +
+        '<button class="btn" onclick="OBS.escalate('+idx+',\'Closed\')">Confirm — Close (No Action)</button>' +
+        '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>' +
+      '</div>' +
+      '<div class="esc-note">This page has no live write-path to the Action Tracker yet — confirming here updates this page\'s own view only (marks the observation Redirected or Closed). Once the Action Tracker register exists, this will create the real ACT-2026-00X record.</div>' +
     '</div></div>';
   }
 
@@ -801,8 +978,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       });
   }
 
-  function escalate(idx, target){
+  function escalate(idx, target, incidentFields){
     DATA[idx].Escalated = target;
+    if (incidentFields) DATA[idx]._incidentFields = incidentFields; /* captured for the eventual real intake; not yet persisted anywhere */
     closeModal(); /* closeModal() re-renders and applies any held-back refresh */
   }
 
@@ -837,7 +1015,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     document.getElementById('obs-lightbox-root').innerHTML = '';
   }
 
-  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, onDateRangeChange: onDateRangeChange, clearDateRange: clearDateRange, openLightbox: openLightbox, closeLightbox: closeLightbox, refreshNow: function(){ loadLive(true); } };
+  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, submitForwardIncident: submitForwardIncident, escalate: escalate, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, onDateRangeChange: onDateRangeChange, clearDateRange: clearDateRange, openLightbox: openLightbox, closeLightbox: closeLightbox, refreshNow: function(){ loadLive(true); } };
   loadLive();
   startAutoRefresh();
 })();
