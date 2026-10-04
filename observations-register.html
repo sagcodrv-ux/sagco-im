@@ -50,6 +50,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
   text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
 .obs-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--w-text);line-height:1.1;margin-bottom:4px}
 .obs-wrap .kpi-sub{font-size:10px;color:var(--w-text-muted)}
+.obs-wrap .daterange-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.obs-wrap .daterange-bar label{font-size:12px;color:var(--w-text-muted)}
 .obs-wrap .filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
 .obs-wrap .search-input{flex:1 1 220px;min-width:160px;padding:7px 10px;font-size:12px;
   border:1px solid var(--w-border);border-radius:8px;font-family:inherit;background:var(--w-bg3);color:var(--w-text)}
@@ -113,6 +115,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 <h1>Observations Register</h1>
 <div class="sub">QR-code worker observations, near-misses, and damage-only reports — source: AppSheet observation system</div>
 <div class="req-text">ISO 45001 §5.4 (Worker Participation) / §10.2 — Hazard observations, near-misses, and damage-only events reported via the shop-floor QR system are logged, reviewed, and — where they meet the recurrence, severity, or confirmed-event criteria — escalated to the Action Tracker or Incident Register.</div>
+
+<div class="daterange-bar">
+  <label>From</label>
+  <input type="date" id="obs-date-start" class="filter-select" onchange="OBS.onDateRangeChange()">
+  <label>To</label>
+  <input type="date" id="obs-date-end" class="filter-select" onchange="OBS.onDateRangeChange()">
+  <button class="btn" onclick="OBS.clearDateRange()">Clear</button>
+  <span class="filter-status" id="obs-daterange-status"></span>
+</div>
 
 <div class="kpi-grid">
   <div class="kpi-card kc-nvy" onclick="OBS.cardFilter('all')"><div class="kpi-lbl">Total Observations</div><div class="kpi-val">—</div><div class="kpi-sub">All categories, all time</div></div>
@@ -406,14 +417,65 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       var hay = (r['Case ID']+' '+r.Location+' '+r.Description+' '+r.Category+' '+r['Date Reported']).toLowerCase();
       if (hay.indexOf(search) === -1) return false;
     }
+    if (_dateRange.start || _dateRange.end){
+      var ds = String(r['Date Reported']||'').trim().slice(0,10);
+      if (!ds) return false;
+      if (_dateRange.start && ds < _dateRange.start) return false;
+      if (_dateRange.end && ds > _dateRange.end) return false;
+    }
     return true;
   }
 
+  /* Date-range filter (same concept as the PTW Quick Status bar). Now
+     applies to the KPI cards, both charts, AND the table row list below —
+     dashboardData() and matchesFilters() both read this same state. */
+  var _dateRange = { start: '', end: '' };
+
+  function dashboardData(){
+    if (!_dateRange.start && !_dateRange.end) return DATA;
+    return DATA.filter(function(r){
+      var s = String(r['Date Reported']||'').trim().slice(0,10);
+      if (!s) return false;
+      if (_dateRange.start && s < _dateRange.start) return false;
+      if (_dateRange.end && s > _dateRange.end) return false;
+      return true;
+    });
+  }
+
+  function onDateRangeChange(){
+    var s = document.getElementById('obs-date-start');
+    var e = document.getElementById('obs-date-end');
+    _dateRange.start = s ? s.value : '';
+    _dateRange.end = e ? e.value : '';
+    refreshDashboard();
+  }
+
+  function clearDateRange(){
+    var s = document.getElementById('obs-date-start');
+    var e = document.getElementById('obs-date-end');
+    if (s) s.value = '';
+    if (e) e.value = '';
+    _dateRange.start = ''; _dateRange.end = '';
+    refreshDashboard();
+  }
+
+  function refreshDashboard(){
+    render(); /* updates KPIs, the table row list, and charts (if open) — all date-range aware */
+    var statusEl = document.getElementById('obs-daterange-status');
+    if (statusEl){
+      var n = dashboardData().length;
+      statusEl.textContent = (_dateRange.start || _dateRange.end)
+        ? 'Filtered: ' + n + ' observation' + (n===1?'':'s') + ' in range'
+        : '';
+    }
+  }
+
   function updateKpis(){
-    var total = DATA.length;
-    var attn = DATA.filter(function(r){ return r['Needs Attention']==='Yes'; }).length;
-    var pd = DATA.filter(function(r){ return r.Category==='Property Damage (Damage Only)' && r.Reviewed==='No'; }).length;
-    var rec = DATA.filter(function(r){ return r['Recurrence Flagged']==='Yes'; }).length;
+    var d = dashboardData();
+    var total = d.length;
+    var attn = d.filter(function(r){ return r['Needs Attention']==='Yes'; }).length;
+    var pd = d.filter(function(r){ return r.Category==='Property Damage (Damage Only)' && r.Reviewed==='No'; }).length;
+    var rec = d.filter(function(r){ return r['Recurrence Flagged']==='Yes'; }).length;
     document.querySelectorAll('.kpi-val')[0].textContent = total;
     document.querySelectorAll('.kpi-val')[1].textContent = attn;
     document.querySelectorAll('.kpi-val')[2].textContent = pd;
@@ -455,7 +517,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var canvas = document.getElementById('obs-chart-employee');
     if (!canvas) return;
     var counts = {};
-    DATA.forEach(function(r){
+    dashboardData().forEach(function(r){
       var k = r['Employee Num'] || 'Unknown';
       counts[k] = (counts[k] || 0) + 1;
     });
@@ -508,7 +570,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var canvas = document.getElementById('obs-chart-timeline');
     if (!canvas) return;
     var byMonth = {};
-    DATA.forEach(function(r){
+    dashboardData().forEach(function(r){
       var d = r['Date Reported'] || '';
       var month = d.slice(0, 7); /* "YYYY-MM" */
       if (!month || month.length !== 7) return;
@@ -747,7 +809,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     render();
   }
 
-  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, refreshNow: function(){ loadLive(true); } };
+  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, onDateRangeChange: onDateRangeChange, clearDateRange: clearDateRange, refreshNow: function(){ loadLive(true); } };
   loadLive();
   startAutoRefresh();
 })();
