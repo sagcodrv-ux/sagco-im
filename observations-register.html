@@ -114,6 +114,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
   width:100%;box-sizing:border-box;background:var(--w-bg3);border:1px solid var(--w-border);
   border-radius:6px;padding:6px 8px;font-size:12px;color:var(--w-text);font-family:inherit}
 .obs-wrap .esc-form-error{color:var(--w-red,#e05d5d);font-size:11px;margin-top:6px}
+.obs-wrap .esc-action-row{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.obs-wrap .esc-action-row input{flex:1;margin:0;width:auto}
+.obs-wrap .esc-action-row input.esc-action-due{flex:0 0 128px}
+.obs-wrap .esc-action-remove{flex:0 0 auto;background:var(--w-bg3);border:1px solid var(--w-border);
+  border-radius:6px;color:var(--w-text-muted);cursor:pointer;padding:5px 9px;font-size:12px;line-height:1}
+.obs-wrap .esc-action-remove:hover{color:var(--w-red,#e05d5d);border-color:var(--w-red,#e05d5d)}
+.obs-wrap .btn-sm{font-size:10px;padding:4px 10px;width:auto!important}
 .obs-wrap .pagebar{display:flex;justify-content:space-between;align-items:center;padding:8px 2px;font-size:10px;color:var(--w-text-muted)}
 .obs-wrap .photo-lightbox-bg{position:fixed;inset:0;background:rgba(4,7,20,.92);display:flex;
   align-items:center;justify-content:center;z-index:10000;cursor:zoom-out}
@@ -737,7 +744,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         if (r.Escalated === 'Closed') {
           escBtn = '<span class="badge b-dim">Closed — No Action</span>';
         } else if (r.Escalated) {
-          escBtn = '<span class="badge b-grn">Redirected → '+escHtml(r.Escalated)+'</span>';
+          /* If this incident spawned Action Tracker entries, show their
+             IDs right on the badge (short form, e.g. "ACT-01, ACT-02")
+             so it's clear at a glance which tracker rows trace back to
+             this case — not just a count. */
+          var actionIdsSuffix = '';
+          if (r._incidentFields && r._incidentFields.Actions && r._incidentFields.Actions.length) {
+            var shortIds = r._incidentFields.Actions.map(function(a){
+              var m = /-ACT-(\d+)$/.exec(a.id);
+              return m ? 'ACT-' + m[1] : a.id;
+            });
+            actionIdsSuffix = ' · ' + shortIds.join(', ');
+          }
+          escBtn = '<span class="badge b-grn">Redirected → '+escHtml(r.Escalated)+escHtml(actionIdsSuffix)+'</span>';
         } else if (r.Status === 'Closed') {
           /* Closed in the source system itself, never routed through our
              escalation workflow at all (r.Escalated is still ''). Same
@@ -856,13 +875,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var root = document.getElementById('obs-modal-root');
     root.innerHTML = '<div class="modal-bg"><div class="modal">' +
       '<h3>Forward to Incident Register — '+escHtml(caseId)+'</h3>' +
-      '<div class="esc-note" style="margin:0 0 14px">This case is High/Extremely High priority or Property Damage — it must be forwarded to the Incident Register; there is no \'reviewed only\' option at this tier. Fill in the classification fields below (Root Cause, Direct Cause, and Corrective Action can be completed later, inside the Incident Register, once investigated).</div>' +
+      '<div class="esc-note" style="margin:0 0 14px">This case is High/Extremely High priority or Property Damage — it must be forwarded to the Incident Register; there is no \'reviewed only\' option at this tier. Fill in the classification fields below (Root Cause and Direct Cause can be completed later, inside the Incident Register, once investigated). Any corrective actions identified go in the Actions list below — each one is its own tracked item in the Action Tracker, not part of the incident record itself.</div>' +
       '<div class="mf">Description</div><div class="mv">'+escHtml(r.Description)+'</div>' +
       '<div class="mf">Location</div><div class="mv">'+escHtml(r.Location)+'</div>' +
       '<div class="mf">Category</div><div class="mv">'+badgeForCategory(r.Category)+'</div>' +
       '<div class="mf">Priority</div><div class="mv">'+escHtml(r.Priority)+'</div>' +
       '<div class="esc-form-row"><label>Classification <span class="req">*</span></label>' +
-        '<input type="text" id="esc-classification" placeholder="e.g. Property Damage, Near Miss, Injury"></div>' +
+        '<input type="text" id="esc-classification" value="'+escHtml(r.Category)+'" placeholder="e.g. Property Damage, Near Miss, Injury"></div>' +
       '<div class="esc-form-row"><label>Injured Person</label>' +
         '<input type="text" id="esc-injured" placeholder="Name, or leave blank if none"></div>' +
       '<div class="esc-form-row"><label>LTI? (Lost Time Injury) <span class="req">*</span></label>' +
@@ -871,15 +890,43 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         '<select id="esc-notify"><option value="">-- select --</option><option value="No">No</option><option value="Yes">Yes</option></select></div>' +
       '<div class="esc-form-row"><label>Consequence <span class="req">*</span></label>' + clSelectHtml('Consequence', 'esc-consequence') + '</div>' +
       '<div class="esc-form-row"><label>Likelihood <span class="req">*</span></label>' + clSelectHtml('Likelihood', 'esc-likelihood') + '</div>' +
-      '<div class="esc-form-row"><label>Corrective Action (optional for now)</label>' +
-        '<textarea id="esc-corrective" rows="2" placeholder="Can be completed later in the Incident Register"></textarea></div>' +
+      '<div class="esc-form-row"><label>Actions (optional for now — add as many as this finding needs; each one becomes its own row in the Action Tracker, with its own owner and due date)</label>' +
+        '<div id="esc-actions-list">' + actionRowHtml() + '</div>' +
+        '<button type="button" class="btn btn-sm" onclick="OBS.addActionRow()">+ Add Action</button></div>' +
       '<div class="esc-form-error" id="esc-form-error" style="display:none"></div>' +
       '<div class="modal-actions">' +
         '<button class="btn btn-gold" onclick="OBS.submitForwardIncident('+idx+')">Confirm &amp; Forward to Incident Register</button>' +
         '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>' +
       '</div>' +
-      '<div class="esc-note">This page has no live write-path to the Incident Register yet — confirming here updates this page\'s own view only (marks the observation Redirected). Once the Incident Register\'s intake endpoint exists, this same form will create the real INC-2026-0XX record.</div>' +
+      '<div class="esc-note">This page has no live write-path yet — confirming here updates this page\'s own view only (marks the observation Redirected). Once the backend exists: the fields above create the real INC-2026-0XX incident record, and each Action row below is written as its own linked row in the Action Tracker (not stored on the incident itself), referenced back by ID.</div>' +
     '</div></div>';
+  }
+
+  /* One row of the repeatable Actions list on the incident-forward form:
+     Description, Owner, Due Date, and a remove button. Used both for the
+     initial row and every row appended by addActionRow(). Kept as plain
+     DOM manipulation (not a re-render of the whole modal) so typed values
+     in other rows are never lost when a row is added or removed. */
+  function actionRowHtml(){
+    return '<div class="esc-action-row">' +
+      '<input type="text" class="esc-action-desc" placeholder="Action description">' +
+      '<input type="text" class="esc-action-owner" placeholder="Owner">' +
+      '<input type="date" class="esc-action-due" title="Due date">' +
+      '<button type="button" class="esc-action-remove" onclick="OBS.removeActionRow(this)" title="Remove this action">✕</button>' +
+    '</div>';
+  }
+
+  function addActionRow(){
+    var list = document.getElementById('esc-actions-list');
+    if (!list) return;
+    var wrap = document.createElement('div');
+    wrap.innerHTML = actionRowHtml();
+    list.appendChild(wrap.firstChild);
+  }
+
+  function removeActionRow(btn){
+    var row = btn.closest('.esc-action-row');
+    if (row) row.remove();
   }
 
   function submitForwardIncident(idx){
@@ -901,6 +948,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       errEl.textContent = 'Please fill in: ' + missing.join(', ');
       return;
     }
+    /* Each non-blank Action row becomes its own entry with a sequential
+       ID tied to this case (<Case ID>-ACT-01, -02, ...), NOT a single
+       free-text corrective-action field — a finding can need several
+       actions, each with its own owner and due date. These are written
+       into the Action Tracker once its intake endpoint exists; the
+       incident record itself only ever holds the resulting IDs. */
+    var caseId = DATA[idx]['Case ID'];
+    var actionRows = document.querySelectorAll('#esc-actions-list .esc-action-row');
+    var actions = [];
+    actionRows.forEach(function(row){
+      var desc = row.querySelector('.esc-action-desc').value.trim();
+      var owner = row.querySelector('.esc-action-owner').value.trim();
+      var due = row.querySelector('.esc-action-due').value;
+      if (!desc && !owner && !due) return; /* fully blank row — not a real action, skip */
+      actions.push({ description: desc, owner: owner, dueDate: due });
+    });
+    actions.forEach(function(a, i){
+      a.id = caseId + '-ACT-' + String(i + 1).padStart(2, '0');
+    });
     var fields = {
       Classification: classification,
       'Injured Person': get('esc-injured').trim(),
@@ -908,7 +974,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       'Notification Required': notify,
       Consequence: consequence,
       Likelihood: likelihood,
-      'Corrective Action': get('esc-corrective').trim()
+      Actions: actions
     };
     escalate(idx, 'Incident Register', fields);
   }
@@ -1029,7 +1095,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     document.getElementById('obs-lightbox-root').innerHTML = '';
   }
 
-  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, submitForwardIncident: submitForwardIncident, escalate: escalate, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, onDateRangeChange: onDateRangeChange, clearDateRange: clearDateRange, openLightbox: openLightbox, closeLightbox: closeLightbox, refreshNow: function(){ loadLive(true); } };
+  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, submitForwardIncident: submitForwardIncident, addActionRow: addActionRow, removeActionRow: removeActionRow, escalate: escalate, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, onDateRangeChange: onDateRangeChange, clearDateRange: clearDateRange, openLightbox: openLightbox, closeLightbox: closeLightbox, refreshNow: function(){ loadLive(true); } };
   loadLive();
   startAutoRefresh();
 })();
