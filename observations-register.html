@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Observations Register</title>
+<script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-family:Arial,Helvetica,sans-serif}
+</style>
+<style>
+.obs-wrap{
+  --w-bg:#0D1B35; --w-bg2:#142140; --w-bg3:#1a2a50;
+  --w-gold:#C9A84C; --w-gold-lt:#E8C97A;
+  --w-text:rgba(255,255,255,.92); --w-text-muted:rgba(255,255,255,.55);
+  --w-text-dim:rgba(255,255,255,.35); --w-border:rgba(255,255,255,.08);
+  --w-border-gold:rgba(201,168,76,.35);
+  --w-blue:#5B9BD5; --w-red:#F0685C; --w-amb:#E8B339; --w-grn:#4FCB9E;
+  background:var(--w-bg); color:var(--w-text); margin:0; padding:24px; min-height:100vh;
+}
+.obs-wrap *{box-sizing:border-box}
+.obs-wrap .draft-banner{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.12);
+  border-radius:8px;border-left:3px solid var(--w-amb);margin:0 0 14px;color:var(--w-gold-lt)}
+.obs-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--w-bg2);
+  border-radius:8px;border-left:3px solid var(--w-gold);margin:10px 0;color:var(--w-text-muted)}
+.obs-wrap h1{font-size:18px;color:var(--w-gold-lt);margin:0 0 4px}
+.obs-wrap .sub{font-size:12px;color:var(--w-text-muted);margin:0 0 16px}
+.obs-wrap .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.obs-wrap .kpi-card{background:var(--w-bg2);border:1px solid var(--w-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}
+.obs-wrap .kpi-card:hover{transform:translateY(-2px);border-color:var(--w-gold)}
+.obs-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.obs-wrap .kpi-card.kc-nvy::before{background:var(--w-gold)}
+.obs-wrap .kpi-card.kc-red::before{background:var(--w-red)}
+.obs-wrap .kpi-card.kc-amb::before{background:var(--w-amb)}
+.obs-wrap .kpi-card.kc-blue::before{background:var(--w-blue)}
+.obs-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--w-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.obs-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--w-text);line-height:1.1;margin-bottom:4px}
+.obs-wrap .kpi-sub{font-size:10px;color:var(--w-text-muted)}
+.obs-wrap .filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.obs-wrap .search-input{flex:1 1 220px;min-width:160px;padding:7px 10px;font-size:12px;
+  border:1px solid var(--w-border);border-radius:8px;font-family:inherit;background:var(--w-bg3);color:var(--w-text)}
+.obs-wrap .search-input::placeholder{color:var(--w-text-dim)}
+.obs-wrap .filter-select{padding:7px 8px;font-size:12px;border:1px solid var(--w-border);
+  border-radius:8px;font-family:inherit;background:var(--w-bg3);color:var(--w-text)}
+.obs-wrap .filter-status{font-size:10px;color:var(--w-text-muted);margin-left:auto}
+.obs-wrap .btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
+  border:1px solid var(--w-border);background:var(--w-bg3);color:var(--w-text);cursor:pointer;font-family:inherit}
+.obs-wrap .btn:hover{background:#223457;border-color:var(--w-border-gold)}
+.obs-wrap .btn-gold{background:var(--w-gold);color:#1a1200;border-color:var(--w-gold);font-weight:700}
+.obs-wrap .btn-gold:hover{background:var(--w-gold-lt)}
+.obs-wrap .tbl-wrap{overflow-x:auto;border:1px solid var(--w-border-gold);border-radius:10px}
+.obs-wrap table{width:100%;border-collapse:collapse;font-size:11px}
+.obs-wrap th{text-align:left;color:var(--w-gold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--w-border-gold);
+  background:var(--w-bg3);white-space:nowrap;position:sticky;top:0}
+.obs-wrap td{padding:7px 10px;border-bottom:1px solid var(--w-border);color:var(--w-text);vertical-align:top}
+.obs-wrap tbody tr:nth-child(odd) td{background:var(--w-bg2)}
+.obs-wrap tbody tr:nth-child(even) td{background:#101d3a}
+.obs-wrap tbody tr:hover td{background:var(--w-bg3)}
+.obs-wrap tr.attn-row td{box-shadow:inset 3px 0 0 var(--w-red)}
+.obs-wrap .desc-cell{max-width:260px;white-space:normal}
+.obs-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;white-space:nowrap}
+.obs-wrap .badge.b-grn{background:rgba(79,203,158,.15);color:var(--w-grn)}
+.obs-wrap .badge.b-red{background:rgba(240,104,92,.15);color:var(--w-red)}
+.obs-wrap .badge.b-amb{background:rgba(232,179,57,.15);color:var(--w-amb)}
+.obs-wrap .badge.b-blue{background:rgba(91,155,213,.15);color:var(--w-blue)}
+.obs-wrap .badge.b-dim{background:var(--w-bg3);color:var(--w-text-muted)}
+.obs-wrap .empty-state{text-align:center;padding:20px;color:var(--w-text-muted)}
+.obs-wrap .modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
+  align-items:center;justify-content:center;z-index:9999}
+.obs-wrap .modal{background:var(--w-bg2);border:1px solid var(--w-border-gold);border-radius:14px;
+  padding:20px;width:440px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--w-text)}
+.obs-wrap .modal h3{margin:0 0 10px;font-size:14px;color:var(--w-gold-lt)}
+.obs-wrap .modal .mf{font-size:10px;color:var(--w-text-muted);text-transform:uppercase;letter-spacing:.4px;margin:10px 0 2px}
+.obs-wrap .modal .mv{font-size:12px;color:var(--w-text);margin-bottom:4px}
+.obs-wrap .modal-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.obs-wrap .modal-actions .btn{width:100%;padding:9px 12px;font-size:12px}
+.obs-wrap .modal-close{background:var(--w-bg3)}
+.obs-wrap .esc-note{font-size:10px;color:var(--w-text-muted);background:var(--w-bg3);border-radius:8px;padding:8px 10px;margin-top:10px}
+.obs-wrap .pagebar{display:flex;justify-content:space-between;align-items:center;padding:8px 2px;font-size:10px;color:var(--w-text-muted)}
+</style>
+</head>
+<body>
+<div class="obs-wrap">
+<div class="draft-banner" id="obs-status-banner"><strong>⏳ LOADING</strong> — connecting to the live Observations (AppSheet) spreadsheet…</div>
+<h1>Observations Register</h1>
+<div class="sub">QR-code worker observations, near-misses, and damage-only reports — source: AppSheet observation system</div>
+<div class="req-text">ISO 45001 §5.4 (Worker Participation) / §10.2 — Hazard observations, near-misses, and damage-only events reported via the shop-floor QR system are logged, reviewed, and — where they meet the recurrence, severity, or confirmed-event criteria — escalated to the Action Tracker or Incident Register.</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card kc-nvy" onclick="OBS.cardFilter('all')"><div class="kpi-lbl">Total Observations</div><div class="kpi-val">390</div><div class="kpi-sub">All categories, all time</div></div>
+  <div class="kpi-card kc-red" onclick="OBS.cardFilter('attention')"><div class="kpi-lbl">Needs Attention</div><div class="kpi-val">67</div><div class="kpi-sub">Unreviewed confirmed events + recurrence-flagged</div></div>
+  <div class="kpi-card kc-amb" onclick="OBS.cardFilter('unreviewed_pd')"><div class="kpi-lbl">Unreviewed Property Damage</div><div class="kpi-val">33</div><div class="kpi-sub">Confirmed events never accepted/reviewed</div></div>
+  <div class="kpi-card kc-blue" onclick="OBS.cardFilter('recurrence')"><div class="kpi-lbl">Recurrence Flagged</div><div class="kpi-val">34</div><div class="kpi-sub">"Did the same event happen before?" = Yes</div></div>
+</div>
+
+<div class="filterbar">
+  <input type="text" class="search-input" id="obs-search" placeholder="Search description, location, case ID..." oninput="OBS.render()">
+  <select class="filter-select" id="obs-cat-filter" onchange="OBS.render()">
+    <option value="">All Categories</option>
+    <option value="Observation">Observation</option>
+    <option value="Property Damage (Damage Only)">Property Damage (Damage Only)</option>
+    <option value="Near Miss">Near Miss</option>
+    <option value="Light Case">Light Case</option>
+  </select>
+  <select class="filter-select" id="obs-attn-filter" onchange="OBS.render()">
+    <option value="">All</option>
+    <option value="attention">Needs Attention only</option>
+  </select>
+  <button class="btn" onclick="OBS.clearFilters()">Clear filters</button>
+  <span class="filter-status" id="obs-filter-status"></span>
+</div>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr>
+<th>Case ID</th><th>Date Reported</th><th>Location</th><th>Category</th><th>Priority</th><th>Description</th><th>Status</th><th>Reviewed</th><th>Recurrence</th><th>Action</th>
+</tr></thead>
+<tbody id="obs-tbody"></tbody>
+</table>
+</div>
+<div class="pagebar" id="obs-pagebar"></div>
+
+<div id="obs-modal-root"></div>
+
+</div>
+<script>
+(function(){
+  var OBS_TAB_KEYS = ['obs_main','obs_qr','obs_acceptance','obs_rejection','obs_risk'];
+  var DATA = [];
+  var _filterState = { special: '' };
+  var _loaded = false;
+  var _modalOpen = false;
+  var _pendingData = null; /* holds a fresher pull while the modal's open, applied only once it closes */
+  var REFRESH_INTERVAL_MS = 60000; /* quiet background re-pull, once a minute */
+
+  function escHtml(s){
+    return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function colIdx(headers, name){
+    for (var i=0;i<headers.length;i++){ if (String(headers[i]).trim() === name) return i; }
+    return -1;
+  }
+
+  function setBanner(html, isError){
+    var b = document.getElementById('obs-status-banner');
+    if (!b) return;
+    b.innerHTML = html;
+    b.style.borderLeftColor = isError ? 'var(--w-red)' : 'var(--w-amb)';
+  }
+
+  function stamp(){
+    var d = new Date();
+    function pad(n){ return String(n).padStart(2,'0'); }
+    return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  }
+
+  function liveBannerHtml(){
+    return '<strong>LIVE</strong> — reading directly from the Observations (AppSheet) spreadsheet. ' +
+      'Escalation below still only updates this page\'s local view until the Action Tracker register exists on the IMS side to write into. ' +
+      '<span class="obs-updated-stamp" style="opacity:.7">Last updated '+stamp()+' · auto-refreshes every minute</span>';
+  }
+
+  /* ── Live fetch: pulls all 5 Observations tabs in parallel, then
+     joins them client-side the same way the one-off Python transform
+     did — QR Codes for location, Acceptance+Rejection for reviewed
+     status, Risk Assessment for the recurrence flag.
+
+     isBackground=true is the quiet, once-a-minute auto-refresh: it
+     never shows the "LOADING" state, never wipes the table on failure
+     (a single missed poll shouldn't disrupt someone reading the page),
+     and if the escalate modal is open it holds the new data in DATA
+     but defers re-rendering the table until the modal closes, so the
+     modal never gets yanked out from under whoever is mid-review. ── */
+  function loadLive(isBackground){
+    isBackground = !!isBackground;
+    if (!isBackground) setBanner('<strong>⏳ LOADING</strong> — connecting to the live Observations (AppSheet) spreadsheet…', false);
+
+    var fetches = OBS_TAB_KEYS.map(function(tabKey){
+      return fetch(SHEETS_URL + '?action=readObs&tab=' + tabKey)
+        .then(function(r){ return r.json(); })
+        .then(function(data){ return { tabKey: tabKey, data: data }; });
+    });
+
+    Promise.all(fetches).then(function(results){
+      var byTab = {};
+      results.forEach(function(r){ byTab[r.tabKey] = r.data; });
+
+      var anyError = OBS_TAB_KEYS.filter(function(k){ return byTab[k] && byTab[k].error; });
+      if (anyError.length){
+        setBanner('<strong>⚠ Could not load live data</strong> — ' + escHtml(anyError.map(function(k){ return byTab[k].error; }).join('; ')), true);
+        return;
+      }
+
+      var fresh = buildRecords(byTab);
+      carryForwardEscalations(fresh);
+      _loaded = true;
+      setBanner(liveBannerHtml(), false);
+
+      if (_modalOpen) {
+        /* Don't swap DATA out from under an open modal — the row index
+           it's holding onto is only valid against the array it was
+           rendered from. Hold the fresh pull and apply it on close. */
+        _pendingData = fresh;
+      } else {
+        DATA = fresh;
+        render();
+      }
+    }).catch(function(err){
+      if (!isBackground) {
+        setBanner('<strong>⚠ Connection unavailable</strong> — could not reach the live Observations data. ' + escHtml(err && err.message || ''), true);
+        document.getElementById('obs-tbody').innerHTML = '<tr><td colspan="10"><div class="empty-state"><strong>Connection unavailable</strong>Could not reach the live Google Sheets backend.</div></td></tr>';
+      } else {
+        /* Quiet failure — don't disturb whatever's on screen, just note it in the banner's corner. */
+        setBanner(liveBannerHtml() + ' <span style="color:var(--w-red)">(last refresh failed — showing previous data)</span>', false);
+      }
+    });
+  }
+
+  function startAutoRefresh(){
+    setInterval(function(){ loadLive(true); }, REFRESH_INTERVAL_MS);
+  }
+
+  /* Escalated marks are local-only (see the note in the modal) — they
+     don't exist in the sheet, so a fresh pull from the server has no
+     way to know about them. Without this, the once-a-minute refresh
+     would silently un-escalate anything marked since the last pull. */
+  function carryForwardEscalations(freshData){
+    var marks = {};
+    DATA.forEach(function(r){ if (r.Escalated) marks[r['Case ID']] = r.Escalated; });
+    if (!Object.keys(marks).length) return;
+    freshData.forEach(function(r){
+      if (marks[r['Case ID']]) r.Escalated = marks[r['Case ID']];
+    });
+  }
+
+  function buildRecords(byTab){
+    var main = byTab['obs_main'] || { headers: [], rows: [] };
+    var qr = byTab['obs_qr'] || { headers: [], rows: [] };
+    var acc = byTab['obs_acceptance'] || { headers: [], rows: [] };
+    var rej = byTab['obs_rejection'] || { headers: [], rows: [] };
+    var risk = byTab['obs_risk'] || { headers: [], rows: [] };
+
+    /* QR Codes: qr_code_id -> location */
+    var qrLoc = {};
+    var qCid = colIdx(qr.headers, 'qr_code_id'), qLoc = colIdx(qr.headers, 'location');
+    if (qCid >= 0 && qLoc >= 0){
+      qr.rows.forEach(function(r){ qrLoc[r[qCid]] = r[qLoc]; });
+    }
+
+    /* Acceptance / Rejection: sets of reviewed case_ids */
+    var reviewedIds = {};
+    var aCid = colIdx(acc.headers, 'case_id');
+    if (aCid >= 0) acc.rows.forEach(function(r){ reviewedIds[r[aCid]] = true; });
+    var jCid = colIdx(rej.headers, 'case_id');
+    if (jCid >= 0) rej.rows.forEach(function(r){ reviewedIds[r[jCid]] = true; });
+
+    /* Risk Assessment: case_id -> recurrence + raw risk level */
+    var riskLookup = {};
+    var rCid = colIdx(risk.headers, 'case_id');
+    var rRecur = colIdx(risk.headers, 'did_the_same_event_happen_before');
+    var rRawLvl = colIdx(risk.headers, 'raw_risk_level');
+    if (rCid >= 0){
+      risk.rows.forEach(function(r){
+        riskLookup[r[rCid]] = {
+          recurrence: rRecur >= 0 ? r[rRecur] : '',
+          rawRiskLevel: rRawLvl >= 0 ? r[rRawLvl] : '',
+        };
+      });
+    }
+
+    /* Main: build the record list */
+    var mH = main.headers;
+    var iCid = colIdx(mH,'case_id'), iDate = colIdx(mH,'datetime_of_case'), iQr = colIdx(mH,'qr_code_id'),
+        iCat = colIdx(mH,'category'), iSub = colIdx(mH,'subcategory'), iPri = colIdx(mH,'priority'),
+        iDesc = colIdx(mH,'comments'), iStatus = colIdx(mH,'latest_status');
+
+    return main.rows.map(function(r){
+      var cid = iCid >= 0 ? r[iCid] : '';
+      var category = iCat >= 0 ? r[iCat] : '';
+      var riskInfo = riskLookup[cid] || {};
+      var isRecurrenceKnown = Object.prototype.hasOwnProperty.call(riskLookup, cid);
+      var isRecurrence = riskInfo.recurrence === 1 || riskInfo.recurrence === '1' || riskInfo.recurrence === true;
+      var isReviewed = !!reviewedIds[cid];
+      var isRealEvent = category === 'Property Damage (Damage Only)';
+      var needsAttention = (isRealEvent && !isReviewed) || isRecurrence;
+
+      return {
+        'Case ID': cid,
+        'Date Reported': iDate >= 0 ? r[iDate] : '',
+        'Location': (iQr >= 0 && qrLoc[r[iQr]]) ? qrLoc[r[iQr]] : (iQr >= 0 ? r[iQr] : ''),
+        'Category': category,
+        'Subcategory': iSub >= 0 ? r[iSub] : '',
+        'Priority': iPri >= 0 ? r[iPri] : '',
+        'Description': iDesc >= 0 ? r[iDesc] : '',
+        'Status': iStatus >= 0 ? r[iStatus] : '',
+        'Reviewed': isReviewed ? 'Yes' : 'No',
+        'Recurrence Flagged': isRecurrence ? 'Yes' : (isRecurrenceKnown ? 'No' : ''),
+        'Raw Risk Level': riskInfo.rawRiskLevel || '',
+        'Needs Attention': needsAttention ? 'Yes' : 'No',
+        'Escalated': '',
+      };
+    });
+  }
+
+  function badgeForCategory(cat){
+    if (cat === 'Property Damage (Damage Only)') return '<span class="badge b-red">'+escHtml(cat)+'</span>';
+    if (cat === 'Near Miss') return '<span class="badge b-amb">'+escHtml(cat)+'</span>';
+    if (cat === 'Light Case') return '<span class="badge b-dim">'+escHtml(cat)+'</span>';
+    return '<span class="badge b-blue">'+escHtml(cat)+'</span>';
+  }
+  function badgeForReviewed(v){
+    return v === 'Yes' ? '<span class="badge b-grn">Yes</span>' : '<span class="badge b-red">No</span>';
+  }
+  function badgeForRecurrence(v){
+    if (v === 'Yes') return '<span class="badge b-red">Yes</span>';
+    if (v === 'No') return '<span class="badge b-grn">No</span>';
+    return '<span class="badge b-dim">—</span>';
+  }
+
+  function matchesFilters(r){
+    var search = document.getElementById('obs-search').value.trim().toLowerCase();
+    var cat = document.getElementById('obs-cat-filter').value;
+    var attnSel = document.getElementById('obs-attn-filter').value;
+    if (cat && r.Category !== cat) return false;
+    if (attnSel === 'attention' && r['Needs Attention'] !== 'Yes') return false;
+    if (_filterState.special === 'attention' && r['Needs Attention'] !== 'Yes') return false;
+    if (_filterState.special === 'unreviewed_pd' && !(r.Category === 'Property Damage (Damage Only)' && r.Reviewed === 'No')) return false;
+    if (_filterState.special === 'recurrence' && r['Recurrence Flagged'] !== 'Yes') return false;
+    if (search){
+      var hay = (r['Case ID']+' '+r.Location+' '+r.Description+' '+r.Category).toLowerCase();
+      if (hay.indexOf(search) === -1) return false;
+    }
+    return true;
+  }
+
+  function updateKpis(){
+    var total = DATA.length;
+    var attn = DATA.filter(function(r){ return r['Needs Attention']==='Yes'; }).length;
+    var pd = DATA.filter(function(r){ return r.Category==='Property Damage (Damage Only)' && r.Reviewed==='No'; }).length;
+    var rec = DATA.filter(function(r){ return r['Recurrence Flagged']==='Yes'; }).length;
+    document.querySelectorAll('.kpi-val')[0].textContent = total;
+    document.querySelectorAll('.kpi-val')[1].textContent = attn;
+    document.querySelectorAll('.kpi-val')[2].textContent = pd;
+    document.querySelectorAll('.kpi-val')[3].textContent = rec;
+  }
+
+  function render(){
+    if (!_loaded) return;
+    updateKpis();
+    var rows = DATA.filter(matchesFilters);
+    var tbody = document.getElementById('obs-tbody');
+    if (!rows.length){
+      tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
+    } else {
+      tbody.innerHTML = rows.map(function(r){
+        var idx = DATA.indexOf(r);
+        var rowCls = r['Needs Attention'] === 'Yes' ? ' class="attn-row"' : '';
+        var escBtn = r.Escalated ? '<span class="badge b-grn">Escalated → '+escHtml(r.Escalated)+'</span>' :
+          '<button class="btn btn-gold" onclick="OBS.openEscalate('+idx+')">Review / Escalate</button>';
+        return '<tr'+rowCls+'>' +
+          '<td>'+escHtml(r['Case ID'])+'</td>' +
+          '<td>'+escHtml(r['Date Reported'])+'</td>' +
+          '<td>'+escHtml(r.Location)+'</td>' +
+          '<td>'+badgeForCategory(r.Category)+'</td>' +
+          '<td>'+escHtml(r.Priority)+'</td>' +
+          '<td class="desc-cell">'+escHtml(r.Description)+'</td>' +
+          '<td>'+escHtml(r.Status)+'</td>' +
+          '<td>'+badgeForReviewed(r.Reviewed)+'</td>' +
+          '<td>'+badgeForRecurrence(r['Recurrence Flagged'])+'</td>' +
+          '<td>'+escBtn+'</td>' +
+        '</tr>';
+      }).join('');
+    }
+    document.getElementById('obs-filter-status').textContent =
+      'Showing ' + rows.length + ' of ' + DATA.length;
+  }
+
+  function cardFilter(which){
+    _filterState.special = (which === 'all') ? '' : which;
+    document.getElementById('obs-cat-filter').value = '';
+    document.getElementById('obs-attn-filter').value = '';
+    document.getElementById('obs-search').value = '';
+    render();
+  }
+
+  function clearFilters(){
+    _filterState.special = '';
+    document.getElementById('obs-cat-filter').value = '';
+    document.getElementById('obs-attn-filter').value = '';
+    document.getElementById('obs-search').value = '';
+    render();
+  }
+
+  function openEscalate(idx){
+    _modalOpen = true;
+    var r = DATA[idx];
+    var root = document.getElementById('obs-modal-root');
+    root.innerHTML = '<div class="modal-bg"><div class="modal">' +
+      '<h3>Review / Escalate — '+escHtml(r['Case ID'])+'</h3>' +
+      '<div class="mf">Description</div><div class="mv">'+escHtml(r.Description)+'</div>' +
+      '<div class="mf">Location</div><div class="mv">'+escHtml(r.Location)+'</div>' +
+      '<div class="mf">Category</div><div class="mv">'+badgeForCategory(r.Category)+'</div>' +
+      '<div class="mf">Recurrence Flagged</div><div class="mv">'+badgeForRecurrence(r['Recurrence Flagged'])+'</div>' +
+      '<div class="modal-actions">' +
+        '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'Action Tracker\')">Escalate to Action Tracker</button>' +
+        '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'Incident Register\')">Escalate to Incident Register</button>' +
+        '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>' +
+      '</div>' +
+      '<div class="esc-note">Reading live data now — but escalating here still only updates this page\'s local view. Once the Action Tracker register exists on the IMS side, this will create the real ACT-2026-00X or INC-2026-0XX record automatically and mark this observation Escalated.</div>' +
+    '</div></div>';
+  }
+
+  function escalate(idx, target){
+    DATA[idx].Escalated = target;
+    closeModal(); /* closeModal() re-renders and applies any held-back refresh */
+  }
+
+  function closeModal(){
+    document.getElementById('obs-modal-root').innerHTML = '';
+    _modalOpen = false;
+    if (_pendingData) {
+      DATA = _pendingData;
+      _pendingData = null;
+    }
+    render();
+  }
+
+  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, closeModal: closeModal, refreshNow: function(){ loadLive(true); } };
+  loadLive();
+  startAutoRefresh();
+})();
+</script>
+</body>
+</html>
