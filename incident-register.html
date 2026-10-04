@@ -240,7 +240,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       idPrefix: 'INC-2026-', idPad: 3,
       fields: ['Incident ID','Date','Classification','Location','Description','Injured Person',
                'Nature of Injury','LTI?','Root Cause','Direct Cause','LWD','Total Cost',
-               'RA Score','RA Level','Corrective Action','Notification Required','Status'],
+               'Consequence','Likelihood','RA Score','RA Level','Corrective Action','Notification Required','Status'],
       filterField: 'Classification'
     }
   };
@@ -833,7 +833,34 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           '<input type="text" data-field="'+f+'" id="inc-modal-ra-level" value="'+(lvlAuto||vEsc)+'" readonly style="background:#f0f0f0;color:#222;font-weight:600;cursor:not-allowed">' +
           '</div>';
       }
-      var extraAttr = (f === 'RA Score') ? ' id="inc-modal-ra-score"' : '';
+      // Consequence and Likelihood are the methodology inputs (1-5 each,
+      // same 5x5 scale as the Risk Register). RA Score is their product,
+      // calculated live and never typed in directly - this keeps the
+      // Incident Register's scoring on the exact same footing as the
+      // Risk Register's Consequence x Likelihood model.
+      if (f === 'Consequence' || f === 'Likelihood'){
+        // Pre-June 2026 records predate this methodology and carry the
+        // text "Not recorded - pre-methodology" instead of a 1-5 value.
+        // A number input can't hold that string (it would just render
+        // blank, silently hiding the fact from whoever opens the
+        // record) so those records get a plain readonly text field
+        // showing the label instead, same visual treatment as RA Level.
+        var isPreMethod = v && isNaN(parseFloat(v));
+        if (isPreMethod){
+          return '<div class="inc-field"><label>'+f+'</label>' +
+            '<input type="text" data-field="'+f+'" id="inc-modal-'+f.toLowerCase()+'" value="'+vEsc+'" readonly style="background:#f0f0f0;color:#222;font-style:italic;cursor:not-allowed">' +
+            '</div>';
+        }
+        return '<div class="inc-field"><label>'+f+' <span style="font-weight:400;opacity:.7">(1-5)</span></label>' +
+          '<input type="number" min="1" max="5" step="1" data-field="'+f+'" id="inc-modal-'+f.toLowerCase()+'" value="'+vEsc+'">' +
+          '</div>';
+      }
+      if (f === 'RA Score'){
+        return '<div class="inc-field"><label>'+f+' <span style="font-weight:400;opacity:.7">(auto, = Consequence \u00D7 Likelihood)</span></label>' +
+          '<input type="text" data-field="'+f+'" id="inc-modal-ra-score" value="'+vEsc+'" readonly style="background:#f0f0f0;color:#222;font-weight:600;cursor:not-allowed">' +
+          '</div>';
+      }
+      var extraAttr = '';
       return '<div class="inc-field"><label>'+f+'</label>' +
         '<input type="'+inputType+'" data-field="'+f+'"'+extraAttr+' value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
         dlHtml + '</div>';
@@ -866,13 +893,34 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('inc-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('inc-modal-bg').onclick = function(e){ if(e.target.id==='inc-modal-bg') root.innerHTML=''; };
 
-    // Keep RA Level glued to whatever RA Score is typed, live.
+    // RA Score is now calculated, not typed: Consequence x Likelihood
+    // drives RA Score, which in turn drives RA Level - the full chain
+    // is live so the three fields can never drift out of sync with
+    // each other inside the modal.
     var raScoreEl = document.getElementById('inc-modal-ra-score');
     var raLevelEl = document.getElementById('inc-modal-ra-level');
-    if (raScoreEl && raLevelEl){
-      raScoreEl.addEventListener('input', function(){
-        raLevelEl.value = raScoreToLevel(raScoreEl.value);
-      });
+    var consequenceEl = document.getElementById('inc-modal-consequence');
+    var likelihoodEl = document.getElementById('inc-modal-likelihood');
+    function recalcFromCxL(){
+      if (!raScoreEl) return;
+      var c = parseFloat(consequenceEl && consequenceEl.value);
+      var l = parseFloat(likelihoodEl && likelihoodEl.value);
+      if (!isNaN(c) && !isNaN(l) && c >= 1 && c <= 5 && l >= 1 && l <= 5){
+        var score = c * l;
+        raScoreEl.value = score;
+        if (raLevelEl) raLevelEl.value = raScoreToLevel(score);
+      } else {
+        raScoreEl.value = '';
+        if (raLevelEl) raLevelEl.value = '';
+      }
+    }
+    if (consequenceEl) consequenceEl.addEventListener('input', recalcFromCxL);
+    if (likelihoodEl) likelihoodEl.addEventListener('input', recalcFromCxL);
+    // Pre-June legacy records: Consequence/Likelihood were never
+    // recorded, so if both are blank on load, leave the stored RA
+    // Score/RA Level exactly as they are rather than wiping them.
+    if (raScoreEl && raLevelEl && !(consequenceEl && consequenceEl.value) && !(likelihoodEl && likelihoodEl.value)){
+      raLevelEl.value = raScoreToLevel(raScoreEl.value);
     }
 
     // Staged photo files, picked but not yet uploaded. Take Photo and
