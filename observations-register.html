@@ -143,7 +143,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 <div class="kpi-grid">
   <div class="kpi-card kc-nvy" onclick="OBS.cardFilter('all')"><div class="kpi-lbl">Total Observations</div><div class="kpi-val">—</div><div class="kpi-sub">All categories, all time</div></div>
   <div class="kpi-card kc-red" onclick="OBS.cardFilter('attention')"><div class="kpi-lbl">Needs Attention</div><div class="kpi-val">—</div><div class="kpi-sub">Unreviewed confirmed events + recurrence-flagged</div></div>
-  <div class="kpi-card kc-amb" onclick="OBS.cardFilter('escalation_review')"><div class="kpi-lbl">Needs Escalation Review</div><div class="kpi-val">—</div><div class="kpi-sub">Evaluated cases (accepted or rejected) not yet redirected</div></div>
+  <div class="kpi-card kc-amb" onclick="OBS.cardFilter('escalation_review')"><div class="kpi-lbl">Needs Escalation Review</div><div class="kpi-val">—</div><div class="kpi-sub">Status = Evaluated, not yet redirected</div></div>
   <div class="kpi-card kc-blue" onclick="OBS.cardFilter('recurrence')"><div class="kpi-lbl">Recurrence Flagged</div><div class="kpi-val">—</div><div class="kpi-sub">"Did the same event happen before?" = Yes</div></div>
 </div>
 
@@ -418,13 +418,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     });
   }
 
-  /* "Needs Escalation Review" rule — depends ONLY on evaluation stage:
-     a case is a candidate once it has been evaluated (Reviewed = Accepted
-     OR Rejected), with no further condition on priority, category, or
-     recurrence. Shared by the KPI count and the table row filter so the
-     two numbers never drift apart. */
+  /* "Needs Escalation Review" rule — keys OFF THE CASE'S OWN NATIVE
+     STATUS FIELD (r.Status, the source system's "latest_status" —
+     "Under Review", "Accepted", "Evaluated", "Rejected", "Implemented",
+     "Closed"). A case qualifies if and only if r.Status is literally
+     "Evaluated" — Accepted and Rejected are each their OWN separate
+     status values and do NOT count here, even though they sound like
+     they could be "evaluated" in the everyday sense. This is distinct
+     from r.Reviewed (our Accepted/Rejected flag) and from r.Escalated
+     (our own redirect tracking) — neither of those is consulted at all
+     for this rule now. Shared by the KPI count and the table row filter
+     so the two numbers never drift apart. */
   function isEscalationCandidate(r){
-    if (r.Reviewed !== 'Yes') return false; /* must have been evaluated (accepted OR rejected) first */
+    if (r.Status !== 'Evaluated') return false; /* literal native status value — not Accepted, not Rejected */
     if (r.Escalated) return false; /* already redirected — handled, drop off the review queue */
     return true;
   }
@@ -439,9 +445,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
        'tracker'  — Medium or Low priority (and not Property Damage).
                     Free choice: forward to the Action Tracker, OR mark
                     Closed with no further action.
-       null       — not yet Accepted; nothing to route yet. */
+       null       — not yet Accepted, or already Closed in the source
+                    system itself (r.Status), so nothing left to route. */
   function escalationTier(r){
     if (r.Accepted !== 'Yes') return null;
+    if (r.Status === 'Closed') return null; /* source system already closed this case */
     var mustGoToIncident = (r.Priority === 'High' || r.Priority === 'Extremely High' ||
       r.Category === 'Property Damage (Damage Only)');
     return mustGoToIncident ? 'incident' : 'tracker';
@@ -730,6 +738,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
           escBtn = '<span class="badge b-dim">Closed — No Action</span>';
         } else if (r.Escalated) {
           escBtn = '<span class="badge b-grn">Redirected → '+escHtml(r.Escalated)+'</span>';
+        } else if (r.Status === 'Closed') {
+          /* Closed in the source system itself, never routed through our
+             escalation workflow at all (r.Escalated is still ''). Same
+             inert badge, so this is indistinguishable from a case we
+             closed ourselves — and distinguishable from the dash used
+             for "not yet accepted". */
+          escBtn = '<span class="badge b-dim">Closed — No Action</span>';
         } else {
           var tier = escalationTier(r);
           if (tier === 'incident') {
