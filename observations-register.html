@@ -48,6 +48,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 .obs-wrap .btn:hover{background:#223457;border-color:var(--w-border-gold)}
 .obs-wrap .btn-gold{background:var(--w-gold);color:#1a1200;border-color:var(--w-gold);font-weight:700}
 .obs-wrap .btn-gold:hover{background:var(--w-gold-lt)}
+.obs-wrap .btn:disabled{opacity:.4;cursor:not-allowed}
+.obs-wrap .btn:disabled:hover{background:var(--w-bg3);border-color:var(--w-border)}
+/* Row selection — click a row to select it (PTW-register pattern): one
+   row at a time, toggled off by clicking it again, acted on by the
+   toolbar button above the table rather than a per-row button. */
+.obs-wrap .toolbar{display:flex;justify-content:flex-end;padding:8px 0}
+.obs-wrap .row-selectable{cursor:pointer}
+.obs-wrap .row-selected td,
+.obs-wrap .row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--w-gold)}
+.obs-wrap .photo-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.obs-wrap .photo-grid img{max-width:220px;max-height:220px;border-radius:8px;
+  border:1px solid var(--w-border-gold);cursor:zoom-in;display:block}
+.obs-wrap .photo-empty{font-size:12px;color:var(--w-text-muted)}
 .obs-wrap .tbl-wrap{overflow-x:auto;border:1px solid var(--w-border-gold);border-radius:10px}
 .obs-wrap table{width:100%;border-collapse:collapse;font-size:11px}
 .obs-wrap th{text-align:left;color:var(--w-gold-lt);font-weight:700;font-size:10px;
@@ -88,10 +101,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 <div class="req-text">ISO 45001 §5.4 (Worker Participation) / §10.2 — Hazard observations, near-misses, and damage-only events reported via the shop-floor QR system are logged, reviewed, and — where they meet the recurrence, severity, or confirmed-event criteria — escalated to the Action Tracker or Incident Register.</div>
 
 <div class="kpi-grid">
-  <div class="kpi-card kc-nvy" onclick="OBS.cardFilter('all')"><div class="kpi-lbl">Total Observations</div><div class="kpi-val">390</div><div class="kpi-sub">All categories, all time</div></div>
-  <div class="kpi-card kc-red" onclick="OBS.cardFilter('attention')"><div class="kpi-lbl">Needs Attention</div><div class="kpi-val">67</div><div class="kpi-sub">Unreviewed confirmed events + recurrence-flagged</div></div>
-  <div class="kpi-card kc-amb" onclick="OBS.cardFilter('unreviewed_pd')"><div class="kpi-lbl">Unreviewed Property Damage</div><div class="kpi-val">33</div><div class="kpi-sub">Confirmed events never accepted/reviewed</div></div>
-  <div class="kpi-card kc-blue" onclick="OBS.cardFilter('recurrence')"><div class="kpi-lbl">Recurrence Flagged</div><div class="kpi-val">34</div><div class="kpi-sub">"Did the same event happen before?" = Yes</div></div>
+  <div class="kpi-card kc-nvy" onclick="OBS.cardFilter('all')"><div class="kpi-lbl">Total Observations</div><div class="kpi-val">—</div><div class="kpi-sub">All categories, all time</div></div>
+  <div class="kpi-card kc-red" onclick="OBS.cardFilter('attention')"><div class="kpi-lbl">Needs Attention</div><div class="kpi-val">—</div><div class="kpi-sub">Unreviewed confirmed events + recurrence-flagged</div></div>
+  <div class="kpi-card kc-amb" onclick="OBS.cardFilter('unreviewed_pd')"><div class="kpi-lbl">Unreviewed Property Damage</div><div class="kpi-val">—</div><div class="kpi-sub">Confirmed events never accepted/reviewed</div></div>
+  <div class="kpi-card kc-blue" onclick="OBS.cardFilter('recurrence')"><div class="kpi-lbl">Recurrence Flagged</div><div class="kpi-val">—</div><div class="kpi-sub">"Did the same event happen before?" = Yes</div></div>
 </div>
 
 <div class="filterbar">
@@ -109,6 +122,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
   </select>
   <button class="btn" onclick="OBS.clearFilters()">Clear filters</button>
   <span class="filter-status" id="obs-filter-status"></span>
+</div>
+
+<div class="toolbar" id="obs-toolbar">
+  <button class="btn btn-gold" id="obs-tb-photos" disabled onclick="OBS.visualizePhotos()">📷 Visualize Photos</button>
 </div>
 
 <div class="tbl-wrap">
@@ -132,6 +149,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
   var _loaded = false;
   var _modalOpen = false;
   var _pendingData = null; /* holds a fresher pull while the modal's open, applied only once it closes */
+  var _openPhotoCaseId = null; /* case_id the CURRENTLY open photo modal belongs to — a slow
+     getObsPhotos() response is only applied if it still matches this when it resolves, so closing
+     one case's photo modal and opening a different one before the fetch returns can never let the
+     first case's photo land in the second case's modal (same #obs-photo-grid id, different case). */
+  var _selectedCaseId = null; /* row-selection model (same pattern as the PTW register): click a row
+     to select it, click again to deselect; the toolbar's Visualize Photos button acts on whichever
+     one is selected, rather than each row carrying its own photo button. */
   var REFRESH_INTERVAL_MS = 60000; /* quiet background re-pull, once a minute */
 
   function escHtml(s){
@@ -213,6 +237,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       if (!isBackground) {
         setBanner('<strong>⚠ Connection unavailable</strong> — could not reach the live Observations data. ' + escHtml(err && err.message || ''), true);
         document.getElementById('obs-tbody').innerHTML = '<tr><td colspan="10"><div class="empty-state"><strong>Connection unavailable</strong>Could not reach the live Google Sheets backend.</div></td></tr>';
+        /* Never leave the KPI tiles showing a number from before the page loaded —
+           that would look like a live count during an outage. Blank them out. */
+        document.querySelectorAll('.kpi-val').forEach(function(el){ el.textContent = '—'; });
       } else {
         /* Quiet failure — don't disturb whatever's on screen, just note it in the banner's corner. */
         setBanner(liveBannerHtml() + ' <span style="color:var(--w-red)">(last refresh failed — showing previous data)</span>', false);
@@ -358,10 +385,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     } else {
       tbody.innerHTML = rows.map(function(r){
         var idx = DATA.indexOf(r);
-        var rowCls = r['Needs Attention'] === 'Yes' ? ' class="attn-row"' : '';
+        var caseId = r['Case ID'];
+        var isSel = (_selectedCaseId !== null && String(_selectedCaseId) === String(caseId));
+        var rowCls = ' class="row-selectable' + (r['Needs Attention'] === 'Yes' ? ' attn-row' : '') + (isSel ? ' row-selected' : '') + '"';
         var escBtn = r.Escalated ? '<span class="badge b-grn">Escalated → '+escHtml(r.Escalated)+'</span>' :
-          '<button class="btn btn-gold" onclick="OBS.openEscalate('+idx+')">Review / Escalate</button>';
-        return '<tr'+rowCls+'>' +
+          '<button class="btn btn-gold" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Review / Escalate</button>';
+        return '<tr'+rowCls+' onclick="OBS.selectRow(\''+escHtml(caseId)+'\')">' +
           '<td>'+escHtml(r['Case ID'])+'</td>' +
           '<td>'+escHtml(r['Date Reported'])+'</td>' +
           '<td>'+escHtml(r.Location)+'</td>' +
@@ -377,6 +406,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     }
     document.getElementById('obs-filter-status').textContent =
       'Showing ' + rows.length + ' of ' + DATA.length;
+
+    var photosBtn = document.getElementById('obs-tb-photos');
+    if (photosBtn) photosBtn.disabled = !_selectedCaseId;
+  }
+
+  function selectRow(caseId){
+    /* Clicking an already-selected row deselects it; clicking a
+       different row switches the selection — one row at a time. */
+    _selectedCaseId = (_selectedCaseId !== null && String(_selectedCaseId) === String(caseId)) ? null : caseId;
+    render();
+  }
+
+  function visualizePhotos(){
+    if (!_selectedCaseId) return; /* toolbar button is disabled in this state, but guard anyway */
+    openPhotoModal(_selectedCaseId);
   }
 
   function cardFilter(which){
@@ -398,9 +442,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
   function openEscalate(idx){
     _modalOpen = true;
     var r = DATA[idx];
+    var caseId = r['Case ID'];
     var root = document.getElementById('obs-modal-root');
     root.innerHTML = '<div class="modal-bg"><div class="modal">' +
-      '<h3>Review / Escalate — '+escHtml(r['Case ID'])+'</h3>' +
+      '<h3>Review / Escalate — '+escHtml(caseId)+'</h3>' +
       '<div class="mf">Description</div><div class="mv">'+escHtml(r.Description)+'</div>' +
       '<div class="mf">Location</div><div class="mv">'+escHtml(r.Location)+'</div>' +
       '<div class="mf">Category</div><div class="mv">'+badgeForCategory(r.Category)+'</div>' +
@@ -414,6 +459,59 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     '</div></div>';
   }
 
+  /* Photo viewing — toolbar-driven (select a row above, then click
+     "Visualize Photos"), separate from the Review/Escalate modal. The
+     photo is fetched on demand only for the selected case, not preloaded
+     for all 390 rows, since each one comes back as a base64 data URI —
+     fine one at a time, far too much to pull for the whole table. */
+  function openPhotoModal(caseId){
+    _openPhotoCaseId = caseId;
+    var root = document.getElementById('obs-modal-root');
+    root.innerHTML = '<div class="modal-bg"><div class="modal" style="width:440px">' +
+      '<h3>📷 Photos — '+escHtml(caseId)+'</h3>' +
+      '<div class="photo-grid" id="obs-photo-grid"><span class="photo-empty">Loading photo…</span></div>' +
+      '<div class="modal-actions"><button class="btn modal-close" onclick="OBS.closeModal()">Close</button></div>' +
+    '</div></div>';
+    loadObsPhoto(caseId);
+  }
+
+  /* If the modal gets closed/reopened on a different case before this
+     resolves, the stale response is dropped by the _openPhotoCaseId
+     check below (a plain "does #obs-photo-grid still exist" check isn't
+     enough — the new modal has its own element with that same id, so a
+     stale response would otherwise overwrite the right case's grid with
+     the wrong case's photo). */
+  function loadObsPhoto(caseId){
+    fetch(SHEETS_URL + '?action=getObsPhotos&caseId=' + encodeURIComponent(caseId))
+      .then(function(res){ return res.json(); })
+      .then(function(data){
+        if (_openPhotoCaseId !== caseId) return; /* a different (or no) photo modal is open now */
+        var grid = document.getElementById('obs-photo-grid');
+        if (!grid) return;
+
+        if (data.error) {
+          grid.innerHTML = '<span class="photo-empty">Could not load photo — '+escHtml(data.error)+'</span>';
+          return;
+        }
+        if (!data.photos || !data.photos.length) {
+          grid.innerHTML = '<span class="photo-empty">No photo attached to this case</span>';
+          return;
+        }
+
+        grid.innerHTML = data.photos.map(function(p){
+          if (p.dataUrl) {
+            return '<img src="'+p.dataUrl+'" alt="'+escHtml(p.fileName)+'" onclick="window.open(this.src,\'_blank\')">';
+          }
+          return '<span class="photo-empty">'+escHtml(p.fileName||'Photo')+' — '+escHtml(p.error||'could not load')+'</span>';
+        }).join('');
+      })
+      .catch(function(err){
+        if (_openPhotoCaseId !== caseId) return;
+        var grid = document.getElementById('obs-photo-grid');
+        if (grid) grid.innerHTML = '<span class="photo-empty">Could not load photo — '+escHtml(err.message)+'</span>';
+      });
+  }
+
   function escalate(idx, target){
     DATA[idx].Escalated = target;
     closeModal(); /* closeModal() re-renders and applies any held-back refresh */
@@ -422,6 +520,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
   function closeModal(){
     document.getElementById('obs-modal-root').innerHTML = '';
     _modalOpen = false;
+    _openPhotoCaseId = null;
     if (_pendingData) {
       DATA = _pendingData;
       _pendingData = null;
@@ -429,7 +528,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     render();
   }
 
-  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, closeModal: closeModal, refreshNow: function(){ loadLive(true); } };
+  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, refreshNow: function(){ loadLive(true); } };
   loadLive();
   startAutoRefresh();
 })();
