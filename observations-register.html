@@ -32,6 +32,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 .obs-wrap .kpi-card.kc-red::before{background:var(--w-red)}
 .obs-wrap .kpi-card.kc-amb::before{background:var(--w-amb)}
 .obs-wrap .kpi-card.kc-blue::before{background:var(--w-blue)}
+
+/* Charts section — collapsed by default behind a toggle button so the
+   page stays compact; opens into two canvas-based bar charts rendered
+   with plain Canvas 2D (no external chart library dependency). */
+.obs-wrap .charts-toggle-row{display:flex;justify-content:flex-end;margin:-6px 0 12px}
+.obs-wrap .charts-section{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+.obs-wrap .chart-card{background:var(--w-bg2);border:1px solid var(--w-border);border-radius:14px;padding:16px 18px}
+.obs-wrap .chart-card h3{margin:0 0 4px;font-size:12px;color:var(--w-gold-lt);font-weight:700}
+.obs-wrap .chart-card .chart-sub{font-size:10px;color:var(--w-text-muted);font-weight:400}
+.obs-wrap .chart-scroll{overflow-y:auto;max-height:320px}
+.obs-wrap .chart-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.obs-wrap .chart-legend span{font-size:10px;color:var(--w-text-muted);display:flex;align-items:center;gap:5px}
+.obs-wrap .chart-legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+@media (max-width: 900px){ .obs-wrap .charts-section{grid-template-columns:1fr} }
 .obs-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--w-text-muted);
   text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
 .obs-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--w-text);line-height:1.1;margin-bottom:4px}
@@ -107,6 +121,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
   <div class="kpi-card kc-blue" onclick="OBS.cardFilter('recurrence')"><div class="kpi-lbl">Recurrence Flagged</div><div class="kpi-val">—</div><div class="kpi-sub">"Did the same event happen before?" = Yes</div></div>
 </div>
 
+<div class="charts-toggle-row">
+  <button class="btn" id="obs-charts-toggle" onclick="OBS.toggleCharts()">📊 Show Charts</button>
+</div>
+
+<div class="charts-section" id="obs-charts-section" style="display:none">
+  <div class="chart-card">
+    <h3>Observations by Employee Number</h3>
+    <div class="chart-scroll"><canvas id="obs-chart-employee" height="220"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Observations Over Time <span class="chart-sub">(by month, split by category)</span></h3>
+    <canvas id="obs-chart-timeline" height="220"></canvas>
+    <div class="chart-legend" id="obs-timeline-legend"></div>
+  </div>
+</div>
+
 <div class="filterbar">
   <input type="text" class="search-input" id="obs-search" placeholder="Search description, location, case ID..." oninput="OBS.render()">
   <select class="filter-select" id="obs-cat-filter" onchange="OBS.render()">
@@ -167,6 +197,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
   function colIdx(headers, name){
     for (var i=0;i<headers.length;i++){ if (String(headers[i]).trim() === name) return i; }
     return -1;
+  }
+
+  /* employee_num in the source sheet has inconsistent formatting — some
+     rows are padded ('0000'), some aren't ('0'), there's stray trailing
+     text ('290e'), and a couple of clearly-bad long numbers. Rather than
+     silently merge or drop these, normalize whitespace/case only and
+     leave the rest visible, so a data-quality issue shows up as its own
+     bar instead of disappearing into another employee's count or being
+     dropped without explanation. */
+  function normalizeEmployeeNum(v){
+    if (v === null || v === undefined) return 'Unknown';
+    var s = String(v).trim();
+    if (!s) return 'Unknown';
+    return s;
   }
 
   function setBanner(html, isError){
@@ -303,7 +347,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var mH = main.headers;
     var iCid = colIdx(mH,'case_id'), iDate = colIdx(mH,'datetime_of_case'), iQr = colIdx(mH,'qr_code_id'),
         iCat = colIdx(mH,'category'), iSub = colIdx(mH,'subcategory'), iPri = colIdx(mH,'priority'),
-        iDesc = colIdx(mH,'comments'), iStatus = colIdx(mH,'latest_status');
+        iDesc = colIdx(mH,'comments'), iStatus = colIdx(mH,'latest_status'), iEmp = colIdx(mH,'employee_num');
 
     return main.rows.map(function(r){
       var cid = iCid >= 0 ? r[iCid] : '';
@@ -329,6 +373,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         'Raw Risk Level': riskInfo.rawRiskLevel || '',
         'Needs Attention': needsAttention ? 'Yes' : 'No',
         'Escalated': '',
+        'Employee Num': iEmp >= 0 ? normalizeEmployeeNum(r[iEmp]) : '',
       };
     });
   }
@@ -375,6 +420,178 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     document.querySelectorAll('.kpi-val')[3].textContent = rec;
   }
 
+
+  /* ── Charts (plain Canvas 2D, no external library) ───────────────── */
+  var _chartsOpen = false;
+  var CATEGORY_COLORS = {
+    'Property Damage (Damage Only)': '#F0685C',  /* matches badge b-red */
+    'Near Miss': '#E8B339',                       /* matches badge b-amb */
+    'Light Case': '#8893A8',                      /* matches badge b-dim */
+    'Observation': '#5B9BD5'                      /* matches badge b-blue (default) */
+  };
+  function categoryColor(cat){ return CATEGORY_COLORS[cat] || CATEGORY_COLORS['Observation']; }
+
+  function toggleCharts(){
+    _chartsOpen = !_chartsOpen;
+    var section = document.getElementById('obs-charts-section');
+    var btn = document.getElementById('obs-charts-toggle');
+    section.style.display = _chartsOpen ? 'grid' : 'none';
+    btn.textContent = _chartsOpen ? '📊 Hide Charts' : '📊 Show Charts';
+    if (_chartsOpen) renderCharts();
+  }
+
+  function renderCharts(){
+    if (!_chartsOpen || !_loaded) return;
+    renderEmployeeChart();
+    renderTimelineChart();
+  }
+
+  /* Horizontal bar chart: one row per employee_num, sorted by count
+     descending, so the busiest reporters are immediately at the top.
+     Canvas height grows with the number of distinct employees and the
+     container scrolls vertically rather than squeezing rows down to
+     unreadable heights. */
+  function renderEmployeeChart(){
+    var canvas = document.getElementById('obs-chart-employee');
+    if (!canvas) return;
+    var counts = {};
+    DATA.forEach(function(r){
+      var k = r['Employee Num'] || 'Unknown';
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    var entries = Object.keys(counts).map(function(k){ return [k, counts[k]]; });
+    entries.sort(function(a,b){ return b[1] - a[1]; });
+
+    var rowH = 24, gap = 6, leftPad = 70, rightPad = 46, topPad = 6;
+    var cssWidth = canvas.parentElement.clientWidth || 420;
+    var cssHeight = topPad + entries.length * (rowH + gap);
+    var dpr = window.devicePixelRatio || 1;
+    canvas.style.width = cssWidth + 'px';
+    canvas.style.height = cssHeight + 'px';
+    canvas.width = cssWidth * dpr;
+    canvas.height = cssHeight * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+    var maxVal = entries.length ? entries[0][1] : 0;
+    var barAreaW = cssWidth - leftPad - rightPad;
+
+    ctx.font = '11px sans-serif';
+    ctx.textBaseline = 'middle';
+    entries.forEach(function(entry, i){
+      var emp = entry[0], count = entry[1];
+      var y = topPad + i * (rowH + gap);
+      var w = maxVal > 0 ? Math.max(2, (count / maxVal) * barAreaW) : 0;
+
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      ctx.textAlign = 'right';
+      ctx.fillText(emp, leftPad - 10, y + rowH/2);
+
+      ctx.fillStyle = emp === 'Unknown' ? '#8893A8' : '#C9A84C';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(leftPad, y, w, rowH, 4); else ctx.rect(leftPad, y, w, rowH);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.textAlign = 'left';
+      ctx.fillText(String(count), leftPad + w + 8, y + rowH/2);
+    });
+  }
+
+  /* Stacked vertical bar chart: one bar per calendar month (YYYY-MM
+     taken from the "Date Reported" string, which the backend always
+     formats as "YYYY-MM-DD HH:MM"), each bar split into colored
+     segments by Category so both monthly volume and its category mix
+     are visible in one chart. */
+  function renderTimelineChart(){
+    var canvas = document.getElementById('obs-chart-timeline');
+    if (!canvas) return;
+    var byMonth = {};
+    DATA.forEach(function(r){
+      var d = r['Date Reported'] || '';
+      var month = d.slice(0, 7); /* "YYYY-MM" */
+      if (!month || month.length !== 7) return;
+      if (!byMonth[month]) byMonth[month] = {};
+      var cat = r.Category || 'Observation';
+      byMonth[month][cat] = (byMonth[month][cat] || 0) + 1;
+    });
+    var months = Object.keys(byMonth).sort();
+    var allCats = {};
+    months.forEach(function(m){ Object.keys(byMonth[m]).forEach(function(c){ allCats[c] = true; }); });
+    var catList = Object.keys(allCats);
+    /* Keep a stable, sensible legend order when these categories are present. */
+    var preferredOrder = ['Observation','Near Miss','Property Damage (Damage Only)','Light Case'];
+    catList.sort(function(a,b){
+      var ia = preferredOrder.indexOf(a), ib = preferredOrder.indexOf(b);
+      if (ia === -1) ia = 99; if (ib === -1) ib = 99;
+      return ia - ib;
+    });
+
+    var leftPad = 36, rightPad = 10, topPad = 10, bottomPad = 34;
+    var cssWidth = Math.max(canvas.parentElement.clientWidth || 420, months.length * 46);
+    var cssHeight = 220;
+    var dpr = window.devicePixelRatio || 1;
+    canvas.style.width = cssWidth + 'px';
+    canvas.style.height = cssHeight + 'px';
+    canvas.width = cssWidth * dpr;
+    canvas.height = cssHeight * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+    var monthTotals = months.map(function(m){
+      return catList.reduce(function(sum,c){ return sum + (byMonth[m][c]||0); }, 0);
+    });
+    var maxVal = Math.max.apply(null, monthTotals.concat([1]));
+    var barAreaH = cssHeight - topPad - bottomPad;
+    var slotW = (cssWidth - leftPad - rightPad) / months.length;
+    var barW = Math.min(34, slotW * 0.6);
+
+    /* Y-axis gridlines + labels (4 ticks) */
+    ctx.strokeStyle = 'rgba(255,255,255,.08)';
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (var t=0; t<=4; t++){
+      var val = Math.round((maxVal / 4) * t);
+      var y = topPad + barAreaH - (val / maxVal) * barAreaH;
+      ctx.beginPath(); ctx.moveTo(leftPad, y); ctx.lineTo(cssWidth - rightPad, y); ctx.stroke();
+      ctx.fillText(String(val), leftPad - 6, y);
+    }
+
+    months.forEach(function(month, i){
+      var slotX = leftPad + i * slotW;
+      var x = slotX + (slotW - barW) / 2;
+      var yCursor = topPad + barAreaH;
+      catList.forEach(function(cat){
+        var v = byMonth[month][cat] || 0;
+        if (!v) return;
+        var h = (v / maxVal) * barAreaH;
+        yCursor -= h;
+        ctx.fillStyle = categoryColor(cat);
+        ctx.fillRect(x, yCursor, barW, h);
+      });
+
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      var parts = month.split('-');
+      var monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      var label = monthNames[parseInt(parts[1],10)] + ' ' + parts[0].slice(2);
+      ctx.fillText(label, slotX + slotW/2, cssHeight - bottomPad + 16);
+    });
+
+    var legend = document.getElementById('obs-timeline-legend');
+    if (legend){
+      legend.innerHTML = catList.map(function(cat){
+        return '<span><i style="background:'+categoryColor(cat)+'"></i>'+escHtml(cat)+'</span>';
+      }).join('');
+    }
+  }
+
   function render(){
     if (!_loaded) return;
     updateKpis();
@@ -409,6 +626,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 
     var photosBtn = document.getElementById('obs-tb-photos');
     if (photosBtn) photosBtn.disabled = !_selectedCaseId;
+
+    if (_chartsOpen) renderCharts(); /* keep charts in sync with filters/live refresh */
   }
 
   function selectRow(caseId){
@@ -528,7 +747,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     render();
   }
 
-  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, refreshNow: function(){ loadLive(true); } };
+  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, refreshNow: function(){ loadLive(true); } };
   loadLive();
   startAutoRefresh();
 })();
