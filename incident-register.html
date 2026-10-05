@@ -537,10 +537,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     } else {
       var selId = _selected[tKeyName];
       var decIdxRow = colIdx(data.headers, 'Decision');
+      var actCompIdxRow = colIdx(data.headers, 'Action Completed');
       visibleRows.forEach(function(row){
         var idVal = idIdx>-1 ? row[idIdx] : '';
         var idValEsc = String(idVal).replace(/'/g,"\\'");
         var isSel = selId !== undefined && selId !== null && String(selId) === String(idVal);
+        var decValForRow = decIdxRow>-1 ? String(row[decIdxRow]||'').trim() : '';
         html += '<tr class="inc-row-selectable' + (isSel?' inc-row-selected':'') + '" onclick="INC.selectRow(\''+tKeyName+'\',\''+idValEsc+'\')">';
         row.forEach(function(cell,ci){
           if (ci === statusIdx) return;
@@ -549,6 +551,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             html += decVal
               ? '<td><span class="inc-decision-pill inc-done">' + formatCell(cell) + '</span></td>'
               : '<td><span class="inc-decision-pill inc-pending">Pending</span></td>';
+            return;
+          }
+          if (ci === actCompIdxRow){
+            // Only meaningful once an Action was actually raised; blank
+            // for CAPA-raised or closed-no-escalation rows, not a pill
+            // at all for those (nothing to be "pending" on).
+            if (decValForRow !== 'Action Raised'){ html += '<td></td>'; return; }
+            var doneVal = String(cell||'').trim().toLowerCase() === 'yes';
+            html += doneVal
+              ? '<td><span class="inc-decision-pill inc-done">✓ Completed</span></td>'
+              : '<td><span class="inc-decision-pill inc-pending">Open</span></td>';
             return;
           }
           html += '<td>' + formatCell(cell) + '</td>';

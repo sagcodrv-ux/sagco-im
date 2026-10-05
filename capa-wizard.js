@@ -50,9 +50,12 @@
    is never auto-raised; the Incident Register always requires a human
    click, this file just receives the already-made decision.
    The real sheet also needs: 'Decision', 'Decision Comment', 'Decision
-   By', 'Decision Date', 'CAPA/ACT Reference' added to the INCIDENTS
-   tab (not this one) — written by incident-register.html's Decide
-   panel and by this file's notifySourceIncident().
+   By', 'Decision Date', 'CAPA/ACT Reference', 'Action Completed',
+   'Action Completed Date' added to the INCIDENTS tab (not this one) —
+   the first five written by incident-register.html's Decide panel and
+   by this file's notifySourceIncident(); the last two written by this
+   file's notifyIncidentActionCompleted() once an ACT-lane record is
+   saved with Status='Closed', closing the loop back onto the incident.
    ═══════════════════════════════════════════════════════════════ */
 
 (function (global) {
@@ -739,6 +742,26 @@
     }).catch(function () { /* silent — the incident's own Decision field already records that this was raised; a missed reference-write isn't worth blocking or alarming over */ });
   }
 
+  /* Closes the loop the other direction: once a lightweight Action
+     (ACT lane only — CAPAs are a separate, heavier closure with their
+     own verification step and aren't in scope here) reaches Closed on
+     the CAPA/Action register, write that fact back onto the incident
+     it came from. Fire-and-forget, same reasoning as notifySourceIncident
+     — the Action record itself is already safely saved either way, and
+     this is a convenience flag for the incident view, not the record
+     of truth for completion. Idempotent to call again on a later save
+     of an already-closed Action (just re-writes the same values). */
+  function notifyIncidentActionCompleted() {
+    if (!state.sourceIncidentId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=incidents&idCol=' + encodeURIComponent('Incident ID') + '&id=' + encodeURIComponent(state.sourceIncidentId), {
+      method: 'POST',
+      body: JSON.stringify({
+        'Action Completed': 'Yes',
+        'Action Completed Date': new Date().toISOString().split('T')[0],
+      }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* ── Save for the lightweight Action lane — one write, no steps ── */
   function persistAction() {
     if (saving) return;
@@ -761,6 +784,7 @@
           saving = false;
           if (result && result.status === 'ok') {
             notifySourceIncident();
+            notifyIncidentActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -786,6 +810,7 @@
         .then(function (result) {
           saving = false;
           if (result && result.status === 'ok') {
+            notifyIncidentActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1043,6 +1068,24 @@
     state.caDueDate = col('Due Date');
     state.caApproved = col('CA Plan Approved') === 'Yes';
     state.status = col('Status') || 'Open';
+    state.sourceIncidentId = col('Source Incident ID');
+
+    /* ACT-lane rows never go through the 4-step CAPA flow — reopen them
+       straight into the same lightweight form used when they were first
+       raised, so flipping Status to Closed (the only edit an Action
+       normally needs after creation) goes through persistAction() and
+       notifyIncidentActionCompleted(), not the CAPA implementation panel. */
+    if (col('Type') === 'Action') {
+      state.lane = 'ACT';
+      loadUserDirectory(function () {
+        if (!state.caOwnerEmail && state.caOwner && liveUserDirectory) {
+          var matched = liveUserDirectory.find(function (u) { return u.name === state.caOwner; });
+          if (matched) state.caOwnerEmail = matched.email;
+        }
+        render();
+      });
+      return;
+    }
 
     var stage = col('Process Stage');
     var definitionComplete = col('Definition Complete') === 'Yes';
