@@ -33,9 +33,26 @@
    sheet tab (writeRows/updateRowById map strictly by header name —
    anything not already a column header is silently dropped):
      Severity, Risk Score, Date Raised, Containment Date, RCA Method,
-     Immediate Cause, System Contributor, CA Plan Approved, Process Stage
+     Immediate Cause, System Contributor, CA Plan Approved, Process Stage,
+     Source Incident ID
    Existing columns (Root Cause, Immediate Action, Corrective Action,
    Due Date, etc.) are reused for their existing meaning, unrenamed.
+
+   Rev.03 — Incident Register merge: no separate Action Tracker. This
+   register is now the single home for both the full CAPA lifecycle
+   AND lightweight incident-sourced Actions, sharing one 'CAPA ID'
+   column with two independently-numbered prefixes: CAPA-2026-0XX
+   (full proc-c10.html §5 process) and ACT-2026-0XX (description/
+   owner/due-date/status only — no RCA, no approval gate). Entered
+   only via capa-register.html?fromIncident=<id>&lane=CAPA|ACT, opened
+   by the Incident Register's "Decide" panel — see openFromIncident()
+   and the new buildActionRow()/persistAction() path below. A CAPA/ACT
+   is never auto-raised; the Incident Register always requires a human
+   click, this file just receives the already-made decision.
+   The real sheet also needs: 'Decision', 'Decision Comment', 'Decision
+   By', 'Decision Date', 'CAPA/ACT Reference' added to the INCIDENTS
+   tab (not this one) — written by incident-register.html's Decide
+   panel and by this file's notifySourceIncident().
    ═══════════════════════════════════════════════════════════════ */
 
 (function (global) {
@@ -99,6 +116,17 @@
       status: 'Open',
       initialEvidenceFiles: [], /* File objects pending upload, in-memory only — can't survive a page reload/resume */
       initialEvidenceUrls: [], /* already-uploaded links — restored from the sheet when resuming a CAPA that has some */
+      /* lane: 'CAPA' (default, full 4-step proc-c10.html §5 flow) or
+         'ACT' (lightweight — description/owner/due/status only, no
+         RCA, no approval gate). Set only via openFromIncident() below
+         — never user-chosen directly, since the Incident Register is
+         what decides which lane applies, by RA Level. sourceIncidentId
+         links back to the Incident Register for traceability; when set,
+         Source and (for the CAPA lane) Severity are system-set and
+         locked, not freely re-typed. */
+      lane: 'CAPA',
+      sourceIncidentId: '',
+      lockedFromIncident: false,
     };
   }
 
@@ -159,8 +187,14 @@
     return (global.IMS_AUTH && IMS_AUTH.getUser()) ? IMS_AUTH.getUser().name : 'Unknown';
   }
 
-  /* ── Next real CAPA ID — read the live sheet, don't guess ──── */
-  function nextId(cb) {
+  /* ── Next real ID — read the live sheet, don't guess ─────────
+     One register, one 'CAPA ID' column, two independent counters by
+     prefix: CAPA- for the full formal lane, ACT- for the lightweight
+     lane. Each prefix's sequence is scoped to itself — ACT-2026-003
+     existing doesn't affect what CAPA-2026-0XX comes next, and vice
+     versa — matching the one-database-two-lanes design. */
+  function nextId(cb, prefix) {
+    prefix = prefix || 'CAPA';
     var year = new Date().getFullYear();
     fetch(SHEETS_URL + '?tab=capa&action=read')
       .then(function (r) { return r.json(); })
@@ -169,16 +203,16 @@
         (data && data.rows ? data.rows : []).forEach(function (row) {
           var idIdx = (data.headers || []).indexOf('CAPA ID');
           if (idIdx < 0) return;
-          var m = String(row[idIdx] || '').match(new RegExp('CAPA-' + year + '-(\\d+)'));
+          var m = String(row[idIdx] || '').match(new RegExp(prefix + '-' + year + '-(\\d+)'));
           if (m) max = Math.max(max, parseInt(m[1], 10));
         });
-        cb('CAPA-' + year + '-' + String(max + 1).padStart(3, '0'));
+        cb(prefix + '-' + year + '-' + String(max + 1).padStart(3, '0'));
       })
       .catch(function () {
         /* Can't verify the live sheet from this environment — fall back to a
            timestamp-suffixed ID and flag it plainly rather than silently guess a
            sequential number that might collide. */
-        cb('CAPA-' + year + '-PENDING' + Date.now().toString().slice(-4));
+        cb(prefix + '-' + year + '-PENDING' + Date.now().toString().slice(-4));
       });
   }
 
@@ -231,6 +265,15 @@
       return;
     }
 
+    if (state.lane === 'ACT') {
+      mount.innerHTML = wrapShell(actionFormHtml() + actionFooterHTML());
+      bindShellEvents();
+      bindStepEvents(); /* owner-select/manual-toggle bindings — score/evidence listeners no-op, those elements aren't in this form */
+      var saveBtn = document.getElementById('cw-act-save');
+      if (saveBtn) saveBtn.addEventListener('click', onSaveAction);
+      return;
+    }
+
     var stepHtml = [stepIntake, stepContainment, stepRCA, stepCAPlan][currentStep - 1]();
     mount.innerHTML = wrapShell(stepsPillsHTML() + idBannerHTML() + stepHtml + footerHTML());
     bindShellEvents();
@@ -238,11 +281,53 @@
   }
 
   function wrapShell(inner) {
+    var title = state.capaId ? 'Continue ' + state.capaId : (state.lane === 'ACT' ? 'Raise Action' : 'Raise New CAPA');
+    var subtitle = state.lane === 'ACT'
+      ? 'Lightweight lane — description, owner, due date, status. No RCA, no approval gate.'
+      : 'L4-1000-R-01 · Steps follow proc-c10.html §5';
     return '<div id="capa-wiz-wrap"><div id="capa-wiz-box">'
-      + '<div class="cw-hdr"><h3>' + (state.capaId ? 'Continue ' + state.capaId : 'Raise New CAPA') + '</h3>'
-      + '<div style="font-size:11px;opacity:.75">L4-1000-R-01 · Steps follow proc-c10.html §5</div></div>'
+      + '<div class="cw-hdr"><h3>' + title + '</h3>'
+      + '<div style="font-size:11px;opacity:.75">' + subtitle + '</div></div>'
       + '<div class="cw-body">' + inner + '</div>'
       + '</div></div>';
+  }
+
+  /* ── Lightweight Action lane — one form, one save, no steps ──
+     Only ever entered via openFromIncident() with lane='ACT' (Low/
+     Moderate RA Level) — never a freestanding "Raise Action" choice
+     outside the Incident Register, matching the design: plain Actions
+     escalate from an incident, CAPA is raised deliberately/manually. */
+  function actionFormHtml() {
+    var fromHint = state.sourceIncidentId
+      ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Incident <strong>' + esc(state.sourceIncidentId) + '</strong> — RA Level Low/Moderate, so this stays a plain Action: no root cause analysis, no approval gate.</div>'
+      : '';
+    return fromHint
+      + '<div class="cw-field"><label>Action description</label>'
+      + '<textarea id="cw-act-desc" placeholder="What needs to be done">' + esc(state.caAction || state.description) + '</textarea></div>'
+      + ownerFieldHTML(false)
+      + '<div class="cw-field"><label>Due date</label>'
+      + '<input type="date" id="cw-act-due" value="' + esc(state.caDueDate) + '"></div>'
+      + '<div class="cw-field"><label>Status</label>'
+      + '<select id="cw-act-status">' + ['Open', 'In Progress', 'Closed'].map(function (o) {
+        return '<option' + (o === state.status ? ' selected' : '') + '>' + o + '</option>';
+      }).join('') + '</select></div>';
+  }
+
+  function actionFooterHTML() {
+    return '<div class="cw-footer">'
+      + '<div><button class="cw-btn ghost" id="cw-cancel">Cancel</button></div>'
+      + '<div><button class="cw-btn primary" id="cw-act-save">' + (saving ? 'Saving…' : 'Save Action') + '</button></div>'
+      + '</div>';
+  }
+
+  function onSaveAction() {
+    state.caAction = val('cw-act-desc');
+    state.caDueDate = val('cw-act-due');
+    state.status = val('cw-act-status');
+    if (document.getElementById('cw-owner')) { state.caOwner = val('cw-owner'); state.caOwnerEmail = val('cw-owner-email'); }
+    if (!state.caAction.trim()) { alert('Enter a short action description.'); return; }
+    if (!state.caOwnerEmail) { alert('Owner email is required — overdue reminders are sent there automatically.'); return; }
+    persistAction();
   }
 
   function idBannerHTML() {
@@ -329,18 +414,28 @@
     }
     var dis = locked ? ' disabled' : '';
     var ro = locked ? ' readonly' : '';
+    /* Arrived from the Incident Register: Source and Severity are
+       system-set from the incident's RA Level (see
+       incident-register.html's raLevelToCapaSeverity) and locked here
+       — the person decided *whether* to raise a CAPA, not what
+       severity it gets. Everything else in Step 1 stays editable. */
+    var fromIncidentDis = state.lockedFromIncident ? ' disabled' : '';
+    var fromIncidentHint = state.lockedFromIncident
+      ? '<div class="cw-hint">Set from Incident ' + esc(state.sourceIncidentId) + '\'s RA Level — not editable here.</div>'
+      : '';
     return lockBanner
+      + (state.lockedFromIncident ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Incident <strong>' + esc(state.sourceIncidentId) + '</strong> — Description and Source carried over automatically.</div>' : '')
       + '<div class="cw-field"><label>Description of the nonconformity</label>'
       + '<textarea id="cw-desc"' + ro + ' placeholder="What was observed, where, and when">' + esc(state.description) + '</textarea></div>'
       + evidenceFieldHTML(locked)
       + '<div class="cw-field"><label>Source</label>'
-      + '<select id="cw-source"' + dis + '>' + ['', 'Internal Audit', 'Certification Audit (TÜV)', 'Incident Investigation', 'Customer Complaint', 'Management Review', 'Other formal NC determination']
-        .map(function (o) { return '<option' + (o === state.source ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></div>'
+      + '<select id="cw-source"' + dis + fromIncidentDis + '>' + ['', 'Internal Audit', 'Certification Audit (TÜV)', 'Incident Investigation', 'Customer Complaint', 'Management Review', 'Other formal NC determination']
+        .map(function (o) { return '<option' + (o === state.source ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>' + fromIncidentHint + '</div>'
       + '<div class="cw-field"><label>Date raised</label>'
       + '<input type="date" id="cw-date"' + dis + ' value="' + esc(state.dateRaised) + '"></div>'
       + '<div class="cw-field"><label>Risk score (drives severity classification automatically)</label>'
-      + '<input type="number" id="cw-score"' + dis + ' min="0" max="40" value="' + esc(state.score) + '" placeholder="e.g. 15">'
-      + '<div class="cw-hint">Critical ≥20 · Major 12–19 · Minor 6–11 (proc-c10.html §5)</div></div>'
+      + '<input type="number" id="cw-score"' + dis + fromIncidentDis + ' min="0" max="40" value="' + esc(state.score) + '" placeholder="e.g. 15">'
+      + '<div class="cw-hint">Critical ≥20 · Major 12–19 · Minor 6–11 (proc-c10.html §5)' + (state.lockedFromIncident ? ' — derived from the incident\'s RA Level, not typed in' : '') + '</div></div>'
       + sevBanner
       + ownerFieldHTML(locked)
       + (locked ? '' : '<div class="cw-sev-banner neutral">A CAPA can be raised with only this step completed — Containment, RCA and the Corrective Action Plan can be added later by whoever picks it up. Use <strong>Save &amp; Continue Later</strong> below.</div>');
@@ -575,6 +670,7 @@
     return {
       'CAPA ID': state.capaId || 'PENDING',
       'Type': 'Nonconformance',
+      'Source Incident ID': state.sourceIncidentId || '',
       'Severity': state.severity ? state.severity.key : '',
       'Risk Score': state.score,
       'Source': state.source,
@@ -600,6 +696,110 @@
       'Created By Name': state.createdByName,
       'Created By Email': state.createdByEmail,
     };
+  }
+
+  /* Lightweight Action row — deliberately far fewer columns than
+     buildRow(): no Severity/Risk Score/RCA/approval fields, because
+     the ACT lane never has any of that ceremony to record. Still
+     shares the same 'CAPA ID' column (holding an ACT-2026-0XX value)
+     and the same sheet tab, per the one-register design. */
+  function buildActionRow() {
+    return {
+      'CAPA ID': state.capaId || 'PENDING',
+      'Type': 'Action',
+      'Source Incident ID': state.sourceIncidentId || '',
+      'Severity': 'Low',
+      'Source': state.source || 'Incident Investigation',
+      'Description': state.description,
+      'Date Raised': state.dateRaised,
+      'Owner': state.caOwner,
+      'Owner Email': state.caOwnerEmail,
+      'Corrective Action': state.caAction,
+      'Due Date': state.caDueDate,
+      'CA Plan Approved': 'N/A',
+      'Status': state.status || 'Open',
+      'Verified': 'No',
+      'Process Stage': 'Action',
+      'Definition Complete': 'Yes',
+      'Created By ID': state.createdById,
+      'Created By Name': state.createdByName,
+      'Created By Email': state.createdByEmail,
+    };
+  }
+
+  /* After a first-save success on either lane, if this record came
+     from the Incident Register, write the new CAPA/ACT ID back onto
+     that incident row — fire-and-forget, since the CAPA/Action record
+     itself is already safely saved either way. */
+  function notifySourceIncident() {
+    if (!state.sourceIncidentId) return;
+    fetch(SHEETS_URL + '?action=update&tab=incidents&idCol=' + encodeURIComponent('Incident ID') + '&id=' + encodeURIComponent(state.sourceIncidentId), {
+      method: 'POST',
+      body: JSON.stringify({ 'CAPA/ACT Reference': state.capaId }),
+    }).catch(function () { /* silent — the incident's own Decision field already records that this was raised; a missed reference-write isn't worth blocking or alarming over */ });
+  }
+
+  /* ── Save for the lightweight Action lane — one write, no steps ── */
+  function persistAction() {
+    if (saving) return;
+    saving = true;
+    render();
+    var isFirstSave = !state.capaId;
+    if (isFirstSave) {
+      var creator = (global.IMS_AUTH && IMS_AUTH.getUser()) ? IMS_AUTH.getUser() : null;
+      state.createdById = creator ? creator.userId : '';
+      state.createdByName = creator ? creator.name : '';
+      state.createdByEmail = creator ? (creator.email || '') : '';
+    }
+    function afterAssignId(id) {
+      state.capaId = id;
+      var row = buildActionRow();
+      row['CAPA ID'] = id;
+      fetch(SHEETS_URL + '?action=write&tab=capa', { method: 'POST', body: JSON.stringify([row]) })
+        .then(function (r) { return r.json(); })
+        .then(function (result) {
+          saving = false;
+          if (result && result.status === 'ok') {
+            notifySourceIncident();
+            alert(state.capaId + ' saved.');
+            closeWizard();
+            if (global.reloadLive) reloadLive();
+          } else {
+            alert('Save did not confirm success: ' + JSON.stringify(result));
+            render();
+          }
+        })
+        .catch(function (err) {
+          saving = false;
+          alert('Could not reach the live sheet: ' + err);
+          render();
+        });
+    }
+    if (isFirstSave) {
+      nextId(afterAssignId, 'ACT');
+    } else {
+      var row2 = buildActionRow();
+      fetch(SHEETS_URL + '?action=update&tab=capa&idCol=' + encodeURIComponent('CAPA ID') + '&id=' + encodeURIComponent(state.capaId), {
+        method: 'POST', body: JSON.stringify(row2),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (result) {
+          saving = false;
+          if (result && result.status === 'ok') {
+            alert(state.capaId + ' saved.');
+            closeWizard();
+            if (global.reloadLive) reloadLive();
+          } else {
+            alert('Save did not confirm success: ' + JSON.stringify(result));
+            render();
+          }
+        })
+        .catch(function (err) {
+          saving = false;
+          alert('Could not reach the live sheet: ' + err);
+          render();
+        });
+    }
   }
 
   /* ── Save: first save = write (append), every save after = update ── */
@@ -645,6 +845,7 @@
       saving = false; setButtonsSaving(false);
       if (result && result.status === 'ok') {
         if (wasFirstSave) {
+          notifySourceIncident();
           /* Wait for evidence to finish uploading (if any) BEFORE
              notifying the owner, so the email can include real links
              rather than firing before the links even exist. */
@@ -1322,6 +1523,33 @@
   /* ── Public entry points ──────────────────────────────────── */
   function openNew() { injectStyles(); resetState(); currentStep = 1; loadUserDirectory(render); }
 
+  /* Raised from the Incident Register's "Decide" panel — never a
+     freestanding user choice. lane is 'CAPA' or 'ACT', already decided
+     over there from the incident's RA Level (isCapaEligible); this
+     function just opens the right form, pre-filled, with that decision
+     locked in. For the CAPA lane, severity is represented by setting
+     state.score to a value inside the right band (15=Major, 20=Critical)
+     so the existing classify()/severity-banner/RCA-method machinery
+     works unmodified — the Risk Score field itself is rendered disabled
+     by state.lockedFromIncident so it still reads as "system-set", not
+     user-typed. */
+  function openFromIncident(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceIncidentId = ctx.incidentId || '';
+    state.lane = ctx.lane === 'ACT' ? 'ACT' : 'CAPA';
+    state.description = ctx.description || '';
+    state.source = 'Incident Investigation';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    if (state.lane === 'CAPA') {
+      state.lockedFromIncident = true;
+      state.score = ctx.capaSeverity === 'Critical' ? '20' : '15'; /* Major default for High/LTI, Critical for Critical/fatality */
+      state.severity = classify(state.score);
+    }
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      capa-register.html's own login wall (IMS_AUTH.init()). A person
@@ -1347,6 +1575,30 @@
         .then(function (r) { return r.json(); })
         .then(function (data) { resumeById(deepLinkId, data); })
         .catch(function () { /* silent — worst case, the person just uses "Continue an Existing CAPA" manually */ });
+      return;
+    }
+
+    /* Incident Register hand-off — capa-register.html?fromIncident=INC-2026-0XX&lane=CAPA|ACT,
+       opened in a new tab by the incident's "Decide" panel. The context
+       (description, RA Level, etc.) travels via sessionStorage, which a
+       same-origin tab opened with window.open() inherits a copy of —
+       verified against the URL param's incident ID before use, so a
+       stale/unrelated sessionStorage value from an earlier tab is never
+       mistaken for this one's context. */
+    var params = new URLSearchParams(window.location.search);
+    var fromIncident = params.get('fromIncident');
+    if (fromIncident) {
+      var lane = params.get('lane') === 'ACT' ? 'ACT' : 'CAPA';
+      var ctx = null;
+      try { ctx = JSON.parse(sessionStorage.getItem('incomingCapaContext') || 'null'); } catch (e) { ctx = null; }
+      if (ctx && String(ctx.incidentId) === String(fromIncident)) {
+        loadUserDirectory(function () { openFromIncident(ctx); });
+      } else {
+        /* Context missing or didn't match (e.g. tab opened independently,
+           not via the Decide panel) — still open the right lane, just
+           without the pre-filled description/severity. */
+        loadUserDirectory(function () { openFromIncident({ incidentId: fromIncident, lane: lane }); });
+      }
     }
   }
 

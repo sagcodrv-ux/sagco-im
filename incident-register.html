@@ -112,20 +112,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .inc-dark-wrap .inc-cb-item input[type="checkbox"]{width:auto;margin:0;cursor:pointer;flex-shrink:0}
 .inc-dark-wrap .inc-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .inc-dark-wrap .inc-modal-actions .inc-btn-cancel{background:var(--idw-bg3)}
-/* Add Action modal — repeatable rows (Description/Owner/Due), separate
-   from the generic Add/Edit form: these are NOT a field on the incident
-   record itself (Corrective Action stays untouched), they're entries
-   meant for the Action Tracker, addable at any time a row is selected,
-   not just when the incident is first created. */
-.inc-dark-wrap .inc-action-row{display:flex;gap:6px;margin-bottom:6px;align-items:center}
-.inc-dark-wrap .inc-action-row input{flex:1;margin:0;width:auto}
-.inc-dark-wrap .inc-action-row input.inc-action-due{flex:0 0 128px}
-.inc-dark-wrap .inc-action-remove{flex:0 0 auto;background:var(--idw-bg3);border:1px solid var(--idw-border);
-  border-radius:6px;color:var(--idw-text-muted);cursor:pointer;padding:5px 9px;font-size:12px;line-height:1}
-.inc-dark-wrap .inc-action-remove:hover{color:var(--idw-red);border-color:var(--idw-red)}
+/* "Decide" panel — one incident, one decision. RA Level (plus LTI?/
+   Fatality) narrows which options even appear: High/Critical/LTI/
+   fatality only ever offer Raise CAPA or Close-No-Escalation; Low/
+   Moderate only ever offer Raise Action or Close-No-Escalation. A
+   CAPA is never auto-raised — this always requires a human click. */
+.inc-dark-wrap .inc-decide-opt{display:flex;flex-direction:column;gap:4px;width:100%;text-align:left;margin-bottom:10px;padding:12px 14px;border-radius:8px;border:1px solid var(--idw-border);background:var(--idw-bg3);cursor:pointer}
+.inc-dark-wrap .inc-decide-opt:hover{border-color:var(--idw-gold)}
+.inc-dark-wrap .inc-decide-opt strong{font-size:12px}
+.inc-dark-wrap .inc-decide-opt span{font-size:10.5px;color:var(--idw-text-dim)}
+.inc-dark-wrap .inc-decide-close{border-color:#7a2a2a}
+.inc-dark-wrap .inc-decide-comment{width:100%;min-height:64px;margin-top:8px;display:none}
+.inc-dark-wrap .inc-decision-pill{font-size:10px;white-space:nowrap}
+.inc-dark-wrap .inc-decision-pill.inc-pending{color:var(--idw-amb,#c99a3a);font-weight:600}
+.inc-dark-wrap .inc-decision-pill.inc-done{color:var(--idw-gold-lt)}
 .inc-dark-wrap .inc-btn-sm{font-size:10px;padding:4px 10px;width:auto!important}
-.inc-dark-wrap .inc-linked-actions{font-size:10px;color:var(--idw-gold-lt);white-space:nowrap}
-.inc-dark-wrap .inc-linked-actions.inc-none{color:var(--idw-text-dim)}
 /* Photo evidence gallery — thumbnail grid with hover-delete, inside the
    same modal shell used for Add/Edit. */
 .inc-dark-wrap .inc-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
@@ -220,11 +221,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <button class="inc-btn" onclick="INC.clearDateRange()">Clear</button>
   <span class="inc-filter-status" id="inc-daterange-status"></span>
 </div>
-<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+<div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
   <div class="kpi-card kc-nvy inc-clickable" onclick="INC.cardClick('total')" title="Click to view the full Incident Register"><div class="kpi-lbl">Total Incidents</div><div class="kpi-val" id="inc-kpi-total">—</div><div class="kpi-sub">2026 — Incident Register</div></div>
   <div class="kpi-card kc-red inc-clickable" onclick="INC.cardClick('lti')" title="Click to filter the register to LTI incidents"><div class="kpi-lbl">LTI Count</div><div class="kpi-val" id="inc-kpi-lti">—</div><div class="kpi-sub" id="inc-kpi-lti-sub">Loading…</div></div>
   <div class="kpi-card kc-amb inc-clickable" onclick="INC.cardClick('fatal')" title="Click to filter the register to fatalities"><div class="kpi-lbl">Fatalities / High-Severity</div><div class="kpi-val" id="inc-kpi-fatal">—</div><div class="kpi-sub">Nature of Injury = Fatality</div></div>
   <div class="kpi-card kc-blue inc-clickable" onclick="INC.cardClick('risk')" title="Click to filter the register to Moderate+ Risk incidents"><div class="kpi-lbl">Moderate+ Risk (RA Level)</div><div class="kpi-val" id="inc-kpi-risk">—</div><div class="kpi-sub">RA Level ≥ Moderate — no High/Critical on file for 2026</div></div>
+  <div class="kpi-card kc-amb inc-clickable" onclick="INC.cardClick('pending')" title="Click to filter the register to incidents awaiting a CAPA/Action decision"><div class="kpi-lbl">Awaiting CAPA/Action Decision</div><div class="kpi-val" id="inc-kpi-pending">—</div><div class="kpi-sub">Not yet raised, and not yet closed without escalation</div></div>
 </div>
 
 <div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
@@ -266,15 +268,37 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   var _charts = { monthly: null, type: null };
   var _dateRange = { start: '', end: '' };
 
-  /* Actions linked to an incident (<Incident ID>-ACT-01, -02, ...),
-     keyed by Incident ID. Deliberately kept separate from the sheet's
-     own 'Corrective Action' column — that field is never touched by
-     this feature. Session-only for now: there is no live Action
-     Tracker sheet/endpoint to write these to yet, so they reset on
-     page reload, same caveat as the rest of this page's write-paths
-     until that backend exists. Can be added to at any time a row is
-     selected, not just when the incident is first created or edited. */
-  var _pendingActions = {};
+  /* RA Level (High/Critical) or LTI?/Nature of Injury=Fatality decides
+     whether "Decide" can offer Raise CAPA at all — Low/Moderate never
+     see that option, only Raise Action or Close-No-Escalation. This is
+     a default/eligibility check, never an automatic trigger: raising
+     either one is always a deliberate click, never fired on save. */
+  function isCapaEligible(row, headers){
+    var raLevelIdx = colIdx(headers, 'RA Level');
+    var ltiIdx = colIdx(headers, 'LTI?');
+    var natIdx = colIdx(headers, 'Nature of Injury');
+    var lvl = raLevelIdx>=0 ? String(row[raLevelIdx]||'').trim().toLowerCase() : '';
+    var isLti = ltiIdx>=0 && String(row[ltiIdx]||'').trim().toUpperCase()==='YES';
+    var isFatal = natIdx>=0 && String(row[natIdx]||'').trim().toLowerCase()==='fatality';
+    return lvl==='high' || lvl==='critical' || isLti || isFatal;
+  }
+
+  /* RA Level -> CAPA severity, by label not raw score (the Incident
+     Register's RA Score bands and the CAPA wizard's Risk Score bands
+     use different cutoffs — see project notes — so the two numbers
+     must never be piped through directly). Only used when CAPA is the
+     eligible/chosen path; Low/Moderate never reach this mapping. */
+  function raLevelToCapaSeverity(row, headers){
+    var raLevelIdx = colIdx(headers, 'RA Level');
+    var ltiIdx = colIdx(headers, 'LTI?');
+    var natIdx = colIdx(headers, 'Nature of Injury');
+    var lvl = raLevelIdx>=0 ? String(row[raLevelIdx]||'').trim().toLowerCase() : '';
+    var isLti = ltiIdx>=0 && String(row[ltiIdx]||'').trim().toUpperCase()==='YES';
+    var isFatal = natIdx>=0 && String(row[natIdx]||'').trim().toLowerCase()==='fatality';
+    if (lvl === 'critical' || isFatal) return 'Critical';
+    if (lvl === 'high' || isLti) return 'Major';
+    return 'Major'; /* shouldn't be reached outside the CAPA-eligible path, but Major is the safer default over silently failing */
+  }
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
 
@@ -395,12 +419,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // (button just needs a row selected), uploading/deleting is gated
     // inside the modal itself by can('edit')/can('delete').
     toolbarHtml += '<button class="inc-btn" id="inc-tb-photos-'+tKeyName+'"' + disabledAttr + ' onclick="INC.managePhotos(\''+tKeyName+'\', INC.getSelected(\''+tKeyName+'\'))">📷 Photos</button>';
-    // Add Action — select any row, at any time (not just when the
-    // incident is first forwarded/created), and attach one or more
-    // corrective actions to it. Gated on can('edit') like Edit/Remove,
-    // since this is incident-response content, not a read-only view.
-    if (can('edit')){
-      toolbarHtml += '<button class="inc-btn" id="inc-tb-addaction-'+tKeyName+'"' + disabledAttr + ' onclick="INC.openAddAction(\''+tKeyName+'\', INC.getSelected(\''+tKeyName+'\'))">✚ Add Action</button>';
+    // Decide — one click, one decision, per incident. Disabled once a
+    // row already carries a Decision (CAPA Raised / Action Raised /
+    // Closed - No Escalation), so an incident can't be decided twice.
+    // Gated on can('edit') like Edit/Remove, since this changes the
+    // incident's own Status.
+    if (can('edit') && tKeyName === 'register'){
+      var decideDisabled = disabledAttr;
+      var decideLabel = '⚖ Decide';
+      if (sel && data && data.rows){
+        var decIdxTb = colIdx(data.headers, 'Decision');
+        var idIdxTb = colIdx(data.headers, cfg.idCol);
+        var selRow = data.rows.filter(function(r){ return idIdxTb>=0 && String(r[idIdxTb])===String(sel); })[0];
+        if (selRow && decIdxTb>=0 && String(selRow[decIdxTb]||'').trim()){
+          decideDisabled = ' disabled';
+          decideLabel = '⚖ Decided: ' + String(selRow[decIdxTb]).trim();
+        }
+      }
+      toolbarHtml += '<button class="inc-btn" id="inc-tb-decide-'+tKeyName+'"' + decideDisabled + ' onclick="INC.openDecide(\''+tKeyName+'\', INC.getSelected(\''+tKeyName+'\'))">' + decideLabel + '</button>';
     }
 
     var categoryHtml = '';
@@ -414,7 +450,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         }).join('') + '</select>';
     }
 
-    var specialLabels = { lti: 'LTI only', fatal: 'Fatalities only', risk: 'Moderate+ Risk only' };
+    var specialLabels = { lti: 'LTI only', fatal: 'Fatalities only', risk: 'Moderate+ Risk only', pending: 'Awaiting CAPA/Action Decision' };
     var specialPillHtml = f.special ? ('<span class="inc-special-pill">' + (specialLabels[f.special] || f.special) +
       ' <span class="inc-special-pill-x" onclick="INC.clearFilters(\''+tKeyName+'\')">✕</span></span>') : '';
 
@@ -467,6 +503,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           var lvl = raLevelIdxF>=0 ? String(r[raLevelIdxF]||'').trim().toLowerCase() : '';
           return lvl==='moderate' || lvl==='high' || lvl==='critical';
         });
+      } else if (f.special === 'pending'){
+        var decIdxF = colIdx(data.headers, 'Decision');
+        visibleRows = visibleRows.filter(function(r){
+          return decIdxF<0 || !String(r[decIdxF]||'').trim();
+        });
       }
     }
     if (searchLower){
@@ -488,18 +529,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (i === statusIdx) return;
       html += '<th>' + h + '</th>';
     });
-    // Linked Actions is a client-side column, not part of the sheet's
-    // own fields — it only shows up for the 'register' table, where
-    // actions can be attached via the toolbar button above.
-    var showActionsCol = (tKeyName === 'register');
-    if (showActionsCol) html += '<th>Linked Actions</th>';
     html += '</tr></thead><tbody>';
 
     if (!visibleRows.length){
-      var colspan = data.headers.length - (statusIdx>-1?1:0) + (showActionsCol?1:0);
+      var colspan = data.headers.length - (statusIdx>-1?1:0);
       html += '<tr><td colspan="'+colspan+'"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
     } else {
       var selId = _selected[tKeyName];
+      var decIdxRow = colIdx(data.headers, 'Decision');
       visibleRows.forEach(function(row){
         var idVal = idIdx>-1 ? row[idIdx] : '';
         var idValEsc = String(idVal).replace(/'/g,"\\'");
@@ -507,20 +544,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         html += '<tr class="inc-row-selectable' + (isSel?' inc-row-selected':'') + '" onclick="INC.selectRow(\''+tKeyName+'\',\''+idValEsc+'\')">';
         row.forEach(function(cell,ci){
           if (ci === statusIdx) return;
+          if (ci === decIdxRow){
+            var decVal = String(cell||'').trim();
+            html += decVal
+              ? '<td><span class="inc-decision-pill inc-done">' + formatCell(cell) + '</span></td>'
+              : '<td><span class="inc-decision-pill inc-pending">Pending</span></td>';
+            return;
+          }
           html += '<td>' + formatCell(cell) + '</td>';
         });
-        if (showActionsCol){
-          var linked = _pendingActions[idVal] || [];
-          if (linked.length){
-            var shortIds = linked.map(function(a){
-              var m = /-ACT-(\d+)$/.exec(a.id);
-              return m ? 'ACT-' + m[1] : a.id;
-            });
-            html += '<td><span class="inc-linked-actions">' + shortIds.join(', ') + '</span></td>';
-          } else {
-            html += '<td><span class="inc-linked-actions inc-none">—</span></td>';
-          }
-        }
         html += '</tr>';
       });
     }
@@ -641,6 +673,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (lvl === 'moderate' || lvl === 'high' || lvl === 'critical') highRiskCount++;
     });
     document.getElementById('inc-kpi-risk').textContent = highRiskCount;
+
+    var decIdx = colIdx(reg.headers, 'Decision');
+    var pendingCount = visibleRows.filter(function(r){
+      return decIdx<0 || !String(r[decIdx]||'').trim();
+    }).length;
+    document.getElementById('inc-kpi-pending').textContent = pendingCount;
 
     renderMonthlyChart(visibleRows, reg.headers);
     renderTypeChart(visibleRows, reg.headers);
@@ -875,81 +913,152 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
   }
 
-  /* One row of the repeatable Actions list (Description/Owner/Due Date
-     + remove button). Can be pre-filled with an existing action so
-     reopening the modal to add more doesn't lose what's already there.
-     Kept as plain DOM manipulation (addActionRow/removeActionRow
-     append/remove actual elements) rather than a re-render of the
-     whole modal, so values typed into other rows are never lost. */
-  function actionRowHtml(existing){
-    var d = existing || {};
-    var descV = String(d.description||'').replace(/"/g,'&quot;');
-    var ownerV = String(d.owner||'').replace(/"/g,'&quot;');
-    var dueV = String(d.dueDate||'').replace(/"/g,'&quot;');
-    return '<div class="inc-action-row">' +
-      '<input type="text" class="inc-action-desc" placeholder="Action description" value="'+descV+'">' +
-      '<input type="text" class="inc-action-owner" placeholder="Owner" value="'+ownerV+'">' +
-      '<input type="date" class="inc-action-due" title="Due date" value="'+dueV+'">' +
-      '<button type="button" class="inc-action-remove" onclick="INC.removeActionRow(this)" title="Remove this action">✕</button>' +
-    '</div>';
+  function currentUserName(){
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    return u ? (u.name || u.username || '') : '';
   }
+  function todayISO(){ return new Date().toISOString().slice(0,10); }
 
-  function addActionRow(){
-    var list = document.getElementById('inc-actions-list');
-    if (!list) return;
-    var wrap = document.createElement('div');
-    wrap.innerHTML = actionRowHtml();
-    list.appendChild(wrap.firstChild);
-  }
-
-  function removeActionRow(btn){
-    var row = btn.closest('.inc-action-row');
-    if (row) row.remove();
-  }
-
-  /* Add Action — reachable any time a row is selected (toolbar), not
-     just at the moment an incident is first created or forwarded.
-     Reopening this modal for an incident that already has actions
-     shows them pre-filled, so adding a 4th action doesn't require
-     retyping the first three. Saved actions are NOT written to the
-     incident's own fields (Corrective Action stays exactly as the
-     sheet has it) — they're held client-side, meant to become their
-     own rows in the Action Tracker once that backend exists. */
-  function openAddActionModal(tKeyName, idVal){
+  /* Decide — the single entry point that replaces the old per-incident
+     Add Action list. One incident gets exactly one decision: Raise
+     CAPA, Raise Action, or Close - No Escalation. Which options even
+     appear is narrowed by RA Level/LTI?/Fatality (isCapaEligible) —
+     never both CAPA and Action together, and never anything auto-fired
+     on save. A row that already has a Decision can't be decided again
+     (the toolbar button disables itself — see renderShell). */
+  function openDecisionModal(tKeyName, idVal){
+    if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+    var data = _cache[tKeyName];
+    var cfg = TABLES[tKeyName];
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+    if (!row) return alert('Record not found — try reloading.');
+    var decIdx = colIdx(data.headers, 'Decision');
+    if (decIdx>=0 && String(row[decIdx]||'').trim()){
+      return alert('This incident already has a decision recorded: ' + row[decIdx]);
+    }
+    var eligible = isCapaEligible(row, data.headers);
     var root = document.getElementById('inc-modal-root');
-    var existing = _pendingActions[idVal] || [];
-    var rowsHtml = existing.length ? existing.map(actionRowHtml).join('') : actionRowHtml();
-    root.innerHTML = '<div class="inc-modal-bg" id="inc-action-modal-bg"><div class="inc-modal">' +
-      '<h3>✚ Add Action — ' + String(idVal).replace(/</g,'&lt;') + '</h3>' +
-      '<div class="req-text">Actions added here are separate from this incident\'s own fields (Corrective Action, Root Cause, etc. are untouched). Each one gets its own ID (' + String(idVal).replace(/</g,'&lt;') + '-ACT-01, -02, ...) and is meant to become its own row in the Action Tracker once that backend exists — for now this is saved in this browser session only.</div>' +
-      '<div id="inc-actions-list">' + rowsHtml + '</div>' +
-      '<button type="button" class="inc-btn inc-btn-sm" onclick="INC.addActionRow()">+ Add Action</button>' +
-      '<div class="inc-modal-actions">' +
-        '<button class="inc-btn inc-btn-cancel" id="inc-action-cancel">Cancel</button>' +
-        '<button class="inc-btn inc-btn-add" onclick="INC.saveActions(\''+tKeyName+'\', \''+String(idVal).replace(/'/g,"\\'")+'\')">Save</button>' +
+    var idEsc = String(idVal).replace(/</g,'&lt;');
+    var idJs = String(idVal).replace(/'/g,"\\'");
+
+    var raiseOptHtml = eligible
+      ? '<div class="inc-decide-opt" onclick="INC.decideRaise(\''+tKeyName+'\',\''+idJs+'\',\'CAPA\')">' +
+          '<strong>⚠ Raise CAPA</strong>' +
+          '<span>Full 7-step process — root cause, corrective action plan, IMS Manager approval, SLA tracking. For the incidents that genuinely warrant it.</span>' +
+        '</div>'
+      : '<div class="inc-decide-opt" onclick="INC.decideRaise(\''+tKeyName+'\',\''+idJs+'\',\'ACT\')">' +
+          '<strong>➕ Raise Action</strong>' +
+          '<span>Owner, due date, status — no RCA, no approval gate. Closes quickly, same register, ACT- ID.</span>' +
+        '</div>';
+
+    root.innerHTML = '<div class="inc-modal-bg" id="inc-decide-modal-bg"><div class="inc-modal">' +
+      '<h3>⚖ Decide — ' + idEsc + '</h3>' +
+      '<div class="req-text">RA Level' + (eligible ? ' (High/Critical, or LTI/fatality)' : ' (Low/Moderate)') + ' decides which option applies here — only one path is offered below. This is always your call to make; nothing here fires automatically.</div>' +
+      raiseOptHtml +
+      '<div class="inc-decide-opt inc-decide-close" onclick="INC.toggleCloseComment()">' +
+        '<strong>✕ Close — No Escalation</strong>' +
+        '<span>Review complete, nothing further needed. Requires a short justification — this becomes the audit record for why no CAPA/Action was raised.</span>' +
       '</div>' +
+      '<textarea class="inc-decide-comment" id="inc-decide-comment" placeholder="Required — why is no CAPA/Action needed? (e.g. repeat minor spill, same containment as previous, no new corrective action warranted)"></textarea>' +
+      '<div class="inc-modal-actions" id="inc-decide-close-actions" style="display:none">' +
+        '<button class="inc-btn inc-btn-cancel" onclick="INC.toggleCloseComment()">Back</button>' +
+        '<button class="inc-btn inc-btn-add" onclick="INC.decideCloseNoEscalation(\''+tKeyName+'\',\''+idJs+'\')">Confirm Close</button>' +
+      '</div>' +
+      '<div class="inc-modal-actions"><button class="inc-btn inc-btn-cancel" id="inc-decide-cancel">Cancel</button></div>' +
     '</div></div>';
-    document.getElementById('inc-action-cancel').onclick = function(){ root.innerHTML = ''; };
-    document.getElementById('inc-action-modal-bg').onclick = function(e){ if (e.target.id === 'inc-action-modal-bg') root.innerHTML = ''; };
+    document.getElementById('inc-decide-cancel').onclick = function(){ root.innerHTML = ''; };
+    document.getElementById('inc-decide-modal-bg').onclick = function(e){ if (e.target.id === 'inc-decide-modal-bg') root.innerHTML = ''; };
   }
 
-  function saveActions(tKeyName, idVal){
-    var rows = document.querySelectorAll('#inc-actions-list .inc-action-row');
-    var actions = [];
-    rows.forEach(function(row){
-      var desc = row.querySelector('.inc-action-desc').value.trim();
-      var owner = row.querySelector('.inc-action-owner').value.trim();
-      var due = row.querySelector('.inc-action-due').value;
-      if (!desc && !owner && !due) return; /* fully blank row — skip */
-      actions.push({ description: desc, owner: owner, dueDate: due });
+  function toggleCloseComment(){
+    var ta = document.getElementById('inc-decide-comment');
+    var actions = document.getElementById('inc-decide-close-actions');
+    if (!ta || !actions) return;
+    var showing = ta.style.display === 'block';
+    ta.style.display = showing ? 'none' : 'block';
+    actions.style.display = showing ? 'none' : 'flex';
+    if (!showing) ta.focus();
+  }
+
+  /* Raise CAPA or Raise Action — always a deliberate click, never fired
+     on save. Marks the incident decided + closed, then hands off to
+     the real CAPA register in a new tab, pre-filled with this
+     incident's context via sessionStorage (same-origin tabs opened
+     with window.open share it). The CAPA/Action ID itself is assigned
+     over there, by the wizard, once saved — never guessed here. */
+  function decideRaise(tKeyName, idVal, lane){
+    var data = _cache[tKeyName];
+    var headers = data.headers;
+    var idIdx = colIdx(headers, TABLES[tKeyName].idCol);
+    var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+    if (!row) return;
+    var descIdx = colIdx(headers, 'Description');
+    var locIdx = colIdx(headers, 'Location');
+    var classIdx = colIdx(headers, 'Classification');
+    var dateIdx = colIdx(headers, 'Date');
+    var rcIdx = colIdx(headers, 'Root Cause');
+    var raLevelIdx = colIdx(headers, 'RA Level');
+
+    var payload = {
+      incidentId: idVal,
+      lane: lane,
+      description: descIdx>=0 ? row[descIdx] : '',
+      location: locIdx>=0 ? row[locIdx] : '',
+      classification: classIdx>=0 ? row[classIdx] : '',
+      date: dateIdx>=0 ? row[dateIdx] : '',
+      rootCause: rcIdx>=0 ? row[rcIdx] : '',
+      raLevel: raLevelIdx>=0 ? row[raLevelIdx] : '',
+      capaSeverity: lane === 'CAPA' ? raLevelToCapaSeverity(row, headers) : ''
+    };
+
+    var decisionLabel = lane === 'CAPA' ? 'CAPA Raised' : 'Action Raised';
+    var patch = {
+      'Decision': decisionLabel,
+      'Decision By': currentUserName(),
+      'Decision Date': todayISO(),
+      'Status': 'CLOSED'
+    };
+    postJSON('update', {tab: TABLES[tKeyName].tabKey, idCol: TABLES[tKeyName].idCol, id: idVal}, patch).then(function(res){
+      if (res && res.status === 'error'){
+        alert('Could not record the decision — ' + (res.error || 'unknown error') + '\nThe CAPA/Action register will still open, but please retry recording the decision on this incident.');
+      }
+      var root = document.getElementById('inc-modal-root');
+      root.innerHTML = '';
+      try { sessionStorage.setItem('incomingCapaContext', JSON.stringify(payload)); } catch(e){}
+      window.open('capa-register.html?fromIncident=' + encodeURIComponent(idVal) + '&lane=' + lane, '_blank');
+      reloadTabAndDashboard(tKeyName);
+    }).catch(function(){
+      alert('Could not reach the server to record the decision — check your connection.');
     });
-    actions.forEach(function(a, i){
-      a.id = idVal + '-ACT-' + String(i + 1).padStart(2, '0');
+  }
+
+  function decideCloseNoEscalation(tKeyName, idVal){
+    var ta = document.getElementById('inc-decide-comment');
+    var comment = ta ? ta.value.trim() : '';
+    if (!comment){
+      alert('A justification comment is required before closing without a CAPA/Action.');
+      if (ta) ta.focus();
+      return;
+    }
+    var patch = {
+      'Decision': 'Closed - No Escalation',
+      'Decision Comment': comment,
+      'Decision By': currentUserName(),
+      'Decision Date': todayISO(),
+      'Status': 'CLOSED'
+    };
+    postJSON('update', {tab: TABLES[tKeyName].tabKey, idCol: TABLES[tKeyName].idCol, id: idVal}, patch).then(function(res){
+      if (res && res.status === 'error'){
+        alert('Could not save — ' + (res.error || 'unknown error'));
+        return;
+      }
+      var root = document.getElementById('inc-modal-root');
+      root.innerHTML = '';
+      reloadTabAndDashboard(tKeyName);
+    }).catch(function(){
+      alert('Could not reach the server to record the decision — check your connection.');
     });
-    _pendingActions[idVal] = actions;
-    var root = document.getElementById('inc-modal-root');
-    root.innerHTML = '';
-    renderTableArea(tKeyName);
   }
 
   function showModal(tKeyName, title, fields, initialValues, onSubmit){
@@ -1188,6 +1297,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         _filters['register'] = {search:'', category:'', special:'fatal'};
       } else if (cardName === 'risk'){
         _filters['register'] = {search:'', category:'', special:'risk'};
+      } else if (cardName === 'pending'){
+        _filters['register'] = {search:'', category:'', special:'pending'};
       }
       renderShell('register', _cache['register']);
       setExpanded('register', true);
@@ -1206,13 +1317,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
       managePhotosModal(tKeyName, idVal);
     },
-    openAddAction: function(tKeyName, idVal){
-      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
-      openAddActionModal(tKeyName, idVal);
+    openDecide: function(tKeyName, idVal){
+      openDecisionModal(tKeyName, idVal);
     },
-    addActionRow: addActionRow,
-    removeActionRow: removeActionRow,
-    saveActions: saveActions,
+    toggleCloseComment: toggleCloseComment,
+    decideRaise: decideRaise,
+    decideCloseNoEscalation: decideCloseNoEscalation,
     deletePhoto: function(idVal, fileId){
       if (!can('delete')) return;
       if (!confirm('Remove this photo? It will stay in Google Drive but no longer show here.')) return;
