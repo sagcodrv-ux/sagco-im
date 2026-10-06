@@ -129,6 +129,9 @@
          locked, not freely re-typed. */
       lane: 'CAPA',
       sourceIncidentId: '',
+      sourceObservationCaseId: '', /* Point 2 — set when this ACT record was forwarded directly from an Observation (Raw Risk Score Medium-or-below), not from an Incident. Mutually exclusive with sourceIncidentId in practice. */
+      residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
+      residualComment: '',
       lockedFromIncident: false,
     };
   }
@@ -304,6 +307,20 @@
     var fromHint = state.sourceIncidentId
       ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Incident <strong>' + esc(state.sourceIncidentId) + '</strong> — RA Level Low/Moderate, so this stays a plain Action: no root cause analysis, no approval gate.</div>'
       : '';
+    /* Point 4 — RA Residual Level, required before closing an
+       incident-linked Action. Shown whenever this record is linked to
+       an incident (sourceIncidentId set) — not just when Status is
+       currently Closed, since the person may be about to set it to
+       Closed in this very save and the field needs to already be
+       visible and fillable for that. Validated in onSaveAction(). */
+    var residualHtml = state.sourceIncidentId
+      ? '<div class="cw-field"><label>RA Residual Level <span style="font-weight:400;opacity:.7">(required to close — risk level after this action is implemented)</span></label>'
+        + '<select id="cw-act-residual-level">' + ['', 'Low', 'Medium', 'High', 'Critical'].map(function (o) {
+          return '<option value="' + o + '"' + (o === state.residualLevel ? ' selected' : '') + '>' + (o || '-- select --') + '</option>';
+        }).join('') + '</select></div>'
+        + '<div class="cw-field"><label>Residual assessment comment <span style="font-weight:400;opacity:.7">(optional)</span></label>'
+        + '<textarea id="cw-act-residual-comment" placeholder="What changed since the raw assessment">' + esc(state.residualComment) + '</textarea></div>'
+      : '';
     return fromHint
       + '<div class="cw-field"><label>Action description</label>'
       + '<textarea id="cw-act-desc" placeholder="What needs to be done">' + esc(state.caAction || state.description) + '</textarea></div>'
@@ -313,7 +330,8 @@
       + '<div class="cw-field"><label>Status</label>'
       + '<select id="cw-act-status">' + ['Open', 'In Progress', 'Closed'].map(function (o) {
         return '<option' + (o === state.status ? ' selected' : '') + '>' + o + '</option>';
-      }).join('') + '</select></div>';
+      }).join('') + '</select></div>'
+      + residualHtml;
   }
 
   function actionFooterHTML() {
@@ -328,8 +346,20 @@
     state.caDueDate = val('cw-act-due');
     state.status = val('cw-act-status');
     if (document.getElementById('cw-owner')) { state.caOwner = val('cw-owner'); state.caOwnerEmail = val('cw-owner-email'); }
+    if (document.getElementById('cw-act-residual-level')) {
+      state.residualLevel = val('cw-act-residual-level');
+      state.residualComment = val('cw-act-residual-comment');
+    }
     if (!state.caAction.trim()) { alert('Enter a short action description.'); return; }
     if (!state.caOwnerEmail) { alert('Owner email is required — overdue reminders are sent there automatically.'); return; }
+    /* Point 4 — closure is gated on a Residual Level for any Action
+       linked to an incident. This is a hard requirement, not a
+       reminder: closing without recording what the risk looks like
+       after the fix defeats the point of tracking it at all. */
+    if (state.status === 'Closed' && state.sourceIncidentId && !state.residualLevel) {
+      alert('RA Residual Level is required before this Action can be closed — select the risk level as it stands after the corrective action.');
+      return;
+    }
     persistAction();
   }
 
@@ -674,6 +704,8 @@
       'CAPA ID': state.capaId || 'PENDING',
       'Type': 'Nonconformance',
       'Source Incident ID': state.sourceIncidentId || '',
+      'RA Residual Level': state.residualLevel || '',
+      'RA Residual Comment': state.residualComment || '',
       'Severity': state.severity ? state.severity.key : '',
       'Risk Score': state.score,
       'Source': state.source,
@@ -711,6 +743,9 @@
       'CAPA ID': state.capaId || 'PENDING',
       'Type': 'Action',
       'Source Incident ID': state.sourceIncidentId || '',
+      'Source Observation Case ID': state.sourceObservationCaseId || '',
+      'RA Residual Level': state.residualLevel || '',
+      'RA Residual Comment': state.residualComment || '',
       'Severity': 'Low',
       'Source': state.source || 'Incident Investigation',
       'Description': state.description,
@@ -762,6 +797,24 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Point 4 — once an incident-linked Action is actually Closed (and
+     therefore has a Residual Level, enforced by onSaveAction()'s gate),
+     write that Residual Level back onto the originating incident —
+     same fire-and-forget reasoning and idempotency as
+     notifyIncidentActionCompleted() just above it: the Action record
+     itself is already safely saved either way, and this is the
+     incident-side read, not the record of truth. */
+  function notifyIncidentResidual() {
+    if (!state.sourceIncidentId || state.status !== 'Closed' || !state.residualLevel) return;
+    fetch(SHEETS_URL + '?action=update&tab=incidents&idCol=' + encodeURIComponent('Incident ID') + '&id=' + encodeURIComponent(state.sourceIncidentId), {
+      method: 'POST',
+      body: JSON.stringify({
+        'RA Residual Level': state.residualLevel,
+        'RA Residual Comment': state.residualComment || '',
+      }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* ── Save for the lightweight Action lane — one write, no steps ── */
   function persistAction() {
     if (saving) return;
@@ -785,6 +838,7 @@
           if (result && result.status === 'ok') {
             notifySourceIncident();
             notifyIncidentActionCompleted();
+            notifyIncidentResidual();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -811,6 +865,7 @@
           saving = false;
           if (result && result.status === 'ok') {
             notifyIncidentActionCompleted();
+            notifyIncidentResidual();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1069,6 +1124,9 @@
     state.caApproved = col('CA Plan Approved') === 'Yes';
     state.status = col('Status') || 'Open';
     state.sourceIncidentId = col('Source Incident ID');
+    state.sourceObservationCaseId = col('Source Observation Case ID');
+    state.residualLevel = col('RA Residual Level');
+    state.residualComment = col('RA Residual Comment');
 
     /* ACT-lane rows never go through the 4-step CAPA flow — reopen them
        straight into the same lightweight form used when they were first
@@ -1200,6 +1258,18 @@
           + '</div>';
       }
       if (canClose()) {
+        /* Point 4 — RA Residual Level, required before a CAPA linked to
+           an incident can actually close (result='Yes'). Only shown when
+           there's an incident to write it back onto; a result of 'No'
+           (reopen) never needs it since the CAPA doesn't close. */
+        var residualSection = col('Source Incident ID')
+          ? '<div class="cw-field"><label>RA Residual Level <span style="font-weight:400;opacity:.7">(required to close — risk level after this corrective action)</span></label>'
+            + '<select id="impl-residual-level">' + ['', 'Low', 'Medium', 'High', 'Critical'].map(function (o) {
+              return '<option value="' + o + '"' + (o === col('RA Residual Level') ? ' selected' : '') + '>' + (o || '-- select --') + '</option>';
+            }).join('') + '</select></div>'
+            + '<div class="cw-field"><label>Residual assessment comment <span style="font-weight:400;opacity:.7">(optional)</span></label>'
+            + '<textarea id="impl-residual-comment">' + esc(col('RA Residual Comment')) + '</textarea></div>'
+          : '';
         closureForm += '<div style="margin-top:22px;padding-top:16px;border-top:1px solid #eef1f6">'
           + '<div style="font-size:12px;font-weight:700;color:#1B2A4A;margin-bottom:10px">F-04 · Effectiveness Verification &amp; Closure</div>'
           + '<div class="cw-field"><label>Verification method</label>'
@@ -1208,6 +1278,7 @@
           + '<textarea id="impl-verif-evidence"></textarea></div>'
           + '<div class="cw-field"><label>Was the corrective action effective?</label>'
           + '<select id="impl-verif-result"><option value="Yes">Yes — close this CAPA</option><option value="No">No — reopen (back to In Progress)</option></select></div>'
+          + residualSection
           + '<button class="cw-btn primary" id="impl-verify-submit">Submit Verification</button>'
           + '<div class="cw-hint">A "No" reopens the CAPA rather than closing it — recurrence within 12 months per proc-c10.html also reopens a closed CAPA, though that check is not yet automated here.</div>'
           + '</div>';
@@ -1409,10 +1480,23 @@
 
   function submitVerification(capaId, headers, row) {
     if (implSaving) return;
+    function col(name) { var i = headers.indexOf(name); return i >= 0 ? String(row[i] || '') : ''; }
     var method = val('impl-verif-method');
     var evidence = val('impl-verif-evidence');
     var result = val('impl-verif-result');
     if (!method || !evidence) { alert('Verification method and evidence are required before submitting.'); return; }
+
+    var sourceIncidentId = col('Source Incident ID');
+    var residualEl = document.getElementById('impl-residual-level');
+    var residualLevel = residualEl ? val('impl-residual-level') : '';
+    var residualComment = document.getElementById('impl-residual-comment') ? val('impl-residual-comment') : '';
+    /* Point 4 — same hard gate as the lightweight Action lane: closing
+       an incident-linked CAPA (result='Yes') requires a Residual Level.
+       A 'No' result reopens rather than closes, so it's never gated. */
+    if (result === 'Yes' && sourceIncidentId && !residualLevel) {
+      alert('RA Residual Level is required before this CAPA can be closed — select the risk level as it stands after the corrective action.');
+      return;
+    }
 
     implSaving = true;
     setImplButtonsSaving(true, 'impl-verify-submit');
@@ -1426,6 +1510,10 @@
       'Status': result === 'Yes' ? 'Closed' : 'In Progress',
       'Verified': result === 'Yes' ? 'Yes' : 'No',
     };
+    if (residualEl) {
+      updates['RA Residual Level'] = residualLevel;
+      updates['RA Residual Comment'] = residualComment;
+    }
 
     fetch(SHEETS_URL + '?action=update&tab=capa&idCol=' + encodeURIComponent('CAPA ID') + '&id=' + encodeURIComponent(capaId), {
       method: 'POST', body: JSON.stringify(updates),
@@ -1434,6 +1522,12 @@
       .then(function (res) {
         implSaving = false;
         if (res && res.status === 'ok') {
+          if (result === 'Yes' && sourceIncidentId && residualLevel) {
+            fetch(SHEETS_URL + '?action=update&tab=incidents&idCol=' + encodeURIComponent('Incident ID') + '&id=' + encodeURIComponent(sourceIncidentId), {
+              method: 'POST',
+              body: JSON.stringify({ 'RA Residual Level': residualLevel, 'RA Residual Comment': residualComment }),
+            }).catch(function () { /* fire-and-forget, same reasoning as notifyIncidentResidual() */ });
+          }
           alert(result === 'Yes' ? capaId + ' verified effective and Closed.' : capaId + ' verification failed — reopened to In Progress.');
           closeWizard();
           if (global.reloadLive) reloadLive();
@@ -1593,6 +1687,26 @@
     loadUserDirectory(render);
   }
 
+  /* Point 2 — Observation Register hand-off (Raw Risk Score Medium-or-
+     below forwards straight to the ACT lane, never to CAPA and never
+     via an Incident). Deliberately reuses the same lightweight-Action
+     shape as openFromIncident's ACT branch — no RCA/approval ceremony —
+     but records provenance in sourceObservationCaseId instead of
+     sourceIncidentId, and tags Source as 'Observation' rather than
+     'Incident Investigation' so the distinction is visible on the
+     record itself. */
+  function openFromObservation(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceObservationCaseId = ctx.caseId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Observation';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      capa-register.html's own login wall (IMS_AUTH.init()). A person
@@ -1641,6 +1755,23 @@
            not via the Decide panel) — still open the right lane, just
            without the pre-filled description/severity. */
         loadUserDirectory(function () { openFromIncident({ incidentId: fromIncident, lane: lane }); });
+      }
+      return;
+    }
+
+    /* Observation Register hand-off — capa-register.html?fromObservation=CASE-...&lane=ACT,
+       opened by the Observation Register's Decide-equivalent once the
+       linked Risk Assessment row's Raw Risk Score has been confirmed
+       Medium or below. Same sessionStorage-plus-URL-verification pattern
+       as the Incident hand-off above. */
+    var fromObservation = params.get('fromObservation');
+    if (fromObservation) {
+      var obsCtx = null;
+      try { obsCtx = JSON.parse(sessionStorage.getItem('incomingObservationContext') || 'null'); } catch (e) { obsCtx = null; }
+      if (obsCtx && String(obsCtx.caseId) === String(fromObservation)) {
+        loadUserDirectory(function () { openFromObservation(obsCtx); });
+      } else {
+        loadUserDirectory(function () { openFromObservation({ caseId: fromObservation }); });
       }
     }
   }

@@ -187,6 +187,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .inc-dark-wrap .tbl-stripe tbody tr:hover td{background:var(--idw-bg3)}
 .inc-dark-wrap .tbl-compact th,.inc-dark-wrap .tbl-compact td{font-size:9px !important;padding:4px 7px !important}
 
+/* Point 3.1 — freeze the Incident ID column so it stays visible while
+   scrolling horizontally through RA Level/Decision/etc. Needs its own
+   explicit backgrounds (not transparent) since position:sticky still
+   lets the scrolled-under content show through otherwise; these match
+   the header bg and the odd/even row stripes above exactly so the
+   pinned cell blends in rather than looking like a separate column. */
+.inc-dark-wrap .tbl-stripe .inc-th-pin{position:sticky;left:0;z-index:3;background:var(--idw-bg3)}
+.inc-dark-wrap .tbl-stripe .inc-td-pin{position:sticky;left:0;z-index:2}
+.inc-dark-wrap .tbl-stripe tbody tr:nth-child(odd) .inc-td-pin{background:var(--idw-bg2)}
+.inc-dark-wrap .tbl-stripe tbody tr:nth-child(even) .inc-td-pin{background:#101d3a}
+.inc-dark-wrap .tbl-stripe tbody tr:hover .inc-td-pin{background:var(--idw-bg3)}
+
 .inc-dark-wrap .empty-state{text-align:center;padding:20px;color:var(--idw-text-muted)}
 .inc-dark-wrap .empty-state strong{display:block;font-size:13px;color:var(--idw-gold-lt);margin-bottom:4px}
 
@@ -468,6 +480,44 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     renderTableArea(tKeyName);
   }
 
+  /* Point 3.2/3.3 — table LAYOUT fixes, no data-logic change. The table
+     renders straight off data.headers/row in the LIVE sheet's own column
+     order (the `fields` array above is only used by the Add/Edit modal
+     form, not the table) — so reordering has to happen here, as a
+     permutation of column indices computed fresh against whatever order
+     the sheet actually returns, rather than by editing a static list.
+     2. Consequence and Likelihood must sit immediately before RA Level
+        (inputs before the derived output), wherever they currently are.
+     3. Decision and Total Cost swap column positions outright.
+     Returns an array of original header indices in DISPLAY order; every
+     other table (tKeyName !== 'register') is returned untouched. */
+  function getDisplayOrder(tKeyName, headers){
+    var order = headers.map(function(_,i){ return i; });
+    if (tKeyName !== 'register') return order;
+
+    var consIdx = colIdx(headers, 'Consequence');
+    var likeIdx = colIdx(headers, 'Likelihood');
+    var raLevelIdx = colIdx(headers, 'RA Level');
+    if (consIdx >= 0 && likeIdx >= 0 && raLevelIdx >= 0){
+      order = order.filter(function(i){ return i !== consIdx && i !== likeIdx; });
+      var insertAt = order.indexOf(raLevelIdx);
+      order.splice(insertAt, 0, consIdx, likeIdx);
+    }
+
+    var decIdx = colIdx(headers, 'Decision');
+    var costIdx = colIdx(headers, 'Total Cost');
+    if (decIdx >= 0 && costIdx >= 0){
+      var dPos = order.indexOf(decIdx);
+      var cPos = order.indexOf(costIdx);
+      if (dPos >= 0 && cPos >= 0){
+        order[dPos] = costIdx;
+        order[cPos] = decIdx;
+      }
+    }
+
+    return order;
+  }
+
   function renderTableArea(tKeyName){
     var cfg = TABLES[tKeyName];
     var data = _cache[tKeyName];
@@ -524,10 +574,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var wide = data.headers.length > 8;
     var html = '<div class="inc-topscroll" id="inc-topscroll-'+tKeyName+'"><div class="inc-topscroll-spacer" id="inc-topscroll-spacer-'+tKeyName+'"></div></div>' +
       '<div class="tbl-wrap" id="inc-tblwrap-'+tKeyName+'"><table class="tbl-stripe' + (wide?' tbl-compact':'') + '">';
+    var displayOrder = getDisplayOrder(tKeyName, data.headers);
+
     html += '<thead><tr>';
-    data.headers.forEach(function(h,i){
+    displayOrder.forEach(function(i){
       if (i === statusIdx) return;
-      html += '<th>' + h + '</th>';
+      html += '<th' + (i === idIdx ? ' class="inc-th-pin"' : '') + '>' + data.headers[i] + '</th>';
     });
     html += '</tr></thead><tbody>';
 
@@ -544,27 +596,29 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         var isSel = selId !== undefined && selId !== null && String(selId) === String(idVal);
         var decValForRow = decIdxRow>-1 ? String(row[decIdxRow]||'').trim() : '';
         html += '<tr class="inc-row-selectable' + (isSel?' inc-row-selected':'') + '" onclick="INC.selectRow(\''+tKeyName+'\',\''+idValEsc+'\')">';
-        row.forEach(function(cell,ci){
+        displayOrder.forEach(function(ci){
           if (ci === statusIdx) return;
+          var cell = row[ci];
+          var pinCls = (ci === idIdx ? ' inc-td-pin' : '');
           if (ci === decIdxRow){
             var decVal = String(cell||'').trim();
             html += decVal
-              ? '<td><span class="inc-decision-pill inc-done">' + formatCell(cell) + '</span></td>'
-              : '<td><span class="inc-decision-pill inc-pending">Pending</span></td>';
+              ? '<td class="'+pinCls.trim()+'"><span class="inc-decision-pill inc-done">' + formatCell(cell) + '</span></td>'
+              : '<td class="'+pinCls.trim()+'"><span class="inc-decision-pill inc-pending">Pending</span></td>';
             return;
           }
           if (ci === actCompIdxRow){
             // Only meaningful once an Action was actually raised; blank
             // for CAPA-raised or closed-no-escalation rows, not a pill
             // at all for those (nothing to be "pending" on).
-            if (decValForRow !== 'Action Raised'){ html += '<td></td>'; return; }
+            if (decValForRow !== 'Action Raised'){ html += '<td class="'+pinCls.trim()+'"></td>'; return; }
             var doneVal = String(cell||'').trim().toLowerCase() === 'yes';
             html += doneVal
-              ? '<td><span class="inc-decision-pill inc-done">✓ Completed</span></td>'
-              : '<td><span class="inc-decision-pill inc-pending">Open</span></td>';
+              ? '<td class="'+pinCls.trim()+'"><span class="inc-decision-pill inc-done">✓ Completed</span></td>'
+              : '<td class="'+pinCls.trim()+'"><span class="inc-decision-pill inc-pending">Open</span></td>';
             return;
           }
-          html += '<td>' + formatCell(cell) + '</td>';
+          html += '<td' + (pinCls ? ' class="'+pinCls.trim()+'"' : '') + '>' + formatCell(cell) + '</td>';
         });
         html += '</tr>';
       });
@@ -625,7 +679,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   }
 
   function loadAll(){
-    loadTab('register').then(function(){ renderDashboard(); });
+    return loadTab('register').then(function(){ renderDashboard(); });
   }
 
   function reloadTabAndDashboard(tKeyName){
@@ -1193,8 +1247,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (likelihoodEl){ likelihoodEl.addEventListener('input', recalcFromCxL); likelihoodEl.addEventListener('change', recalcFromCxL); }
     // Pre-June legacy records: Consequence/Likelihood were never
     // recorded, so if both are blank on load, leave the stored RA
-    // Score/RA Level exactly as they are rather than wiping them.
-    if (raScoreEl && raLevelEl && !(consequenceEl && consequenceEl.value) && !(likelihoodEl && likelihoodEl.value)){
+    // Score/RA Level exactly as they are rather than wiping them. Only
+    // recompute RA Level from RA Score here when RA Level ISN'T already
+    // populated — otherwise an inherited RA Level with no RA Score at
+    // all (Point 2: an incident forwarded from an Observation inherits
+    // its Raw Risk Score's level directly, with no re-assessment and no
+    // score breakdown to derive it from) would get silently wiped blank
+    // by raScoreToLevel('') below.
+    if (raScoreEl && raLevelEl && !(consequenceEl && consequenceEl.value) && !(likelihoodEl && likelihoodEl.value) && !raLevelEl.value){
       raLevelEl.value = raScoreToLevel(raScoreEl.value);
     }
 
@@ -1260,8 +1320,63 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     };
   }
 
+  /* Point 2 — Observation Register hand-off (incident-register.html?fromObservation=CASE-...),
+     opened by the Observation Register's Decide-equivalent once the
+     linked Risk Assessment row's Raw Risk Score comes back High/Critical.
+     Same sessionStorage-plus-URL-verification pattern as the Incident
+     Decide panel already uses for its own CAPA/ACT hand-off, so a stale
+     or unrelated sessionStorage value is never mistaken for this one's
+     context. Opens the Add modal pre-filled, with RA Level carried over
+     directly from the observation's Raw Risk Score — HSSE is never asked
+     to re-score a risk that's already been assessed once. */
+  function openAddFromObservation(caseId){
+    var cfg = TABLES['register'];
+    if (!can('add')) return;
+    var ctx = null;
+    try { ctx = JSON.parse(sessionStorage.getItem('incomingObservationContext') || 'null'); } catch(e){ ctx = null; }
+    var matched = ctx && String(ctx.caseId) === String(caseId);
+
+    var initial = {};
+    var suggestedId = nextSequentialId('register');
+    if (suggestedId) initial[cfg.idCol] = suggestedId;
+    initial['Status'] = 'OPEN';
+    if (matched){
+      initial['Description'] = ctx.description || '';
+      initial['Location'] = ctx.location || '';
+      initial['Date'] = ctx.date || '';
+      initial['Classification'] = ctx.category || '';
+      /* Inherited RA Level, not re-derived from a Score — the readonly
+         RA Level field in the modal falls back to this exact value when
+         no RA Score is present (see showModal's 'RA Level' branch). */
+      initial['RA Level'] = ctx.rawRiskLevel || '';
+    }
+
+    showModal('register', 'New Incident — from Observation' + (matched ? ' ' + caseId : ''), effectiveFields('register'), initial, function(values, close){
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+        close();
+        reloadTabAndDashboard('register');
+      }).catch(function(){
+        alert('Could not save — check your connection.');
+        if (window._incReenableModalSave) window._incReenableModalSave();
+      });
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function(){
-    setTimeout(loadAll, 100);
+    setTimeout(function(){
+      /* The fromObservation hand-off only needs the register's data
+         loaded (for nextSequentialId/getSuggestions) — it must not be
+         skipped just because renderDashboard() (charts, KPI cards, a
+         separate concern) throws, e.g. a blocked chart library CDN.
+         So this runs from loadTab() directly, not loadAll(), and
+         renderDashboard() is called and guarded independently. */
+      loadTab('register').then(function(){
+        try { renderDashboard(); } catch(e){ /* dashboard rendering is cosmetic; never block on it */ }
+        var fromObservation = new URLSearchParams(window.location.search).get('fromObservation');
+        if (fromObservation) openAddFromObservation(fromObservation);
+      });
+    }, 100);
   });
 
   window.INC = {
@@ -1372,6 +1487,23 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var initial = {};
       data.headers.forEach(function(h,i){ initial[h] = row[i]; });
       showModal(tKeyName, 'Edit ' + cfg.label, effectiveFields(tKeyName), initial, function(values, close){
+        /* Point 1 — auto-backfill Decision when an incident is closed
+           without ever going through the ⚖ Decide panel. The generic
+           Edit modal lets Status be set straight to CLOSED, which used
+           to leave Decision permanently blank/"Pending". Only fires for
+           the incident register, only on a transition INTO Closed, and
+           only when Decision isn't already set — never overwrites a
+           real decision made via the Decide panel. */
+        if (tKeyName === 'register'){
+          var newStatus = String(values['Status'] || '').trim().toUpperCase();
+          var existingDecision = String(initial['Decision'] || '').trim();
+          if (newStatus === 'CLOSED' && !existingDecision && !String(values['Decision']||'').trim()){
+            values['Decision'] = 'Closed - No Escalation';
+            values['Decision Comment'] = 'Auto-recorded: incident closed without a CAPA/Action decision.';
+            values['Decision By'] = currentUserName();
+            values['Decision Date'] = todayISO();
+          }
+        }
         postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
           if (res && res.status === 'error'){
             alert('Could not save — ' + (res.error || 'unknown error'));
