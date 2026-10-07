@@ -277,6 +277,16 @@
       bindStepEvents(); /* owner-select/manual-toggle bindings — score/evidence listeners no-op, those elements aren't in this form */
       var saveBtn = document.getElementById('cw-act-save');
       if (saveBtn) saveBtn.addEventListener('click', onSaveAction);
+      /* Issam, 2026-10-07 — Continuing a saved Action had no progress-
+         update log or evidence trail at all, unlike a full CAPA's
+         Implementation panel. Only meaningful once the Action already
+         has an ID (nothing to log progress against on first raise), so
+         this fetches and fills in the placeholder the form just
+         rendered rather than blocking the form on the network round
+         trip. Reuses the same capa_log tab and loadLog()/uploadEvidence()
+         plumbing the full CAPA flow already uses — Action IDs (ACT-…)
+         match on CAPA ID there exactly the same way. */
+      if (state.capaId) loadLog(state.capaId, function (entries) { renderActionProgressArea(entries); });
       return;
     }
 
@@ -321,6 +331,14 @@
         + '<div class="cw-field"><label>Residual assessment comment <span style="font-weight:400;opacity:.7">(optional)</span></label>'
         + '<textarea id="cw-act-residual-comment" placeholder="What changed since the raw assessment">' + esc(state.residualComment) + '</textarea></div>'
       : '';
+    /* Progress log + evidence — only once the Action has a real ID to
+       log against (i.e. this is "Continue ACT-…", not a first-time
+       "Raise Action"). Filled in asynchronously right after render();
+       see the loadLog() call in render(). */
+    var progressHtml = state.capaId
+      ? '<div class="cw-field" style="margin-top:6px"><label>Progress updates</label></div>'
+        + '<div id="cw-act-progress-area"><div class="cw-hint">Loading progress log…</div></div>'
+      : '';
     return fromHint
       + '<div class="cw-field"><label>Action description</label>'
       + '<textarea id="cw-act-desc" placeholder="What needs to be done">' + esc(state.caAction || state.description) + '</textarea></div>'
@@ -331,7 +349,83 @@
       + '<select id="cw-act-status">' + ['Open', 'In Progress', 'Closed'].map(function (o) {
         return '<option' + (o === state.status ? ' selected' : '') + '>' + o + '</option>';
       }).join('') + '</select></div>'
-      + residualHtml;
+      + residualHtml
+      + progressHtml;
+  }
+
+  /* Fills in #cw-act-progress-area once loadLog() resolves — same feed
+     styling as the full CAPA Implementation panel's log, plus a
+     lightweight "add an update" form (note + optional evidence file).
+     No status-advance buttons here (ACT lane's Status is just the
+     plain select above, not a staged workflow) and no verification/
+     closure gate (that's full-CAPA territory) — just the log Issam
+     asked for. */
+  function renderActionProgressArea(entries) {
+    var area = document.getElementById('cw-act-progress-area');
+    if (!area) return;
+    var feed = entries.length
+      ? entries.map(function (e) {
+          return '<div style="border-left:3px solid #C9A84C;padding:8px 12px;margin-bottom:8px;background:#f9fafb;border-radius:0 6px 6px 0">'
+            + '<div style="font-size:10.5px;color:#7a869a">' + esc(e.date) + ' · ' + esc(e.by) + '</div>'
+            + '<div style="font-size:12px;margin-top:3px">' + esc(e.note) + '</div>'
+            + (e.photo ? '<a href="' + esc(e.photo) + '" target="_blank" style="font-size:11px;color:#1565C0">📎 View attached evidence</a>' : '')
+            + '</div>';
+        }).join('')
+      : '<div class="cw-hint" style="margin-bottom:12px">No progress entries yet.</div>';
+    var addForm = state.status !== 'Closed'
+      ? '<div class="cw-field"><label>Add progress update</label>'
+        + '<textarea id="cw-act-note" placeholder="What was done since the last update"></textarea></div>'
+        + '<div class="cw-field"><label>Evidence file (optional)</label>'
+        + '<input type="file" id="cw-act-evidence-file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">'
+        + '<div class="cw-hint">Photo, PDF, Word, Excel, or PowerPoint — whatever the actual evidence is.</div></div>'
+        + '<button class="cw-btn ghost" id="cw-act-log-btn">Log Update</button>'
+      : '<div class="cw-hint">Closed — no further progress updates.</div>';
+    area.innerHTML = feed + addForm;
+    var logBtn = document.getElementById('cw-act-log-btn');
+    if (logBtn) logBtn.addEventListener('click', submitActionProgress);
+  }
+
+  /* Saving-lock mirrors submitProgress()'s own guard — prevents a
+     double-click writing two log rows before the first request settles. */
+  var actProgressSaving = false;
+  function submitActionProgress() {
+    if (actProgressSaving) return;
+    var note = val('cw-act-note');
+    var fileInput = document.getElementById('cw-act-evidence-file');
+    var file = fileInput && fileInput.files ? fileInput.files[0] : null;
+    if (!note.trim()) { alert('Add a note before logging (or attach evidence alongside one).'); return; }
+
+    actProgressSaving = true;
+    var btn = document.getElementById('cw-act-log-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    uploadEvidence(file, state.capaId, function (evidenceLink) {
+      var logRow = {
+        'Log ID': 'LOG-' + state.capaId + '-' + Date.now(),
+        'CAPA ID': state.capaId,
+        'Date': new Date().toISOString().split('T')[0],
+        'Note': note,
+        'Photo URL': evidenceLink || '',
+        'Logged By': currentUserName(),
+        'Status Change': '',
+      };
+      fetch(SHEETS_URL + '?action=write&tab=' + LOG_TAB, { method: 'POST', body: JSON.stringify([logRow]) })
+        .then(function (r) { return r.json(); })
+        .then(function (result) {
+          actProgressSaving = false;
+          if (!(result && result.status === 'ok')) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Log Update'; }
+            alert('Log entry did not confirm success: ' + JSON.stringify(result) + '\nConfirm the "' + LOG_TAB + '" tab exists on the live sheet with the right headers.');
+            return;
+          }
+          loadLog(state.capaId, function (entries) { renderActionProgressArea(entries); });
+        })
+        .catch(function (err) {
+          actProgressSaving = false;
+          if (btn) { btn.disabled = false; btn.textContent = 'Log Update'; }
+          alert('Could not reach the live sheet: ' + err);
+        });
+    });
   }
 
   function actionFooterHTML() {

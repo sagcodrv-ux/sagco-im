@@ -199,7 +199,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 <div class="tbl-wrap">
 <table>
 <thead><tr>
-<th>Case ID</th><th>Date Reported</th><th>Location</th><th>Category</th><th>Worker Participation Evaluation</th><th>Priority</th><th>Description</th><th>Status</th><th>Reviewed</th><th>Recurrence</th><th>Action</th><th>Incident Reference</th><th>Action Reference</th>
+<th>Case ID</th><th>Date Reported</th><th>Location</th><th>Category</th><th>Worker Participation Evaluation</th><th>Raw Risk Score</th><th>Priority</th><th>Description</th><th>Status</th><th>Reviewed</th><th>Recurrence</th><th>Action</th><th>Incident Reference</th><th>Action Reference</th>
 </tr></thead>
 <tbody id="obs-tbody"></tbody>
 </table>
@@ -351,7 +351,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     }).catch(function(err){
       if (!isBackground) {
         setBanner('<strong>⚠ Connection unavailable</strong> — could not reach the live Observations data. ' + escHtml(err && err.message || ''), true);
-        document.getElementById('obs-tbody').innerHTML = '<tr><td colspan="13"><div class="empty-state"><strong>Connection unavailable</strong>Could not reach the live Google Sheets backend.</div></td></tr>';
+        document.getElementById('obs-tbody').innerHTML = '<tr><td colspan="14"><div class="empty-state"><strong>Connection unavailable</strong>Could not reach the live Google Sheets backend.</div></td></tr>';
         /* Never leave the KPI tiles showing a number from before the page loaded —
            that would look like a live count during an outage. Blank them out. */
         document.querySelectorAll('.kpi-val').forEach(function(el){ el.textContent = '—'; });
@@ -462,6 +462,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
            gating value. This is what the Action column's routing uses
            (via escalationTier below) — never the worker's own field
            above, which is never used for this gate. */
+        /* NEW — Raw Risk Score (Issam, 2026-10-07), the actual numeric
+           score behind the Priority band directly after it, same
+           source (riskInfo), shown as its own column rather than only
+           inside the escalation modal. */
+        'Raw Risk Score': (riskInfo.rawRiskScore !== undefined && riskInfo.rawRiskScore !== null) ? riskInfo.rawRiskScore : '',
         'Priority': riskInfo.rawRiskLevel || '',
         'Description': iDesc >= 0 ? r[iDesc] : '',
         'Status': iStatus >= 0 ? r[iStatus] : '',
@@ -831,7 +836,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var rows = DATA.filter(matchesFilters);
     var tbody = document.getElementById('obs-tbody');
     if (!rows.length){
-      tbody.innerHTML = '<tr><td colspan="13"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="14"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
     } else {
       tbody.innerHTML = rows.map(function(r){
         var idx = DATA.indexOf(r);
@@ -894,6 +899,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
           '<td>'+escHtml(r.Location)+'</td>' +
           '<td>'+badgeForCategory(r.Category)+'</td>' +
           '<td>'+escHtml(r['Worker Participation Evaluation'])+'</td>' +
+          '<td>'+(r['Raw Risk Score']!=='' ? escHtml(r['Raw Risk Score']) : '<span class="action-dim">—</span>')+'</td>' +
           '<td>'+badgeForPriority(r.Priority)+'</td>' +
           '<td class="desc-cell">'+escHtml(r.Description)+'</td>' +
           '<td>'+escHtml(r.Status)+'</td>' +
