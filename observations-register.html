@@ -865,10 +865,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
                shows it was properly triaged. */
             escBtn = '<button class="btn btn-gold" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Forward to Incident Register</button>';
           } else if (tier === 'tracker') {
-            /* Issam, 2026-10-07 — Medium/Low can be forwarded OR closed
-               outright with no Action raised, two buttons together. */
-            escBtn = '<button class="btn btn-gold" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Forward to Action Register</button>' +
-              '<button class="btn btn-outline-close" onclick="event.stopPropagation();OBS.openCloseNoEscalation('+idx+')">Close — No Escalation</button>';
+            /* Issam, 2026-10-07 — one button on the row; Forward vs
+               Close — No Escalation is a choice made INSIDE the modal
+               (see openEscalate), same pattern as the Incident
+               Register's own Decide panel. */
+            escBtn = '<button class="btn btn-gold" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Forward to Action Register</button>';
           } else if (tier === 'pending') {
             /* Accepted, but HSSE hasn't filed a Risk Assessment row yet —
                still clickable so openEscalate() can explain why nothing
@@ -1049,6 +1050,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       '<div class="mf">Recurrence Flagged</div><div class="mv">'+badgeForRecurrence(r['Recurrence Flagged'])+'</div>' +
       '<div class="mf">Raw Risk Score (Risk Assessment)</div><div class="mv" id="obs-esc-risklookup">Checking the Risk Assessment sheet…</div>' +
       '<div class="modal-actions" id="obs-esc-actions"></div>' +
+      '<textarea class="esc-close-comment" id="obs-close-comment" placeholder="Required — why is no Action needed? (e.g. repeat minor observation, already addressed, no corrective action warranted)" style="display:none;width:100%;min-height:70px;margin:8px 0;padding:8px;border-radius:6px;border:1px solid var(--w-border);background:var(--w-bg3);color:var(--w-text);font-family:inherit;font-size:12px"></textarea>' +
+      '<div class="modal-actions" id="obs-close-confirm-actions" style="display:none">' +
+        '<button class="btn modal-close" onclick="OBS.toggleObsCloseComment()">Back</button>' +
+        '<button class="btn btn-gold" id="obs-close-confirm-btn">Confirm Close</button>' +
+      '</div>' +
       '<div class="esc-note">Escalation is gated by HSSE\'s Raw Risk Score — Medium or below forwards to the Action Tracker, High/Critical forwards to the Incident Register. There is no free choice here, by design: only HSSE\'s risk assessment decides the path. Worker-submitted priority is never used for this gate.</div>' +
     '</div></div>';
 
@@ -1075,15 +1081,35 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       var levelEsc = String(level).replace(/'/g, "\\'");
       var scoreArg = String(score)!=='' ? ",'"+String(score).replace(/'/g, "\\'")+"'" : '';
       if (levelLower === 'high' || levelLower === 'critical'){
+        /* Mandatory tier — no Close option, by design (audit-trail
+           rule): only one path is ever offered here. */
         actionsEl.innerHTML =
           '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'Incident\',\''+levelEsc+'\''+scoreArg+')">Forward to Incident Register</button>' +
           '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>';
       } else {
+        /* Issam, 2026-10-07 — Forward and Close — No Escalation are
+           offered TOGETHER inside this same modal (not as separate row
+           buttons): clicking Close swaps in the comment box below,
+           same two-stage pattern as the Incident Register's own Decide
+           panel. */
         actionsEl.innerHTML =
           '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'ACT\',\''+levelEsc+'\''+scoreArg+')">Forward to Action Register</button>' +
+          '<button class="btn btn-outline-close" onclick="OBS.toggleObsCloseComment()">Close — No Escalation</button>' +
           '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>';
+        var confirmBtn = document.getElementById('obs-close-confirm-btn');
+        if (confirmBtn) confirmBtn.onclick = function(){ submitCloseNoEscalation(idx); };
       }
     });
+  }
+
+  function toggleObsCloseComment(){
+    var ta = document.getElementById('obs-close-comment');
+    var actions = document.getElementById('obs-close-confirm-actions');
+    if (!ta || !actions) return;
+    var showing = ta.style.display === 'block';
+    ta.style.display = showing ? 'none' : 'block';
+    actions.style.display = showing ? 'none' : 'flex';
+    if (!showing) ta.focus();
   }
 
   /* Hands off to the real register — never a direct write from here,
@@ -1127,32 +1153,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     closeModal(); /* closeModal() re-renders and applies any held-back refresh */
   }
 
-  /* Close — No Escalation (Issam, 2026-10-07) — only ever offered for
-     the 'tracker' tier (Medium/Low raw risk; see the Action-column
-     button logic in render()). Mirrors the Incident Register's own
-     Close - No Escalation flow: a short justification is required, and
-     it becomes the audit record for why nothing was raised. Never
-     offered for 'incident' tier (mandatory forward, by design) or
-     'pending' (nobody has assessed the actual risk yet). */
-  function openCloseNoEscalation(idx){
-    _modalOpen = true;
-    var r = DATA[idx];
-    var root = document.getElementById('obs-modal-root');
-    root.innerHTML = '<div class="modal-bg" id="obs-close-modal-bg"><div class="modal">' +
-      '<h3>Close — No Escalation — '+escHtml(r['Case ID'])+'</h3>' +
-      '<div class="mf">Description</div><div class="mv">'+escHtml(r.Description)+'</div>' +
-      '<div class="mf">Priority (HSSE)</div><div class="mv">'+badgeForPriority(r.Priority)+'</div>' +
-      '<div class="esc-note">Review complete, nothing further needed — this requires a short justification, which becomes the audit record for why no Action was raised.</div>' +
-      '<textarea class="esc-close-comment" id="obs-close-comment" placeholder="Required — why is no Action needed? (e.g. repeat minor observation, already addressed, no corrective action warranted)" style="width:100%;min-height:70px;margin:8px 0;padding:8px;border-radius:6px;border:1px solid var(--w-border);background:var(--w-bg3);color:var(--w-text);font-family:inherit;font-size:12px"></textarea>' +
-      '<div class="modal-actions">' +
-        '<button class="btn modal-close" id="obs-close-cancel">Cancel</button>' +
-        '<button class="btn btn-gold" onclick="OBS.submitCloseNoEscalation('+idx+')">Confirm Close</button>' +
-      '</div>' +
-    '</div></div>';
-    document.getElementById('obs-close-cancel').onclick = function(){ closeModal(); };
-    document.getElementById('obs-close-modal-bg').onclick = function(e){ if (e.target.id === 'obs-close-modal-bg') closeModal(); };
-  }
-
+  /* Close — No Escalation (Issam, 2026-10-07) — offered INSIDE the
+     openEscalate() modal above, not as its own separate modal, and only
+     ever for the 'tracker' tier (Medium/Low raw risk). Mirrors the
+     Incident Register's own Close - No Escalation flow: a short
+     justification is required, and it becomes the audit record for why
+     nothing was raised. Never offered for 'incident' tier (mandatory
+     forward, by design) or 'pending' (nobody has assessed the actual
+     risk yet). */
   function submitCloseNoEscalation(idx){
     var ta = document.getElementById('obs-close-comment');
     var comment = ta ? ta.value.trim() : '';
@@ -1263,7 +1271,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     document.getElementById('obs-lightbox-root').innerHTML = '';
   }
 
-  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, openCloseNoEscalation: openCloseNoEscalation, submitCloseNoEscalation: submitCloseNoEscalation, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, onDateRangeChange: onDateRangeChange, clearDateRange: clearDateRange, openLightbox: openLightbox, closeLightbox: closeLightbox, refreshNow: function(){ loadLive(true); } };
+  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, toggleObsCloseComment: toggleObsCloseComment, submitCloseNoEscalation: submitCloseNoEscalation, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, onDateRangeChange: onDateRangeChange, clearDateRange: clearDateRange, openLightbox: openLightbox, closeLightbox: closeLightbox, refreshNow: function(){ loadLive(true); } };
   loadLive();
   startAutoRefresh();
 })();
