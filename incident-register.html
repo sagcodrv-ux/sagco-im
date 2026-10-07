@@ -266,9 +266,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       label: 'Incident', tabKey: 'incidents', containerId: 'live-table-register',
       idCol: 'Incident ID', idEditable: true,
       idPrefix: 'INC-2026-', idPad: 3,
-      fields: ['Incident ID','Date','Classification','Location','Description','Injured Person',
+      fields: ['Incident ID','Date','Classification','Location','Description','Injury?','Injured Person',
                'Nature of Injury','LTI?','Root Cause','Direct Cause','LWD','Total Cost',
                'Consequence','Likelihood','RA Score','RA Level','Corrective Action','Notification Required','Status'],
+      /* Fields hidden when an injury-detail block (Injured Person/Nature
+         of Injury/LTI?/LWD) should be collapsed — gated live in the
+         modal by the 'Injury?' toggle, not every incident involves one. */
+      injuryDetailFields: ['Injured Person','Nature of Injury','LTI?','LWD'],
       filterField: 'Classification'
     }
   };
@@ -400,8 +404,35 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return getSuggestions(tKeyName, fieldName);
   }
 
-  function effectiveFields(tKeyName){
-    return TABLES[tKeyName].fields;
+  /* opts.hideRiskInputs=true drops Consequence/Likelihood/RA Score —
+     used only for the Observation hand-off, where HSSE has already
+     scored the risk once on the Risk Assessment and re-asking for
+     Consequence/Likelihood here would just be re-deriving a number
+     that's already on file. RA Level itself stays in the field list
+     (showModal renders it read-only either way), carrying the
+     inherited value straight through. A direct Add/Edit on the
+     Incident Register — no prior Observation assessment to inherit —
+     keeps all three, since that's the only place Consequence/
+     Likelihood ever gets entered at all.
+
+     opts.hideInjury=true drops the 'Injury?' toggle and every injury-
+     detail field (Injured Person/Nature of Injury/LTI?/LWD) outright —
+     also Observation-hand-off-only. Injuries are reported and tracked
+     through their own dedicated process, never through the shop-floor
+     Observation/QR system, so an incident forwarded from an
+     Observation never has (and never needs to ask about) injury
+     detail. A direct Add/Edit on the Incident Register still shows the
+     toggle, since that's the only entry point where an injury would
+     ever be recorded in the first place. */
+  function effectiveFields(tKeyName, opts){
+    var all = TABLES[tKeyName].fields;
+    var drop = {};
+    if (opts && opts.hideRiskInputs){ drop['Consequence']=1; drop['Likelihood']=1; drop['RA Score']=1; }
+    if (opts && opts.hideInjury){
+      drop['Injury?'] = 1;
+      (TABLES[tKeyName].injuryDetailFields || []).forEach(function(f){ drop[f] = 1; });
+    }
+    return all.filter(function(f){ return !drop[f]; });
   }
 
   function renderShell(tKeyName, data){
@@ -1130,6 +1161,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   function showModal(tKeyName, title, fields, initialValues, onSubmit){
     var root = document.getElementById('inc-modal-root');
+    var injuryDetailFields = TABLES[tKeyName].injuryDetailFields || [];
+    // Default the toggle from whatever's already on the record — an
+    // existing incident with, say, a Nature of Injury already filled
+    // in should open with the detail block visible, not hidden behind
+    // a toggle nobody's told to flip. Brand-new records with nothing
+    // filled in yet default to No/hidden.
+    var injuryInitial = (initialValues && initialValues['Injury?']) || '';
+    if (!injuryInitial){
+      var hasInjuryData = injuryDetailFields.some(function(df){
+        return initialValues && String(initialValues[df] || '').trim();
+      });
+      injuryInitial = hasInjuryData ? 'Yes' : 'No';
+    }
     var fieldsHtml = fields.map(function(f, fi){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
@@ -1147,6 +1191,49 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (isTextarea){
         return '<div class="inc-field"><label>'+f+'</label>' +
           '<textarea data-field="'+f+'" rows="2">'+vEsc+'</textarea></div>';
+      }
+      // Not every escalated observation/incident involves a person
+      // getting hurt — this toggle decides whether the injury-detail
+      // block below (Injured Person/Nature of Injury/LTI?/LWD) even
+      // shows up, so the form doesn't ask for injury specifics on a
+      // damage-only or environmental case. The toggle itself is always
+      // shown; the fields it controls are wired up after render.
+      if (f === 'Injury?'){
+        var yesSel = injuryInitial === 'Yes' ? ' selected' : '';
+        var noSel = injuryInitial === 'Yes' ? '' : ' selected';
+        return '<div class="inc-field"><label>Is there an injury?</label>' +
+          '<select data-field="Injury?" id="inc-modal-injury-toggle">' +
+            '<option value="No"'+noSel+'>No</option>' +
+            '<option value="Yes"'+yesSel+'>Yes</option>' +
+          '</select></div>';
+      }
+      if (injuryDetailFields.indexOf(f) !== -1){
+        // LTI? gets its own Yes/No select (matches the semantics
+        // isCapaEligible/raLevelToCapaSeverity already read it with —
+        // a free-text field here could drift into values those
+        // functions don't recognize).
+        var inner;
+        if (f === 'LTI?'){
+          var ltiYes = String(v).trim().toUpperCase() === 'YES';
+          inner = '<select data-field="'+f+'">' +
+            '<option value="No"'+(ltiYes?'':' selected')+'>No</option>' +
+            '<option value="Yes"'+(ltiYes?' selected':'')+'>Yes</option>' +
+            '</select>';
+        } else {
+          inner = '<input type="text" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' + dlHtml;
+        }
+        return '<div class="inc-field inc-injury-field" data-injury-field="1"><label>'+f+'</label>' + inner + '</div>';
+      }
+      // Status reflects workflow stage (new/decided/closed), not a
+      // free choice typed here — it only ever changes through the
+      // ⚖ Decide panel (Raise CAPA / Raise Action / Close — No
+      // Escalation), which patches it directly and bypasses this
+      // modal entirely. Shown read-only so it's visible but never a
+      // place to override the workflow by hand.
+      if (f === 'Status'){
+        return '<div class="inc-field"><label>'+f+' <span style="font-weight:400;opacity:.7">(set by ⚖ Decide, not editable here)</span></label>' +
+          '<input type="text" data-field="'+f+'" value="'+vEsc+'" readonly style="background:#f0f0f0;color:#222;font-weight:600;cursor:not-allowed">' +
+          '</div>';
       }
       // RA Level is derived from RA Score, not typed in directly - keep
       // it read-only in the form so it can never drift out of sync.
@@ -1221,6 +1308,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
     document.getElementById('inc-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('inc-modal-bg').onclick = function(e){ if(e.target.id==='inc-modal-bg') root.innerHTML=''; };
+
+    // Injury? toggle — show/hide the injury-detail block live as the
+    // user flips it, same pattern as recalcFromCxL below reacting to
+    // Consequence/Likelihood. Runs once immediately so the block
+    // starts in the right state (see injuryInitial above), then again
+    // on every change.
+    var injuryToggleEl = document.getElementById('inc-modal-injury-toggle');
+    var injuryFieldEls = root.querySelectorAll('[data-injury-field="1"]');
+    function applyInjuryVisibility(){
+      var show = injuryToggleEl ? (injuryToggleEl.value === 'Yes') : (injuryInitial === 'Yes');
+      for (var i=0;i<injuryFieldEls.length;i++){ injuryFieldEls[i].style.display = show ? '' : 'none'; }
+    }
+    if (injuryToggleEl) injuryToggleEl.addEventListener('change', applyInjuryVisibility);
+    applyInjuryVisibility();
 
     // RA Score is now calculated, not typed: Consequence x Likelihood
     // drives RA Score, which in turn drives RA Level - the full chain
@@ -1351,7 +1452,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       initial['RA Level'] = ctx.rawRiskLevel || '';
     }
 
-    showModal('register', 'New Incident — from Observation' + (matched ? ' ' + caseId : ''), effectiveFields('register'), initial, function(values, close){
+    /* Only hide Consequence/Likelihood/RA Score when there's an actual
+       inherited level to show in their place — a stale/mismatched
+       sessionStorage context (matched===false) falls through to a
+       normal blank Add form, RA Score inputs included, same as any
+       other direct Add. */
+    var hideRiskInputs = !!(matched && ctx.rawRiskLevel);
+    // Injury detail is never relevant on an Observation hand-off — see
+    // the effectiveFields doc comment above — so this is unconditional,
+    // unlike hideRiskInputs which only applies when a score was
+    // actually inherited.
+    var formFields = effectiveFields('register', {hideRiskInputs: hideRiskInputs, hideInjury: true});
+    showModal('register', 'New Incident — from Observation' + (matched ? ' ' + caseId : ''), formFields, initial, function(values, close){
       values[STATUS_COL] = 'Active';
       postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
         close();
