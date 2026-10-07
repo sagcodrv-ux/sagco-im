@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SAGCO IMS — Observations Register (Draft)</title>
+<title>SAGCO IMS — Observations Register</title>
 <script src="data.js"></script>
 <style>
 body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-family:Arial,Helvetica,sans-serif}
@@ -32,10 +32,26 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 .obs-wrap .kpi-card.kc-red::before{background:var(--w-red)}
 .obs-wrap .kpi-card.kc-amb::before{background:var(--w-amb)}
 .obs-wrap .kpi-card.kc-blue::before{background:var(--w-blue)}
+
+/* Charts section — collapsed by default behind a toggle button so the
+   page stays compact; opens into two canvas-based bar charts rendered
+   with plain Canvas 2D (no external chart library dependency). */
+.obs-wrap .charts-toggle-row{display:flex;justify-content:flex-end;margin:-6px 0 12px}
+.obs-wrap .charts-section{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+.obs-wrap .chart-card{background:var(--w-bg2);border:1px solid var(--w-border);border-radius:14px;padding:16px 18px}
+.obs-wrap .chart-card h3{margin:0 0 4px;font-size:12px;color:var(--w-gold-lt);font-weight:700}
+.obs-wrap .chart-card .chart-sub{font-size:10px;color:var(--w-text-muted);font-weight:400}
+.obs-wrap .chart-scroll{overflow-y:auto;max-height:320px}
+.obs-wrap .chart-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.obs-wrap .chart-legend span{font-size:10px;color:var(--w-text-muted);display:flex;align-items:center;gap:5px}
+.obs-wrap .chart-legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+@media (max-width: 900px){ .obs-wrap .charts-section{grid-template-columns:1fr} }
 .obs-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--w-text-muted);
   text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
 .obs-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--w-text);line-height:1.1;margin-bottom:4px}
 .obs-wrap .kpi-sub{font-size:10px;color:var(--w-text-muted)}
+.obs-wrap .daterange-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.obs-wrap .daterange-bar label{font-size:12px;color:var(--w-text-muted)}
 .obs-wrap .filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
 .obs-wrap .search-input{flex:1 1 220px;min-width:160px;padding:7px 10px;font-size:12px;
   border:1px solid var(--w-border);border-radius:8px;font-family:inherit;background:var(--w-bg3);color:var(--w-text)}
@@ -48,6 +64,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 .obs-wrap .btn:hover{background:#223457;border-color:var(--w-border-gold)}
 .obs-wrap .btn-gold{background:var(--w-gold);color:#1a1200;border-color:var(--w-gold);font-weight:700}
 .obs-wrap .btn-gold:hover{background:var(--w-gold-lt)}
+.obs-wrap .btn:disabled{opacity:.4;cursor:not-allowed}
+.obs-wrap .btn:disabled:hover{background:var(--w-bg3);border-color:var(--w-border)}
+/* Row selection — click a row to select it (PTW-register pattern): one
+   row at a time, toggled off by clicking it again, acted on by the
+   toolbar button above the table rather than a per-row button. */
+.obs-wrap .toolbar{display:flex;justify-content:flex-end;padding:8px 0}
+.obs-wrap .row-selectable{cursor:pointer}
+.obs-wrap .row-selected td,
+.obs-wrap .row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--w-gold)}
+.obs-wrap .photo-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.obs-wrap .photo-grid img{max-width:220px;max-height:220px;border-radius:8px;
+  border:1px solid var(--w-border-gold);cursor:zoom-in;display:block}
+.obs-wrap .photo-empty{font-size:12px;color:var(--w-text-muted)}
 .obs-wrap .tbl-wrap{overflow-x:auto;border:1px solid var(--w-border-gold);border-radius:10px}
 .obs-wrap table{width:100%;border-collapse:collapse;font-size:11px}
 .obs-wrap th{text-align:left;color:var(--w-gold-lt);font-weight:700;font-size:10px;
@@ -65,6 +94,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 .obs-wrap .badge.b-amb{background:rgba(232,179,57,.15);color:var(--w-amb)}
 .obs-wrap .badge.b-blue{background:rgba(91,155,213,.15);color:var(--w-blue)}
 .obs-wrap .badge.b-dim{background:var(--w-bg3);color:var(--w-text-muted)}
+.obs-wrap .action-dim{color:var(--w-text-muted);font-size:11px}
 .obs-wrap .empty-state{text-align:center;padding:20px;color:var(--w-text-muted)}
 .obs-wrap .modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
   align-items:center;justify-content:center;z-index:9999}
@@ -77,21 +107,67 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 .obs-wrap .modal-actions .btn{width:100%;padding:9px 12px;font-size:12px}
 .obs-wrap .modal-close{background:var(--w-bg3)}
 .obs-wrap .esc-note{font-size:10px;color:var(--w-text-muted);background:var(--w-bg3);border-radius:8px;padding:8px 10px;margin-top:10px}
+.obs-wrap .esc-form-row{margin:10px 0}
+.obs-wrap .esc-form-row label{display:block;font-size:11px;color:var(--w-text-muted);margin-bottom:3px}
+.obs-wrap .esc-form-row .req{color:var(--w-red,#e05d5d)}
+.obs-wrap .esc-form-row input,.obs-wrap .esc-form-row select,.obs-wrap .esc-form-row textarea{
+  width:100%;box-sizing:border-box;background:var(--w-bg3);border:1px solid var(--w-border);
+  border-radius:6px;padding:6px 8px;font-size:12px;color:var(--w-text);font-family:inherit}
+.obs-wrap .esc-form-error{color:var(--w-red,#e05d5d);font-size:11px;margin-top:6px}
+.obs-wrap .esc-action-row{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.obs-wrap .esc-action-row input{flex:1;margin:0;width:auto}
+.obs-wrap .esc-action-row input.esc-action-due{flex:0 0 128px}
+.obs-wrap .esc-action-remove{flex:0 0 auto;background:var(--w-bg3);border:1px solid var(--w-border);
+  border-radius:6px;color:var(--w-text-muted);cursor:pointer;padding:5px 9px;font-size:12px;line-height:1}
+.obs-wrap .esc-action-remove:hover{color:var(--w-red,#e05d5d);border-color:var(--w-red,#e05d5d)}
+.obs-wrap .btn-sm{font-size:10px;padding:4px 10px;width:auto!important}
 .obs-wrap .pagebar{display:flex;justify-content:space-between;align-items:center;padding:8px 2px;font-size:10px;color:var(--w-text-muted)}
+.obs-wrap .photo-lightbox-bg{position:fixed;inset:0;background:rgba(4,7,20,.92);display:flex;
+  align-items:center;justify-content:center;z-index:10000;cursor:zoom-out}
+.obs-wrap .photo-lightbox-bg img{max-width:95vw;max-height:90vh;border-radius:8px;
+  box-shadow:0 12px 50px rgba(0,0,0,.6);cursor:default}
+.obs-wrap .photo-lightbox-close{position:fixed;top:16px;right:22px;background:var(--w-bg3);
+  color:var(--w-text);border:1px solid var(--w-border-gold);border-radius:8px;padding:8px 14px;
+  font-size:13px;cursor:pointer}
 </style>
 </head>
 <body>
 <div class="obs-wrap">
-<div class="draft-banner"><strong>DRAFT / FIRST PASS</strong> — built from the exported AppSheet QR-observation data (390 cases) for review. Not yet wired to the live Google Sheet; escalation buttons below record a local status change only, as a preview of the intended workflow. Nothing here affects the real Incident Register or Action Tracker yet.</div>
+<div class="draft-banner" id="obs-status-banner"><strong>⏳ LOADING</strong> — connecting to the live Observations (AppSheet) spreadsheet…</div>
 <h1>Observations Register</h1>
 <div class="sub">QR-code worker observations, near-misses, and damage-only reports — source: AppSheet observation system</div>
 <div class="req-text">ISO 45001 §5.4 (Worker Participation) / §10.2 — Hazard observations, near-misses, and damage-only events reported via the shop-floor QR system are logged, reviewed, and — where they meet the recurrence, severity, or confirmed-event criteria — escalated to the Action Tracker or Incident Register.</div>
 
+<div class="daterange-bar">
+  <label>From</label>
+  <input type="date" id="obs-date-start" class="filter-select" onchange="OBS.onDateRangeChange()">
+  <label>To</label>
+  <input type="date" id="obs-date-end" class="filter-select" onchange="OBS.onDateRangeChange()">
+  <button class="btn" onclick="OBS.clearDateRange()">Clear</button>
+  <span class="filter-status" id="obs-daterange-status"></span>
+</div>
+
 <div class="kpi-grid">
-  <div class="kpi-card kc-nvy" onclick="OBS.cardFilter('all')"><div class="kpi-lbl">Total Observations</div><div class="kpi-val">390</div><div class="kpi-sub">All categories, all time</div></div>
-  <div class="kpi-card kc-red" onclick="OBS.cardFilter('attention')"><div class="kpi-lbl">Needs Attention</div><div class="kpi-val">67</div><div class="kpi-sub">Unreviewed confirmed events + recurrence-flagged</div></div>
-  <div class="kpi-card kc-amb" onclick="OBS.cardFilter('unreviewed_pd')"><div class="kpi-lbl">Unreviewed Property Damage</div><div class="kpi-val">33</div><div class="kpi-sub">Confirmed events never accepted/reviewed</div></div>
-  <div class="kpi-card kc-blue" onclick="OBS.cardFilter('recurrence')"><div class="kpi-lbl">Recurrence Flagged</div><div class="kpi-val">34</div><div class="kpi-sub">"Did the same event happen before?" = Yes</div></div>
+  <div class="kpi-card kc-nvy" onclick="OBS.cardFilter('all')"><div class="kpi-lbl">Total Observations</div><div class="kpi-val">—</div><div class="kpi-sub">All categories, all time</div></div>
+  <div class="kpi-card kc-red" onclick="OBS.cardFilter('attention')"><div class="kpi-lbl">Needs Attention</div><div class="kpi-val">—</div><div class="kpi-sub">Unreviewed confirmed events + recurrence-flagged</div></div>
+  <div class="kpi-card kc-amb" onclick="OBS.cardFilter('escalation_review')"><div class="kpi-lbl">Needs Escalation Review</div><div class="kpi-val">—</div><div class="kpi-sub">Status = Evaluated, not yet redirected</div></div>
+  <div class="kpi-card kc-blue" onclick="OBS.cardFilter('recurrence')"><div class="kpi-lbl">Recurrence Flagged</div><div class="kpi-val">—</div><div class="kpi-sub">"Did the same event happen before?" = Yes</div></div>
+</div>
+
+<div class="charts-toggle-row">
+  <button class="btn" id="obs-charts-toggle" onclick="OBS.toggleCharts()">📊 Show Charts</button>
+</div>
+
+<div class="charts-section" id="obs-charts-section" style="display:none">
+  <div class="chart-card">
+    <h3>Observations by Employee Number</h3>
+    <div class="chart-scroll"><canvas id="obs-chart-employee" height="220"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Observations Over Time <span class="chart-sub">(by month, split by category)</span></h3>
+    <canvas id="obs-chart-timeline" height="220"></canvas>
+    <div class="chart-legend" id="obs-timeline-legend"></div>
+  </div>
 </div>
 
 <div class="filterbar">
@@ -111,6 +187,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
   <span class="filter-status" id="obs-filter-status"></span>
 </div>
 
+<div class="toolbar" id="obs-toolbar">
+  <button class="btn btn-gold" id="obs-tb-photos" disabled onclick="OBS.visualizePhotos()">📷 Visualize Photos</button>
+</div>
+
 <div class="tbl-wrap">
 <table>
 <thead><tr>
@@ -122,48 +202,290 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 <div class="pagebar" id="obs-pagebar"></div>
 
 <div id="obs-modal-root"></div>
+<div id="obs-lightbox-root"></div>
 
 </div>
 <script>
 (function(){
-  /* Point 3 (this session) — the register's own rows are now fetched
-     live from the Observation sheet's main tab (obs_main), the same
-     endpoint pattern already used for the Risk Assessment lookup
-     below. DATA starts empty and loadObservations() populates it on
-     page load; render() is only called once that resolves (or fails),
-     so the table never flashes a stale snapshot. The Google Sheet
-     columns map 1:1 to this app's field names already (Case ID, Date
-     Reported, Location, Category, Subcategory, Priority, Description,
-     Status, Reviewed, Recurrence Flagged, Raw Risk Level, Needs
-     Attention) -- the sheet has no Escalated column (that marker is
-     display-only, set locally after a successful escalation and lost
-     on reload, same as before this change). */
+  var OBS_TAB_KEYS = ['obs_main','obs_qr','obs_acceptance','obs_rejection','obs_risk'];
   var DATA = [];
-
-  function loadObservations(){
-    return fetch(SHEETS_URL + '?action=readObs&tab=obs_main')
-      .then(function(r){ return r.json(); })
-      .then(function(data){
-        var headers = data.headers || [];
-        DATA = (data.rows || []).map(function(row){
-          var obj = {};
-          headers.forEach(function(h, i){ obj[h] = row[i] == null ? '' : row[i]; });
-          if (!('Escalated' in obj)) obj.Escalated = '';
-          return obj;
-        });
-      })
-      .catch(function(err){
-        console.error('Failed to load live observations, register will show no rows:', err);
-        DATA = [];
-      });
-  }
-
   var _filterState = { special: '' };
+  var _loaded = false;
+  var _modalOpen = false;
+  var _pendingData = null; /* holds a fresher pull while the modal's open, applied only once it closes */
+  var _openPhotoCaseId = null; /* case_id the CURRENTLY open photo modal belongs to — a slow
+     getObsPhotos() response is only applied if it still matches this when it resolves, so closing
+     one case's photo modal and opening a different one before the fetch returns can never let the
+     first case's photo land in the second case's modal (same #obs-photo-grid id, different case). */
+  var _selectedCaseId = null; /* row-selection model (same pattern as the PTW register): click a row
+     to select it, click again to deselect; the toolbar's Visualize Photos button acts on whichever
+     one is selected, rather than each row carrying its own photo button. */
+  var REFRESH_INTERVAL_MS = 60000; /* quiet background re-pull, once a minute */
 
   function escHtml(s){
     return String(s==null?'':s).replace(/[&<>"']/g, function(c){
       return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
     });
+  }
+
+  function colIdx(headers, name){
+    for (var i=0;i<headers.length;i++){ if (String(headers[i]).trim() === name) return i; }
+    return -1;
+  }
+
+  /* employee_num in the source sheet has inconsistent formatting — some
+     rows are padded ('0000'), some aren't ('0'), there's stray trailing
+     text ('290e'), and a couple of clearly-bad long numbers. Rather than
+     silently merge or drop these, normalize whitespace/case only and
+     leave the rest visible, so a data-quality issue shows up as its own
+     bar instead of disappearing into another employee's count or being
+     dropped without explanation. */
+  function normalizeEmployeeNum(v){
+    if (v === null || v === undefined) return 'Unknown';
+    var s = String(v).trim();
+    if (!s) return 'Unknown';
+    return s;
+  }
+
+  function setBanner(html, isError){
+    var b = document.getElementById('obs-status-banner');
+    if (!b) return;
+    b.innerHTML = html;
+    b.style.borderLeftColor = isError ? 'var(--w-red)' : 'var(--w-amb)';
+  }
+
+  function stamp(){
+    var d = new Date();
+    function pad(n){ return String(n).padStart(2,'0'); }
+    return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  }
+
+  function liveBannerHtml(){
+    return '<strong>LIVE</strong> — reading directly from the Observations (AppSheet) spreadsheet. ' +
+      'Escalation is gated by HSSE\'s Raw Risk Score and hands off to the real Incident Register / Action Tracker, which write back to the live Google Sheet. ' +
+      '<span class="obs-updated-stamp" style="opacity:.7">Last updated '+stamp()+' · auto-refreshes every minute</span>';
+  }
+
+  /* ── Live fetch: pulls all 5 Observations tabs in parallel, then
+     joins them client-side the same way the one-off Python transform
+     did — QR Codes for location, Acceptance+Rejection for reviewed
+     status, Risk Assessment for the recurrence flag.
+
+     isBackground=true is the quiet, once-a-minute auto-refresh: it
+     never shows the "LOADING" state, never wipes the table on failure
+     (a single missed poll shouldn't disrupt someone reading the page),
+     and if the escalate modal is open it holds the new data in DATA
+     but defers re-rendering the table until the modal closes, so the
+     modal never gets yanked out from under whoever is mid-review. ── */
+  function loadLive(isBackground){
+    isBackground = !!isBackground;
+    if (!isBackground) setBanner('<strong>⏳ LOADING</strong> — connecting to the live Observations (AppSheet) spreadsheet…', false);
+
+    var fetches = OBS_TAB_KEYS.map(function(tabKey){
+      return fetch(SHEETS_URL + '?action=readObs&tab=' + tabKey)
+        .then(function(r){ return r.json(); })
+        .then(function(data){ return { tabKey: tabKey, data: data }; });
+    });
+
+    Promise.all(fetches).then(function(results){
+      var byTab = {};
+      results.forEach(function(r){ byTab[r.tabKey] = r.data; });
+
+      var anyError = OBS_TAB_KEYS.filter(function(k){ return byTab[k] && byTab[k].error; });
+      if (anyError.length){
+        setBanner('<strong>⚠ Could not load live data</strong> — ' + escHtml(anyError.map(function(k){ return byTab[k].error; }).join('; ')), true);
+        return;
+      }
+
+      var fresh = buildRecords(byTab);
+      carryForwardEscalations(fresh);
+      _loaded = true;
+      setBanner(liveBannerHtml(), false);
+
+      if (_modalOpen) {
+        /* Don't swap DATA out from under an open modal — the row index
+           it's holding onto is only valid against the array it was
+           rendered from. Hold the fresh pull and apply it on close. */
+        _pendingData = fresh;
+      } else {
+        DATA = fresh;
+        render();
+      }
+    }).catch(function(err){
+      if (!isBackground) {
+        setBanner('<strong>⚠ Connection unavailable</strong> — could not reach the live Observations data. ' + escHtml(err && err.message || ''), true);
+        document.getElementById('obs-tbody').innerHTML = '<tr><td colspan="10"><div class="empty-state"><strong>Connection unavailable</strong>Could not reach the live Google Sheets backend.</div></td></tr>';
+        /* Never leave the KPI tiles showing a number from before the page loaded —
+           that would look like a live count during an outage. Blank them out. */
+        document.querySelectorAll('.kpi-val').forEach(function(el){ el.textContent = '—'; });
+      } else {
+        /* Quiet failure — don't disturb whatever's on screen, just note it in the banner's corner. */
+        setBanner(liveBannerHtml() + ' <span style="color:var(--w-red)">(last refresh failed — showing previous data)</span>', false);
+      }
+    });
+  }
+
+  function startAutoRefresh(){
+    setInterval(function(){ loadLive(true); }, REFRESH_INTERVAL_MS);
+  }
+
+  /* Escalated marks are local-only (see the note in the modal) — they
+     don't exist in the sheet, so a fresh pull from the server has no
+     way to know about them. Without this, the once-a-minute refresh
+     would silently un-escalate anything marked since the last pull. */
+  function carryForwardEscalations(freshData){
+    var marks = {};
+    DATA.forEach(function(r){
+      if (r.Escalated) marks[r['Case ID']] = { Escalated: r.Escalated, _incidentFields: r._incidentFields };
+    });
+    if (!Object.keys(marks).length) return;
+    freshData.forEach(function(r){
+      var m = marks[r['Case ID']];
+      if (m){
+        r.Escalated = m.Escalated;
+        if (m._incidentFields) r._incidentFields = m._incidentFields;
+      }
+    });
+  }
+
+  function buildRecords(byTab){
+    var main = byTab['obs_main'] || { headers: [], rows: [] };
+    var qr = byTab['obs_qr'] || { headers: [], rows: [] };
+    var acc = byTab['obs_acceptance'] || { headers: [], rows: [] };
+    var rej = byTab['obs_rejection'] || { headers: [], rows: [] };
+    var risk = byTab['obs_risk'] || { headers: [], rows: [] };
+
+    /* QR Codes: qr_code_id -> location */
+    var qrLoc = {};
+    var qCid = colIdx(qr.headers, 'qr_code_id'), qLoc = colIdx(qr.headers, 'location');
+    if (qCid >= 0 && qLoc >= 0){
+      qr.rows.forEach(function(r){ qrLoc[r[qCid]] = r[qLoc]; });
+    }
+
+    /* Acceptance / Rejection: sets of reviewed case_ids.
+       acceptedIds is ACCEPTED ONLY (not rejected) — this is what gates
+       escalation eligibility: a case can't be flagged for escalation
+       until it has cleared the acceptance stage. reviewedIds (accepted
+       OR rejected) stays as-is for the existing "Needs Attention" rule. */
+    var reviewedIds = {};
+    var acceptedIds = {};
+    var aCid = colIdx(acc.headers, 'case_id');
+    if (aCid >= 0) acc.rows.forEach(function(r){ reviewedIds[r[aCid]] = true; acceptedIds[r[aCid]] = true; });
+    var jCid = colIdx(rej.headers, 'case_id');
+    if (jCid >= 0) rej.rows.forEach(function(r){ reviewedIds[r[jCid]] = true; });
+
+    /* Risk Assessment: case_id -> recurrence + raw risk level */
+    var riskLookup = {};
+    var rCid = colIdx(risk.headers, 'case_id');
+    var rRecur = colIdx(risk.headers, 'did_the_same_event_happen_before');
+    var rRawLvl = colIdx(risk.headers, 'raw_risk_level');
+    if (rCid >= 0){
+      risk.rows.forEach(function(r){
+        riskLookup[r[rCid]] = {
+          recurrence: rRecur >= 0 ? r[rRecur] : '',
+          rawRiskLevel: rRawLvl >= 0 ? r[rRawLvl] : '',
+        };
+      });
+    }
+
+    /* Main: build the record list */
+    var mH = main.headers;
+    var iCid = colIdx(mH,'case_id'), iDate = colIdx(mH,'datetime_of_case'), iQr = colIdx(mH,'qr_code_id'),
+        iCat = colIdx(mH,'category'), iSub = colIdx(mH,'subcategory'), iPri = colIdx(mH,'priority'),
+        iDesc = colIdx(mH,'comments'), iStatus = colIdx(mH,'latest_status'), iEmp = colIdx(mH,'employee_num');
+
+    return main.rows.map(function(r){
+      var cid = iCid >= 0 ? r[iCid] : '';
+      var category = iCat >= 0 ? r[iCat] : '';
+      var riskInfo = riskLookup[cid] || {};
+      var isRecurrenceKnown = Object.prototype.hasOwnProperty.call(riskLookup, cid);
+      var isRecurrence = riskInfo.recurrence === 1 || riskInfo.recurrence === '1' || riskInfo.recurrence === true;
+      var isReviewed = !!reviewedIds[cid];
+      var isAccepted = !!acceptedIds[cid];
+      var isRealEvent = category === 'Property Damage (Damage Only)';
+      var needsAttention = (isRealEvent && !isReviewed) || isRecurrence;
+
+      return {
+        'Case ID': cid,
+        'Date Reported': iDate >= 0 ? r[iDate] : '',
+        'Location': (iQr >= 0 && qrLoc[r[iQr]]) ? qrLoc[r[iQr]] : (iQr >= 0 ? r[iQr] : ''),
+        'Category': category,
+        'Subcategory': iSub >= 0 ? r[iSub] : '',
+        'Priority': iPri >= 0 ? r[iPri] : '',
+        'Description': iDesc >= 0 ? r[iDesc] : '',
+        'Status': iStatus >= 0 ? r[iStatus] : '',
+        'Reviewed': isReviewed ? 'Yes' : 'No',
+        'Accepted': isAccepted ? 'Yes' : 'No',
+        'Recurrence Flagged': isRecurrence ? 'Yes' : (isRecurrenceKnown ? 'No' : ''),
+        'Raw Risk Level': riskInfo.rawRiskLevel || '',
+        /* Point 2 gate hint only (render-time button label) — NOT the
+           authoritative source for routing. isRecurrenceKnown already
+           tells us whether a Risk Assessment row exists at all for this
+           case_id, which is exactly what distinguishes "not yet assessed"
+           from "assessed as Low/Medium". The actual routing decision at
+           click-time re-fetches obs_risk fresh and sorts by
+           risk_assessment_time (see lookupRiskAssessment below) — this
+           precomputed value can lag by one poll interval and must never
+           be trusted for the real gate. */
+        'Has Risk Assessment': isRecurrenceKnown ? 'Yes' : 'No',
+        'Needs Attention': needsAttention ? 'Yes' : 'No',
+        'Escalated': '',
+        'Employee Num': iEmp >= 0 ? normalizeEmployeeNum(r[iEmp]) : '',
+      };
+    });
+  }
+
+  /* "Needs Escalation Review" rule — keys OFF THE CASE'S OWN NATIVE
+     STATUS FIELD (r.Status, the source system's "latest_status" —
+     "Under Review", "Accepted", "Evaluated", "Rejected", "Implemented",
+     "Closed"). A case qualifies if and only if r.Status is literally
+     "Evaluated" — Accepted and Rejected are each their OWN separate
+     status values and do NOT count here, even though they sound like
+     they could be "evaluated" in the everyday sense. This is distinct
+     from r.Reviewed (our Accepted/Rejected flag) and from r.Escalated
+     (our own redirect tracking) — neither of those is consulted at all
+     for this rule now. Shared by the KPI count and the table row filter
+     so the two numbers never drift apart. */
+  function isEscalationCandidate(r){
+    if (r.Status !== 'Evaluated') return false; /* literal native status value — not Accepted, not Rejected */
+    if (r.Escalated) return false; /* already redirected — handled, drop off the review queue */
+    return true;
+  }
+
+  /* Decides the routing available for an accepted case. GATING FACTOR
+     IS HSSE'S RAW RISK SCORE ONLY (confirmed design decision) — never
+     worker-submitted Priority, never Category. A worker's own severity
+     guess is exactly what HSSE's assessment exists to check, so it
+     can't also be the thing that decides where a case goes.
+       'incident' — raw_risk_level is High or Critical. Mandatory: the
+                    ONLY action is forward to the Incident Register.
+                    There is no "reviewed only / close" shortcut for
+                    this tier — even a case that turns out to be minor
+                    gets closed *inside* the Incident Register, not here.
+       'tracker'  — raw_risk_level is Medium or Low. Forward to the
+                    Action Tracker only — no direct Observation→CAPA,
+                    and no "close instead" shortcut at this tier either;
+                    a human still has to act on it somewhere.
+       'pending'  — Accepted, but HSSE hasn't filed a Risk Assessment
+                    row for this case_id yet. A button still shows (see
+                    the row-render below) so the person can see WHY
+                    nothing can happen yet, rather than the row just
+                    going quietly missing a button.
+       null       — not yet Accepted, or already Closed in the source
+                    system itself (r.Status), so nothing left to route.
+     This function only decides what the button LABEL says — it's a
+     precomputed hint from the last data pull, acceptable for display,
+     but not authoritative. openEscalate() below re-fetches obs_risk
+     fresh at click-time and sorts by risk_assessment_time before
+     actually gating, since a case can carry more than one Risk
+     Assessment row (an initial evaluation, then a later closure
+     reassessment) and only the latest one may govern. */
+  function escalationTier(r){
+    if (r.Accepted !== 'Yes') return null;
+    if (r.Status === 'Closed') return null; /* source system already closed this case */
+    if (r['Has Risk Assessment'] !== 'Yes') return 'pending';
+    var lvl = String(r['Raw Risk Level'] || '').trim().toLowerCase();
+    return (lvl === 'high' || lvl === 'critical') ? 'incident' : 'tracker';
   }
 
   function badgeForCategory(cat){
@@ -188,27 +510,303 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     if (cat && r.Category !== cat) return false;
     if (attnSel === 'attention' && r['Needs Attention'] !== 'Yes') return false;
     if (_filterState.special === 'attention' && r['Needs Attention'] !== 'Yes') return false;
-    if (_filterState.special === 'unreviewed_pd' && !(r.Category === 'Property Damage (Damage Only)' && r.Reviewed === 'No')) return false;
+    if (_filterState.special === 'escalation_review' && !isEscalationCandidate(r)) return false;
     if (_filterState.special === 'recurrence' && r['Recurrence Flagged'] !== 'Yes') return false;
     if (search){
-      var hay = (r['Case ID']+' '+r.Location+' '+r.Description+' '+r.Category).toLowerCase();
+      var hay = (r['Case ID']+' '+r.Location+' '+r.Description+' '+r.Category+' '+r['Date Reported']).toLowerCase();
       if (hay.indexOf(search) === -1) return false;
+    }
+    if (_dateRange.start || _dateRange.end){
+      var ds = String(r['Date Reported']||'').trim().slice(0,10);
+      if (!ds) return false;
+      if (_dateRange.start && ds < _dateRange.start) return false;
+      if (_dateRange.end && ds > _dateRange.end) return false;
     }
     return true;
   }
 
+  /* Date-range filter (same concept as the PTW Quick Status bar). Now
+     applies to the KPI cards, both charts, AND the table row list below —
+     dashboardData() and matchesFilters() both read this same state. */
+  var _dateRange = { start: '', end: '' };
+
+  function dashboardData(){
+    if (!_dateRange.start && !_dateRange.end) return DATA;
+    return DATA.filter(function(r){
+      var s = String(r['Date Reported']||'').trim().slice(0,10);
+      if (!s) return false;
+      if (_dateRange.start && s < _dateRange.start) return false;
+      if (_dateRange.end && s > _dateRange.end) return false;
+      return true;
+    });
+  }
+
+  function onDateRangeChange(){
+    var s = document.getElementById('obs-date-start');
+    var e = document.getElementById('obs-date-end');
+    _dateRange.start = s ? s.value : '';
+    _dateRange.end = e ? e.value : '';
+    refreshDashboard();
+  }
+
+  function clearDateRange(){
+    var s = document.getElementById('obs-date-start');
+    var e = document.getElementById('obs-date-end');
+    if (s) s.value = '';
+    if (e) e.value = '';
+    _dateRange.start = ''; _dateRange.end = '';
+    refreshDashboard();
+  }
+
+  function refreshDashboard(){
+    render(); /* updates KPIs, the table row list, and charts (if open) — all date-range aware */
+    var statusEl = document.getElementById('obs-daterange-status');
+    if (statusEl){
+      var n = dashboardData().length;
+      statusEl.textContent = (_dateRange.start || _dateRange.end)
+        ? 'Filtered: ' + n + ' observation' + (n===1?'':'s') + ' in range'
+        : '';
+    }
+  }
+
+  function updateKpis(){
+    var d = dashboardData();
+    var total = d.length;
+    var attn = d.filter(function(r){ return r['Needs Attention']==='Yes'; }).length;
+    var esc = d.filter(isEscalationCandidate).length;
+    var rec = d.filter(function(r){ return r['Recurrence Flagged']==='Yes'; }).length;
+    document.querySelectorAll('.kpi-val')[0].textContent = total;
+    document.querySelectorAll('.kpi-val')[1].textContent = attn;
+    document.querySelectorAll('.kpi-val')[2].textContent = esc;
+    document.querySelectorAll('.kpi-val')[3].textContent = rec;
+  }
+
+
+  /* ── Charts (plain Canvas 2D, no external library) ───────────────── */
+  var _chartsOpen = false;
+  var CATEGORY_COLORS = {
+    'Property Damage (Damage Only)': '#F0685C',  /* matches badge b-red */
+    'Near Miss': '#E8B339',                       /* matches badge b-amb */
+    'Light Case': '#8893A8',                      /* matches badge b-dim */
+    'Observation': '#5B9BD5'                      /* matches badge b-blue (default) */
+  };
+  function categoryColor(cat){ return CATEGORY_COLORS[cat] || CATEGORY_COLORS['Observation']; }
+
+  function toggleCharts(){
+    _chartsOpen = !_chartsOpen;
+    var section = document.getElementById('obs-charts-section');
+    var btn = document.getElementById('obs-charts-toggle');
+    section.style.display = _chartsOpen ? 'grid' : 'none';
+    btn.textContent = _chartsOpen ? '📊 Hide Charts' : '📊 Show Charts';
+    if (_chartsOpen) renderCharts();
+  }
+
+  function renderCharts(){
+    if (!_chartsOpen || !_loaded) return;
+    renderEmployeeChart();
+    renderTimelineChart();
+  }
+
+  /* Horizontal bar chart: one row per employee_num, sorted by count
+     descending, so the busiest reporters are immediately at the top.
+     Canvas height grows with the number of distinct employees and the
+     container scrolls vertically rather than squeezing rows down to
+     unreadable heights. */
+  function renderEmployeeChart(){
+    var canvas = document.getElementById('obs-chart-employee');
+    if (!canvas) return;
+    var counts = {};
+    dashboardData().forEach(function(r){
+      var k = r['Employee Num'] || 'Unknown';
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    var entries = Object.keys(counts).map(function(k){ return [k, counts[k]]; });
+    entries.sort(function(a,b){ return b[1] - a[1]; });
+
+    var rowH = 24, gap = 6, leftPad = 70, rightPad = 46, topPad = 6;
+    var cssWidth = canvas.parentElement.clientWidth || 420;
+    var cssHeight = topPad + entries.length * (rowH + gap);
+    var dpr = window.devicePixelRatio || 1;
+    canvas.style.width = cssWidth + 'px';
+    canvas.style.height = cssHeight + 'px';
+    canvas.width = cssWidth * dpr;
+    canvas.height = cssHeight * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+    var maxVal = entries.length ? entries[0][1] : 0;
+    var barAreaW = cssWidth - leftPad - rightPad;
+
+    ctx.font = '11px sans-serif';
+    ctx.textBaseline = 'middle';
+    entries.forEach(function(entry, i){
+      var emp = entry[0], count = entry[1];
+      var y = topPad + i * (rowH + gap);
+      var w = maxVal > 0 ? Math.max(2, (count / maxVal) * barAreaW) : 0;
+
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      ctx.textAlign = 'right';
+      ctx.fillText(emp, leftPad - 10, y + rowH/2);
+
+      ctx.fillStyle = emp === 'Unknown' ? '#8893A8' : '#C9A84C';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(leftPad, y, w, rowH, 4); else ctx.rect(leftPad, y, w, rowH);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.textAlign = 'left';
+      ctx.fillText(String(count), leftPad + w + 8, y + rowH/2);
+    });
+  }
+
+  /* Stacked vertical bar chart: one bar per calendar month (YYYY-MM
+     taken from the "Date Reported" string, which the backend always
+     formats as "YYYY-MM-DD HH:MM"), each bar split into colored
+     segments by Category so both monthly volume and its category mix
+     are visible in one chart. */
+  function renderTimelineChart(){
+    var canvas = document.getElementById('obs-chart-timeline');
+    if (!canvas) return;
+    var byMonth = {};
+    dashboardData().forEach(function(r){
+      var d = r['Date Reported'] || '';
+      var month = d.slice(0, 7); /* "YYYY-MM" */
+      if (!month || month.length !== 7) return;
+      if (!byMonth[month]) byMonth[month] = {};
+      var cat = r.Category || 'Observation';
+      byMonth[month][cat] = (byMonth[month][cat] || 0) + 1;
+    });
+    var months = Object.keys(byMonth).sort();
+    var allCats = {};
+    months.forEach(function(m){ Object.keys(byMonth[m]).forEach(function(c){ allCats[c] = true; }); });
+    var catList = Object.keys(allCats);
+    /* Keep a stable, sensible legend order when these categories are present. */
+    var preferredOrder = ['Observation','Near Miss','Property Damage (Damage Only)','Light Case'];
+    catList.sort(function(a,b){
+      var ia = preferredOrder.indexOf(a), ib = preferredOrder.indexOf(b);
+      if (ia === -1) ia = 99; if (ib === -1) ib = 99;
+      return ia - ib;
+    });
+
+    var leftPad = 36, rightPad = 10, topPad = 10, bottomPad = 34;
+    var cssWidth = Math.max(canvas.parentElement.clientWidth || 420, months.length * 46);
+    var cssHeight = 220;
+    var dpr = window.devicePixelRatio || 1;
+    canvas.style.width = cssWidth + 'px';
+    canvas.style.height = cssHeight + 'px';
+    canvas.width = cssWidth * dpr;
+    canvas.height = cssHeight * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+    var monthTotals = months.map(function(m){
+      return catList.reduce(function(sum,c){ return sum + (byMonth[m][c]||0); }, 0);
+    });
+    var maxVal = Math.max.apply(null, monthTotals.concat([1]));
+    var barAreaH = cssHeight - topPad - bottomPad;
+    var slotW = (cssWidth - leftPad - rightPad) / months.length;
+    var barW = Math.min(34, slotW * 0.6);
+
+    /* Y-axis gridlines + labels (4 ticks) */
+    ctx.strokeStyle = 'rgba(255,255,255,.08)';
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (var t=0; t<=4; t++){
+      var val = Math.round((maxVal / 4) * t);
+      var y = topPad + barAreaH - (val / maxVal) * barAreaH;
+      ctx.beginPath(); ctx.moveTo(leftPad, y); ctx.lineTo(cssWidth - rightPad, y); ctx.stroke();
+      ctx.fillText(String(val), leftPad - 6, y);
+    }
+
+    months.forEach(function(month, i){
+      var slotX = leftPad + i * slotW;
+      var x = slotX + (slotW - barW) / 2;
+      var yCursor = topPad + barAreaH;
+      catList.forEach(function(cat){
+        var v = byMonth[month][cat] || 0;
+        if (!v) return;
+        var h = (v / maxVal) * barAreaH;
+        yCursor -= h;
+        ctx.fillStyle = categoryColor(cat);
+        ctx.fillRect(x, yCursor, barW, h);
+      });
+
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      var parts = month.split('-');
+      var monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      var label = monthNames[parseInt(parts[1],10)] + ' ' + parts[0].slice(2);
+      ctx.fillText(label, slotX + slotW/2, cssHeight - bottomPad + 16);
+    });
+
+    var legend = document.getElementById('obs-timeline-legend');
+    if (legend){
+      legend.innerHTML = catList.map(function(cat){
+        return '<span><i style="background:'+categoryColor(cat)+'"></i>'+escHtml(cat)+'</span>';
+      }).join('');
+    }
+  }
+
   function render(){
+    if (!_loaded) return;
+    updateKpis();
     var rows = DATA.filter(matchesFilters);
     var tbody = document.getElementById('obs-tbody');
     if (!rows.length){
       tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
     } else {
-      tbody.innerHTML = rows.map(function(r, i){
+      tbody.innerHTML = rows.map(function(r){
         var idx = DATA.indexOf(r);
-        var rowCls = r['Needs Attention'] === 'Yes' ? ' class="attn-row"' : '';
-        var escBtn = r.Escalated ? '<span class="badge b-grn">Escalated → '+escHtml(r.Escalated)+'</span>' :
-          '<button class="btn btn-gold" onclick="OBS.openEscalate('+idx+')">Review / Escalate</button>';
-        return '<tr'+rowCls+'>' +
+        var caseId = r['Case ID'];
+        var isSel = (_selectedCaseId !== null && String(_selectedCaseId) === String(caseId));
+        var rowCls = ' class="row-selectable' + (r['Needs Attention'] === 'Yes' ? ' attn-row' : '') + (isSel ? ' row-selected' : '') + '"';
+        var escBtn;
+        if (r.Escalated === 'Closed') {
+          escBtn = '<span class="badge b-dim">Closed — No Action</span>';
+        } else if (r.Escalated) {
+          /* If this incident spawned Action Tracker entries, show their
+             IDs right on the badge (short form, e.g. "ACT-01, ACT-02")
+             so it's clear at a glance which tracker rows trace back to
+             this case — not just a count. */
+          var actionIdsSuffix = '';
+          if (r._incidentFields && r._incidentFields.Actions && r._incidentFields.Actions.length) {
+            var shortIds = r._incidentFields.Actions.map(function(a){
+              var m = /-ACT-(\d+)$/.exec(a.id);
+              return m ? 'ACT-' + m[1] : a.id;
+            });
+            actionIdsSuffix = ' · ' + shortIds.join(', ');
+          }
+          escBtn = '<span class="badge b-grn">Redirected → '+escHtml(r.Escalated)+escHtml(actionIdsSuffix)+'</span>';
+        } else if (r.Status === 'Closed') {
+          /* Closed in the source system itself, never routed through our
+             escalation workflow at all (r.Escalated is still ''). Same
+             inert badge, so this is indistinguishable from a case we
+             closed ourselves — and distinguishable from the dash used
+             for "not yet accepted". */
+          escBtn = '<span class="badge b-dim">Closed — No Action</span>';
+        } else {
+          var tier = escalationTier(r);
+          if (tier === 'incident') {
+            escBtn = '<button class="btn btn-gold" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Forward to Incident Register</button>';
+          } else if (tier === 'tracker') {
+            escBtn = '<button class="btn btn-gold" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Review / Forward</button>';
+          } else if (tier === 'pending') {
+            /* Accepted, but HSSE hasn't filed a Risk Assessment row yet —
+               still clickable so openEscalate() can explain why nothing
+               can be routed yet, rather than the row just losing its
+               button with no explanation. */
+            escBtn = '<button class="btn" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Review / Escalate</button>';
+          } else {
+            escBtn = '<span class="action-dim">—</span>';
+          }
+        }
+        return '<tr'+rowCls+' onclick="OBS.selectRow(\''+escHtml(caseId)+'\')">' +
           '<td>'+escHtml(r['Case ID'])+'</td>' +
           '<td>'+escHtml(r['Date Reported'])+'</td>' +
           '<td>'+escHtml(r.Location)+'</td>' +
@@ -224,6 +822,23 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     }
     document.getElementById('obs-filter-status').textContent =
       'Showing ' + rows.length + ' of ' + DATA.length;
+
+    var photosBtn = document.getElementById('obs-tb-photos');
+    if (photosBtn) photosBtn.disabled = !_selectedCaseId;
+
+    if (_chartsOpen) renderCharts(); /* keep charts in sync with filters/live refresh */
+  }
+
+  function selectRow(caseId){
+    /* Clicking an already-selected row deselects it; clicking a
+       different row switches the selection — one row at a time. */
+    _selectedCaseId = (_selectedCaseId !== null && String(_selectedCaseId) === String(caseId)) ? null : caseId;
+    render();
+  }
+
+  function visualizePhotos(){
+    if (!_selectedCaseId) return; /* toolbar button is disabled in this state, but guard anyway */
+    openPhotoModal(_selectedCaseId);
   }
 
   function cardFilter(which){
@@ -242,17 +857,51 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     render();
   }
 
-  /* Point 2 — Raw Risk Score lookup against the live Risk Assessment tab
-     (already served by the Apps Script backend as obs_risk, reading the
-     SAME AppSheet spreadsheet the Observations themselves come from —
-     confirmed by Issam, no new backend wiring needed). Matches by
-     case_id, which a given case can have MULTIPLE rows for: an initial
-     evaluation row, and a later row appended at closure carrying the
-     residual re-assessment. This takes the row with the latest
-     risk_assessment_time, which naturally resolves to the closure row
-     once one exists and still works correctly before closure when only
-     one row exists. Returns null if no Risk Assessment row exists yet
-     for this case (not yet evaluated by HSSE) or on any fetch error. */
+  /* Consequence/Likelihood scale — kept identical in wording to the live
+     Incident Register's own CL_SCALE so a forwarded case's classification
+     means the same thing in both places. */
+  var OBS_CL_SCALE = {
+    'Consequence': [
+      '1 - Negligible (no injury, negligible impact)',
+      '2 - Minor (first aid only, minor damage)',
+      '3 - Moderate (medical treatment / LTI under 7 days)',
+      '4 - Major (serious injury / LTI over 7 days, significant damage)',
+      '5 - Catastrophic (fatality or permanent disability)'
+    ],
+    'Likelihood': [
+      '1 - Rare (not expected to occur)',
+      '2 - Unlikely (could occur, but not expected)',
+      '3 - Possible (might occur at some point)',
+      '4 - Likely (will probably occur)',
+      '5 - Almost Certain (expected to occur / has occurred frequently)'
+    ]
+  };
+
+  function clSelectHtml(field, id){
+    var opts = '<option value="">-- select --</option>' + OBS_CL_SCALE[field].map(function(label, i){
+      return '<option value="'+(i+1)+'">'+label+'</option>';
+    }).join('');
+    return '<select id="'+id+'">'+opts+'</select>';
+  }
+
+  /* ── Point 2 escalation gate (Raw Risk Score only) ──────────────
+     Replaces this file's earlier Priority/Category-based routing with
+     the design actually confirmed this session: HSSE's Raw Risk Score
+     on the Risk Assessment sheet is the ONLY gating factor. A case can
+     carry more than one Risk Assessment row (an initial evaluation,
+     then a later row appended at closure with the residual
+     reassessment) — this always takes the row with the LATEST
+     risk_assessment_time, never just the first or last match in sheet
+     order, which is why this re-fetches and sorts fresh here rather
+     than trusting buildRecords()'s precomputed 'Raw Risk Level' (that
+     value is fine for the row-render button label, not for the actual
+     routing decision). Once routed, nothing is faked locally: this
+     hands off to the REAL Incident Register / Action Tracker pages via
+     the same sessionStorage-plus-URL pattern their own CAPA/Incident
+     Decide-panel hand-off already uses (capa-wizard.js
+     openFromObservation / incident-register.html
+     openAddFromObservation) — those pages write the real Google Sheet
+     rows; nothing here is a local-only mock. */
   function parseRiskTimestamp(s){
     // Format observed on the sheet: "M/D/YYYY H:MM:SS" (no leading zeros)
     var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/.exec(String(s||'').trim());
@@ -283,6 +932,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
   }
 
   function openEscalate(idx){
+    _modalOpen = true;
     var r = DATA[idx];
     var root = document.getElementById('obs-modal-root');
     root.innerHTML = '<div class="modal-bg"><div class="modal">' +
@@ -293,7 +943,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       '<div class="mf">Recurrence Flagged</div><div class="mv">'+badgeForRecurrence(r['Recurrence Flagged'])+'</div>' +
       '<div class="mf">Raw Risk Score (Risk Assessment)</div><div class="mv" id="obs-esc-risklookup">Checking the Risk Assessment sheet…</div>' +
       '<div class="modal-actions" id="obs-esc-actions"></div>' +
-      '<div class="esc-note">Escalation is gated by HSSE\'s Raw Risk Score — Medium or below forwards to the Action lane, High/Critical forwards to the Incident Register. There is no free choice here, by design: only HSSE\'s risk assessment decides the path. Worker-submitted priority is never used for this gate.</div>' +
+      '<div class="esc-note">Escalation is gated by HSSE\'s Raw Risk Score — Medium or below forwards to the Action Tracker, High/Critical forwards to the Incident Register. There is no free choice here, by design: only HSSE\'s risk assessment decides the path. Worker-submitted priority is never used for this gate.</div>' +
     '</div></div>';
 
     lookupRiskAssessment(r['Case ID']).then(function(risk){
@@ -328,15 +978,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     });
   }
 
-  /* Hands off to the real register via the same sessionStorage-plus-URL
-     pattern the Incident Decide panel already uses for its own CAPA/ACT
-     hand-off (capa-wizard.js openFromIncident / incident-register.html
-     openAddFromObservation) — never a direct write from here, and never
-     a write back onto the Observation sheet itself, which is read-only
-     from this script (see google-apps-script.js readExternalSheet). The
-     local Escalated marker below is this draft page's own display only;
-     the real system of record is whichever CAPA/ACT or Incident record
-     gets created on the other end, referencing this Case ID. */
+  /* Hands off to the real register — never a direct write from here,
+     and never a write back onto the Observation sheet itself, which is
+     read-only from this script (see google-apps-script.js
+     readExternalSheet). The local Escalated marker below is this
+     page's own display only, carried forward across refreshes by
+     carryForwardEscalations(); the real system of record is whichever
+     CAPA/ACT or Incident record gets created on the other end,
+     referencing this Case ID. */
   function escalate(idx, target, rawRiskLevel){
     var r = DATA[idx];
     var ctx = {
@@ -351,27 +1000,102 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 
     if (target === 'ACT'){
       window.open('capa-register.html?fromObservation=' + encodeURIComponent(r['Case ID']) + '&lane=ACT', '_blank');
+      DATA[idx].Escalated = 'Action Tracker';
     } else {
       window.open('incident-register.html?fromObservation=' + encodeURIComponent(r['Case ID']), '_blank');
+      DATA[idx].Escalated = 'Incident Register';
     }
 
-    DATA[idx].Escalated = target;
-    closeModal();
-    render();
+    closeModal(); /* closeModal() re-renders and applies any held-back refresh */
+  }
+
+  /* Photo viewing — toolbar-driven (select a row above, then click
+     "Visualize Photos"), separate from the Review/Escalate modal. The
+     photo is fetched on demand only for the selected case, not preloaded
+     for all 390 rows, since each one comes back as a base64 data URI —
+     fine one at a time, far too much to pull for the whole table. */
+  function openPhotoModal(caseId){
+    _openPhotoCaseId = caseId;
+    var root = document.getElementById('obs-modal-root');
+    root.innerHTML = '<div class="modal-bg"><div class="modal" style="width:440px">' +
+      '<h3>📷 Photos — '+escHtml(caseId)+'</h3>' +
+      '<div class="photo-grid" id="obs-photo-grid"><span class="photo-empty">Loading photo…</span></div>' +
+      '<div class="modal-actions"><button class="btn modal-close" onclick="OBS.closeModal()">Close</button></div>' +
+    '</div></div>';
+    loadObsPhoto(caseId);
+  }
+
+  /* If the modal gets closed/reopened on a different case before this
+     resolves, the stale response is dropped by the _openPhotoCaseId
+     check below (a plain "does #obs-photo-grid still exist" check isn't
+     enough — the new modal has its own element with that same id, so a
+     stale response would otherwise overwrite the right case's grid with
+     the wrong case's photo). */
+  function loadObsPhoto(caseId){
+    fetch(SHEETS_URL + '?action=getObsPhotos&caseId=' + encodeURIComponent(caseId))
+      .then(function(res){ return res.json(); })
+      .then(function(data){
+        if (_openPhotoCaseId !== caseId) return; /* a different (or no) photo modal is open now */
+        var grid = document.getElementById('obs-photo-grid');
+        if (!grid) return;
+
+        if (data.error) {
+          grid.innerHTML = '<span class="photo-empty">Could not load photo — '+escHtml(data.error)+'</span>';
+          return;
+        }
+        if (!data.photos || !data.photos.length) {
+          grid.innerHTML = '<span class="photo-empty">No photo attached to this case</span>';
+          return;
+        }
+
+        grid.innerHTML = data.photos.map(function(p){
+          if (p.dataUrl) {
+            return '<img src="'+p.dataUrl+'" alt="'+escHtml(p.fileName)+'" onclick="OBS.openLightbox(this.src,this.alt)">';
+          }
+          return '<span class="photo-empty">'+escHtml(p.fileName||'Photo')+' — '+escHtml(p.error||'could not load')+'</span>';
+        }).join('');
+      })
+      .catch(function(err){
+        if (_openPhotoCaseId !== caseId) return;
+        var grid = document.getElementById('obs-photo-grid');
+        if (grid) grid.innerHTML = '<span class="photo-empty">Could not load photo — '+escHtml(err.message)+'</span>';
+      });
   }
 
   function closeModal(){
     document.getElementById('obs-modal-root').innerHTML = '';
+    _modalOpen = false;
+    _openPhotoCaseId = null;
+    if (_pendingData) {
+      DATA = _pendingData;
+      _pendingData = null;
+    }
+    render();
   }
 
-  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, closeModal: closeModal };
+  /* Full-screen photo view. Kept as a SEPARATE overlay/root from the photo
+     modal above it (not reusing window.open) because the photo src is a
+     data: URI, and most browsers (Chrome included) silently block a
+     top-level window.open navigation to a data: URI as a security
+     measure — that's the blank white tab this replaces. Rendering the
+     same <img> larger inside the page, in its own fixed-position overlay,
+     avoids that restriction entirely. Clicking the dark backdrop or the
+     Close button dismisses it without touching the photo modal underneath. */
+  function openLightbox(src, alt){
+    document.getElementById('obs-lightbox-root').innerHTML =
+      '<div class="photo-lightbox-bg" onclick="OBS.closeLightbox()">' +
+        '<button class="photo-lightbox-close" onclick="event.stopPropagation();OBS.closeLightbox()">✕ Close</button>' +
+        '<img src="'+src+'" alt="'+escHtml(alt||'')+'" onclick="event.stopPropagation()">' +
+      '</div>';
+  }
 
-  /* Render once immediately (shows an empty table rather than nothing
-     while the fetch is in flight), then again once live data arrives.
-     A render() during the brief empty window is harmless -- the table
-     body just rebuilds when DATA is populated. */
-  render();
-  loadObservations().then(render);
+  function closeLightbox(){
+    document.getElementById('obs-lightbox-root').innerHTML = '';
+  }
+
+  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, onDateRangeChange: onDateRangeChange, clearDateRange: clearDateRange, openLightbox: openLightbox, closeLightbox: closeLightbox, refreshNow: function(){ loadLive(true); } };
+  loadLive();
+  startAutoRefresh();
 })();
 </script>
 </body>
