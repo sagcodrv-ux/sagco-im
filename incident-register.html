@@ -126,6 +126,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .inc-dark-wrap .inc-decision-pill{font-size:10px;white-space:nowrap}
 .inc-dark-wrap .inc-decision-pill.inc-pending{color:var(--idw-amb,#c99a3a);font-weight:600}
 .inc-dark-wrap .inc-decision-pill.inc-done{color:var(--idw-gold-lt)}
+.inc-dark-wrap .inc-ref-link{color:var(--idw-gold-lt,#E8C97A);text-decoration:underline;text-underline-offset:2px}
+.inc-dark-wrap .inc-ref-link:hover{color:var(--idw-gold,#C9A84C)}
 .inc-dark-wrap .inc-btn-sm{font-size:10px;padding:4px 10px;width:auto!important}
 /* Photo evidence gallery — thumbnail grid with hover-delete, inside the
    same modal shell used for Add/Edit. */
@@ -268,11 +270,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       idPrefix: 'INC-2026-', idPad: 3,
       fields: ['Incident ID','Date','Classification','Location','Description','Injury?','Injured Person',
                'Nature of Injury','LTI?','Root Cause','Direct Cause','LWD','Total Cost',
-               'Consequence','Likelihood','RA Score','RA Level','Corrective Action','Notification Required','Status'],
+               'Consequence','Likelihood','RA Score','RA Level','Corrective Action','Status'],
+      /* Notification Required removed (Issam, 2026-10-07) — the field
+         sat in the form with nothing anywhere reading it: no gating
+         logic, no KPI, no notification actually fired. Still exists as
+         a column on the live sheet until that column is deleted there
+         directly (this app has no way to remove a sheet column) — it
+         just won't be asked for here or shown in the compact table view. */
       /* Fields hidden when an injury-detail block (Injured Person/Nature
          of Injury/LTI?/LWD) should be collapsed — gated live in the
          modal by the 'Injury?' toggle, not every incident involves one. */
       injuryDetailFields: ['Injured Person','Nature of Injury','LTI?','LWD'],
+      /* Compact default table view (Issam, 2026-10-07) — everything
+         else (Injured Person, Nature of Injury, LTI?, Root Cause,
+         Direct Cause, LWD, Total Cost, Corrective Action, Consequence,
+         Likelihood, CAPA/ACT Reference, Source Observation Case ID,
+         Decision, etc.) is still real data on the sheet, just tucked
+         behind the "Show all columns" toggle rather than shown by
+         default. */
+      compactFields: ['Incident ID','Date','Classification','Location','Description','RA Score','RA Level','Status'],
       filterField: 'Classification'
     }
   };
@@ -481,6 +497,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       }
       toolbarHtml += '<button class="inc-btn" id="inc-tb-decide-'+tKeyName+'"' + decideDisabled + ' onclick="INC.openDecide(\''+tKeyName+'\', INC.getSelected(\''+tKeyName+'\'))">' + decideLabel + '</button>';
     }
+    if (cfg.compactFields){
+      toolbarHtml += '<button class="inc-btn" id="inc-tb-cols-'+tKeyName+'" onclick="INC.toggleColumns(\''+tKeyName+'\')">' +
+        (isCompact(tKeyName) ? '▸ Show All Columns' : '◂ Compact View') + '</button>';
+    }
 
     var categoryHtml = '';
     if (cfg.filterField){
@@ -511,6 +531,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     renderTableArea(tKeyName);
   }
 
+  /* Compact/expanded table view (Issam, 2026-10-07) — per-table state,
+     defaults to compact (true) until toggled. Only 'register' defines
+     compactFields; every other table is unaffected. */
+  var _compactView = {};
+  function isCompact(tKeyName){
+    return !!(TABLES[tKeyName].compactFields) && _compactView[tKeyName] !== false;
+  }
+  function toggleColumns(tKeyName){
+    _compactView[tKeyName] = !isCompact(tKeyName);
+    renderShell(tKeyName, _cache[tKeyName]);
+  }
+
   /* Point 3.2/3.3 — table LAYOUT fixes, no data-logic change. The table
      renders straight off data.headers/row in the LIVE sheet's own column
      order (the `fields` array above is only used by the Add/Edit modal
@@ -520,11 +552,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
      2. Consequence and Likelihood must sit immediately before RA Level
         (inputs before the derived output), wherever they currently are.
      3. Decision and Total Cost swap column positions outright.
+     4. RA Score sits immediately after Description (Issam, 2026-10-07).
      Returns an array of original header indices in DISPLAY order; every
-     other table (tKeyName !== 'register') is returned untouched. */
+     other table (tKeyName !== 'register') is returned untouched.
+     Compact mode (default) short-circuits all of this and just returns
+     the compactFields subset in that exact stated order — the detailed
+     reordering below only matters for the expanded view. */
   function getDisplayOrder(tKeyName, headers){
     var order = headers.map(function(_,i){ return i; });
     if (tKeyName !== 'register') return order;
+
+    if (isCompact(tKeyName)){
+      var compactOrder = [];
+      (TABLES[tKeyName].compactFields || []).forEach(function(name){
+        var idx = colIdx(headers, name);
+        if (idx >= 0) compactOrder.push(idx);
+      });
+      return compactOrder;
+    }
 
     var consIdx = colIdx(headers, 'Consequence');
     var likeIdx = colIdx(headers, 'Likelihood');
@@ -544,6 +589,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         order[dPos] = costIdx;
         order[cPos] = decIdx;
       }
+    }
+
+    var descIdx = colIdx(headers, 'Description');
+    var raScoreIdx = colIdx(headers, 'RA Score');
+    if (descIdx >= 0 && raScoreIdx >= 0){
+      order = order.filter(function(i){ return i !== raScoreIdx; });
+      var descPos = order.indexOf(descIdx);
+      order.splice(descPos + 1, 0, raScoreIdx);
     }
 
     return order;
@@ -615,12 +668,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     html += '</tr></thead><tbody>';
 
     if (!visibleRows.length){
-      var colspan = data.headers.length - (statusIdx>-1?1:0);
+      var colspan = displayOrder.filter(function(i){ return i !== statusIdx; }).length;
       html += '<tr><td colspan="'+colspan+'"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
     } else {
       var selId = _selected[tKeyName];
       var decIdxRow = colIdx(data.headers, 'Decision');
       var actCompIdxRow = colIdx(data.headers, 'Action Completed');
+      var capaRefIdxRow = colIdx(data.headers, 'CAPA/ACT Reference');
+      var srcObsIdxRow = colIdx(data.headers, 'Source Observation Case ID');
       visibleRows.forEach(function(row){
         var idVal = idIdx>-1 ? row[idIdx] : '';
         var idValEsc = String(idVal).replace(/'/g,"\\'");
@@ -647,6 +702,27 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             html += doneVal
               ? '<td class="'+pinCls.trim()+'"><span class="inc-decision-pill inc-done">✓ Completed</span></td>'
               : '<td class="'+pinCls.trim()+'"><span class="inc-decision-pill inc-pending">Open</span></td>';
+            return;
+          }
+          if (ci === capaRefIdxRow){
+            // Resumes the real CAPA/Action deep-link (capa-wizard.js
+            // already supports ?capa=<id> — used by the new-owner
+            // email); jumps straight to the record rather than leaving
+            // the person to search for it on the CAPA register.
+            var capaRefVal = String(cell||'').trim();
+            html += capaRefVal
+              ? '<td' + (pinCls ? ' class="'+pinCls.trim()+'"' : '') + '><a href="capa-register.html?capa='+encodeURIComponent(capaRefVal)+'" target="_blank" class="inc-ref-link">'+formatCell(cell)+'</a></td>'
+              : '<td' + (pinCls ? ' class="'+pinCls.trim()+'"' : '') + '></td>';
+            return;
+          }
+          if (ci === srcObsIdxRow){
+            // Backward reference to the Observation this incident was
+            // forwarded from — jumps to that case on the Observation
+            // Register (see its own ?case= deep-link support).
+            var srcObsVal = String(cell||'').trim();
+            html += srcObsVal
+              ? '<td' + (pinCls ? ' class="'+pinCls.trim()+'"' : '') + '><a href="observations-register.html?case='+encodeURIComponent(srcObsVal)+'" target="_blank" class="inc-ref-link">'+formatCell(cell)+'</a></td>'
+              : '<td' + (pinCls ? ' class="'+pinCls.trim()+'"' : '') + '></td>';
             return;
           }
           html += '<td' + (pinCls ? ' class="'+pinCls.trim()+'"' : '') + '>' + formatCell(cell) + '</td>';
@@ -1450,7 +1526,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
          RA Level field in the modal falls back to this exact value when
          no RA Score is present (see showModal's 'RA Level' branch). */
       initial['RA Level'] = ctx.rawRiskLevel || '';
+      /* Inherited RA Score — the actual numeric raw_risk_score HSSE
+         already computed on the Observation's Risk Assessment (Issam,
+         2026-10-07: "the raw RA score copied from the observation").
+         This field is dropped from the form entirely when hideRiskInputs
+         is true (see effectiveFields), so it's never in the DOM to be
+         collected automatically — injected directly into `values`
+         below, right before posting, instead. */
+      initial['RA Score'] = (ctx.rawRiskScore !== undefined && ctx.rawRiskScore !== null) ? ctx.rawRiskScore : '';
     }
+    /* Backward reference to the originating Observation — always set on
+       a hand-off, regardless of whether a Risk Assessment was matched,
+       so a stale/mismatched context still records which case this came
+       from. Also not in the form fields (system-managed, like CAPA/ACT
+       Reference), so also injected directly below. */
+    var sourceObsCaseId = caseId;
 
     /* Only hide Consequence/Likelihood/RA Score when there's an actual
        inherited level to show in their place — a stale/mismatched
@@ -1465,14 +1555,51 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var formFields = effectiveFields('register', {hideRiskInputs: hideRiskInputs, hideInjury: true});
     showModal('register', 'New Incident — from Observation' + (matched ? ' ' + caseId : ''), formFields, initial, function(values, close){
       values[STATUS_COL] = 'Active';
+      values['Source Observation Case ID'] = sourceObsCaseId;
+      if (hideRiskInputs) values['RA Score'] = initial['RA Score'] || '';
       postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
         close();
+        /* Write the durable back-reference onto the Observation side —
+           fire-and-forget, same reasoning as the Incident/CAPA
+           cross-references elsewhere in this app: the incident itself
+           is already safely saved either way, and this is just the
+           Observation Register's own hyperlinked reference. Uses
+           whatever Incident ID actually got saved (values[cfg.idCol]),
+           not the pre-filled suggestion, in case it was hand-edited. */
+        var savedIncidentId = values[cfg.idCol];
+        if (savedIncidentId){
+          postJSON('update', {tab: 'obs_escalations', idCol: 'Case ID', id: sourceObsCaseId}, {
+            'Outcome': 'Incident Register',
+            'Incident Reference': savedIncidentId
+          }).catch(function(){ /* silent — the incident itself already saved; a missed back-reference isn't worth alarming over */ });
+        }
         reloadTabAndDashboard('register');
       }).catch(function(){
         alert('Could not save — check your connection.');
         if (window._incReenableModalSave) window._incReenableModalSave();
       });
     });
+  }
+
+  /* Deep link — incident-register.html?incident=INC-2026-0XX, used by
+     the hyperlinked CAPA/ACT Reference and Source Observation Case ID
+     cells elsewhere in this app (and by anything else that wants to
+     jump straight to one incident rather than leaving the person to
+     search for it). Expands the section, selects the row so it's
+     visibly highlighted, and scrolls it into view — same idea as
+     INC.jumpTo()/cardClick() already do for a filtered view. */
+  function jumpToIncident(incidentId){
+    setExpanded('register', true);
+    _selected['register'] = incidentId;
+    renderShell('register', _cache['register']);
+    setTimeout(function(){
+      var row = document.querySelector('#live-table-register tr.inc-row-selected');
+      if (row) row.scrollIntoView({behavior:'smooth', block:'center'});
+      else {
+        var hdr = document.getElementById('inc-hdr-register');
+        if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
+      }
+    }, 50);
   }
 
   document.addEventListener('DOMContentLoaded', function(){
@@ -1486,12 +1613,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       loadTab('register').then(function(){
         try { renderDashboard(); } catch(e){ /* dashboard rendering is cosmetic; never block on it */ }
         var fromObservation = new URLSearchParams(window.location.search).get('fromObservation');
-        if (fromObservation) openAddFromObservation(fromObservation);
+        if (fromObservation) { openAddFromObservation(fromObservation); return; }
+        var deepLinkIncident = new URLSearchParams(window.location.search).get('incident');
+        if (deepLinkIncident) jumpToIncident(deepLinkIncident);
       });
     }, 100);
   });
 
   window.INC = {
+    toggleColumns: toggleColumns,
     onDateRangeChange: function(){
       var s = document.getElementById('inc-date-start');
       var e = document.getElementById('inc-date-end');

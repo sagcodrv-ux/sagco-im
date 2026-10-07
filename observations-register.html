@@ -95,6 +95,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 .obs-wrap .badge.b-blue{background:rgba(91,155,213,.15);color:var(--w-blue)}
 .obs-wrap .badge.b-dim{background:var(--w-bg3);color:var(--w-text-muted)}
 .obs-wrap .action-dim{color:var(--w-text-muted);font-size:11px}
+.obs-wrap .obs-ref-link{color:var(--w-gold-lt);text-decoration:underline;text-underline-offset:2px}
+.obs-wrap .obs-ref-link:hover{color:var(--w-gold)}
+.obs-wrap .btn-outline-close{background:transparent;border:1px solid var(--w-red);color:var(--w-red);
+  border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;margin-left:6px}
+.obs-wrap .btn-outline-close:hover{background:rgba(240,104,92,.12)}
 .obs-wrap .empty-state{text-align:center;padding:20px;color:var(--w-text-muted)}
 .obs-wrap .modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
   align-items:center;justify-content:center;z-index:9999}
@@ -194,7 +199,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 <div class="tbl-wrap">
 <table>
 <thead><tr>
-<th>Case ID</th><th>Date Reported</th><th>Location</th><th>Category</th><th>Priority</th><th>Description</th><th>Status</th><th>Reviewed</th><th>Recurrence</th><th>Action</th>
+<th>Case ID</th><th>Date Reported</th><th>Location</th><th>Category</th><th>Worker Participation Evaluation</th><th>Priority</th><th>Description</th><th>Status</th><th>Reviewed</th><th>Recurrence</th><th>Action</th><th>Incident Reference</th><th>Action Reference</th>
 </tr></thead>
 <tbody id="obs-tbody"></tbody>
 </table>
@@ -232,6 +237,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     for (var i=0;i<headers.length;i++){ if (String(headers[i]).trim() === name) return i; }
     return -1;
   }
+
+  /* Write infrastructure (Issam, 2026-10-07) — this page has only ever
+     READ data before now (the AppSheet Observations spreadsheet is
+     read-only from here; see readExternalSheet). The new obs_escalations
+     tab lives on the MAIN IMS sheet instead, which this same backend
+     already writes to for every other register — same postJSON shape
+     as incident-register.html/capa-wizard.js use. */
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    }).then(function(r){ return r.json(); });
+  }
+  function currentUserName(){
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    return u ? (u.name || u.username || '') : '';
+  }
+  function todayISO(){ return new Date().toISOString().slice(0,10); }
 
   /* employee_num in the source sheet has inconsistent formatting — some
      rows are padded ('0000'), some aren't ('0'), there's stray trailing
@@ -286,6 +310,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         .then(function(r){ return r.json(); })
         .then(function(data){ return { tabKey: tabKey, data: data }; });
     });
+    /* obs_escalations lives on the MAIN IMS sheet (standard action=read,
+       not readObs — see postJSON's doc comment above), so it's fetched
+       separately from the AppSheet tabs above. Its own failure never
+       blocks the page: until Issam creates the tab, or on any transient
+       error, this just means no durable escalation outcomes are known
+       yet — not a reason to show the whole page as broken. */
+    var escalationsFetch = fetch(SHEETS_URL + '?action=read&tab=obs_escalations')
+      .then(function(r){ return r.json(); })
+      .catch(function(){ return null; })
+      .then(function(data){ return (data && !data.error) ? data : { headers: [], rows: [] }; });
 
     Promise.all(fetches).then(function(results){
       var byTab = {};
@@ -297,24 +331,27 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         return;
       }
 
-      var fresh = buildRecords(byTab);
-      carryForwardEscalations(fresh);
-      _loaded = true;
-      setBanner(liveBannerHtml(), false);
+      return escalationsFetch.then(function(escData){
+        byTab['obs_escalations'] = escData;
+        var fresh = buildRecords(byTab);
+        _loaded = true;
+        setBanner(liveBannerHtml(), false);
 
-      if (_modalOpen) {
-        /* Don't swap DATA out from under an open modal — the row index
-           it's holding onto is only valid against the array it was
-           rendered from. Hold the fresh pull and apply it on close. */
-        _pendingData = fresh;
-      } else {
-        DATA = fresh;
-        render();
-      }
+        if (_modalOpen) {
+          /* Don't swap DATA out from under an open modal — the row index
+             it's holding onto is only valid against the array it was
+             rendered from. Hold the fresh pull and apply it on close. */
+          _pendingData = fresh;
+        } else {
+          DATA = fresh;
+          render();
+          applyPendingCaseDeepLink();
+        }
+      });
     }).catch(function(err){
       if (!isBackground) {
         setBanner('<strong>⚠ Connection unavailable</strong> — could not reach the live Observations data. ' + escHtml(err && err.message || ''), true);
-        document.getElementById('obs-tbody').innerHTML = '<tr><td colspan="10"><div class="empty-state"><strong>Connection unavailable</strong>Could not reach the live Google Sheets backend.</div></td></tr>';
+        document.getElementById('obs-tbody').innerHTML = '<tr><td colspan="13"><div class="empty-state"><strong>Connection unavailable</strong>Could not reach the live Google Sheets backend.</div></td></tr>';
         /* Never leave the KPI tiles showing a number from before the page loaded —
            that would look like a live count during an outage. Blank them out. */
         document.querySelectorAll('.kpi-val').forEach(function(el){ el.textContent = '—'; });
@@ -327,25 +364,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 
   function startAutoRefresh(){
     setInterval(function(){ loadLive(true); }, REFRESH_INTERVAL_MS);
-  }
-
-  /* Escalated marks are local-only (see the note in the modal) — they
-     don't exist in the sheet, so a fresh pull from the server has no
-     way to know about them. Without this, the once-a-minute refresh
-     would silently un-escalate anything marked since the last pull. */
-  function carryForwardEscalations(freshData){
-    var marks = {};
-    DATA.forEach(function(r){
-      if (r.Escalated) marks[r['Case ID']] = { Escalated: r.Escalated, _incidentFields: r._incidentFields };
-    });
-    if (!Object.keys(marks).length) return;
-    freshData.forEach(function(r){
-      var m = marks[r['Case ID']];
-      if (m){
-        r.Escalated = m.Escalated;
-        if (m._incidentFields) r._incidentFields = m._incidentFields;
-      }
-    });
   }
 
   function buildRecords(byTab){
@@ -374,16 +392,39 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var jCid = colIdx(rej.headers, 'case_id');
     if (jCid >= 0) rej.rows.forEach(function(r){ reviewedIds[r[jCid]] = true; });
 
-    /* Risk Assessment: case_id -> recurrence + raw risk level */
+    /* Risk Assessment: case_id -> recurrence + raw risk level/score */
     var riskLookup = {};
     var rCid = colIdx(risk.headers, 'case_id');
     var rRecur = colIdx(risk.headers, 'did_the_same_event_happen_before');
     var rRawLvl = colIdx(risk.headers, 'raw_risk_level');
+    var rRawScore = colIdx(risk.headers, 'raw_risk_score');
     if (rCid >= 0){
       risk.rows.forEach(function(r){
         riskLookup[r[rCid]] = {
           recurrence: rRecur >= 0 ? r[rRecur] : '',
           rawRiskLevel: rRawLvl >= 0 ? r[rRawLvl] : '',
+          rawRiskScore: rRawScore >= 0 ? r[rRawScore] : '',
+        };
+      });
+    }
+
+    /* obs_escalations — the durable record of what happened to each
+       case (Issam, 2026-10-07): on the MAIN IMS sheet, not the
+       read-only AppSheet one, so this is a genuine join against this
+       page's own data, not another AppSheet tab. Replaces the old
+       local-only 'Escalated' tracking that reset on every refresh. */
+    var escLookup = {};
+    var esc = byTab['obs_escalations'] || { headers: [], rows: [] };
+    var eCid = colIdx(esc.headers, 'Case ID');
+    var eOutcome = colIdx(esc.headers, 'Outcome');
+    var eIncRef = colIdx(esc.headers, 'Incident Reference');
+    var eActRef = colIdx(esc.headers, 'Action Reference');
+    if (eCid >= 0){
+      esc.rows.forEach(function(r){
+        escLookup[r[eCid]] = {
+          outcome: eOutcome >= 0 ? r[eOutcome] : '',
+          incidentRef: eIncRef >= 0 ? r[eIncRef] : '',
+          actionRef: eActRef >= 0 ? r[eActRef] : '',
         };
       });
     }
@@ -411,7 +452,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         'Location': (iQr >= 0 && qrLoc[r[iQr]]) ? qrLoc[r[iQr]] : (iQr >= 0 ? r[iQr] : ''),
         'Category': category,
         'Subcategory': iSub >= 0 ? r[iSub] : '',
-        'Priority': iPri >= 0 ? r[iPri] : '',
+        /* Renamed from 'Priority' (Issam, 2026-10-07) — this is the
+           worker's own submitted severity guess, not an official risk
+           rating, so the column name now says exactly that. */
+        'Worker Participation Evaluation': iPri >= 0 ? r[iPri] : '',
+        /* NEW — HSSE-derived 'Priority' (Issam, 2026-10-07), the four
+           existing raw_risk_level bands (Low/Medium/High/Critical)
+           surfaced as their own column rather than only an internal
+           gating value. This is what the Action column's routing uses
+           (via escalationTier below) — never the worker's own field
+           above, which is never used for this gate. */
+        'Priority': riskInfo.rawRiskLevel || '',
         'Description': iDesc >= 0 ? r[iDesc] : '',
         'Status': iStatus >= 0 ? r[iStatus] : '',
         'Reviewed': isReviewed ? 'Yes' : 'No',
@@ -429,7 +480,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
            be trusted for the real gate. */
         'Has Risk Assessment': isRecurrenceKnown ? 'Yes' : 'No',
         'Needs Attention': needsAttention ? 'Yes' : 'No',
-        'Escalated': '',
+        /* Durable now (Issam, 2026-10-07) — from the obs_escalations
+           join above, not local-only state. 'Closed' specifically
+           means Closed - No Escalation (see decideCloseNoEscalation);
+           any other non-empty value is the destination register name,
+           matching what render() already expects for the badge. */
+        'Escalated': (function(){
+          var o = (escLookup[cid] || {}).outcome || '';
+          return o === 'Closed - No Escalation' ? 'Closed' : o;
+        })(),
+        'Incident Reference': (escLookup[cid] || {}).incidentRef || '',
+        'Action Reference': (escLookup[cid] || {}).actionRef || '',
         'Employee Num': iEmp >= 0 ? normalizeEmployeeNum(r[iEmp]) : '',
       };
     });
@@ -501,6 +562,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     if (v === 'Yes') return '<span class="badge b-red">Yes</span>';
     if (v === 'No') return '<span class="badge b-grn">No</span>';
     return '<span class="badge b-dim">—</span>';
+  }
+  /* HSSE-derived Priority (Issam, 2026-10-07) — same four raw_risk_level
+     bands used for the escalation gate, colored the same way the
+     openEscalate() modal already colors them. Blank means no Risk
+     Assessment on file yet, matching 'Has Risk Assessment'. */
+  function badgeForPriority(v){
+    var lvl = String(v||'').trim().toLowerCase();
+    if (lvl === 'critical' || lvl === 'high') return '<span class="badge b-red">'+escHtml(v)+'</span>';
+    if (lvl === 'medium') return '<span class="badge b-amb">'+escHtml(v)+'</span>';
+    if (lvl === 'low') return '<span class="badge b-grn">'+escHtml(v)+'</span>';
+    return '<span class="badge b-dim">Not yet assessed</span>';
   }
 
   function matchesFilters(r){
@@ -759,7 +831,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var rows = DATA.filter(matchesFilters);
     var tbody = document.getElementById('obs-tbody');
     if (!rows.length){
-      tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="13"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
     } else {
       tbody.innerHTML = rows.map(function(r){
         var idx = DATA.indexOf(r);
@@ -770,19 +842,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         if (r.Escalated === 'Closed') {
           escBtn = '<span class="badge b-dim">Closed — No Action</span>';
         } else if (r.Escalated) {
-          /* If this incident spawned Action Tracker entries, show their
-             IDs right on the badge (short form, e.g. "ACT-01, ACT-02")
-             so it's clear at a glance which tracker rows trace back to
-             this case — not just a count. */
-          var actionIdsSuffix = '';
-          if (r._incidentFields && r._incidentFields.Actions && r._incidentFields.Actions.length) {
-            var shortIds = r._incidentFields.Actions.map(function(a){
-              var m = /-ACT-(\d+)$/.exec(a.id);
-              return m ? 'ACT-' + m[1] : a.id;
-            });
-            actionIdsSuffix = ' · ' + shortIds.join(', ');
-          }
-          escBtn = '<span class="badge b-grn">Redirected → '+escHtml(r.Escalated)+escHtml(actionIdsSuffix)+'</span>';
+          /* Outcome is durable now (obs_escalations join) — the exact
+             destination register name, same badge as before, just
+             without the old dead _incidentFields lookup (never
+             populated; this app has no live read-path back from the
+             Incident Register into this page's own in-memory rows). */
+          escBtn = '<span class="badge b-grn">Redirected → '+escHtml(r.Escalated)+'</span>';
         } else if (r.Status === 'Closed') {
           /* Closed in the source system itself, never routed through our
              escalation workflow at all (r.Escalated is still ''). Same
@@ -793,30 +858,49 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         } else {
           var tier = escalationTier(r);
           if (tier === 'incident') {
+            /* Mandatory — no Close option at this tier, by design (see
+               escalationTier's doc comment): even a High/Critical case
+               that turns out to need no action gets closed *inside* the
+               Incident Register, never here, so the audit trail always
+               shows it was properly triaged. */
             escBtn = '<button class="btn btn-gold" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Forward to Incident Register</button>';
           } else if (tier === 'tracker') {
-            escBtn = '<button class="btn btn-gold" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Review / Forward</button>';
+            /* Issam, 2026-10-07 — Medium/Low can be forwarded OR closed
+               outright with no Action raised, two buttons together. */
+            escBtn = '<button class="btn btn-gold" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Forward to Action Register</button>' +
+              '<button class="btn btn-outline-close" onclick="event.stopPropagation();OBS.openCloseNoEscalation('+idx+')">Close — No Escalation</button>';
           } else if (tier === 'pending') {
             /* Accepted, but HSSE hasn't filed a Risk Assessment row yet —
                still clickable so openEscalate() can explain why nothing
                can be routed yet, rather than the row just losing its
-               button with no explanation. */
+               button with no explanation. No Close option here either:
+               nobody has assessed the actual risk yet, so closing blind
+               is exactly the gap an auditor would flag. */
             escBtn = '<button class="btn" onclick="event.stopPropagation();OBS.openEscalate('+idx+')">Review / Escalate</button>';
           } else {
             escBtn = '<span class="action-dim">—</span>';
           }
         }
+        var incRefCell = r['Incident Reference']
+          ? '<a href="incident-register.html?incident='+encodeURIComponent(r['Incident Reference'])+'" target="_blank" class="obs-ref-link">'+escHtml(r['Incident Reference'])+'</a>'
+          : '<span class="action-dim">—</span>';
+        var actRefCell = r['Action Reference']
+          ? '<a href="capa-register.html?capa='+encodeURIComponent(r['Action Reference'])+'" target="_blank" class="obs-ref-link">'+escHtml(r['Action Reference'])+'</a>'
+          : '<span class="action-dim">—</span>';
         return '<tr'+rowCls+' onclick="OBS.selectRow(\''+escHtml(caseId)+'\')">' +
           '<td>'+escHtml(r['Case ID'])+'</td>' +
           '<td>'+escHtml(r['Date Reported'])+'</td>' +
           '<td>'+escHtml(r.Location)+'</td>' +
           '<td>'+badgeForCategory(r.Category)+'</td>' +
-          '<td>'+escHtml(r.Priority)+'</td>' +
+          '<td>'+escHtml(r['Worker Participation Evaluation'])+'</td>' +
+          '<td>'+badgeForPriority(r.Priority)+'</td>' +
           '<td class="desc-cell">'+escHtml(r.Description)+'</td>' +
           '<td>'+escHtml(r.Status)+'</td>' +
           '<td>'+badgeForReviewed(r.Reviewed)+'</td>' +
           '<td>'+badgeForRecurrence(r['Recurrence Flagged'])+'</td>' +
           '<td>'+escBtn+'</td>' +
+          '<td>'+incRefCell+'</td>' +
+          '<td>'+actRefCell+'</td>' +
         '</tr>';
       }).join('');
     }
@@ -834,6 +918,28 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
        different row switches the selection — one row at a time. */
     _selectedCaseId = (_selectedCaseId !== null && String(_selectedCaseId) === String(caseId)) ? null : caseId;
     render();
+  }
+
+  /* Deep link — observations-register.html?case=OBS-..., used by the
+     hyperlinked Source Observation Case ID cell on the Incident
+     Register (and anywhere else that wants to jump straight to one
+     case rather than leaving the person to search for it). Runs once,
+     right after the first successful live load — same idea as
+     incident-register.html's own jumpToIncident(). */
+  var _deepLinkHandled = false;
+  function applyPendingCaseDeepLink(){
+    if (_deepLinkHandled) return;
+    _deepLinkHandled = true;
+    var caseId = new URLSearchParams(window.location.search).get('case');
+    if (!caseId) return;
+    var exists = DATA.some(function(r){ return String(r['Case ID']) === String(caseId); });
+    if (!exists) return;
+    _selectedCaseId = caseId;
+    render();
+    setTimeout(function(){
+      var row = document.querySelector('#obs-tbody tr.row-selected');
+      if (row) row.scrollIntoView({behavior:'smooth', block:'center'});
+    }, 50);
   }
 
   function visualizePhotos(){
@@ -961,18 +1067,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 
       var level = String(risk.raw_risk_level || '').trim();
       var levelLower = level.toLowerCase();
+      var score = (risk.raw_risk_score !== undefined && risk.raw_risk_score !== null) ? risk.raw_risk_score : '';
       lookupEl.innerHTML = '<span class="badge ' +
         (levelLower==='high'||levelLower==='critical' ? 'b-red' : levelLower==='medium' ? 'b-amb' : 'b-grn') +
-        '">' + escHtml(level || 'Unknown') + '</span>';
+        '">' + escHtml(level || 'Unknown') + (String(score)!=='' ? ' ('+escHtml(score)+')' : '') + '</span>';
 
       var levelEsc = String(level).replace(/'/g, "\\'");
+      var scoreArg = String(score)!=='' ? ",'"+String(score).replace(/'/g, "\\'")+"'" : '';
       if (levelLower === 'high' || levelLower === 'critical'){
         actionsEl.innerHTML =
-          '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'Incident\',\''+levelEsc+'\')">Escalate to Incident Register</button>' +
+          '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'Incident\',\''+levelEsc+'\''+scoreArg+')">Forward to Incident Register</button>' +
           '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>';
       } else {
         actionsEl.innerHTML =
-          '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'ACT\',\''+levelEsc+'\')">Escalate to Action</button>' +
+          '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'ACT\',\''+levelEsc+'\''+scoreArg+')">Forward to Action Register</button>' +
           '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>';
       }
     });
@@ -981,12 +1089,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
   /* Hands off to the real register — never a direct write from here,
      and never a write back onto the Observation sheet itself, which is
      read-only from this script (see google-apps-script.js
-     readExternalSheet). The local Escalated marker below is this
-     page's own display only, carried forward across refreshes by
-     carryForwardEscalations(); the real system of record is whichever
-     CAPA/ACT or Incident record gets created on the other end,
-     referencing this Case ID. */
-  function escalate(idx, target, rawRiskLevel){
+     readExternalSheet). The outcome itself (Issam, 2026-10-07) is now
+     durably recorded on obs_escalations — a tab on the MAIN IMS sheet,
+     which this script CAN write to — so it survives a refresh and is
+     visible to every user, not just this browser tab. The actual
+     Incident/Action ID gets filled in later by the destination page
+     once it knows its own newly-assigned ID (see openAddFromObservation
+     in incident-register.html and notifySourceObservation in
+     capa-wizard.js); this just records that the case was sent there. */
+  function escalate(idx, target, rawRiskLevel, rawRiskScore){
     var r = DATA[idx];
     var ctx = {
       caseId: r['Case ID'],
@@ -995,18 +1106,77 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       category: r.Category || '',
       date: (r['Date Reported'] || '').slice(0, 10),
       rawRiskLevel: rawRiskLevel || '',
+      rawRiskScore: (rawRiskScore !== undefined && rawRiskScore !== null && rawRiskScore !== '') ? rawRiskScore : undefined,
     };
     try { sessionStorage.setItem('incomingObservationContext', JSON.stringify(ctx)); } catch(e){}
 
+    var outcome = (target === 'ACT') ? 'Action Tracker' : 'Incident Register';
+    postJSON('update', {tab: 'obs_escalations', idCol: 'Case ID', id: r['Case ID']}, {
+      'Outcome': outcome,
+      'Decided By': currentUserName(),
+      'Decided Date': todayISO()
+    }).catch(function(){ /* silent — the hand-off itself still proceeds; a missed durable record isn't worth blocking navigation over */ });
+
     if (target === 'ACT'){
       window.open('capa-register.html?fromObservation=' + encodeURIComponent(r['Case ID']) + '&lane=ACT', '_blank');
-      DATA[idx].Escalated = 'Action Tracker';
     } else {
       window.open('incident-register.html?fromObservation=' + encodeURIComponent(r['Case ID']), '_blank');
-      DATA[idx].Escalated = 'Incident Register';
     }
+    DATA[idx].Escalated = outcome; /* instant local feedback, ahead of the write above actually landing */
 
     closeModal(); /* closeModal() re-renders and applies any held-back refresh */
+  }
+
+  /* Close — No Escalation (Issam, 2026-10-07) — only ever offered for
+     the 'tracker' tier (Medium/Low raw risk; see the Action-column
+     button logic in render()). Mirrors the Incident Register's own
+     Close - No Escalation flow: a short justification is required, and
+     it becomes the audit record for why nothing was raised. Never
+     offered for 'incident' tier (mandatory forward, by design) or
+     'pending' (nobody has assessed the actual risk yet). */
+  function openCloseNoEscalation(idx){
+    _modalOpen = true;
+    var r = DATA[idx];
+    var root = document.getElementById('obs-modal-root');
+    root.innerHTML = '<div class="modal-bg" id="obs-close-modal-bg"><div class="modal">' +
+      '<h3>Close — No Escalation — '+escHtml(r['Case ID'])+'</h3>' +
+      '<div class="mf">Description</div><div class="mv">'+escHtml(r.Description)+'</div>' +
+      '<div class="mf">Priority (HSSE)</div><div class="mv">'+badgeForPriority(r.Priority)+'</div>' +
+      '<div class="esc-note">Review complete, nothing further needed — this requires a short justification, which becomes the audit record for why no Action was raised.</div>' +
+      '<textarea class="esc-close-comment" id="obs-close-comment" placeholder="Required — why is no Action needed? (e.g. repeat minor observation, already addressed, no corrective action warranted)" style="width:100%;min-height:70px;margin:8px 0;padding:8px;border-radius:6px;border:1px solid var(--w-border);background:var(--w-bg3);color:var(--w-text);font-family:inherit;font-size:12px"></textarea>' +
+      '<div class="modal-actions">' +
+        '<button class="btn modal-close" id="obs-close-cancel">Cancel</button>' +
+        '<button class="btn btn-gold" onclick="OBS.submitCloseNoEscalation('+idx+')">Confirm Close</button>' +
+      '</div>' +
+    '</div></div>';
+    document.getElementById('obs-close-cancel').onclick = function(){ closeModal(); };
+    document.getElementById('obs-close-modal-bg').onclick = function(e){ if (e.target.id === 'obs-close-modal-bg') closeModal(); };
+  }
+
+  function submitCloseNoEscalation(idx){
+    var ta = document.getElementById('obs-close-comment');
+    var comment = ta ? ta.value.trim() : '';
+    if (!comment){
+      alert('A justification comment is required before closing without an Action.');
+      if (ta) ta.focus();
+      return;
+    }
+    var r = DATA[idx];
+    postJSON('update', {tab: 'obs_escalations', idCol: 'Case ID', id: r['Case ID']}, {
+      'Outcome': 'Closed - No Escalation',
+      'Close Reason': comment,
+      'Decided By': currentUserName(),
+      'Decided Date': todayISO()
+    }).then(function(res){
+      if (res && res.status === 'error'){
+        alert('Could not save — ' + (res.error || 'unknown error'));
+        return;
+      }
+      DATA[idx].Escalated = 'Closed'; /* instant local feedback, matches the join's own mapping in buildRecords */
+      closeModal();
+    }).catch(function(){
+      alert('Could not save — check your connection.');
+    });
   }
 
   /* Photo viewing — toolbar-driven (select a row above, then click
@@ -1093,7 +1263,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     document.getElementById('obs-lightbox-root').innerHTML = '';
   }
 
-  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, onDateRangeChange: onDateRangeChange, clearDateRange: clearDateRange, openLightbox: openLightbox, closeLightbox: closeLightbox, refreshNow: function(){ loadLive(true); } };
+  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, openCloseNoEscalation: openCloseNoEscalation, submitCloseNoEscalation: submitCloseNoEscalation, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, onDateRangeChange: onDateRangeChange, clearDateRange: clearDateRange, openLightbox: openLightbox, closeLightbox: closeLightbox, refreshNow: function(){ loadLive(true); } };
   loadLive();
   startAutoRefresh();
 })();

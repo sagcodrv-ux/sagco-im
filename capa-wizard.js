@@ -815,6 +815,20 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Closes the loop back to the Observation Register, same fire-and-
+     forget reasoning as notifySourceIncident above — the Action record
+     itself is already safely saved either way, and this is just the
+     durable reference the Observation side shows and hyperlinks to.
+     Only fires on first save (see afterAssignId below): the reference
+     is assigned once, at creation, never changes on a later resume. */
+  function notifySourceObservation() {
+    if (!state.sourceObservationCaseId) return;
+    fetch(SHEETS_URL + '?action=update&tab=obs_escalations&idCol=' + encodeURIComponent('Case ID') + '&id=' + encodeURIComponent(state.sourceObservationCaseId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Outcome': 'Action Tracker', 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* ── Save for the lightweight Action lane — one write, no steps ── */
   function persistAction() {
     if (saving) return;
@@ -837,6 +851,7 @@
           saving = false;
           if (result && result.status === 'ok') {
             notifySourceIncident();
+            notifySourceObservation();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             alert(state.capaId + ' saved.');
