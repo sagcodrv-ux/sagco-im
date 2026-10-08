@@ -957,6 +957,7 @@
             notifySourceObservation();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
+            carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1473,6 +1474,60 @@
         .catch(function () { cb(null); });
     };
     reader.readAsDataURL(file);
+  }
+
+  /* Carries the originating Observation's own photo(s) through onto a
+     freshly-created Action record automatically (Issam, 2026-10-08) —
+     previously a photo attached to an Observation stayed visible only
+     on the Observation Register itself; escalating it into the Action
+     Tracker dropped it entirely, since the Action lane's initial raise
+     form has no evidence field at all (only the later "Log Update"
+     progress form does, and only once a real ID exists — see
+     actionFormHtml()'s progressHtml comment above). This re-fetches the
+     SAME getObsPhotos endpoint the Observation Register's own photo
+     viewer uses, re-uploads each photo through the existing
+     uploadEvidence() pipeline (this script has write access to the
+     IMS's own Drive storage, unlike the external AppSheet Drive folder
+     the original lives in), and logs it as a normal capa_log entry —
+     exactly what a manual "Log Update" with evidence attached would
+     produce, just done automatically right after the first save
+     instead of waiting for someone to notice it's missing. Only ever
+     called once, right after a successful FIRST save (see
+     persistAction's afterAssignId) — never on a later update, so this
+     can't duplicate itself on every subsequent edit. Fetched at
+     save-confirmation time rather than at hand-off time specifically
+     to avoid stuffing a base64 image into sessionStorage, same
+     reasoning as the equivalent fix on the Incident Register. */
+  function carryOverObservationPhoto(capaId, sourceCaseId) {
+    if (!sourceCaseId) return;
+    fetch(SHEETS_URL + '?action=getObsPhotos&caseId=' + encodeURIComponent(sourceCaseId))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || data.error || !data.photos || !data.photos.length) return;
+        data.photos.filter(function (p) { return p.dataUrl; }).forEach(function (p) {
+          fetch(p.dataUrl)
+            .then(function (res) { return res.blob(); })
+            .then(function (blob) {
+              var file = new File([blob], p.fileName || (sourceCaseId + '-photo.jpg'), { type: blob.type || 'image/jpeg' });
+              uploadEvidence(file, capaId, function (evidenceLink) {
+                if (!evidenceLink) return; /* upload failed — nothing worth logging; the person can still attach it manually later */
+                var logRow = {
+                  'Log ID': 'LOG-' + capaId + '-' + Date.now(),
+                  'CAPA ID': capaId,
+                  'Date': new Date().toISOString().split('T')[0],
+                  'Note': 'Photo automatically carried over from source Observation ' + sourceCaseId + '.',
+                  'Photo URL': evidenceLink,
+                  'Logged By': currentUserName(),
+                  'Status Change': '',
+                };
+                fetch(SHEETS_URL + '?action=write&tab=' + LOG_TAB, { method: 'POST', body: JSON.stringify([logRow]) })
+                  .catch(function () { /* silent — the Action itself is already saved; a missed auto-log entry isn't worth alarming over */ });
+              });
+            })
+            .catch(function () { /* silent — same reasoning as above */ });
+        });
+      })
+      .catch(function () { /* silent — a missing/unreachable source photo is not worth surfacing an error for */ });
   }
 
   function submitProgress(capaId, headers, row, statusChange) {

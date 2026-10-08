@@ -176,7 +176,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
    whole page; column titles stay pinned at the top of that box via
    the sticky thead rule below, same idea as the already-sticky first
    column but on the other axis. */
-.inc-dark-wrap .tbl-wrap{overflow-x:auto;overflow-y:auto;max-height:520px}
+/* overscroll-behavior:contain + a viewport-aware cap — same mobile-
+   scroll-chaining fix applied to the Observation Register; see its
+   comment there for why this matters. */
+.inc-dark-wrap .tbl-wrap{overflow-x:auto;overflow-y:auto;max-height:min(520px,60vh);overscroll-behavior:contain}
 /* Thin scroll strip mirrored above the table — same scrollbar, just
    reachable without scrolling past every row first. Height is just
    enough to show a scrollbar track/thumb; the spacer inside gives it
@@ -1178,6 +1181,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var dateIdx = colIdx(headers, 'Date');
     var rcIdx = colIdx(headers, 'Root Cause');
     var raLevelIdx = colIdx(headers, 'RA Level');
+    var raScoreIdxHandoff = colIdx(headers, 'RA Score');
 
     var payload = {
       incidentId: idVal,
@@ -1188,6 +1192,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       date: dateIdx>=0 ? row[dateIdx] : '',
       rootCause: rcIdx>=0 ? row[rcIdx] : '',
       raLevel: raLevelIdx>=0 ? row[raLevelIdx] : '',
+      /* The incident's own actual RA Score (Consequence x Likelihood),
+         sent through as-is for BOTH lanes now — this is the real
+         Risk Score value, not a guess, and it's what the receiving
+         CAPA/Action row's own 'Risk Score' column should hold, same
+         principle as the Observation->Action hand-off's rawRiskScore. */
+      raScore: raScoreIdxHandoff>=0 ? row[raScoreIdxHandoff] : '',
       capaSeverity: lane === 'CAPA' ? raLevelToCapaSeverity(row, headers) : ''
     };
 
@@ -1240,7 +1250,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     });
   }
 
-  function showModal(tKeyName, title, fields, initialValues, onSubmit){
+  function showModal(tKeyName, title, fields, initialValues, onSubmit, opts){
     var root = document.getElementById('inc-modal-root');
     var injuryDetailFields = TABLES[tKeyName].injuryDetailFields || [];
     // Default the toggle from whatever's already on the record — an
@@ -1448,7 +1458,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var preview = document.getElementById('inc-modal-photo-preview');
       if (!preview) return;
       preview.innerHTML = stagedPhotoFiles.map(function(file, i){
-        return '<span class="inc-photo-stage-chip">📷 ' + String(file.name).replace(/</g,'&lt;') +
+        var fromObsTag = file._fromObservation ? ' <span style="opacity:.65">(from '+String(file._fromObservation).replace(/</g,'&lt;')+')</span>' : '';
+        return '<span class="inc-photo-stage-chip">📷 ' + String(file.name).replace(/</g,'&lt;') + fromObsTag +
           ' <span class="inc-photo-stage-chip-x" data-stage-idx="'+i+'" title="Remove">×</span></span>';
       }).join('');
       preview.querySelectorAll('.inc-photo-stage-chip-x').forEach(function(x){
@@ -1457,6 +1468,61 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           renderPhotoStage();
         };
       });
+    }
+
+    /* Carry the originating Observation's own photo(s) through onto the
+       Incident automatically (Issam, 2026-10-08) — previously an
+       Observation's photo stayed visible only on the Observation
+       Register itself (via its own Visualize Photos button); escalating
+       to an Incident or CAPA/Action dropped it entirely, leaving the
+       destination record with no evidence unless someone manually
+       re-attached a new photo. This re-fetches the SAME getObsPhotos
+       endpoint the Observation Register's own photo viewer already
+       uses, converts each returned base64 dataUrl into a real File
+       object, and pushes it into the exact same stagedPhotoFiles array
+       a manual camera/gallery pick would — so it uploads through the
+       IMS's own evidence-storage pipeline at Save time (this script has
+       write access there, unlike the external AppSheet Drive folder the
+       original photo lives in), and the person can remove it before
+       saving if it's not actually relevant, same as any other staged
+       file. Fetched here (at modal-open time) rather than earlier/at
+       escalation time specifically to avoid stuffing a base64 image
+       into sessionStorage, which has a real size-quota risk this
+       approach avoids entirely. */
+    if (opts && opts.obsPhotoSourceCaseId){
+      (function(sourceCaseId){
+        var preview = document.getElementById('inc-modal-photo-preview');
+        if (preview) preview.insertAdjacentHTML('beforeend', '<span class="inc-photo-stage-chip" id="inc-obs-photo-loading" style="opacity:.6">⏳ Checking for a source photo…</span>');
+        fetch(SHEETS_URL + '?action=getObsPhotos&caseId=' + encodeURIComponent(sourceCaseId))
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            var loadingChip = document.getElementById('inc-obs-photo-loading');
+            if (loadingChip) loadingChip.remove();
+            if (!data || data.error || !data.photos || !data.photos.length) return;
+            var conversions = data.photos.filter(function(p){ return p.dataUrl; }).map(function(p){
+              return fetch(p.dataUrl)
+                .then(function(res){ return res.blob(); })
+                .then(function(blob){
+                  var file = new File([blob], p.fileName || (sourceCaseId + '-photo.jpg'), {type: blob.type || 'image/jpeg'});
+                  file._fromObservation = sourceCaseId; /* tag only — used for the '(from CASE-...)' label above, never sent to the backend */
+                  return file;
+                })
+                .catch(function(){ return null; });
+            });
+            Promise.all(conversions).then(function(files){
+              files.filter(Boolean).forEach(function(f){ stagedPhotoFiles.push(f); });
+              renderPhotoStage();
+            });
+          })
+          .catch(function(){
+            var loadingChip = document.getElementById('inc-obs-photo-loading');
+            if (loadingChip) loadingChip.remove();
+            /* Silent otherwise — a missing/unreachable source photo is
+               not worth blocking the Incident form over; the person can
+               still attach one manually via Take Photo/Choose From
+               Gallery as always. */
+          });
+      })(opts.obsPhotoSourceCaseId);
     }
     function addStagedFiles(fileList){
       Array.from(fileList || []).forEach(function(f){ stagedPhotoFiles.push(f); });
@@ -1583,7 +1649,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         alert('Could not save — check your connection.');
         if (window._incReenableModalSave) window._incReenableModalSave();
       });
-    });
+    }, {obsPhotoSourceCaseId: caseId});
   }
 
   /* Deep link — incident-register.html?incident=INC-2026-0XX, used by
