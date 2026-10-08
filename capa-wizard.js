@@ -3,7 +3,7 @@
    capa-wizard.js  |  Rev.02  |  September 2026
 
    Implements Steps 1–4 of the CAPA workflow directly inside
-   capa-register.html, matching proc-c10.html §5:
+   action-register.html, matching proc-c10.html §5:
 
      Step 1  Raise NCR & Assign Owner   (intake + severity classification)
      Step 2  Containment                (immediate action)
@@ -44,7 +44,7 @@
    column with two independently-numbered prefixes: CAPA-2026-0XX
    (full proc-c10.html §5 process) and ACT-2026-0XX (description/
    owner/due-date/status only — no RCA, no approval gate). Entered
-   only via capa-register.html?fromIncident=<id>&lane=CAPA|ACT, opened
+   only via action-register.html?fromIncident=<id>&lane=CAPA|ACT, opened
    by the Incident Register's "Decide" panel — see openFromIncident()
    and the new buildActionRow()/persistAction() path below. A CAPA/ACT
    is never auto-raised; the Incident Register always requires a human
@@ -1902,11 +1902,11 @@
 
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
-     capa-register.html's own login wall (IMS_AUTH.init()). A person
+     action-register.html's own login wall (IMS_AUTH.init()). A person
      opening the page cold (no prior session, e.g. clicking the email
      deep-link fresh) would have this wire up and the deep-link
      auto-open fire regardless of whether login had actually happened
-     yet. Now this only runs once capa-register.html's onReady callback
+     yet. Now this only runs once action-register.html's onReady callback
      calls CAPA_WIZARD.initPage() — i.e., after a real session exists. */
   function initWizardPage() {
     var btn = document.getElementById('capa-raise-btn');
@@ -1915,7 +1915,7 @@
     if (contBtn) contBtn.addEventListener('click', openPicker);
     initNotifBell();
 
-    /* Deep link support — e.g. capa-register.html?capa=CAPA-2026-004,
+    /* Deep link support — e.g. action-register.html?capa=CAPA-2026-004,
        used by the new-CAPA-owner email so clicking it opens straight
        to that CAPA instead of just the general register page. */
     var deepLinkId = new URLSearchParams(window.location.search).get('capa');
@@ -1928,7 +1928,7 @@
       return;
     }
 
-    /* Incident Register hand-off — capa-register.html?fromIncident=INC-2026-0XX&lane=CAPA|ACT,
+    /* Incident Register hand-off — action-register.html?fromIncident=INC-2026-0XX&lane=CAPA|ACT,
        opened in a new tab by the incident's "Decide" panel. The context
        (description, RA Level, etc.) travels via sessionStorage, which a
        same-origin tab opened with window.open() inherits a copy of —
@@ -1952,7 +1952,7 @@
       return;
     }
 
-    /* Observation Register hand-off — capa-register.html?fromObservation=CASE-...&lane=ACT,
+    /* Observation Register hand-off — action-register.html?fromObservation=CASE-...&lane=ACT,
        opened by the Observation Register's Decide-equivalent once the
        linked Risk Assessment row's Raw Risk Score has been confirmed
        Medium or below. Same sessionStorage-plus-URL-verification pattern

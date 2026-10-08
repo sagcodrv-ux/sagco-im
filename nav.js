@@ -144,7 +144,7 @@ var TREE = [
     /* ── §10 Improvement ─────────────────────────────── */
     { id:'p07', label:'Improvement & Corrective Action', file:'proc-c10.html', level:'L2', badge:'L2-P-07 · §10',
       children:[
-        { id:'p07-cap', label:'CAPA Register',     file:'capa-register.html',    level:'L4', tag:'Sh.23' },
+        { id:'p07-cap', label:'Action Register',     file:'action-register.html',    level:'L4', tag:'Sh.23' },
         { id:'p07-inc', label:'Incident Register', file:'incident-register.html',level:'L4', tag:'Sh.24' },
         { id:'p07-obs', label:'Observations Register', file:'observations-register.html', level:'L4', badge:'Live' },
       ]
@@ -1188,7 +1188,7 @@ function massINavOpen() {
    ─────────────────────────────────────────────────────────────────────────── */
 var MASSI_PAGE_CONTEXT = {
   'hira.html':                 {sev:'crit',  msg:'HIRA register is open. E-03 objective is BEHIND — overdue since Jun 2026. Shall I show the gap analysis?', q:['Show overdue HIRA items','Which hazards have HIGH residual risk?','Propose preventive actions from HIRA']},
-  'capa-register.html':        {sev:'low',   msg:'CAPA register is empty. 0 formal NCRs raised to date — first Internal Audit still pending. Pre-certification readiness items are tracked separately in the Action Tracker.', q:['Show the Action Tracker items','What is required before the first Internal Audit?','Explain the CAPA 8-step process']},
+  'action-register.html':      {sev:'low',   msg:'Action Register is open — covers both formal CAPAs and lightweight Actions in one place. 0 formal NCRs raised to date — first Internal Audit still pending.', q:['Show open Action items','What is required before the first Internal Audit?','Explain the CAPA 8-step process']},
   'kpi-dashboard.html':        {sev:'high',  msg:'KPI dashboard is open. 4 KPIs are AT RISK including PTW compliance (79%) and Cullet ratio (20% vs 30% target).', q:['Show KPI trend chart','Compare this month with last month','Which KPIs are deteriorating?']},
   'calibration-register.html': {sev:'med',   msg:'Calibration register has no records yet — WBGT (heat stress) and audiometry equipment are still pending Procurement quote confirmation. Shall I show the procurement status?', q:['Show procurement quote status','Which instruments still need ordering?','Update calibration register once equipment arrives']},
   'energy.html':               {sev:'crit',  msg:'Energy page is open. F4 SHC is +119 kcal/kg above age-adjusted target — URGENT. ECM 1 decision due August 2026.', q:['Show energy opportunity analysis','Compare furnace SHC vs targets','Show ECM recommendations']},

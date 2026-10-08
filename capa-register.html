@@ -1,154 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SAGCO IMS — CAPA Register</title>
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="auth.js"></script>
-<script src="data.js"></script><script src="nav.js"></script>
-  <script src="dms-widget.js"></script>
-  <script src="capa-wizard.js"></script>
+<meta charset="UTF-8">
+<title>Redirecting to Action Register…</title>
+<!-- capa-register.html retired (Issam, 2026-10-08) — replaced by
+     action-register.html, the single unified Action Register page
+     (same dark navy/gold format as observations-register.html and
+     incident-register.html, click-a-row-then-Continue, no separate
+     ID-picker popup). This stub only exists so a bookmark or an old
+     link out in the world still lands somewhere useful instead of a
+     dead page — it forwards straight to the new page, preserving
+     whatever query string (?capa=..., ?fromIncident=..., etc.) it was
+     given, since those deep-link params still mean exactly the same
+     thing on the new page. -->
+<script>
+  window.location.replace('action-register.html' + window.location.search);
+</script>
 </head>
 <body>
-<div class="loader hidden" id="loader"><div class="loader-spin"></div><div class="loader-text">Loading…</div></div>
-<div class="main"><div id="tb"></div><div class="content">
-<style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20} .badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000} .badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0} .badge.kc-gold{background:#FFF3CD;color:#7a5800}
-.card{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
-.card-hdr{background:var(--navy);color:var(--gold-lt);padding:10px 18px;font-size:12px;font-weight:600;letter-spacing:.04em}
-.card-body{padding:16px 18px}
-.section-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-.req-text{font-size:11px;color:var(--text-lt);margin:10px 0;line-height:1.6;padding:10px 14px;background:var(--g100);border-radius:var(--radius);border-left:3px solid var(--gold)}
-.alert-amber{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:12px}
-</style>
-<div id="capa-wizard-mount"></div>
-<div class="kpi-grid" style="grid-template-columns:repeat(7,1fr);margin-bottom:14px">
-  <div class="kpi-card kc-blue"><div class="kpi-lbl">Total CAPAs</div><div class="kpi-val">0</div><div class="kpi-sub">L4-1000-R-01 — live register</div></div>
-  <div class="kpi-card kc-red"><div class="kpi-lbl">CRITICAL</div><div class="kpi-val">0</div><div class="kpi-sub">Stage 2 blockers</div></div>
-  <div class="kpi-card kc-org"><div class="kpi-lbl">MAJOR</div><div class="kpi-val">0</div><div class="kpi-sub">Priority treatment</div></div>
-  <div class="kpi-card kc-red"><div class="kpi-lbl">NCRs</div><div class="kpi-val">0</div><div class="kpi-sub">From audits and compliance</div></div>
-  <div class="kpi-card kc-gold"><div class="kpi-lbl">Actions</div><div class="kpi-val">0</div><div class="kpi-sub">Lightweight ACT- lane, same register</div></div>
-  <div class="kpi-card kc-blue"><div class="kpi-lbl">Improvements</div><div class="kpi-val">0</div><div class="kpi-sub">No improvement CAPAs raised yet</div></div>
-  <div class="kpi-card kc-amb"><div class="kpi-lbl">Closed</div><div class="kpi-val">0</div><div class="kpi-sub">No nonconformities to date</div></div>
-</div>
-<div class="req-text">ISO §10.2 — All nonconformities follow the 7-step CAPA process: Raise NCR &amp; Assign Owner → Containment → Root Cause Analysis (5-Why for near-misses and minor incidents; Ishikawa/fishbone for major incidents and fatalities) → Corrective Action Plan → Implementation → Effectiveness Review → Close. Closure targets per L2-1000-P-07: Critical 30 days / Major 60 days / Minor 90 days. Effectiveness must be verified — and no recurrence within 12 months — before any CAPA is closed.<br><br>CAPA entries are raised in response to formal nonconformities — identified through Internal Audit, certification audits (TÜV Stage 1/2), incident investigations, or other formal NC determination processes. Self-identified readiness items ahead of certification are tracked separately in the Action Tracker.</div>
-<div style="display:flex;justify-content:flex-end;gap:8px;margin:0 0 10px;align-items:center">
-  <div id="capa-notif-mount" style="position:relative;margin-right:auto"></div>
-  <!-- The old ID-picker popup (list every CAPA in a modal, click one to
-       resume) is retired (Issam, 2026-10-08) — there is now exactly one
-       way to continue an existing CAPA/Action: the Action Module page,
-       where you select the record directly from the live table and
-       click Continue. This is a plain link there, not the old button,
-       so nothing on this page still opens that popup. -->
-  <a href="action-module.html" style="background:#EBF3FB;color:#1565C0;border:1px solid #B5D4F4;border-radius:5px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial,sans-serif;text-decoration:none;display:inline-flex;align-items:center">↺ Continue or View a CAPA / Action</a>
-  <button id="capa-raise-btn" style="background:#107c10;color:#fff;border:none;border-radius:5px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial,sans-serif;display:inline-flex;align-items:center;gap:6px">＋ Raise New CAPA</button>
-</div>
-<div style="margin-top:0"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
-
-<script>
-IMS_AUTH.init({
-  onReady: function(session){
-    initPage("capa-register.html");
-    document.getElementById("tb").innerHTML = renderTopbar("CAPA Register", "ISO §9.2 / §10.1 / §10.2 · NCRs + Corrective Actions + Improvement · L4-1000-R-01");
-    IMS_AUTH.injectUserBar();
-    if (window.CAPA_WIZARD) CAPA_WIZARD.initPage();
-  }
-});
-</script>
-
-<script>
-/* ── Auto-update summary cards from live Sheets data ── */
-
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
-  }
-  return '—';
-}
-
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
-    }
-  }
-}
-(function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('Total CAPAs', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
-  updateCard('CRITICAL', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Severity","Critical"); })(d.rows||[],d.headers||[]));
-  updateCard('MAJOR', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Severity","Major"); })(d.rows||[],d.headers||[]));
-  updateCard('NCRs', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Type","Nonconformance"); })(d.rows||[],d.headers||[]));
-  updateCard('Actions', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Type","Action"); })(d.rows||[],d.headers||[]));
-  updateCard('Improvements', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Type","Improvement"); })(d.rows||[],d.headers||[]));
-  updateCard('Closed', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Status","Closed"); })(d.rows||[],d.headers||[]));
-      }
-    };
-  }
-})();
-</script>
-
-
+<p>This page has moved — redirecting to <a href="action-register.html">Action Register</a>…</p>
 </body>
 </html>
