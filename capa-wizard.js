@@ -841,6 +841,15 @@
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       'Severity': 'Low',
+      /* Risk Score — same column name/meaning as the full CAPA lane's
+         own 'Risk Score' field (see buildRow() above), so the value
+         reads consistently regardless of which lane a record is in.
+         Populated from state.score, which is set either from an
+         Incident's RA Score (openFromIncident) or an Observation's
+         Raw Risk Score (openFromObservation) — never typed in
+         directly on this lightweight lane, matching the "no RCA/
+         approval ceremony" design already documented above. */
+      'Risk Score': (state.score !== undefined && state.score !== null) ? state.score : '',
       'Source': state.source || 'Incident Investigation',
       'Description': state.description,
       'Date Raised': state.dateRaised,
@@ -1788,9 +1797,23 @@
     state.description = ctx.description || '';
     state.source = 'Incident Investigation';
     state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    /* Risk Score — carries the incident's own actual RA Score through
+       unchanged, same value the Incident Register itself shows (RA
+       Score column), for BOTH lanes. This replaces the old guessed
+       default (15/20 by capaSeverity) for the CAPA lane, which is kept
+       ONLY as a fallback for the rare case an incident row has no RA
+       Score on file yet — the real number is always preferred when
+       present, so the score reads identically whether you're looking
+       at the Incident, the CAPA, or (via openFromObservation) the
+       Observation that originated it. */
+    var hasRealScore = ctx.raScore !== undefined && ctx.raScore !== null && ctx.raScore !== '';
+    if (hasRealScore) {
+      state.score = ctx.raScore;
+    } else if (state.lane === 'CAPA') {
+      state.score = ctx.capaSeverity === 'Critical' ? '20' : '15'; /* Major default for High/LTI, Critical for Critical/fatality — fallback only when no RA Score is on file */
+    }
     if (state.lane === 'CAPA') {
       state.lockedFromIncident = true;
-      state.score = ctx.capaSeverity === 'Critical' ? '20' : '15'; /* Major default for High/LTI, Critical for Critical/fatality */
       state.severity = classify(state.score);
     }
     loadUserDirectory(render);
@@ -1813,6 +1836,12 @@
     state.description = ctx.description || '';
     state.source = 'Observation';
     state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    /* Carries the Observation's Raw Risk Score through to the saved
+       Action row (buildActionRow()'s 'Risk Score' field below) — same
+       column name the full CAPA lane already uses for this value, so
+       it reads the same whether a record arrived via Incident or
+       straight from an Observation. */
+    state.score = (ctx.rawRiskScore !== undefined && ctx.rawRiskScore !== null) ? ctx.rawRiskScore : '';
     loadUserDirectory(render);
   }
 
@@ -1885,6 +1914,12 @@
     }
   }
 
-  global.CAPA_WIZARD = { open: openNew, openPicker: openPicker, initPage: initWizardPage };
+  /* resumeById exposed directly (Action Module page, 2026-10-08) — the
+     Action Module's own table has its own row-select UI (click a row,
+     then Continue), so it calls straight into the same resume logic
+     openPicker()'s modal rows already use, rather than going through
+     that modal at all. Signature unchanged: resumeById(id, data) where
+     data is the already-fetched {headers, rows} for the 'capa' tab. */
+  global.CAPA_WIZARD = { open: openNew, openPicker: openPicker, initPage: initWizardPage, resume: resumeById };
 
 })(window);

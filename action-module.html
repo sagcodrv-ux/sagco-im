@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Action Module</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="capa-wizard.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-family:Arial,Helvetica,sans-serif}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   ACTION MODULE PAGE — dark navy/gold theme (Issam, 2026-10-08).
+   Deliberate structural twin of observations-register.html and
+   incident-register.html: same CSS variable names/values (just
+   am-* prefixed instead of w-*/idw-*), same KPI-card / filter-bar /
+   toolbar-with-row-select / sticky-header-scrollable-table layout,
+   so all three registers read as one consistent product. Covers
+   BOTH lanes of the capa sheet tab — full Nonconformance CAPAs and
+   the lightweight Action (ACT-) lane — hence "Action Module" as the
+   combined name rather than "CAPA Register" (which only implied the
+   NCR lane) or a second separate "Action Register" page.
+   ══════════════════════════════════════════════════════════════════ */
+.am-wrap{
+  --am-bg:#0D1B35; --am-bg2:#142140; --am-bg3:#1a2a50;
+  --am-gold:#C9A84C; --am-gold-lt:#E8C97A;
+  --am-text:rgba(255,255,255,.92); --am-text-muted:rgba(255,255,255,.55);
+  --am-text-dim:rgba(255,255,255,.35); --am-border:rgba(255,255,255,.08);
+  --am-border-gold:rgba(201,168,76,.35);
+  --am-blue:#5B9BD5; --am-red:#F0685C; --am-amb:#E8B339; --am-grn:#4FCB9E;
+  background:var(--am-bg); color:var(--am-text); margin:0; padding:24px; min-height:100vh;
+}
+.am-wrap *{box-sizing:border-box}
+.am-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--am-bg2);
+  border-radius:8px;border-left:3px solid var(--am-gold);margin:10px 0;color:var(--am-text-muted)}
+.am-wrap h1{font-size:18px;color:var(--am-gold-lt);margin:0 0 4px}
+.am-wrap .sub{font-size:12px;color:var(--am-text-muted);margin:0 0 16px}
+.am-wrap .kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:18px}
+.am-wrap .kpi-card{background:var(--am-bg2);border:1px solid var(--am-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}
+.am-wrap .kpi-card:hover{transform:translateY(-2px);border-color:var(--am-gold)}
+.am-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.am-wrap .kpi-card.kc-nvy::before{background:var(--am-gold)}
+.am-wrap .kpi-card.kc-red::before{background:var(--am-red)}
+.am-wrap .kpi-card.kc-amb::before{background:var(--am-amb)}
+.am-wrap .kpi-card.kc-blue::before{background:var(--am-blue)}
+.am-wrap .kpi-card.kc-grn::before{background:var(--am-grn)}
+.am-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--am-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.am-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--am-text);line-height:1.1;margin-bottom:4px}
+.am-wrap .kpi-sub{font-size:10px;color:var(--am-text-muted)}
+.am-wrap .filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.am-wrap .search-input{flex:1 1 220px;min-width:160px;padding:7px 10px;font-size:12px;
+  border:1px solid var(--am-border);border-radius:8px;font-family:inherit;background:var(--am-bg3);color:var(--am-text)}
+.am-wrap .search-input::placeholder{color:var(--am-text-dim)}
+.am-wrap .filter-select{padding:7px 8px;font-size:12px;border:1px solid var(--am-border);
+  border-radius:8px;font-family:inherit;background:var(--am-bg3);color:var(--am-text)}
+.am-wrap .filter-status{font-size:10px;color:var(--am-text-muted);margin-left:auto}
+.am-wrap .btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
+  border:1px solid var(--am-border);background:var(--am-bg3);color:var(--am-text);cursor:pointer;font-family:inherit}
+.am-wrap .btn:hover{background:#223457;border-color:var(--am-border-gold)}
+.am-wrap .btn-gold{background:var(--am-gold);color:#1a1200;border-color:var(--am-gold);font-weight:700}
+.am-wrap .btn-gold:hover{background:var(--am-gold-lt)}
+.am-wrap .btn-grn{background:var(--am-grn);color:#06281d;border-color:var(--am-grn);font-weight:700}
+.am-wrap .btn-grn:hover{filter:brightness(1.08)}
+.am-wrap .btn:disabled{opacity:.4;cursor:not-allowed}
+.am-wrap .btn:disabled:hover{background:var(--am-bg3);border-color:var(--am-border)}
+.am-wrap .toolbar{display:flex;justify-content:flex-end;gap:8px;padding:8px 0}
+.am-wrap .row-selectable{cursor:pointer}
+.am-wrap .row-selected td,
+.am-wrap .row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--am-gold)}
+/* Same scroll-containment fix already applied to the Observation and
+   Incident Registers (2026-10-08): overscroll-behavior:contain stops
+   a touch-scroll from escaping this box into the outer page, and
+   min(520px,60vh) keeps it from being taller than a small screen. */
+.am-wrap .tbl-wrap{overflow-x:auto;overflow-y:auto;max-height:min(520px,60vh);overscroll-behavior:contain;border:1px solid var(--am-border-gold);border-radius:10px}
+.am-wrap table{width:100%;border-collapse:collapse;font-size:11px}
+.am-wrap th{text-align:left;color:var(--am-gold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--am-border-gold);
+  background:var(--am-bg3);white-space:nowrap;position:sticky;top:0}
+.am-wrap td{padding:7px 10px;border-bottom:1px solid var(--am-border);color:var(--am-text);vertical-align:top}
+.am-wrap tbody tr:nth-child(odd) td{background:var(--am-bg2)}
+.am-wrap tbody tr:nth-child(even) td{background:#101d3a}
+.am-wrap tbody tr:hover td{background:var(--am-bg3)}
+.am-wrap .desc-cell{max-width:260px;white-space:normal}
+.am-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;white-space:nowrap}
+.am-wrap .badge.b-grn{background:rgba(79,203,158,.15);color:var(--am-grn)}
+.am-wrap .badge.b-red{background:rgba(240,104,92,.15);color:var(--am-red)}
+.am-wrap .badge.b-amb{background:rgba(232,179,57,.15);color:var(--am-amb)}
+.am-wrap .badge.b-blue{background:rgba(91,155,213,.15);color:var(--am-blue)}
+.am-wrap .badge.b-dim{background:var(--am-bg3);color:var(--am-text-muted)}
+.am-wrap .action-dim{color:var(--am-text-muted);font-size:11px}
+.am-wrap .ref-link{color:var(--am-gold-lt);text-decoration:underline;text-underline-offset:2px}
+.am-wrap .ref-link:hover{color:var(--am-gold)}
+.am-wrap .empty-state{text-align:center;padding:20px;color:var(--am-text-muted)}
+.am-wrap .pagebar{display:flex;justify-content:space-between;align-items:center;padding:8px 2px;font-size:10px;color:var(--am-text-muted)}
+</style>
+</head>
+<body>
+<div class="am-wrap">
+<div class="req-text">ISO §9.2 / §10.1 / §10.2 — Covers both lanes of the corrective-action process: full Nonconformance CAPAs (Raise NCR → Containment → RCA → Corrective Action Plan → Implementation → Effectiveness Review → Close) and the lightweight Action (ACT-) lane used for pre-certification readiness items and Medium/Low-risk items forwarded from the Observation Register. Select a record below, then click Continue to resume it in the wizard — no need to know or type its ID.</div>
+<h1>Action Module</h1>
+<div class="sub">All CAPA (Nonconformance) and Action Tracker records — one register, two lanes — source: live Google Sheet</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card kc-nvy" onclick="AM.cardFilter('all')"><div class="kpi-lbl">Total Records</div><div class="kpi-val">—</div><div class="kpi-sub">CAPAs + Actions, all time</div></div>
+  <div class="kpi-card kc-red" onclick="AM.cardFilter('critical')"><div class="kpi-lbl">Critical</div><div class="kpi-val">—</div><div class="kpi-sub">Severity = Critical</div></div>
+  <div class="kpi-card kc-amb" onclick="AM.cardFilter('major')"><div class="kpi-lbl">Major</div><div class="kpi-val">—</div><div class="kpi-sub">Severity = Major</div></div>
+  <div class="kpi-card kc-blue" onclick="AM.cardFilter('open')"><div class="kpi-lbl">Open</div><div class="kpi-val">—</div><div class="kpi-sub">Status not Closed</div></div>
+  <div class="kpi-card kc-blue" onclick="AM.cardFilter('action')"><div class="kpi-lbl">Actions</div><div class="kpi-val">—</div><div class="kpi-sub">Lightweight ACT- lane</div></div>
+  <div class="kpi-card kc-grn" onclick="AM.cardFilter('closed')"><div class="kpi-lbl">Closed</div><div class="kpi-val">—</div><div class="kpi-sub">Status = Closed</div></div>
+</div>
+
+<div class="filterbar">
+  <input type="text" class="search-input" id="am-search" placeholder="Search ID, description, owner, status..." oninput="AM.render()">
+  <select class="filter-select" id="am-type-filter" onchange="AM.render()">
+    <option value="">All Types</option>
+    <option value="Nonconformance">Nonconformance (CAPA)</option>
+    <option value="Action">Action</option>
+  </select>
+  <select class="filter-select" id="am-status-filter" onchange="AM.render()">
+    <option value="">All Statuses</option>
+    <option value="open">Open (not Closed)</option>
+    <option value="Closed">Closed</option>
+  </select>
+  <button class="btn" onclick="AM.clearFilters()">Clear filters</button>
+  <span class="filter-status" id="am-filter-status"></span>
+</div>
+
+<div class="toolbar">
+  <button class="btn" id="am-raise-btn" onclick="CAPA_WIZARD.open()">＋ Raise New CAPA / Action</button>
+  <button class="btn btn-grn" id="am-continue-btn" disabled onclick="AM.continueSelected()">↺ Continue Selected</button>
+</div>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr>
+<th>ID</th><th>Type</th><th>Description</th><th>Severity</th><th>Risk Score</th><th>Status</th><th>Process Stage</th><th>Owner</th><th>Due Date</th><th>Source</th>
+</tr></thead>
+<tbody id="am-tbody"></tbody>
+</table>
+</div>
+<div class="pagebar" id="am-pagebar"></div>
+
+<div id="capa-wizard-mount"></div>
+
+</div>
+<script>
+(function(){
+  var DATA = { headers: [], rows: [] };
+  var _loaded = false;
+  var _selectedId = null;
+  var _filterState = { special: '' };
+  var REFRESH_INTERVAL_MS = 60000;
+
+  function escHtml(s){
+    return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function colIdx(headers, name){
+    for (var i=0;i<headers.length;i++){ if (String(headers[i]).trim() === name) return i; }
+    return -1;
+  }
+
+  /* Record shape mirrors buildRow()/buildActionRow() in capa-wizard.js —
+     every sheet column its own named field, read by name via colIdx
+     rather than fixed positions, so this stays correct if a column is
+     ever reordered on the sheet. */
+  function buildRecords(data){
+    var h = data.headers || [];
+    var idIdx = colIdx(h,'CAPA ID'), typeIdx = colIdx(h,'Type'), descIdx = colIdx(h,'Description'),
+        sevIdx = colIdx(h,'Severity'), scoreIdx = colIdx(h,'Risk Score'), statusIdx = colIdx(h,'Status'),
+        stageIdx = colIdx(h,'Process Stage'), ownerIdx = colIdx(h,'Owner'), dueIdx = colIdx(h,'Due Date'),
+        srcIdx = colIdx(h,'Source'), srcIncIdx = colIdx(h,'Source Incident ID'), srcObsIdx = colIdx(h,'Source Observation Case ID');
+    return (data.rows || []).map(function(r){
+      return {
+        'CAPA ID': idIdx>=0 ? r[idIdx] : '',
+        'Type': typeIdx>=0 ? r[typeIdx] : '',
+        'Description': descIdx>=0 ? r[descIdx] : '',
+        'Severity': sevIdx>=0 ? r[sevIdx] : '',
+        'Risk Score': scoreIdx>=0 ? r[scoreIdx] : '',
+        'Status': statusIdx>=0 ? (r[statusIdx] || 'Open') : 'Open',
+        'Process Stage': stageIdx>=0 ? r[stageIdx] : '',
+        'Owner': ownerIdx>=0 ? r[ownerIdx] : '',
+        'Due Date': dueIdx>=0 ? r[dueIdx] : '',
+        'Source': srcIdx>=0 ? r[srcIdx] : '',
+        'Source Incident ID': srcIncIdx>=0 ? r[srcIncIdx] : '',
+        'Source Observation Case ID': srcObsIdx>=0 ? r[srcObsIdx] : '',
+      };
+    });
+  }
+
+  function loadLive(isBackground){
+    isBackground = !!isBackground;
+    fetch(SHEETS_URL + '?tab=capa&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data.error) { if (!isBackground) showError(data.error); return; }
+        DATA = data;
+        _loaded = true;
+        render();
+      })
+      .catch(function(err){
+        if (!isBackground) showError(err && err.message || 'connection error');
+      });
+  }
+  function showError(msg){
+    document.getElementById('am-tbody').innerHTML = '<tr><td colspan="10"><div class="empty-state"><strong>Could not load the live register</strong>'+escHtml(msg)+'</div></td></tr>';
+  }
+  function startAutoRefresh(){ setInterval(function(){ loadLive(true); }, REFRESH_INTERVAL_MS); }
+
+  function badgeForSeverity(v){
+    var k = String(v||'').trim().toLowerCase();
+    if (k==='critical') return '<span class="badge b-red">Critical</span>';
+    if (k==='major') return '<span class="badge b-amb">Major</span>';
+    if (k==='minor') return '<span class="badge b-grn">Minor</span>';
+    return '<span class="badge b-dim">—</span>';
+  }
+  function badgeForType(v){
+    if (v === 'Action') return '<span class="badge b-blue">Action</span>';
+    if (v === 'Nonconformance') return '<span class="badge b-gold" style="background:rgba(201,168,76,.15);color:var(--am-gold-lt)">CAPA</span>';
+    return '<span class="badge b-dim">'+escHtml(v||'—')+'</span>';
+  }
+  function badgeForStatus(v){
+    var k = String(v||'').trim().toLowerCase();
+    if (k==='closed') return '<span class="badge b-grn">Closed</span>';
+    if (!v) return '<span class="badge b-blue">Open</span>';
+    return '<span class="badge b-blue">'+escHtml(v)+'</span>';
+  }
+
+  function matchesFilters(r){
+    var search = document.getElementById('am-search').value.trim().toLowerCase();
+    var typeSel = document.getElementById('am-type-filter').value;
+    var statusSel = document.getElementById('am-status-filter').value;
+    if (typeSel && r.Type !== typeSel) return false;
+    if (statusSel === 'open' && String(r.Status).toLowerCase() === 'closed') return false;
+    if (statusSel === 'Closed' && String(r.Status).toLowerCase() !== 'closed') return false;
+    if (_filterState.special === 'critical' && String(r.Severity).toLowerCase() !== 'critical') return false;
+    if (_filterState.special === 'major' && String(r.Severity).toLowerCase() !== 'major') return false;
+    if (_filterState.special === 'open' && String(r.Status).toLowerCase() === 'closed') return false;
+    if (_filterState.special === 'action' && r.Type !== 'Action') return false;
+    if (_filterState.special === 'closed' && String(r.Status).toLowerCase() !== 'closed') return false;
+    if (search){
+      /* Every field on the record is searchable — same approach as the
+         Observation Register's search fix (2026-10-08) and the
+         Incident Register's own raw-row search — not a fixed shortlist. */
+      var hay = Object.keys(r).map(function(k){ return r[k]; }).join(' ').toLowerCase();
+      if (hay.indexOf(search) === -1) return false;
+    }
+    return true;
+  }
+
+  function records(){ return buildRecords(DATA); }
+
+  function updateKpis(){
+    var all = records();
+    var vals = document.querySelectorAll('.kpi-val');
+    vals[0].textContent = all.length;
+    vals[1].textContent = all.filter(function(r){ return String(r.Severity).toLowerCase()==='critical'; }).length;
+    vals[2].textContent = all.filter(function(r){ return String(r.Severity).toLowerCase()==='major'; }).length;
+    vals[3].textContent = all.filter(function(r){ return String(r.Status).toLowerCase()!=='closed'; }).length;
+    vals[4].textContent = all.filter(function(r){ return r.Type==='Action'; }).length;
+    vals[5].textContent = all.filter(function(r){ return String(r.Status).toLowerCase()==='closed'; }).length;
+  }
+
+  function render(){
+    if (!_loaded) return;
+    updateKpis();
+    var all = records();
+    var rows = all.filter(matchesFilters);
+    var tbody = document.getElementById('am-tbody');
+    if (!rows.length){
+      tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
+    } else {
+      tbody.innerHTML = rows.map(function(r){
+        var id = r['CAPA ID'];
+        var isSel = (_selectedId !== null && String(_selectedId) === String(id));
+        var rowCls = ' class="row-selectable'+(isSel ? ' row-selected' : '')+'"';
+        var sourceCell = r['Source Incident ID']
+          ? '<a href="incident-register.html?incident='+encodeURIComponent(r['Source Incident ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Incident ID'])+'</a>'
+          : (r['Source Observation Case ID']
+            ? '<a href="observations-register.html?case='+encodeURIComponent(r['Source Observation Case ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Observation Case ID'])+'</a>'
+            : (r.Source ? escHtml(r.Source) : '<span class="action-dim">—</span>'));
+        return '<tr'+rowCls+' onclick="AM.selectRow(\''+escHtml(id)+'\')">'+
+          '<td><strong>'+escHtml(id)+'</strong></td>'+
+          '<td>'+badgeForType(r.Type)+'</td>'+
+          '<td class="desc-cell">'+escHtml(r.Description)+'</td>'+
+          '<td>'+badgeForSeverity(r.Severity)+'</td>'+
+          '<td>'+(r['Risk Score']!=='' ? escHtml(r['Risk Score']) : '<span class="action-dim">—</span>')+'</td>'+
+          '<td>'+badgeForStatus(r.Status)+'</td>'+
+          '<td>'+(r['Process Stage'] ? escHtml(r['Process Stage']) : '<span class="action-dim">—</span>')+'</td>'+
+          '<td>'+escHtml(r.Owner)+'</td>'+
+          '<td>'+(r['Due Date'] ? escHtml(r['Due Date']) : '<span class="action-dim">—</span>')+'</td>'+
+          '<td>'+sourceCell+'</td>'+
+        '</tr>';
+      }).join('');
+    }
+    document.getElementById('am-filter-status').textContent = 'Showing '+rows.length+' of '+all.length;
+    var contBtn = document.getElementById('am-continue-btn');
+    if (contBtn) contBtn.disabled = !_selectedId;
+  }
+
+  function selectRow(id){
+    /* Same one-row click-to-select pattern as the Observation Register:
+       clicking an already-selected row deselects it, clicking a
+       different row switches the selection. */
+    _selectedId = (_selectedId !== null && String(_selectedId) === String(id)) ? null : id;
+    render();
+  }
+
+  function continueSelected(){
+    if (!_selectedId) return; /* button is disabled in this state, but guard anyway */
+    if (window.CAPA_WIZARD && CAPA_WIZARD.resume) {
+      CAPA_WIZARD.resume(_selectedId, DATA);
+    }
+  }
+
+  function cardFilter(which){
+    _filterState.special = (which === 'all') ? '' : which;
+    document.getElementById('am-type-filter').value = '';
+    document.getElementById('am-status-filter').value = '';
+    document.getElementById('am-search').value = '';
+    render();
+  }
+  function clearFilters(){
+    _filterState.special = '';
+    document.getElementById('am-type-filter').value = '';
+    document.getElementById('am-status-filter').value = '';
+    document.getElementById('am-search').value = '';
+    render();
+  }
+
+  window.AM = { render: render, selectRow: selectRow, continueSelected: continueSelected, cardFilter: cardFilter, clearFilters: clearFilters };
+
+  function startPage(){
+    loadLive();
+    startAutoRefresh();
+    if (window.CAPA_WIZARD && CAPA_WIZARD.initPage) CAPA_WIZARD.initPage();
+  }
+
+  if (typeof IMS_AUTH === 'undefined') { startPage(); }
+  else { IMS_AUTH.init({ onReady: function(){ startPage(); } }); }
+})();
+</script>
+</body>
+</html>
