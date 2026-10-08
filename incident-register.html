@@ -1182,6 +1182,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var rcIdx = colIdx(headers, 'Root Cause');
     var raLevelIdx = colIdx(headers, 'RA Level');
     var raScoreIdxHandoff = colIdx(headers, 'RA Score');
+    /* Point 2 (Issam, 2026-10-08) — if this incident itself traces
+       back to an Observation Register case, carry that case ID
+       through to the CAPA/Action wizard too, so the resulting
+       CAPA/Action's reference can be written back onto the ORIGINAL
+       observation's Action Reference column, not just the incident's.
+       Without this, that chain silently broke here — the wizard never
+       even learned the observation existed. */
+    var sourceObsIdxHandoff = colIdx(headers, 'Source Observation Case ID');
 
     var payload = {
       incidentId: idVal,
@@ -1198,15 +1206,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
          CAPA/Action row's own 'Risk Score' column should hold, same
          principle as the Observation->Action hand-off's rawRiskScore. */
       raScore: raScoreIdxHandoff>=0 ? row[raScoreIdxHandoff] : '',
-      capaSeverity: lane === 'CAPA' ? raLevelToCapaSeverity(row, headers) : ''
+      capaSeverity: lane === 'CAPA' ? raLevelToCapaSeverity(row, headers) : '',
+      sourceObservationCaseId: sourceObsIdxHandoff>=0 ? row[sourceObsIdxHandoff] : ''
     };
 
     var decisionLabel = lane === 'CAPA' ? 'CAPA Raised' : 'Action Raised';
+    /* Point 1 (Issam, 2026-10-08) — Status is deliberately NOT set to
+       CLOSED here anymore. Raising a CAPA/Action is a DECISION, not
+       completion of the work — the incident stays open (Decision
+       already distinguishes "raised" from "not yet decided" for the
+       Awaiting CAPA/Action Decision KPI/filter, which reads Decision,
+       not Status). The incident only becomes genuinely CLOSED once
+       the resulting CAPA/Action itself reaches Closed — see
+       capa-wizard.js's notifyIncidentActionCompleted() (ACT lane) and
+       submitVerification() (full CAPA lane), which now write that
+       back here at the correct moment instead. */
     var patch = {
       'Decision': decisionLabel,
       'Decision By': currentUserName(),
-      'Decision Date': todayISO(),
-      'Status': 'CLOSED'
+      'Decision Date': todayISO()
     };
     postJSON('update', {tab: TABLES[tKeyName].tabKey, idCol: TABLES[tKeyName].idCol, id: idVal}, patch).then(function(res){
       if (res && res.status === 'error'){

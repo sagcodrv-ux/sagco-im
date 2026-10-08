@@ -891,11 +891,19 @@
      of an already-closed Action (just re-writes the same values). */
   function notifyIncidentActionCompleted() {
     if (!state.sourceIncidentId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    /* Point 1 (Issam, 2026-10-08) — the incident's own Status now only
+       becomes CLOSED here, at the moment its linked Action genuinely
+       reaches Closed — not at decision time (see decideRaise() in
+       incident-register.html, which no longer sets this). This
+       function is already correctly gated on state.status === 'Closed'
+       for the ACT lane, so this is the right place to close the loop
+       on the incident side too. */
     fetch(SHEETS_URL + '?action=update&tab=incidents&idCol=' + encodeURIComponent('Incident ID') + '&id=' + encodeURIComponent(state.sourceIncidentId), {
       method: 'POST',
       body: JSON.stringify({
         'Action Completed': 'Yes',
         'Action Completed Date': new Date().toISOString().split('T')[0],
+        'Status': 'CLOSED',
       }),
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
@@ -926,6 +934,19 @@
      is assigned once, at creation, never changes on a later resume. */
   function notifySourceObservation() {
     if (!state.sourceObservationCaseId) return;
+    /* Point 2 (Issam, 2026-10-08) — when this Action/CAPA came via an
+       Incident that itself traces back to this Observation case (both
+       sourceIncidentId AND sourceObservationCaseId are set), the
+       Observation's Outcome is already correctly 'Incident Register'
+       from the original escalation — overwriting it to 'Action
+       Tracker' here would be WRONG (the case wasn't forwarded
+       straight to the Action Tracker, it went through an Incident
+       first). Only the Action Reference should be added in that case.
+       The direct Observation->ACT path (no incident in between) still
+       sets both, exactly as before. */
+    var updates = state.sourceIncidentId
+      ? { 'Action Reference': state.capaId }
+      : { 'Outcome': 'Action Tracker', 'Action Reference': state.capaId };
     /* upsert=1 (Issam, 2026-10-08) — obs_escalations may not have a row
        for this case yet if the Observation Register's own write (see
        its escalate()) hasn't landed, raced, or failed; without this,
@@ -936,7 +957,7 @@
        in google-apps-script.js for the full reasoning. */
     fetch(SHEETS_URL + '?action=update&tab=obs_escalations&idCol=' + encodeURIComponent('Case ID') + '&id=' + encodeURIComponent(state.sourceObservationCaseId) + '&upsert=1', {
       method: 'POST',
-      body: JSON.stringify({ 'Outcome': 'Action Tracker', 'Action Reference': state.capaId }),
+      body: JSON.stringify(updates),
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
@@ -1053,6 +1074,14 @@
       if (result && result.status === 'ok') {
         if (wasFirstSave) {
           notifySourceIncident();
+          /* Point 2 (Issam, 2026-10-08) — the full CAPA lane never
+             called this before; a CAPA raised from an incident that
+             itself came from an Observation case never wrote its
+             reference back onto that observation. Only fires if
+             sourceObservationCaseId is actually set (see
+             openFromIncident), so this is a no-op for every CAPA that
+             didn't originate from an Observation. */
+          notifySourceObservation();
           /* Wait for evidence to finish uploading (if any) BEFORE
              notifying the owner, so the email can include real links
              rather than firing before the links even exist. */
@@ -1704,9 +1733,15 @@
         implSaving = false;
         if (res && res.status === 'ok') {
           if (result === 'Yes' && sourceIncidentId && residualLevel) {
+            /* Point 1 (Issam, 2026-10-08) — same principle as
+               notifyIncidentActionCompleted() for the ACT lane: the
+               incident's Status only becomes CLOSED here, once this
+               CAPA's own effectiveness verification genuinely passes
+               (result==='Yes'), not back when the CAPA was first
+               raised. This block is already correctly gated on that. */
             fetch(SHEETS_URL + '?action=update&tab=incidents&idCol=' + encodeURIComponent('Incident ID') + '&id=' + encodeURIComponent(sourceIncidentId), {
               method: 'POST',
-              body: JSON.stringify({ 'RA Residual Level': residualLevel, 'RA Residual Comment': residualComment }),
+              body: JSON.stringify({ 'RA Residual Level': residualLevel, 'RA Residual Comment': residualComment, 'Status': 'CLOSED' }),
             }).catch(function () { /* fire-and-forget, same reasoning as notifyIncidentResidual() */ });
           }
           alert(result === 'Yes' ? capaId + ' verified effective and Closed.' : capaId + ' verification failed — reopened to In Progress.');
@@ -1856,6 +1891,12 @@
     resetState();
     currentStep = 1;
     state.sourceIncidentId = ctx.incidentId || '';
+    /* Point 2 (Issam, 2026-10-08) — if the incident itself came from
+       an Observation, carry that case ID through too, so this
+       Action/CAPA's reference can be written back onto the ORIGINAL
+       observation (see notifySourceObservation below), not just the
+       incident it was raised from. */
+    state.sourceObservationCaseId = ctx.sourceObservationCaseId || '';
     state.lane = ctx.lane === 'ACT' ? 'ACT' : 'CAPA';
     state.description = ctx.description || '';
     state.source = 'Incident Investigation';
