@@ -1329,11 +1329,34 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     try { sessionStorage.setItem('incomingObservationContext', JSON.stringify(ctx)); } catch(e){}
 
     var outcome = (target === 'ACT') ? 'Action Tracker' : 'Incident Register';
-    postJSON('update', {tab: 'obs_escalations', idCol: 'Case ID', id: r['Case ID']}, {
+    /* upsert: '1' (Issam, 2026-10-08) — this is normally the FIRST
+       write ever made to this case's obs_escalations row, so it
+       almost never already exists. Without upsert, updateRowById()
+       silently errors with "no row found" every single time, meaning
+       the durable "this case has already been escalated" record was
+       NEVER actually created — which is exactly what let a second
+       Incident or Action get raised against the same Observation
+       case later (nothing on the sheet to stop it). Also now checks
+       the resolved result instead of only .catch(): a network-level
+       failure was never the real risk here, an application-level
+       {status:'error'} response silently sailing through unexamined
+       was. */
+    postJSON('update', {tab: 'obs_escalations', idCol: 'Case ID', id: r['Case ID'], upsert: '1'}, {
       'Outcome': outcome,
       'Decided By': currentUserName(),
       'Decided Date': todayISO()
-    }).catch(function(){ /* silent — the hand-off itself still proceeds; a missed durable record isn't worth blocking navigation over */ });
+    }).then(function(res){
+      if (res && res.status === 'error'){
+        /* The hand-off to the Incident/Action page has already
+           happened by this point (see below) — that record still
+           gets created fine on ITS OWN side. This failure only means
+           the Observation Register's own "already escalated" marker
+           didn't save, so flag it clearly rather than staying silent,
+           since a silent failure here is exactly the duplicate-raise
+           risk this fix exists to close. */
+        alert('Note: ' + r['Case ID'] + ' was forwarded, but recording that on the Observation Register failed (' + (res.message || 'unknown error') + '). The case may still show its Forward button until this is resolved — please avoid raising a second Incident/Action for it manually.');
+      }
+    }).catch(function(){ /* network-level failure only — same caveat as above applies */ });
 
     if (target === 'ACT'){
       window.open('action-register.html?fromObservation=' + encodeURIComponent(r['Case ID']) + '&lane=ACT', '_blank');
@@ -1362,14 +1385,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       return;
     }
     var r = DATA[idx];
-    postJSON('update', {tab: 'obs_escalations', idCol: 'Case ID', id: r['Case ID']}, {
+    postJSON('update', {tab: 'obs_escalations', idCol: 'Case ID', id: r['Case ID'], upsert: '1'}, {
       'Outcome': 'Closed - No Escalation',
       'Close Reason': comment,
       'Decided By': currentUserName(),
       'Decided Date': todayISO()
     }).then(function(res){
       if (res && res.status === 'error'){
-        alert('Could not save — ' + (res.error || 'unknown error'));
+        alert('Could not save — ' + (res.message || 'unknown error'));
         return;
       }
       DATA[idx].Escalated = 'Closed'; /* instant local feedback, matches the join's own mapping in buildRecords */

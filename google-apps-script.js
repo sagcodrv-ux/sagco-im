@@ -37,6 +37,29 @@
 /* ── Google Drive folder for IMS attachments ────────────────── */
 var DRIVE_FOLDER_ID = '1PZQ2VLPg8548BIgbrfqg4mcojKE7J7lU';
 
+/* ── Observations (AppSheet) — external spreadsheet ─────────────
+   This is a SEPARATE Google Sheet, owned by the same Google account
+   this script runs under but not the IMS sheet itself — it's the
+   live backend behind the shop-floor QR-code observation system
+   (AppSheet). We read it directly with SpreadsheetApp.openById()
+   rather than getActiveSpreadsheet(), since it's a different file.
+   Read-only from this script — nothing here ever writes back to it,
+   so the AppSheet app's own intake flow is never touched.
+
+   Unlike the IMS sheet (title rows 1-2, headers row 3), this is a
+   plain AppSheet export: headers are in ROW 1, data starts ROW 2.
+   See readExternalSheet() below, which uses that row offset instead
+   of readSheet()'s row-3 offset. */
+var OBS_SPREADSHEET_ID = '1fw-fmS2qQJuHaNSaXRoKRjwirpORKrP5i3TbbKnVW-4';
+var OBS_TABS = {
+  'obs_main':       'Main',             /* 390+ case rows — the core observation log */
+  'obs_qr':         'QR Codes',         /* qr_code_id -> location text */
+  'obs_acceptance': 'Acceptance',       /* case_ids that have been reviewed & accepted */
+  'obs_rejection':  'Rejection',        /* case_ids that have been reviewed & rejected */
+  'obs_risk':       'Risk Assessment',  /* case_id -> recurrence flag + risk levels */
+  'obs_photo':      'photo',            /* case_id -> Drive path of the worker's submitted photo */
+};
+
 /* ── Overdue-CAPA notification config ────────────────────────
    auth.js's user directory (names/emails/roles) lives only in each
    person's own browser localStorage — this server-side script has
@@ -91,14 +114,18 @@ var TABS = {
   'calibration':     ' Calibration',
 
   /* Clause 8 */
-  'ptw_register':    '36 – PTW Register',
+  'ptw_register':    'ptw_register',
+  'ptw_authorized_issuers': 'ptw_authorized_issuers',
+  'location_zones':  'Locations - Zones (Tier 1)',
   'emergency':       '34b – Emergency Response',
   'contractor':      '35 – Contractor Register',
   'loto_register':   '37 – LOTO Register',
   'loto_auth':       ' LOTO Auth',
   'confined_space':  '38 – Confined Space Log',
   'heat_stress':     '39 – Heat Stress WBGT Log',
-  'fire_ext':        '40 – Fire Extinguisher Log',
+  'fe_master':        'FE Master Inventory',
+  'fe_inspection_log': 'FE Monthly Inspection Log',
+  'fe_service_log':    'FE Annual Service Log',
   'fire_pump':       '41 – Fire Pump Test Log',
   'oh_surveillance': '42 – OH Surveillance Register',
   'scaffold':        ' Scaffold',
@@ -146,6 +173,7 @@ var TABS = {
   'forklift_log':      '60 – Forklift Log',
   'visitor_register':  '61 – Visitor Register',
   'speak_up':          '62 – Speak-Up Register',
+  'obs_escalations':   '63 – Observation Escalations', /* NEW — must be created as a real tab on the live sheet; row 3 headers: Case ID, Outcome, Incident Reference, Action Reference, Close Reason, Decided By, Decided Date. Durable record of what happened to each Observation Register case (Forwarded to Incident Register / Forwarded to Action Tracker / Closed - No Escalation) — on the MAIN IMS sheet (read/write via the standard readSheet/writeRows/updateRowById), NOT the separate read-only AppSheet Observations spreadsheet. Observation Register, Incident Register, and the CAPA wizard all read/write this tab by Case ID. */
 };
 
 /* ══════════════════════════════════════════════════════════════
@@ -190,6 +218,20 @@ function doGet(e) {
         } else {
           result = readSheet(e.parameter.tab);
         }
+        break;
+
+      /* Observations (AppSheet) — separate spreadsheet, read-only.
+         e.g. ?action=readObs&tab=obs_main */
+      case 'readObs':
+        result = readExternalSheet(e.parameter.tab);
+        break;
+
+      /* Observations photo — fetches the worker-submitted photo(s) for
+         one case_id from the shared AppSheet images folder, inline as
+         a base64 data URI (see getObsPhotos() for why).
+         e.g. ?action=getObsPhotos&caseId=CASE-20251124-9bf10002 */
+      case 'getObsPhotos':
+        result = getObsPhotos(e.parameter.caseId);
         break;
 
       case 'readDoc':          result = readDocument(e.parameter.docId);          break;
@@ -257,9 +299,10 @@ function doPost(e) {
       var uTab     = e.parameter.tab   || '';
       var uIdCol   = e.parameter.idCol || 'CAPA ID';
       var uId      = e.parameter.id    || '';
+      var uUpsert  = e.parameter.upsert === '1'; /* opt-in — see updateRowById's doc comment */
       var uUpdates = JSON.parse(e.postData ? e.postData.contents : '{}');
       return ContentService
-        .createTextOutput(updateRowById(uTab, uIdCol, uId, uUpdates))
+        .createTextOutput(updateRowById(uTab, uIdCol, uId, uUpdates, uUpsert))
         .setMimeType(ContentService.MimeType.JSON);
     }
   } catch(routeErr) { /* fall through to existing doPost */ }
@@ -418,7 +461,20 @@ function writeRows(tabKey, rows) {
    the same CAPA ID.
    Called via POST action=update.
    ------------------------------------------------------------- */
-function updateRowById(tabKey, idColumnHeader, idValue, updates) {
+/* upsert (Issam, 2026-10-08) — opt-in, defaults to false so every
+   EXISTING caller keeps today's strict "must already exist, error
+   otherwise" behavior (right for editing a known incident/CAPA/etc.,
+   where silently creating a row on a typo'd ID would be dangerous).
+   obs_escalations is the one tab where the row genuinely does NOT
+   exist yet the very first time a case is escalated — this function
+   was silently failing with notFound on every first-time escalation,
+   which meant the durable "this case has already been escalated"
+   record was NEVER actually written, letting a second Incident or
+   Action get raised for the very same Observation case. With
+   upsert=true, a missing row is appended instead of erroring, built
+   from `updates` for the columns given and blank for the rest, with
+   the ID column itself set from idValue. */
+function updateRowById(tabKey, idColumnHeader, idValue, updates, upsert) {
   try {
     var sheetName = TABS[tabKey];
     if (!sheetName) return JSON.stringify({ status: 'error', message: 'Unknown tabKey: ' + tabKey });
@@ -431,15 +487,38 @@ function updateRowById(tabKey, idColumnHeader, idValue, updates) {
     if (idColIdx < 0) return JSON.stringify({ status: 'error', message: 'ID column not found: ' + idColumnHeader });
 
     var lastRow = sheet.getLastRow();
-    if (lastRow < 4) return JSON.stringify({ status: 'error', message: 'No data rows to update', notFound: true });
-
-    var idValues  = sheet.getRange(4, idColIdx + 1, lastRow - 3, 1).getValues();
     var targetRow = -1;
-    for (var i = 0; i < idValues.length; i++) {
-      if (String(idValues[i][0]) === String(idValue)) { targetRow = i + 4; break; }
+
+    if (lastRow >= 4) {
+      var idValues = sheet.getRange(4, idColIdx + 1, lastRow - 3, 1).getValues();
+      for (var i = 0; i < idValues.length; i++) {
+        if (String(idValues[i][0]) === String(idValue)) { targetRow = i + 4; break; }
+      }
     }
+
     if (targetRow < 0) {
-      return JSON.stringify({ status: 'error', message: 'No row found with ' + idColumnHeader + ' = ' + idValue, notFound: true });
+      if (!upsert) {
+        return JSON.stringify({ status: 'error', message: 'No row found with ' + idColumnHeader + ' = ' + idValue, notFound: true });
+      }
+      /* Append a brand-new row: every column defaults to '', the ID
+         column gets idValue, and anything present in `updates`
+         overrides that default — same column-by-header mapping the
+         existing-row branch below uses, just with no prior row to
+         carry forward values from. */
+      var insertRow = headerRow.map(function(header, idx){
+        if (idx === idColIdx) return idValue;
+        return updates[header] !== undefined ? updates[header] : '';
+      });
+      var newRowIdx = Math.max(lastRow, 3) + 1;
+      sheet.getRange(newRowIdx, 1, 1, headerRow.length).setValues([insertRow]);
+
+      appendAuditLog(
+        'CAPA_UPDATE',
+        'updateRowById: row ' + newRowIdx + ' in ' + sheetName + ' created via upsert (' + idColumnHeader + '=' + idValue + ')',
+        'wizard', 'CAPA Wizard'
+      );
+
+      return JSON.stringify({ status: 'ok', row: newRowIdx, sheet: sheetName, created: true });
     }
 
     var existingRow = sheet.getRange(targetRow, 1, 1, headerRow.length).getValues()[0];
@@ -967,7 +1046,7 @@ function scanAlerts() {
     { tab: 'calibration',    dateField: 'Next Due',            warnDays: 30, label: 'Calibration',     page: 'calibration-register.html'  },
     { tab: 'training',       dateField: 'Next Due',            warnDays: 30, label: 'Training',         page: 'training.html'              },
     { tab: 'ppe_register',   dateField: 'Next Inspection Due', warnDays: 30, label: 'PPE Inspection',   page: 'ppe-register.html'          },
-    { tab: 'fire_ext',       dateField: 'Next Inspection Date',warnDays: 14, label: 'Fire Extinguisher',page: 'fire-extinguisher-log.html' },
+    { tab: 'fe_service_log', dateField: 'Expire Date',         warnDays: 14, label: 'Fire Extinguisher',page: 'fire-extinguisher-log.html' },
     { tab: 'capa',           dateField: 'Due Date',            warnDays:  7, label: 'CAPA',             page: 'capa-register.html'         },
     { tab: 'ptw_register',   dateField: 'Expiry Date',         warnDays:  3, label: 'PTW',              page: 'ptw-register.html'          },
     { tab: 'oh_surveillance',dateField: 'Next Due',            warnDays: 30, label: 'OH Surveillance',  page: 'oh-surveillance.html'       },
@@ -1103,7 +1182,13 @@ function searchRows(tabKey, query) {
    Fuzzy sheet lookup — strips emojis, case-insensitive.
    ------------------------------------------------------------- */
 function findSheet(sheetName) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  return findSheetIn(SpreadsheetApp.getActiveSpreadsheet(), sheetName);
+}
+
+/* Same fuzzy lookup as findSheet(), but against any spreadsheet object
+   passed in — not just the active one. Lets readExternalSheet() reuse
+   the identical matching logic against the Observations spreadsheet. */
+function findSheetIn(ss, sheetName) {
   var sheet = ss.getSheetByName(sheetName);
   if (sheet) return sheet;
 
@@ -1604,6 +1689,132 @@ function readSheet(tabKey) {
     sheet:    sheet.getName(),
     tab:      tabKey,
   };
+}
+
+/* -- readExternalSheet ------------------------------------------
+   Same job as readSheet(), but for a tab living in the separate
+   Observations (AppSheet) spreadsheet rather than this IMS sheet —
+   opened with SpreadsheetApp.openById(OBS_SPREADSHEET_ID), read-only.
+
+   Row layout differs from the IMS sheets: this is a plain AppSheet
+   export, so headers are ROW 1 and data starts ROW 2 (not row 3/4
+   like the IMS tabs), and column names are the AppSheet field names
+   (e.g. case_id, qr_code_id) rather than IMS's "Title Case" headers.
+   GET ?action=readObs&tab=obs_main
+   ------------------------------------------------------------- */
+function readExternalSheet(tabKey) {
+  var sheetName = OBS_TABS[tabKey];
+  if (!sheetName) return { error: 'Unknown Observations tab: ' + tabKey, headers: [], rows: [], rowCount: 0 };
+
+  var ss;
+  try {
+    ss = SpreadsheetApp.openById(OBS_SPREADSHEET_ID);
+  } catch (err) {
+    return { error: 'Could not open Observations spreadsheet (check OBS_SPREADSHEET_ID and sharing): ' + err.message, headers: [], rows: [], rowCount: 0 };
+  }
+
+  var sheet = findSheetIn(ss, sheetName);
+  if (!sheet) return { error: 'Sheet not found in Observations spreadsheet: ' + sheetName, headers: [], rows: [], rowCount: 0 };
+
+  var data     = sheet.getDataRange().getValues();
+  var headers  = data[0] || [];
+  var rows     = data.slice(1);
+  var nonEmpty = rows.filter(function(r){ return r.some(function(c){ return c !== ''; }); });
+
+  return {
+    headers:  headers.map(String),
+    rows:     nonEmpty.map(function(r){
+      return r.map(function(c){
+        if (c === '' || c === null || c === undefined) return '';
+        if (c instanceof Date) {
+          if (isNaN(c.getTime())) return '';
+          var y = c.getFullYear();
+          var m = String(c.getMonth()+1).padStart(2,'0');
+          var d = String(c.getDate()).padStart(2,'0');
+          var hh = String(c.getHours()).padStart(2,'0');
+          var mm = String(c.getMinutes()).padStart(2,'0');
+          /* Main sheet's datetime_of_case carries a time-of-day that
+             matters for sorting/display — unlike the IMS date-only
+             fields, so this keeps HH:MM rather than truncating it. */
+          return y+'-'+m+'-'+d+' '+hh+':'+mm;
+        }
+        return String(c);
+      });
+    }),
+    rowCount: nonEmpty.length,
+    sheet:    sheet.getName(),
+    tab:      tabKey,
+  };
+}
+
+/* -- getObsPhotos -------------------------------------------------
+   Looks up every photo attached to one Observations case_id. The
+   "photo" tab in the external AppSheet spreadsheet stores a Drive
+   PATH, not a file ID — something like "Shared drives/SAGCO_IMS/
+   AppSheet Images/photo_Images/PID-....jpg" — and that folder is
+   owned by the separate business-account AppSheet app, now shared
+   Viewer-only with this script's account.
+
+   Because this account only has Viewer rights there (not edit/owner),
+   it can't call setSharing() to mint a public link the way
+   uploadFileFromPicker() does for the IMS's own attachments. Instead
+   this fetches the file's bytes server-side — which Viewer access is
+   enough for — and returns them inline as a base64 data URI, so the
+   page can drop the result straight into <img src="..."> with no
+   Drive permissions needed in the browser at all.
+
+   Matches by file NAME (DriveApp.getFilesByName), not the full path,
+   since Apps Script's DriveApp doesn't walk Shared-Drive folder paths
+   the way a normal filesystem does; getFilesByName searches every
+   Drive the account can see (My Drive + any shared folders/drives
+   it's a member of), which is sufficient as long as these generated
+   filenames stay unique.
+   GET ?action=getObsPhotos&caseId=CASE-20251124-9bf10002
+   ------------------------------------------------------------- */
+function getObsPhotos(caseId) {
+  if (!caseId) return { error: 'Missing caseId', caseId: caseId, photos: [] };
+
+  var photoSheetData;
+  try {
+    photoSheetData = readExternalSheet('obs_photo');
+  } catch (err) {
+    return { error: 'Could not read photo tab: ' + err.message, caseId: caseId, photos: [] };
+  }
+  if (photoSheetData.error) {
+    return { error: photoSheetData.error, caseId: caseId, photos: [] };
+  }
+
+  var headers   = photoSheetData.headers;
+  var caseIdCol = headers.indexOf('case_id');
+  var pathCol   = headers.indexOf('photo');
+  if (caseIdCol === -1 || pathCol === -1) {
+    return { error: 'photo tab is missing a case_id or photo column', caseId: caseId, photos: [] };
+  }
+
+  var matches = photoSheetData.rows.filter(function(r){ return r[caseIdCol] === caseId; });
+  if (!matches.length) return { caseId: caseId, photos: [] };
+
+  var photos = matches.map(function(r){
+    var path     = r[pathCol] || '';
+    var fileName = path.split('/').pop();
+    if (!fileName) return { fileName: '', error: 'Empty photo path on this row', dataUrl: null };
+
+    try {
+      var files = DriveApp.getFilesByName(fileName);
+      if (!files.hasNext()) {
+        return { fileName: fileName, error: 'File not found — check the AppSheet images folder is shared with this script\'s account', dataUrl: null };
+      }
+      var file = files.next();
+      var blob = file.getBlob();
+      var b64  = Utilities.base64Encode(blob.getBytes());
+      var mime = blob.getContentType() || 'image/jpeg';
+      return { fileName: fileName, dataUrl: 'data:' + mime + ';base64,' + b64 };
+    } catch (err) {
+      return { fileName: fileName, error: err.message, dataUrl: null };
+    }
+  });
+
+  return { caseId: caseId, photos: photos };
 }
 
 /* ══════════════════════════════════════════════════════════════

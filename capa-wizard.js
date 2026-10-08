@@ -926,7 +926,15 @@
      is assigned once, at creation, never changes on a later resume. */
   function notifySourceObservation() {
     if (!state.sourceObservationCaseId) return;
-    fetch(SHEETS_URL + '?action=update&tab=obs_escalations&idCol=' + encodeURIComponent('Case ID') + '&id=' + encodeURIComponent(state.sourceObservationCaseId), {
+    /* upsert=1 (Issam, 2026-10-08) — obs_escalations may not have a row
+       for this case yet if the Observation Register's own write (see
+       its escalate()) hasn't landed, raced, or failed; without this,
+       updateRowById() silently errors on a missing row and the
+       durable "already escalated" record never gets created, which is
+       exactly what let a second Incident/Action get raised against
+       the same Observation case. See updateRowById's own doc comment
+       in google-apps-script.js for the full reasoning. */
+    fetch(SHEETS_URL + '?action=update&tab=obs_escalations&idCol=' + encodeURIComponent('Case ID') + '&id=' + encodeURIComponent(state.sourceObservationCaseId) + '&upsert=1', {
       method: 'POST',
       body: JSON.stringify({ 'Outcome': 'Action Tracker', 'Action Reference': state.capaId }),
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });

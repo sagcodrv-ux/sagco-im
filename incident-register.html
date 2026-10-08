@@ -1639,7 +1639,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
            not the pre-filled suggestion, in case it was hand-edited. */
         var savedIncidentId = values[cfg.idCol];
         if (savedIncidentId){
-          postJSON('update', {tab: 'obs_escalations', idCol: 'Case ID', id: sourceObsCaseId}, {
+          /* upsert: '1' (Issam, 2026-10-08) — this may well be the
+             FIRST write to this case's obs_escalations row (the
+             Observation Register's own escalate() write could have
+             raced or failed); without upsert, a missing row here
+             silently errors and the durable "already escalated"
+             record never gets created, which is exactly what allowed
+             a second Incident/Action to be raised against the same
+             Observation case. */
+          postJSON('update', {tab: 'obs_escalations', idCol: 'Case ID', id: sourceObsCaseId, upsert: '1'}, {
             'Outcome': 'Incident Register',
             'Incident Reference': savedIncidentId
           }).catch(function(){ /* silent — the incident itself already saved; a missed back-reference isn't worth alarming over */ });
