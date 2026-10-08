@@ -254,7 +254,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
 </div>
 <script>
 (function(){
-  var OBS_TAB_KEYS = ['obs_main','obs_qr','obs_acceptance','obs_rejection','obs_risk'];
+  /* obs_risk removed from this required list (Issam, 2026-10-08) — the
+     Risk Assessment tab is no longer load-bearing for the page at all:
+     raw_risk_score is confirmed to live on obs_main itself, with the
+     Risk Assessment join kept only as a legacy fallback (see
+     buildRecords()/lookupRiskAssessment()). Its own failure — tab
+     missing, renamed, or genuinely gone — must never block the whole
+     table from loading the way it used to; it's fetched separately
+     below with the same graceful-fallback pattern obs_escalations
+     already uses. */
+  var OBS_TAB_KEYS = ['obs_main','obs_qr','obs_acceptance','obs_rejection'];
   var DATA = [];
   var _filterState = { special: '' };
   var _loaded = false;
@@ -273,6 +282,27 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     return String(s==null?'':s).replace(/[&<>"']/g, function(c){
       return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
     });
+  }
+
+  /* Derives a Low/Medium/High/Critical band directly from a numeric
+     raw_risk_score (Issam, 2026-10-08) — same 4-band thresholds the
+     Incident Register's own raScoreToLevel() already uses for the
+     identical 0-20 likelihood x severity scale, just labeled 'Medium'
+     here instead of 'Moderate' to match this file's own existing
+     string checks (badgeForPriority, escalationTier both compare
+     against the literal word 'medium'). Used as the Priority/Raw Risk
+     Level fallback whenever a case has a real score on Main but no
+     separately-typed level came through the Risk Assessment tab join —
+     the score is the one confirmed-reliable source, so deriving the
+     band from it directly is more trustworthy than leaving the level
+     blank just because a second, separate field was never filled in. */
+  function scoreToLevel(score){
+    var n = parseFloat(score);
+    if (isNaN(n)) return '';
+    if (n <= 8) return 'Low';
+    if (n <= 15) return 'Medium';
+    if (n <= 20) return 'High';
+    return 'Critical';
   }
 
   function colIdx(headers, name){
@@ -363,6 +393,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       .catch(function(){ return null; })
       .then(function(data){ return (data && !data.error) ? data : { headers: [], rows: [] }; });
 
+    /* Same non-blocking pattern as escalationsFetch above — a missing
+       or broken Risk Assessment tab just means buildRecords() falls
+       back to deriving everything from Main's own raw_risk_score (see
+       its doc comment), never a reason to show the whole page as down. */
+    var riskFetch = fetch(SHEETS_URL + '?action=readObs&tab=obs_risk')
+      .then(function(r){ return r.json(); })
+      .catch(function(){ return null; })
+      .then(function(data){ return (data && !data.error) ? data : { headers: [], rows: [] }; });
+
     Promise.all(fetches).then(function(results){
       var byTab = {};
       results.forEach(function(r){ byTab[r.tabKey] = r.data; });
@@ -373,7 +412,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         return;
       }
 
-      return escalationsFetch.then(function(escData){
+      return Promise.all([escalationsFetch, riskFetch]).then(function(extras){
+        var escData = extras[0], riskData = extras[1];
+        byTab['obs_risk'] = riskData;
         byTab['obs_escalations'] = escData;
         var fresh = buildRecords(byTab);
         _loaded = true;
@@ -434,19 +475,53 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var jCid = colIdx(rej.headers, 'case_id');
     if (jCid >= 0) rej.rows.forEach(function(r){ reviewedIds[r[jCid]] = true; });
 
-    /* Risk Assessment: case_id -> recurrence + raw risk level/score */
+    /* Risk Assessment: case_id -> recurrence + raw risk level/score.
+       A case_id can have MORE THAN ONE row here — an initial assessment,
+       then a later row appended at closure with a residual reassessment
+       (same reasoning documented on lookupRiskAssessment()/escalationTier()
+       below, which already handles this correctly for the escalation
+       modal). This used to just overwrite riskLookup[case_id] with
+       whichever row came last in plain sheet order — if that later row
+       left raw_risk_score blank (e.g. a residual-only reassessment row),
+       it silently wiped out a perfectly good earlier value, which is
+       exactly why the Raw Risk Score / Priority columns could show
+       blank for a case that clearly had a score on the sheet (Issam,
+       2026-10-08). Now groups all rows by case_id and merges them
+       field-by-field in time order instead, so each field keeps the
+       most recent value THAT FIELD actually has, rather than either
+       "first row wins" or "last row wins" for the whole record. */
     var riskLookup = {};
     var rCid = colIdx(risk.headers, 'case_id');
     var rRecur = colIdx(risk.headers, 'did_the_same_event_happen_before');
     var rRawLvl = colIdx(risk.headers, 'raw_risk_level');
     var rRawScore = colIdx(risk.headers, 'raw_risk_score');
+    var rTime = colIdx(risk.headers, 'risk_assessment_time');
+    function isBlank(v){ return v === undefined || v === null || v === ''; }
     if (rCid >= 0){
+      var riskRowsByCase = {};
       risk.rows.forEach(function(r){
-        riskLookup[r[rCid]] = {
-          recurrence: rRecur >= 0 ? r[rRecur] : '',
-          rawRiskLevel: rRawLvl >= 0 ? r[rRawLvl] : '',
-          rawRiskScore: rRawScore >= 0 ? r[rRawScore] : '',
-        };
+        var cid = r[rCid];
+        (riskRowsByCase[cid] = riskRowsByCase[cid] || []).push(r);
+      });
+      Object.keys(riskRowsByCase).forEach(function(cid){
+        var rowsForCase = riskRowsByCase[cid];
+        /* Oldest first, then merge field-by-field — a later row only
+           overwrites a field when it actually HAS a value for it, so a
+           residual-only reassessment row (which may well leave
+           raw_risk_score blank, having nothing new to say about the raw
+           score) can't erase a perfectly good value an earlier row
+           already recorded. A later row that genuinely does carry a new
+           value for a field still correctly wins for that field. */
+        rowsForCase.sort(function(a, b){
+          return parseRiskTimestamp(rTime>=0 ? a[rTime] : '') - parseRiskTimestamp(rTime>=0 ? b[rTime] : '');
+        });
+        var merged = { recurrence: '', rawRiskLevel: '', rawRiskScore: '' };
+        rowsForCase.forEach(function(r){
+          if (rRecur >= 0 && !isBlank(r[rRecur])) merged.recurrence = r[rRecur];
+          if (rRawLvl >= 0 && !isBlank(r[rRawLvl])) merged.rawRiskLevel = r[rRawLvl];
+          if (rRawScore >= 0 && !isBlank(r[rRawScore])) merged.rawRiskScore = r[rRawScore];
+        });
+        riskLookup[cid] = merged;
       });
     }
 
@@ -475,18 +550,46 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var mH = main.headers;
     var iCid = colIdx(mH,'case_id'), iDate = colIdx(mH,'datetime_of_case'), iQr = colIdx(mH,'qr_code_id'),
         iCat = colIdx(mH,'category'), iSub = colIdx(mH,'subcategory'), iPri = colIdx(mH,'priority'),
-        iDesc = colIdx(mH,'comments'), iStatus = colIdx(mH,'latest_status'), iEmp = colIdx(mH,'employee_num');
+        iDesc = colIdx(mH,'comments'), iStatus = colIdx(mH,'latest_status'), iEmp = colIdx(mH,'employee_num'),
+        /* Raw Risk Score actually lives on the MAIN tab itself (Issam,
+           2026-10-08, confirmed by pasting the Main tab's own header
+           row) — not only on the separate Risk Assessment tab the code
+           previously joined against exclusively. That join isn't wrong
+           to keep (a legacy case might only have the value there), but
+           it can no longer be the ONLY source: Main's own value, where
+           present, is what HSSE actually enters and must win. */
+        iRawScoreMain = colIdx(mH,'raw_risk_score');
 
     return main.rows.map(function(r){
       var cid = iCid >= 0 ? r[iCid] : '';
       var category = iCat >= 0 ? r[iCat] : '';
       var riskInfo = riskLookup[cid] || {};
-      var isRecurrenceKnown = Object.prototype.hasOwnProperty.call(riskLookup, cid);
+      /* "Has Risk Assessment" must also recognize a case that has a
+         real raw_risk_score on Main even when the separate Risk
+         Assessment tab has no matching row at all for it (Issam,
+         2026-10-08: raw_risk_score genuinely lives on Main) — otherwise
+         a fully-assessed case would still show "pending"/no button
+         here just because the external join came up empty. */
+      var mainHasScore = iRawScoreMain >= 0 && r[iRawScoreMain] !== undefined && r[iRawScoreMain] !== null && r[iRawScoreMain] !== '';
+      var isRecurrenceKnown = Object.prototype.hasOwnProperty.call(riskLookup, cid) || mainHasScore;
       var isRecurrence = riskInfo.recurrence === 1 || riskInfo.recurrence === '1' || riskInfo.recurrence === true;
       var isReviewed = !!reviewedIds[cid];
       var isAccepted = !!acceptedIds[cid];
       var isRealEvent = category === 'Property Damage (Damage Only)';
       var needsAttention = (isRealEvent && !isReviewed) || isRecurrence;
+
+      /* Main tab's own raw_risk_score wins when present — see the
+         doc comment on iRawScoreMain above for why this can no longer
+         be sourced only from the Risk Assessment tab join. */
+      var mainRawScore = iRawScoreMain >= 0 ? r[iRawScoreMain] : '';
+      var rawRiskScoreValue = (mainRawScore !== undefined && mainRawScore !== null && mainRawScore !== '')
+        ? mainRawScore
+        : ((riskInfo.rawRiskScore !== undefined && riskInfo.rawRiskScore !== null) ? riskInfo.rawRiskScore : '');
+      /* Prefer a level explicitly recorded on the Risk Assessment join,
+         but fall back to deriving one from the (confirmed-reliable)
+         Main score when the join has nothing — see scoreToLevel()'s
+         doc comment above. */
+      var rawRiskLevelValue = riskInfo.rawRiskLevel || scoreToLevel(rawRiskScoreValue);
 
       return {
         'Case ID': cid,
@@ -508,14 +611,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
            score behind the Priority band directly after it, same
            source (riskInfo), shown as its own column rather than only
            inside the escalation modal. */
-        'Raw Risk Score': (riskInfo.rawRiskScore !== undefined && riskInfo.rawRiskScore !== null) ? riskInfo.rawRiskScore : '',
-        'Priority': riskInfo.rawRiskLevel || '',
+        'Raw Risk Score': rawRiskScoreValue,
+        'Priority': rawRiskLevelValue,
         'Description': iDesc >= 0 ? r[iDesc] : '',
         'Status': iStatus >= 0 ? r[iStatus] : '',
         'Reviewed': isReviewed ? 'Yes' : 'No',
         'Accepted': isAccepted ? 'Yes' : 'No',
         'Recurrence Flagged': isRecurrence ? 'Yes' : (isRecurrenceKnown ? 'No' : ''),
-        'Raw Risk Level': riskInfo.rawRiskLevel || '',
+        'Raw Risk Level': rawRiskLevelValue,
         /* Point 2 gate hint only (render-time button label) — NOT the
            authoritative source for routing. isRecurrenceKnown already
            tells us whether a Risk Assessment row exists at all for this
@@ -1071,26 +1174,60 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     return new Date(+m[3], +m[1]-1, +m[2], +m[4], +m[5], +m[6]).getTime();
   }
 
+  /* The ACTUAL escalation gate (Issam, 2026-10-08) — this decides
+     whether a case routes to the Incident Register or the Action
+     Tracker, so it can't be allowed to depend solely on the separate
+     Risk Assessment tab the way it used to. raw_risk_score is
+     confirmed to live on the Main tab itself; this now checks Main
+     FIRST and only falls back to the old Risk Assessment join when
+     Main genuinely has nothing for this case (e.g. a legacy case that
+     predates the score being tracked on Main). Both tabs are fetched
+     in parallel so this costs no extra round-trip time over the old
+     single-tab version. */
   function lookupRiskAssessment(caseId){
-    return fetch(SHEETS_URL + '?action=readObs&tab=obs_risk')
+    var mainFetch = fetch(SHEETS_URL + '?action=readObs&tab=obs_main')
       .then(function(r){ return r.json(); })
-      .then(function(data){
-        if (data.error || !data.headers || !data.rows) return null;
-        var h = data.headers;
-        var caseIdx = h.indexOf('case_id');
-        var timeIdx = h.indexOf('risk_assessment_time');
-        if (caseIdx < 0) return null;
-        var matches = data.rows.filter(function(row){ return row[caseIdx] === caseId; });
-        if (!matches.length) return null;
-        matches.sort(function(a,b){
-          return parseRiskTimestamp(timeIdx>=0 ? b[timeIdx] : '') - parseRiskTimestamp(timeIdx>=0 ? a[timeIdx] : '');
-        });
-        var latest = matches[0];
-        var obj = {};
-        h.forEach(function(name, i){ obj[name] = latest[i]; });
-        return obj;
-      })
       .catch(function(){ return null; });
+    var riskFetch = fetch(SHEETS_URL + '?action=readObs&tab=obs_risk')
+      .then(function(r){ return r.json(); })
+      .catch(function(){ return null; });
+
+    return Promise.all([mainFetch, riskFetch]).then(function(results){
+      var mainData = results[0], riskData = results[1];
+
+      var mainScore = null;
+      if (mainData && !mainData.error && mainData.headers && mainData.rows){
+        var mCaseIdx = mainData.headers.indexOf('case_id');
+        var mScoreIdx = mainData.headers.indexOf('raw_risk_score');
+        if (mCaseIdx >= 0 && mScoreIdx >= 0){
+          var mainRow = mainData.rows.find(function(row){ return row[mCaseIdx] === caseId; });
+          if (mainRow && mainRow[mScoreIdx] !== undefined && mainRow[mScoreIdx] !== null && mainRow[mScoreIdx] !== ''){
+            mainScore = mainRow[mScoreIdx];
+          }
+        }
+      }
+
+      if (mainScore !== null){
+        return { raw_risk_score: mainScore, raw_risk_level: scoreToLevel(mainScore) };
+      }
+
+      /* Fall back to the old Risk Assessment tab join only when Main
+         has nothing for this case. */
+      if (!riskData || riskData.error || !riskData.headers || !riskData.rows) return null;
+      var h = riskData.headers;
+      var caseIdx = h.indexOf('case_id');
+      var timeIdx = h.indexOf('risk_assessment_time');
+      if (caseIdx < 0) return null;
+      var matches = riskData.rows.filter(function(row){ return row[caseIdx] === caseId; });
+      if (!matches.length) return null;
+      matches.sort(function(a,b){
+        return parseRiskTimestamp(timeIdx>=0 ? b[timeIdx] : '') - parseRiskTimestamp(timeIdx>=0 ? a[timeIdx] : '');
+      });
+      var latest = matches[0];
+      var obj = {};
+      h.forEach(function(name, i){ obj[name] = latest[i]; });
+      return obj;
+    });
   }
 
   function openEscalate(idx){
