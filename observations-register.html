@@ -1150,84 +1150,32 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
   }
 
   /* ── Point 2 escalation gate (Raw Risk Score only) ──────────────
-     Replaces this file's earlier Priority/Category-based routing with
-     the design actually confirmed this session: HSSE's Raw Risk Score
-     on the Risk Assessment sheet is the ONLY gating factor. A case can
-     carry more than one Risk Assessment row (an initial evaluation,
-     then a later row appended at closure with the residual
-     reassessment) — this always takes the row with the LATEST
-     risk_assessment_time, never just the first or last match in sheet
-     order, which is why this re-fetches and sorts fresh here rather
-     than trusting buildRecords()'s precomputed 'Raw Risk Level' (that
-     value is fine for the row-render button label, not for the actual
-     routing decision). Once routed, nothing is faked locally: this
-     hands off to the REAL Incident Register / Action Tracker pages via
-     the same sessionStorage-plus-URL pattern their own CAPA/Incident
-     Decide-panel hand-off already uses (capa-wizard.js
-     openFromObservation / incident-register.html
+     HSSE's Raw Risk Score is the ONLY gating factor. Once routed,
+     nothing is faked locally: this hands off to the REAL Incident
+     Register / Action Tracker pages via the same sessionStorage-plus-
+     URL pattern their own CAPA/Incident Decide-panel hand-off already
+     uses (capa-wizard.js openFromObservation / incident-register.html
      openAddFromObservation) — those pages write the real Google Sheet
-     rows; nothing here is a local-only mock. */
+     rows; nothing here is a local-only mock.
+
+     Point (Issam, 2026-10-08): this used to re-fetch obs_main/obs_risk
+     fresh from the server the moment the modal opened, specifically to
+     avoid routing on a precomputed value that could lag one poll
+     interval behind a risk assessment HSSE just entered. That's gone
+     now — the gate reads r['Raw Risk Score']/r['Raw Risk Level']
+     directly off the same already-loaded observation record every
+     other field in this modal already uses (see openEscalate below),
+     since the Raw Risk Score genuinely lives on the Main sheet itself,
+     not a separate "Risk Assessment sheet" lookup. */
   function parseRiskTimestamp(s){
-    // Format observed on the sheet: "M/D/YYYY H:MM:SS" (no leading zeros)
+    // Format observed on the sheet: "M/D/YYYY H:MM:SS" (no leading zeros).
+    // Still used by buildRecords() above to sort the Risk Assessment
+    // tab's own rows by latest timestamp when more than one exists for
+    // a case — unrelated to (and unaffected by) the escalation-modal
+    // simplification above.
     var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/.exec(String(s||'').trim());
     if (!m) return 0;
     return new Date(+m[3], +m[1]-1, +m[2], +m[4], +m[5], +m[6]).getTime();
-  }
-
-  /* The ACTUAL escalation gate (Issam, 2026-10-08) — this decides
-     whether a case routes to the Incident Register or the Action
-     Tracker, so it can't be allowed to depend solely on the separate
-     Risk Assessment tab the way it used to. raw_risk_score is
-     confirmed to live on the Main tab itself; this now checks Main
-     FIRST and only falls back to the old Risk Assessment join when
-     Main genuinely has nothing for this case (e.g. a legacy case that
-     predates the score being tracked on Main). Both tabs are fetched
-     in parallel so this costs no extra round-trip time over the old
-     single-tab version. */
-  function lookupRiskAssessment(caseId){
-    var mainFetch = fetch(SHEETS_URL + '?action=readObs&tab=obs_main')
-      .then(function(r){ return r.json(); })
-      .catch(function(){ return null; });
-    var riskFetch = fetch(SHEETS_URL + '?action=readObs&tab=obs_risk')
-      .then(function(r){ return r.json(); })
-      .catch(function(){ return null; });
-
-    return Promise.all([mainFetch, riskFetch]).then(function(results){
-      var mainData = results[0], riskData = results[1];
-
-      var mainScore = null;
-      if (mainData && !mainData.error && mainData.headers && mainData.rows){
-        var mCaseIdx = mainData.headers.indexOf('case_id');
-        var mScoreIdx = mainData.headers.indexOf('raw_risk_score');
-        if (mCaseIdx >= 0 && mScoreIdx >= 0){
-          var mainRow = mainData.rows.find(function(row){ return row[mCaseIdx] === caseId; });
-          if (mainRow && mainRow[mScoreIdx] !== undefined && mainRow[mScoreIdx] !== null && mainRow[mScoreIdx] !== ''){
-            mainScore = mainRow[mScoreIdx];
-          }
-        }
-      }
-
-      if (mainScore !== null){
-        return { raw_risk_score: mainScore, raw_risk_level: scoreToLevel(mainScore) };
-      }
-
-      /* Fall back to the old Risk Assessment tab join only when Main
-         has nothing for this case. */
-      if (!riskData || riskData.error || !riskData.headers || !riskData.rows) return null;
-      var h = riskData.headers;
-      var caseIdx = h.indexOf('case_id');
-      var timeIdx = h.indexOf('risk_assessment_time');
-      if (caseIdx < 0) return null;
-      var matches = riskData.rows.filter(function(row){ return row[caseIdx] === caseId; });
-      if (!matches.length) return null;
-      matches.sort(function(a,b){
-        return parseRiskTimestamp(timeIdx>=0 ? b[timeIdx] : '') - parseRiskTimestamp(timeIdx>=0 ? a[timeIdx] : '');
-      });
-      var latest = matches[0];
-      var obj = {};
-      h.forEach(function(name, i){ obj[name] = latest[i]; });
-      return obj;
-    });
   }
 
   function openEscalate(idx){
@@ -1240,7 +1188,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       '<div class="mf">Location</div><div class="mv">'+escHtml(r.Location)+'</div>' +
       '<div class="mf">Category</div><div class="mv">'+badgeForCategory(r.Category)+'</div>' +
       '<div class="mf">Recurrence Flagged</div><div class="mv">'+badgeForRecurrence(r['Recurrence Flagged'])+'</div>' +
-      '<div class="mf">Raw Risk Score (Risk Assessment)</div><div class="mv" id="obs-esc-risklookup">Checking the Risk Assessment sheet…</div>' +
+      '<div class="mf">Raw Risk Score (from the observation record)</div><div class="mv" id="obs-esc-risklookup"></div>' +
       '<div class="modal-actions" id="obs-esc-actions"></div>' +
       '<textarea class="esc-close-comment" id="obs-close-comment" placeholder="Required — why is no Action needed? (e.g. repeat minor observation, already addressed, no corrective action warranted)" style="display:none;width:100%;min-height:70px;margin:8px 0;padding:8px;border-radius:6px;border:1px solid var(--w-border);background:var(--w-bg3);color:var(--w-text);font-family:inherit;font-size:12px"></textarea>' +
       '<div class="modal-actions" id="obs-close-confirm-actions" style="display:none">' +
@@ -1250,48 +1198,62 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       '<div class="esc-note">Escalation is gated by HSSE\'s Raw Risk Score — Medium or below forwards to the Action Tracker, High/Critical forwards to the Incident Register. There is no free choice here, by design: only HSSE\'s risk assessment decides the path. Worker-submitted priority is never used for this gate.</div>' +
     '</div></div>';
 
-    lookupRiskAssessment(r['Case ID']).then(function(risk){
-      var lookupEl = document.getElementById('obs-esc-risklookup');
-      var actionsEl = document.getElementById('obs-esc-actions');
-      if (!lookupEl || !actionsEl) return; // modal was closed before the lookup returned
+    /* Point (Issam, 2026-10-08): this used to re-fetch obs_main/obs_risk
+       fresh from the server at the moment the modal opened — a visible
+       "Checking the Risk Assessment sheet…" round-trip, separate from
+       (and framed differently than) the Description/Location/Category
+       above it, which all come straight off this same already-loaded
+       observation record. The Raw Risk Score/Level live on that SAME
+       record (r['Raw Risk Score'] / r['Raw Risk Level'], computed by
+       buildRecords() — Main tab's own raw_risk_score column, exactly
+       what HSSE enters there) — so this now reads them directly and
+       instantly, the same way every other field in this modal already
+       does, instead of treating risk score as a separate, slower,
+       differently-sourced lookup. The one thing the old re-fetch
+       bought — catching a risk assessment HSSE entered seconds ago,
+       before this page's own data last refreshed — is a narrow edge
+       case covered by the page's own periodic reload; it's not worth
+       the inconsistent UX of a second data source for one field in an
+       otherwise-instant modal. */
+    var lookupEl = document.getElementById('obs-esc-risklookup');
+    var actionsEl = document.getElementById('obs-esc-actions');
+    var level = String(r['Raw Risk Level'] || '').trim();
+    var levelLower = level.toLowerCase();
+    var score = (r['Raw Risk Score'] !== undefined && r['Raw Risk Score'] !== null) ? r['Raw Risk Score'] : '';
 
-      if (!risk){
-        lookupEl.innerHTML = badgeForRecurrence('') + ' Not yet assessed';
-        actionsEl.innerHTML =
-          '<div class="esc-note" style="margin:0 0 10px">No Risk Assessment record exists yet for this case. HSSE must complete the Raw Likelihood/Severity evaluation before this observation can be escalated.</div>' +
-          '<button class="btn modal-close" onclick="OBS.closeModal()">Close</button>';
-        return;
-      }
+    if (r['Has Risk Assessment'] !== 'Yes'){
+      lookupEl.innerHTML = badgeForRecurrence('') + ' Not yet assessed';
+      actionsEl.innerHTML =
+        '<div class="esc-note" style="margin:0 0 10px">No Risk Assessment record exists yet for this case. HSSE must complete the Raw Likelihood/Severity evaluation before this observation can be escalated.</div>' +
+        '<button class="btn modal-close" onclick="OBS.closeModal()">Close</button>';
+      return;
+    }
 
-      var level = String(risk.raw_risk_level || '').trim();
-      var levelLower = level.toLowerCase();
-      var score = (risk.raw_risk_score !== undefined && risk.raw_risk_score !== null) ? risk.raw_risk_score : '';
-      lookupEl.innerHTML = '<span class="badge ' +
-        (levelLower==='high'||levelLower==='critical' ? 'b-red' : levelLower==='medium' ? 'b-amb' : 'b-grn') +
-        '">' + escHtml(level || 'Unknown') + (String(score)!=='' ? ' ('+escHtml(score)+')' : '') + '</span>';
+    lookupEl.innerHTML = '<span class="badge ' +
+      (levelLower==='high'||levelLower==='critical' ? 'b-red' : levelLower==='medium' ? 'b-amb' : 'b-grn') +
+      '">' + escHtml(level || 'Unknown') + (String(score)!=='' ? ' ('+escHtml(score)+')' : '') + '</span>';
 
-      var levelEsc = String(level).replace(/'/g, "\\'");
-      var scoreArg = String(score)!=='' ? ",'"+String(score).replace(/'/g, "\\'")+"'" : '';
-      if (levelLower === 'high' || levelLower === 'critical'){
-        /* Mandatory tier — no Close option, by design (audit-trail
-           rule): only one path is ever offered here. */
-        actionsEl.innerHTML =
-          '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'Incident\',\''+levelEsc+'\''+scoreArg+')">Forward to Incident Register</button>' +
-          '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>';
-      } else {
-        /* Issam, 2026-10-07 — Forward and Close — No Escalation are
-           offered TOGETHER inside this same modal (not as separate row
-           buttons): clicking Close swaps in the comment box below,
-           same two-stage pattern as the Incident Register's own Decide
-           panel. */
-        actionsEl.innerHTML =
-          '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'ACT\',\''+levelEsc+'\''+scoreArg+')">Forward to Action Register</button>' +
-          '<button class="btn btn-outline-close" onclick="OBS.toggleObsCloseComment()">Close — No Escalation</button>' +
-          '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>';
-        var confirmBtn = document.getElementById('obs-close-confirm-btn');
-        if (confirmBtn) confirmBtn.onclick = function(){ submitCloseNoEscalation(idx); };
-      }
-    });
+    var levelEsc = String(level).replace(/'/g, "\\'");
+    var scoreArg = String(score)!=='' ? ",'"+String(score).replace(/'/g, "\\'")+"'" : '';
+    if (levelLower === 'high' || levelLower === 'critical'){
+      /* Mandatory tier — no Close option, by design (audit-trail
+         rule): only one path is ever offered here. */
+      actionsEl.innerHTML =
+        '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'Incident\',\''+levelEsc+'\''+scoreArg+')">Forward to Incident Register</button>' +
+        '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>';
+    } else {
+      /* Issam, 2026-10-07 — Forward and Close — No Escalation are
+         offered TOGETHER inside this same modal (not as separate row
+         buttons): clicking Close swaps in the comment box below,
+         same two-stage pattern as the Incident Register's own Decide
+         panel. */
+      actionsEl.innerHTML =
+        '<button class="btn btn-gold" onclick="OBS.escalate('+idx+',\'ACT\',\''+levelEsc+'\''+scoreArg+')">Forward to Action Register</button>' +
+        '<button class="btn btn-outline-close" onclick="OBS.toggleObsCloseComment()">Close — No Escalation</button>' +
+        '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>';
+      var confirmBtn = document.getElementById('obs-close-confirm-btn');
+      if (confirmBtn) confirmBtn.onclick = function(){ submitCloseNoEscalation(idx); };
+    }
   }
 
   function toggleObsCloseComment(){
