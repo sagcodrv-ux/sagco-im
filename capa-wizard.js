@@ -1942,22 +1942,29 @@
        so the wizard opens immediately — the evidence list fills in a
        moment later via the second render() below, same non-blocking
        pattern used elsewhere in this handoff. */
-    if (ctx.incidentId) {
-      fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(ctx.incidentId))
-        .then(function (r) { return r.json(); })
-        .then(function (res) {
-          var files = (res && res.files) || [];
-          if (!files.length) return;
-          var links = files.map(function (f) { return f.webViewLink; }).filter(Boolean);
-          if (!links.length) return;
-          state.initialEvidenceUrls = state.initialEvidenceUrls.concat(links);
-          if (currentStep === 1) render();
-        })
-        .catch(function () {
-          /* Silent — a missing/unreachable incident photo list is not
-             worth blocking the CAPA/Action form over; the person can
-             still attach evidence manually via Add Evidence as always. */
-        });
+    if (ctx.incidentId && typeof fetch === 'function') {
+      try {
+        fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(ctx.incidentId))
+          .then(function (r) { return r.json(); })
+          .then(function (res) {
+            var files = (res && res.files) || [];
+            if (!files.length) return;
+            var links = files.map(function (f) { return f.webViewLink; }).filter(Boolean);
+            if (!links.length) return;
+            state.initialEvidenceUrls = state.initialEvidenceUrls.concat(links);
+            if (currentStep === 1) render();
+          })
+          .catch(function () {
+            /* Silent — a missing/unreachable incident photo list is not
+               worth blocking the CAPA/Action form over; the person can
+               still attach evidence manually via Add Evidence as always. */
+          });
+      } catch (e) {
+        /* Defensive: guards both the environment check above (belt and
+           braces — e.g. a test harness that stubs a throwing fetch) and
+           any synchronous throw from the fetch() call itself. Never
+           worth surfacing to the person opening this form. */
+      }
     }
   }
 
