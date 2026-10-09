@@ -702,7 +702,29 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         'Raw Risk Score': rawRiskScoreValue,
         'Priority': rawRiskLevelValue,
         'Description': iDesc >= 0 ? r[iDesc] : '',
-        'Status': iStatus >= 0 ? r[iStatus] : '',
+        /* Status (Issam, 2026-10-09 — "even after I Reject it in the new
+           wizard, Status still shows Under Review"): this column has
+           always come straight from the source system's own native
+           latest_status field (Under Review / Accepted / Evaluated /
+           Rejected / Implemented / Closed — see isEscalationCandidate's
+           doc comment above), which only ever changed when the OLD
+           external AppSheet/Risk Assessment workflow updated it. The
+           new in-portal wizard writes to obs_review instead — it never
+           touches that native field, and (per the read-only boundary
+           documented on TABS above) never can. So exactly like
+           Accepted/Reviewed/Raw Risk Score/Level, once a portal
+           decision exists it must be the one driving the DISPLAYED
+           Status too, or a just-Rejected case keeps reading "Under
+           Review" forever. Mapped onto the SAME native vocabulary
+           (Evaluated/Rejected) rather than inventing new wording, so
+           isEscalationCandidate()'s existing 'Evaluated' check above
+           also picks up portal-Accepted cases correctly — that was a
+           second, silent instance of this same bug: a case Accepted
+           here never surfaced in "Needs Escalation Review" either, for
+           the exact same reason. */
+        'Status': reviewInfo
+          ? (reviewInfo.decision === 'Accepted' ? 'Evaluated' : reviewInfo.decision === 'Rejected' ? 'Rejected' : (iStatus >= 0 ? r[iStatus] : ''))
+          : (iStatus >= 0 ? r[iStatus] : ''),
         'Reviewed': isReviewed ? 'Yes' : 'No',
         'Accepted': isAccepted ? 'Yes' : 'No',
         'Recurrence Flagged': isRecurrence ? 'Yes' : (isRecurrenceKnown ? 'No' : ''),
@@ -1427,6 +1449,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
          escalate()'s DATA[idx].Escalated pattern above. */
       r.Reviewed = 'Yes';
       r.Accepted = decision === 'Accepted' ? 'Yes' : 'No';
+      /* Status, same native vocabulary buildRecords() now maps a portal
+         decision onto (see its doc comment above) — this is what was
+         actually stuck on "Under Review" after a Reject before. */
+      r.Status = decision === 'Accepted' ? 'Evaluated' : 'Rejected';
       if (decision === 'Accepted'){
         r['Raw Risk Score'] = updates['Raw Risk Score'];
         r['Raw Risk Level'] = updates['Raw Risk Level'];
