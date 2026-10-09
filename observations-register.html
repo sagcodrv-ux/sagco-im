@@ -305,6 +305,36 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     return 'Critical';
   }
 
+  /* Likelihood/Severity matrix (Issam, 2026-10-09) — 1-5 each, Raw Risk
+     Score = Likelihood × Severity (1-25), banded through scoreToLevel()
+     above. Reconstructed from the actual historical Risk Assessment
+     tab data (66 past rows): the 1-5 scale and the resulting Low/
+     Medium/High bands match this multiplication for the large majority
+     of past entries; label WORDING below was consolidated from a few
+     conflicting historical variants for the same number (e.g. both
+     "4. Likely — happened multiple times this year" and "4. Probable —
+     happened in the last year" appear in past data) — worth a glance
+     from HSSE to confirm the exact wording, the 1-5 meaning itself is
+     solid. Level "1" has no historical examples at all (every past
+     case was rated 2 or higher), so that one row is a reasonable
+     default rather than confirmed usage. */
+  var LIKELIHOOD_LABELS = [
+    '', // index 0 unused — levels are 1-5
+    '1. Rare — not expected to happen',
+    '2. Unlikely — happened in other factories',
+    '3. Possible — happened before on site (1+ year ago)',
+    '4. Likely — happened multiple times this year',
+    '5. Almost Certain — happens repeatedly in this location',
+  ];
+  var SEVERITY_LABELS = [
+    '',
+    '1. Negligible — no injury or first aid only',
+    '2. Moderate — medical treatment',
+    '3. Major — Lost Time Injury (LTI)',
+    '4. Critical — more than one LTI',
+    '5. Catastrophic — Fatality',
+  ];
+
   function colIdx(headers, name){
     for (var i=0;i<headers.length;i++){ if (String(headers[i]).trim() === name) return i; }
     return -1;
@@ -402,6 +432,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       .catch(function(){ return null; })
       .then(function(data){ return (data && !data.error) ? data : { headers: [], rows: [] }; });
 
+    /* obs_review (Issam, 2026-10-09) — same non-blocking pattern as
+       escalationsFetch/riskFetch above. This is the NEW tab holding
+       Accept/Reject decisions AND the Likelihood/Severity evaluation
+       made right here in the portal (see openReviewDecision below) —
+       on the MAIN IMS sheet, not the read-only AppSheet Observations
+       spreadsheet. Missing/broken just means no in-portal decisions
+       are known yet, same graceful-fallback treatment as every other
+       join here: never a reason to show the whole page as down. */
+    var reviewFetch = fetch(SHEETS_URL + '?action=read&tab=obs_review')
+      .then(function(r){ return r.json(); })
+      .catch(function(){ return null; })
+      .then(function(data){ return (data && !data.error) ? data : { headers: [], rows: [] }; });
+
     Promise.all(fetches).then(function(results){
       var byTab = {};
       results.forEach(function(r){ byTab[r.tabKey] = r.data; });
@@ -412,10 +455,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         return;
       }
 
-      return Promise.all([escalationsFetch, riskFetch]).then(function(extras){
-        var escData = extras[0], riskData = extras[1];
+      return Promise.all([escalationsFetch, riskFetch, reviewFetch]).then(function(extras){
+        var escData = extras[0], riskData = extras[1], reviewData = extras[2];
         byTab['obs_risk'] = riskData;
         byTab['obs_escalations'] = escData;
+        byTab['obs_review'] = reviewData;
         var fresh = buildRecords(byTab);
         _loaded = true;
         setBanner(liveBannerHtml(), false);
@@ -455,6 +499,45 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var acc = byTab['obs_acceptance'] || { headers: [], rows: [] };
     var rej = byTab['obs_rejection'] || { headers: [], rows: [] };
     var risk = byTab['obs_risk'] || { headers: [], rows: [] };
+    var review = byTab['obs_review'] || { headers: [], rows: [] };
+
+    /* obs_review (Issam, 2026-10-09): Accept/Reject + Likelihood/
+       Severity evaluation done right here in the portal (see
+       openReviewDecision below), case_id -> the full decision. This is
+       now the FIRST place Accepted/Rejected/Raw Risk Score/Raw Risk
+       Level come from — ahead of the old AppSheet obs_acceptance/
+       obs_rejection tabs and ahead of Main's own raw_risk_score —
+       because once a case has been decided here, this portal's own
+       record of that decision is the authoritative one. The old
+       sources remain as fallbacks ONLY for cases decided before this
+       feature existed (or decided through the AppSheet app directly),
+       so nothing already-evaluated silently loses its score. */
+    var reviewLookup = {};
+    {
+      var rvH = review.headers;
+      var rvCid = colIdx(rvH, 'Case ID');
+      if (rvCid >= 0){
+        var rvDecision = colIdx(rvH, 'Decision'), rvComments = colIdx(rvH, 'Decision Comments'),
+            rvLike = colIdx(rvH, 'Likelihood'), rvLikeLbl = colIdx(rvH, 'Likelihood Label'),
+            rvSev = colIdx(rvH, 'Severity'), rvSevLbl = colIdx(rvH, 'Severity Label'),
+            rvScore = colIdx(rvH, 'Raw Risk Score'), rvLevel = colIdx(rvH, 'Raw Risk Level'),
+            rvBy = colIdx(rvH, 'Decided By'), rvAt = colIdx(rvH, 'Decided Date');
+        review.rows.forEach(function(r){
+          reviewLookup[r[rvCid]] = {
+            decision: rvDecision>=0 ? r[rvDecision] : '',
+            comments: rvComments>=0 ? r[rvComments] : '',
+            likelihood: rvLike>=0 ? r[rvLike] : '',
+            likelihoodLabel: rvLikeLbl>=0 ? r[rvLikeLbl] : '',
+            severity: rvSev>=0 ? r[rvSev] : '',
+            severityLabel: rvSevLbl>=0 ? r[rvSevLbl] : '',
+            score: rvScore>=0 ? r[rvScore] : '',
+            level: rvLevel>=0 ? r[rvLevel] : '',
+            decidedBy: rvBy>=0 ? r[rvBy] : '',
+            decidedAt: rvAt>=0 ? r[rvAt] : '',
+          };
+        });
+      }
+    }
 
     /* QR Codes: qr_code_id -> location */
     var qrLoc = {};
@@ -571,25 +654,30 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
          a fully-assessed case would still show "pending"/no button
          here just because the external join came up empty. */
       var mainHasScore = iRawScoreMain >= 0 && r[iRawScoreMain] !== undefined && r[iRawScoreMain] !== null && r[iRawScoreMain] !== '';
-      var isRecurrenceKnown = Object.prototype.hasOwnProperty.call(riskLookup, cid) || mainHasScore;
+      var reviewInfo = reviewLookup[cid]; /* undefined unless decided here in the portal */
+      var isRecurrenceKnown = Object.prototype.hasOwnProperty.call(riskLookup, cid) || mainHasScore || !!reviewInfo;
       var isRecurrence = riskInfo.recurrence === 1 || riskInfo.recurrence === '1' || riskInfo.recurrence === true;
-      var isReviewed = !!reviewedIds[cid];
-      var isAccepted = !!acceptedIds[cid];
+      /* Portal decision wins once it exists — see reviewLookup's doc
+         comment above. Falls back to the legacy AppSheet Acceptance/
+         Rejection tabs for cases decided before this feature existed. */
+      var isReviewed = !!reviewInfo || !!reviewedIds[cid];
+      var isAccepted = (reviewInfo ? reviewInfo.decision === 'Accepted' : false) || (!reviewInfo && !!acceptedIds[cid]);
       var isRealEvent = category === 'Property Damage (Damage Only)';
       var needsAttention = (isRealEvent && !isReviewed) || isRecurrence;
 
-      /* Main tab's own raw_risk_score wins when present — see the
-         doc comment on iRawScoreMain above for why this can no longer
-         be sourced only from the Risk Assessment tab join. */
+      /* Score/level precedence: portal decision (reviewInfo) FIRST —
+         once HSSE has evaluated a case right here, that's the
+         authoritative record, full stop. Main tab's own raw_risk_score
+         next (see the doc comment on iRawScoreMain above). The old
+         Risk Assessment tab join last, only for legacy cases neither
+         of the above has anything for. */
       var mainRawScore = iRawScoreMain >= 0 ? r[iRawScoreMain] : '';
-      var rawRiskScoreValue = (mainRawScore !== undefined && mainRawScore !== null && mainRawScore !== '')
-        ? mainRawScore
-        : ((riskInfo.rawRiskScore !== undefined && riskInfo.rawRiskScore !== null) ? riskInfo.rawRiskScore : '');
-      /* Prefer a level explicitly recorded on the Risk Assessment join,
-         but fall back to deriving one from the (confirmed-reliable)
-         Main score when the join has nothing — see scoreToLevel()'s
-         doc comment above. */
-      var rawRiskLevelValue = riskInfo.rawRiskLevel || scoreToLevel(rawRiskScoreValue);
+      var rawRiskScoreValue = (reviewInfo && reviewInfo.score !== undefined && reviewInfo.score !== null && reviewInfo.score !== '')
+        ? reviewInfo.score
+        : (mainRawScore !== undefined && mainRawScore !== null && mainRawScore !== '')
+          ? mainRawScore
+          : ((riskInfo.rawRiskScore !== undefined && riskInfo.rawRiskScore !== null) ? riskInfo.rawRiskScore : '');
+      var rawRiskLevelValue = (reviewInfo && reviewInfo.level) || riskInfo.rawRiskLevel || scoreToLevel(rawRiskScoreValue);
 
       return {
         'Case ID': cid,
@@ -619,16 +707,26 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         'Accepted': isAccepted ? 'Yes' : 'No',
         'Recurrence Flagged': isRecurrence ? 'Yes' : (isRecurrenceKnown ? 'No' : ''),
         'Raw Risk Level': rawRiskLevelValue,
-        /* Point 2 gate hint only (render-time button label) — NOT the
-           authoritative source for routing. isRecurrenceKnown already
-           tells us whether a Risk Assessment row exists at all for this
-           case_id, which is exactly what distinguishes "not yet assessed"
-           from "assessed as Low/Medium". The actual routing decision at
-           click-time re-fetches obs_risk fresh and sorts by
-           risk_assessment_time (see lookupRiskAssessment below) — this
-           precomputed value can lag by one poll interval and must never
-           be trusted for the real gate. */
+        /* isRecurrenceKnown tells us whether a risk evaluation exists
+           at all for this case_id (portal decision, Main's own score,
+           or a legacy Risk Assessment tab row) — distinguishing "not
+           yet assessed" from "assessed as Low/Medium". This value IS
+           the authoritative gate now (see openEscalate), read straight
+           off this same record, same as Raw Risk Score/Level above. */
         'Has Risk Assessment': isRecurrenceKnown ? 'Yes' : 'No',
+        /* Likelihood/Severity (Issam, 2026-10-09) — only populated once
+           a case has been evaluated right here in the portal; blank for
+           legacy cases whose score came from Main or the old Risk
+           Assessment tab, which never captured these as separate inputs
+           in a form this page can read. Used by openReviewDecision() to
+           show what was previously entered if a decision is revisited. */
+        'Likelihood': reviewInfo ? reviewInfo.likelihood : '',
+        'Likelihood Label': reviewInfo ? reviewInfo.likelihoodLabel : '',
+        'Severity': reviewInfo ? reviewInfo.severity : '',
+        'Severity Label': reviewInfo ? reviewInfo.severityLabel : '',
+        'Decision Comments': reviewInfo ? reviewInfo.comments : '',
+        'Decided By': reviewInfo ? reviewInfo.decidedBy : '',
+        'Decided Date': reviewInfo ? reviewInfo.decidedAt : '',
         'Needs Attention': needsAttention ? 'Yes' : 'No',
         /* Durable now (Issam, 2026-10-07) — from the obs_escalations
            join above, not local-only state. 'Closed' specifically
@@ -1055,7 +1153,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
           '<td>'+badgeForPriority(r.Priority)+'</td>' +
           '<td class="desc-cell">'+escHtml(r.Description)+'</td>' +
           '<td>'+escHtml(r.Status)+'</td>' +
-          '<td>'+badgeForReviewed(r.Reviewed)+'</td>' +
+          '<td>'+(r.Reviewed === 'No'
+            ? '<button class="btn" onclick="event.stopPropagation();OBS.openReviewDecision('+idx+')">Accept / Reject</button>'
+            : badgeForReviewed(r.Reviewed))+'</td>' +
           '<td>'+badgeForRecurrence(r['Recurrence Flagged'])+'</td>' +
           '<td>'+escBtn+'</td>' +
           '<td>'+incRefCell+'</td>' +
@@ -1176,6 +1276,168 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/.exec(String(s||'').trim());
     if (!m) return 0;
     return new Date(+m[3], +m[1]-1, +m[2], +m[4], +m[5], +m[6]).getTime();
+  }
+
+  /* ── Accept / Reject + Risk Evaluation, in one wizard (Issam,
+     2026-10-09) ──────────────────────────────────────────────
+     Replaces the old flow where a separate tool (the AppSheet app,
+     then a separate Risk Assessment Google Sheet) handled Accept/
+     Reject and the Likelihood/Severity evaluation outside this portal.
+     Now both happen here, in one step: Accept or Reject first; if
+     Accepted, Likelihood and Severity right in the same modal, with
+     the Raw Risk Score/Level computed live as they're picked. Saved to
+     obs_review on the MAIN IMS sheet (read/write via the standard
+     readSheet/writeRows/updateRowById — NOT the separate read-only
+     AppSheet Observations spreadsheet), same pattern obs_escalations
+     already uses. Once a case has a row there, buildRecords() treats
+     it as the authoritative source for Accepted/Rejected/Raw Risk
+     Score/Raw Risk Level (see buildRecords()'s reviewLookup). */
+  function openReviewDecision(idx){
+    _modalOpen = true;
+    var r = DATA[idx];
+    var root = document.getElementById('obs-modal-root');
+    root.innerHTML = '<div class="modal-bg"><div class="modal">' +
+      '<h3>Accept / Reject — '+escHtml(r['Case ID'])+'</h3>' +
+      '<div class="mf">Description</div><div class="mv">'+escHtml(r.Description)+'</div>' +
+      '<div class="mf">Location</div><div class="mv">'+escHtml(r.Location)+'</div>' +
+      '<div class="mf">Category</div><div class="mv">'+badgeForCategory(r.Category)+'</div>' +
+      '<div id="obs-rd-body"></div>' +
+    '</div></div>';
+    renderReviewDecisionStage(idx, null);
+  }
+
+  /* stage: null (choose Accept/Reject), 'accept' (Likelihood/Severity
+     form), 'reject' (comment-only form). Re-renders just the #obs-rd-body
+     region so the Description/Location/Category above it stay put. */
+  function renderReviewDecisionStage(idx, stage){
+    var body = document.getElementById('obs-rd-body');
+    if (!body) return;
+
+    if (stage === null){
+      body.innerHTML =
+        '<div class="esc-note" style="margin:10px 0">Accepting moves straight into the Likelihood/Severity evaluation below, in this same step — no separate Risk Assessment sheet needed.</div>' +
+        '<div class="modal-actions">' +
+          '<button class="btn btn-gold" onclick="OBS.renderReviewDecisionStage('+idx+',\'accept\')">Accept</button>' +
+          '<button class="btn btn-outline-close" onclick="OBS.renderReviewDecisionStage('+idx+',\'reject\')">Reject</button>' +
+          '<button class="btn modal-close" onclick="OBS.closeModal()">Cancel</button>' +
+        '</div>';
+      return;
+    }
+
+    if (stage === 'reject'){
+      body.innerHTML =
+        '<div class="mf">Reason for rejection</div>' +
+        '<textarea class="esc-close-comment" id="obs-rd-comment" placeholder="Required — why is this not a valid observation?" style="display:block;width:100%;min-height:70px;margin:8px 0;padding:8px;border-radius:6px;border:1px solid var(--w-border);background:var(--w-bg3);color:var(--w-text);font-family:inherit;font-size:12px"></textarea>' +
+        '<div class="modal-actions">' +
+          '<button class="btn modal-close" onclick="OBS.renderReviewDecisionStage('+idx+',null)">Back</button>' +
+          '<button class="btn btn-gold" onclick="OBS.submitReviewDecision('+idx+',\'Rejected\')">Confirm Reject</button>' +
+        '</div>';
+      return;
+    }
+
+    /* stage === 'accept' */
+    var likeOpts = LIKELIHOOD_LABELS.map(function(lbl, i){
+      return i===0 ? '' : '<option value="'+i+'">'+escHtml(lbl)+'</option>';
+    }).join('');
+    var sevOpts = SEVERITY_LABELS.map(function(lbl, i){
+      return i===0 ? '' : '<option value="'+i+'">'+escHtml(lbl)+'</option>';
+    }).join('');
+    body.innerHTML =
+      '<div class="mf">Likelihood</div>' +
+      '<select id="obs-rd-likelihood" class="obs-rd-select" style="width:100%;margin:4px 0 10px;padding:6px;border-radius:6px;border:1px solid var(--w-border);background:var(--w-bg3);color:var(--w-text);font-size:12px"><option value="">Select…</option>'+likeOpts+'</select>' +
+      '<div class="mf">Severity</div>' +
+      '<select id="obs-rd-severity" class="obs-rd-select" style="width:100%;margin:4px 0 10px;padding:6px;border-radius:6px;border:1px solid var(--w-border);background:var(--w-bg3);color:var(--w-text);font-size:12px"><option value="">Select…</option>'+sevOpts+'</select>' +
+      '<div class="mf">Raw Risk Score</div><div class="mv" id="obs-rd-score"><span class="action-dim">Select Likelihood and Severity above</span></div>' +
+      '<div class="mf">Comments</div>' +
+      '<textarea class="esc-close-comment" id="obs-rd-comment" placeholder="Optional" style="display:block;width:100%;min-height:50px;margin:8px 0;padding:8px;border-radius:6px;border:1px solid var(--w-border);background:var(--w-bg3);color:var(--w-text);font-family:inherit;font-size:12px"></textarea>' +
+      '<div class="modal-actions">' +
+        '<button class="btn modal-close" onclick="OBS.renderReviewDecisionStage('+idx+',null)">Back</button>' +
+        '<button class="btn btn-gold" id="obs-rd-save-btn" disabled onclick="OBS.submitReviewDecision('+idx+',\'Accepted\')">Save</button>' +
+      '</div>';
+
+    var likeEl = document.getElementById('obs-rd-likelihood');
+    var sevEl = document.getElementById('obs-rd-severity');
+    function recompute(){
+      var l = parseInt(likeEl.value, 10), s = parseInt(sevEl.value, 10);
+      var scoreEl = document.getElementById('obs-rd-score');
+      var saveBtn = document.getElementById('obs-rd-save-btn');
+      if (!l || !s){
+        scoreEl.innerHTML = '<span class="action-dim">Select Likelihood and Severity above</span>';
+        saveBtn.disabled = true;
+        return;
+      }
+      var score = l * s;
+      var level = scoreToLevel(score);
+      var levelLower = level.toLowerCase();
+      scoreEl.innerHTML = '<span class="badge ' +
+        (levelLower==='high'||levelLower==='critical' ? 'b-red' : levelLower==='medium' ? 'b-amb' : 'b-grn') +
+        '">' + escHtml(level) + ' (' + score + ')</span>';
+      saveBtn.disabled = false;
+    }
+    likeEl.onchange = recompute;
+    sevEl.onchange = recompute;
+  }
+
+  function submitReviewDecision(idx, decision){
+    var r = DATA[idx];
+    var commentEl = document.getElementById('obs-rd-comment');
+    var comment = commentEl ? commentEl.value.trim() : '';
+
+    if (decision === 'Rejected' && !comment){
+      alert('A reason is required to reject this observation.');
+      if (commentEl) commentEl.focus();
+      return;
+    }
+
+    var updates = {
+      'Decision': decision,
+      'Decision Comments': comment,
+      'Decided By': currentUserName(),
+      'Decided Date': todayISO(),
+    };
+
+    if (decision === 'Accepted'){
+      var likeEl = document.getElementById('obs-rd-likelihood');
+      var sevEl = document.getElementById('obs-rd-severity');
+      var l = parseInt(likeEl.value, 10), s = parseInt(sevEl.value, 10);
+      if (!l || !s){
+        alert('Select both Likelihood and Severity before saving.');
+        return;
+      }
+      var score = l * s;
+      var level = scoreToLevel(score);
+      updates['Likelihood'] = l;
+      updates['Likelihood Label'] = LIKELIHOOD_LABELS[l];
+      updates['Severity'] = s;
+      updates['Severity Label'] = SEVERITY_LABELS[s];
+      updates['Raw Risk Score'] = score;
+      updates['Raw Risk Level'] = level;
+    }
+
+    var saveBtn = document.getElementById('obs-rd-save-btn') || document.querySelector('#obs-rd-body .btn-gold');
+    if (saveBtn) saveBtn.disabled = true;
+
+    postJSON('update', {tab: 'obs_review', idCol: 'Case ID', id: r['Case ID'], upsert: '1'}, updates).then(function(res){
+      if (res && res.status === 'error'){
+        alert('Could not save — ' + (res.message || 'unknown error'));
+        if (saveBtn) saveBtn.disabled = false;
+        return;
+      }
+      /* Instant local feedback, ahead of the next refresh — mirrors
+         escalate()'s DATA[idx].Escalated pattern above. */
+      r.Reviewed = 'Yes';
+      r.Accepted = decision === 'Accepted' ? 'Yes' : 'No';
+      if (decision === 'Accepted'){
+        r['Raw Risk Score'] = updates['Raw Risk Score'];
+        r['Raw Risk Level'] = updates['Raw Risk Level'];
+        r.Priority = updates['Raw Risk Level'];
+        r['Has Risk Assessment'] = 'Yes';
+      }
+      closeModal();
+    }).catch(function(){
+      alert('Could not save — check your connection.');
+      if (saveBtn) saveBtn.disabled = false;
+    });
   }
 
   function openEscalate(idx){
@@ -1448,7 +1710,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     document.getElementById('obs-lightbox-root').innerHTML = '';
   }
 
-  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, toggleObsCloseComment: toggleObsCloseComment, submitCloseNoEscalation: submitCloseNoEscalation, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, onDateRangeChange: onDateRangeChange, clearDateRange: clearDateRange, openLightbox: openLightbox, closeLightbox: closeLightbox, refreshNow: function(){ loadLive(true); } };
+  window.OBS = { render: render, cardFilter: cardFilter, clearFilters: clearFilters, openEscalate: openEscalate, escalate: escalate, toggleObsCloseComment: toggleObsCloseComment, submitCloseNoEscalation: submitCloseNoEscalation, closeModal: closeModal, selectRow: selectRow, visualizePhotos: visualizePhotos, toggleCharts: toggleCharts, onDateRangeChange: onDateRangeChange, clearDateRange: clearDateRange, openLightbox: openLightbox, closeLightbox: closeLightbox, refreshNow: function(){ loadLive(true); }, openReviewDecision: openReviewDecision, renderReviewDecisionStage: renderReviewDecisionStage, submitReviewDecision: submitReviewDecision };
   loadLive();
   startAutoRefresh();
 })();
