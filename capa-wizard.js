@@ -1164,7 +1164,7 @@
             fetch(SHEETS_URL + '?action=update&tab=capa&idCol=' + encodeURIComponent('CAPA ID') + '&id=' + encodeURIComponent(state.capaId), {
               method: 'POST', body: JSON.stringify({ 'Initial Evidence': state.initialEvidenceUrls.join('\n') }),
             })
-              .then(function () { if (cb) cb(); })
+              .then(function () { if (global.reloadLive) reloadLive(); if (cb) cb(); })
               .catch(function (err) { console.warn('Could not attach evidence links to ' + state.capaId + ': ' + err); if (cb) cb(); });
           } else if (cb) cb();
           return;
@@ -1921,6 +1921,44 @@
       state.severity = classify(state.score);
     }
     loadUserDirectory(render);
+
+    /* Carry the Incident's own attached photos through onto the new
+       CAPA/Action automatically (Issam, 2026-10-09) — previously an
+       Incident's photos stayed visible only on the Incident Register
+       itself (via its own 📷 Photos button); raising a CAPA/Action from
+       it dropped them entirely, leaving the destination record with no
+       evidence unless someone manually re-attached a file. Unlike the
+       Observation→Incident photo hand-off (which re-uploads, because
+       that source photo lives in a separate AppSheet Drive folder this
+       script can't link into), the Incident's own photos already live
+       in the SAME Drive space this script manages (see Incident
+       Register's loadAndRenderPhotoGrid / listFiles action) — so this
+       just appends their existing links to state.initialEvidenceUrls,
+       no re-upload, no duplicate file. Fetched here (at wizard-open
+       time, by incidentId) rather than passed through sessionStorage,
+       same reasoning as the Observation hand-off: keeps the handoff
+       payload small and always reflects whatever's actually attached
+       to the incident right now. Fired after loadUserDirectory(render)
+       so the wizard opens immediately — the evidence list fills in a
+       moment later via the second render() below, same non-blocking
+       pattern used elsewhere in this handoff. */
+    if (ctx.incidentId) {
+      fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(ctx.incidentId))
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          var files = (res && res.files) || [];
+          if (!files.length) return;
+          var links = files.map(function (f) { return f.webViewLink; }).filter(Boolean);
+          if (!links.length) return;
+          state.initialEvidenceUrls = state.initialEvidenceUrls.concat(links);
+          if (currentStep === 1) render();
+        })
+        .catch(function () {
+          /* Silent — a missing/unreachable incident photo list is not
+             worth blocking the CAPA/Action form over; the person can
+             still attach evidence manually via Add Evidence as always. */
+        });
+    }
   }
 
   /* Point 2 — Observation Register hand-off (Raw Risk Score Medium-or-
