@@ -1708,7 +1708,26 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       DATA = _pendingData;
       _pendingData = null;
     }
-    render();
+    render(); /* instant feedback from whatever's already in memory — never left blank while the real refresh below is in flight */
+    /* Issam, 2026-10-09 — "once any query is done [Accept/Reject/Forward/
+       Close], we need a hard refresh so the cards show the new records
+       and the new count directly." Before this, closeModal() only
+       re-rendered whatever was ALREADY in local memory (either the
+       optimistic guess a save function had just set on DATA[idx], or a
+       stale _pendingData snapshot from an earlier background poll) — it
+       never actually asked the server again. That's exactly how the
+       Action column and the Needs Escalation Review KPI could show two
+       different stories: one read an optimistic local guess, the other
+       (or a later one) read genuinely fresh server data, and they didn't
+       always agree until the NEXT 60s auto-refresh timer happened to
+       fire. Every save path in this file funnels through closeModal()
+       (submitReviewDecision, escalate, submitCloseNoEscalation), so
+       this one call covers Accept, Reject, Forward, and Close — No
+       Escalation alike. isBackground=true keeps this quiet (no loading
+       banner flash), same as the existing 60s auto-refresh — this is
+       just that same real refresh, triggered immediately instead of
+       waiting up to 60s for it. */
+    loadLive(true);
   }
 
   /* Full-screen photo view. Kept as a SEPARATE overlay/root from the photo
