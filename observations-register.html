@@ -1578,42 +1578,37 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     };
     try { sessionStorage.setItem('incomingObservationContext', JSON.stringify(ctx)); } catch(e){}
 
-    var outcome = (target === 'ACT') ? 'Action Tracker' : 'Incident Register';
-    /* upsert: '1' (Issam, 2026-10-08) — this is normally the FIRST
-       write ever made to this case's obs_escalations row, so it
-       almost never already exists. Without upsert, updateRowById()
-       silently errors with "no row found" every single time, meaning
-       the durable "this case has already been escalated" record was
-       NEVER actually created — which is exactly what let a second
-       Incident or Action get raised against the same Observation
-       case later (nothing on the sheet to stop it). Also now checks
-       the resolved result instead of only .catch(): a network-level
-       failure was never the real risk here, an application-level
-       {status:'error'} response silently sailing through unexamined
-       was. */
-    postJSON('update', {tab: 'obs_escalations', idCol: 'Case ID', id: r['Case ID'], upsert: '1'}, {
-      'Outcome': outcome,
-      'Decided By': currentUserName(),
-      'Decided Date': todayISO()
-    }).then(function(res){
-      if (res && res.status === 'error'){
-        /* The hand-off to the Incident/Action page has already
-           happened by this point (see below) — that record still
-           gets created fine on ITS OWN side. This failure only means
-           the Observation Register's own "already escalated" marker
-           didn't save, so flag it clearly rather than staying silent,
-           since a silent failure here is exactly the duplicate-raise
-           risk this fix exists to close. */
-        alert('Note: ' + r['Case ID'] + ' was forwarded, but recording that on the Observation Register failed (' + (res.message || 'unknown error') + '). The case may still show its Forward button until this is resolved — please avoid raising a second Incident/Action for it manually.');
-      }
-    }).catch(function(){ /* network-level failure only — same caveat as above applies */ });
+    /* Issam, 2026-10-09 — "the Action column shouldn't say Redirected
+       until the new Incident/Action record is actually saved; if I hit
+       Cancel over there, I should still be able to come back and
+       escalate later." Before this fix, THIS function wrote the
+       obs_escalations "already escalated" record and marked
+       DATA[idx].Escalated locally the instant someone clicked Forward
+       — before the new tab's wizard had done anything at all. Opening
+       the wizard and then cancelling (or just closing the tab) left
+       the Observation permanently stuck showing "Redirected", with no
+       way back to the Forward button short of a manual sheet edit.
 
+       Fix: this function no longer writes obs_escalations or marks
+       Escalated at all — it now ONLY hands off context and opens the
+       destination page. The actual "already escalated" record is
+       written entirely by the RECEIVING side, and only at the moment
+       of a real, successful save there — see incident-register.html's
+       openAddFromObservation() (writes Outcome/Incident Reference
+       right after its own postJSON('write',...) succeeds) and
+       capa-wizard.js's notifySourceObservation() (fires only on first
+       save, per its own doc comment). Both already used upsert:'1' for
+       exactly this reason — they were written as a safety net in case
+       this function's write "hasn't landed, raced, or failed"; they're
+       simply the ONLY write now, not a backup for one. Net effect: the
+       Forward button stays available, and a retry is always possible,
+       for as long as nothing has actually been saved on the other
+       side — exactly the behavior asked for. */
     if (target === 'ACT'){
       window.open('action-register.html?fromObservation=' + encodeURIComponent(r['Case ID']) + '&lane=ACT', '_blank');
     } else {
       window.open('incident-register.html?fromObservation=' + encodeURIComponent(r['Case ID']), '_blank');
     }
-    DATA[idx].Escalated = outcome; /* instant local feedback, ahead of the write above actually landing */
 
     closeModal(); /* closeModal() re-renders and applies any held-back refresh */
   }
