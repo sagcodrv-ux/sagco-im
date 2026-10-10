@@ -840,7 +840,14 @@
       'Source Observation Case ID': state.sourceObservationCaseId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
-      'Severity': 'Low',
+      /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
+         regardless of the real score, which action-register.html's
+         badgeForSeverity doesn't even recognize (hence a blank "—" on
+         every Action row no matter the actual Risk Score). Derived
+         from state.score via the SAME classify() used by the full CAPA
+         lane just below, so Severity always follows proc-c10.html §5
+         for Action records too, not just full CAPAs. */
+      'Severity': (classify(state.score) || {}).key || '',
       /* Risk Score — same column name/meaning as the full CAPA lane's
          own 'Risk Score' field (see buildRow() above), so the value
          reads consistently regardless of which lane a record is in.
