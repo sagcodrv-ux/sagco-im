@@ -926,6 +926,50 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Issam, 2026-10-10 — once the OWNER marks a CAPA/Action Completed
+     via the progress panel below, tell the APPROVER directly: both
+     the IMS Manager group and this record's creator (server decides
+     the exact recipient list — see notifyCapaCompleted() in
+     google-apps-script.js). This fires once, immediately, in ADDITION
+     to the existing daily scanAndNotifyCreatorsPendingVerification()
+     reminder, which is unchanged and keeps repeating until Closed.
+     Fire-and-forget, same reasoning as notifySourceIncident(): the
+     Status write itself already succeeded either way by the time this
+     is called, so a missed notification here isn't worth blocking or
+     alarming the owner over. */
+  function notifyCapaCompleted(capaId, headers, row, entries, latestEvidenceLink) {
+    function col(name) { var i = headers.indexOf(name); return i >= 0 ? String(row[i] || '') : ''; }
+
+    /* Two SEPARATE evidence sources, kept apart per Issam (2026-10-10)
+       — never merged into one flat list:
+       1) "Initial Evidence" column — whatever was attached at CAPA
+          creation, including anything auto-carried-over from the
+          source Incident (see openFromIncident()'s listFiles call).
+       2) Every photo logged during implementation progress updates
+          (the `entries` this panel already loaded — oldest first, so
+          the email reads as a timeline) plus this very submission's
+          own evidence (`latestEvidenceLink`), which isn't in `entries`
+          yet since that was fetched before this save. */
+    var initialEvidenceUrls = col('Initial Evidence').split('\n').filter(function (u) { return u.trim(); });
+    var progressEvidenceUrls = (entries || []).slice().reverse()
+      .map(function (e) { return e.photo; }).filter(Boolean);
+    if (latestEvidenceLink) progressEvidenceUrls.push(latestEvidenceLink);
+
+    fetch(SHEETS_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'notifyCapaCompleted',
+        capaId: capaId,
+        ownerName: col('Owner'),
+        severity: col('Severity'),
+        description: col('Description'),
+        creatorEmail: col('Created By Email'),
+        initialEvidenceUrls: initialEvidenceUrls,
+        progressEvidenceUrls: progressEvidenceUrls,
+      }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* Closes the loop back to the Observation Register, same fire-and-
      forget reasoning as notifySourceIncident above — the Action record
      itself is already safely saved either way, and this is just the
@@ -1464,7 +1508,7 @@
     var logOnlyBtn = document.getElementById('impl-log-only');
     if (logOnlyBtn) logOnlyBtn.addEventListener('click', function () { submitProgress(capaId, headers, row, null); });
     var advanceBtn = document.getElementById('impl-advance');
-    if (advanceBtn) advanceBtn.addEventListener('click', function () { submitProgress(capaId, headers, row, advanceBtn.getAttribute('data-next')); });
+    if (advanceBtn) advanceBtn.addEventListener('click', function () { submitProgress(capaId, headers, row, advanceBtn.getAttribute('data-next'), entries); });
     var verifySubmit = document.getElementById('impl-verify-submit');
     if (verifySubmit) verifySubmit.addEventListener('click', function () { submitVerification(capaId, headers, row); });
     var revertBtn = document.getElementById('impl-revert-btn');
@@ -1567,7 +1611,7 @@
       .catch(function () { /* silent — a missing/unreachable source photo is not worth surfacing an error for */ });
   }
 
-  function submitProgress(capaId, headers, row, statusChange) {
+  function submitProgress(capaId, headers, row, statusChange, entries) {
     if (implSaving) return; /* ignore re-clicks while a save is already in flight */
     var note = val('impl-note');
     var fileInput = document.getElementById('impl-photo');
@@ -1601,7 +1645,11 @@
               method: 'POST', body: JSON.stringify({ 'Status': statusChange }),
             })
               .then(function (r) { return r.json(); })
-              .then(function () { implSaving = false; alert(capaId + ' marked ' + statusChange + '.'); closeWizard(); if (global.reloadLive) reloadLive(); })
+              .then(function () {
+                implSaving = false;
+                if (statusChange === 'Completed') notifyCapaCompleted(capaId, headers, row, entries, evidenceLink);
+                alert(capaId + ' marked ' + statusChange + '.'); closeWizard(); if (global.reloadLive) reloadLive();
+              })
               .catch(function (err) { implSaving = false; setImplButtonsSaving(false); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
           } else {
             implSaving = false;
