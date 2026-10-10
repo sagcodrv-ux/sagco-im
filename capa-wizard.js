@@ -372,17 +372,30 @@
             + '</div>';
         }).join('')
       : '<div class="cw-hint" style="margin-bottom:12px">No progress entries yet.</div>';
+    /* Point (Issam, 2026-10-10): after logging progress on an Action,
+       there was no way to close it from here at all — "Log Update"
+       only ever adds a note, and closing meant scrolling back up to
+       the plain Status dropdown and hitting "Save Action" instead,
+       which wasn't obvious next to the progress log. Mirrors the full
+       CAPA Implementation panel's "Log & Mark Completed" button
+       (renderImplBody/submitProgress above): one click both logs the
+       closing note/evidence and flips Status to Closed. The RA
+       Residual Level gate (onSaveAction's own hard requirement for any
+       incident-linked Action) applies here too. */
     var addForm = state.status !== 'Closed'
       ? '<div class="cw-field"><label>Add progress update</label>'
         + '<textarea id="cw-act-note" placeholder="What was done since the last update"></textarea></div>'
         + '<div class="cw-field"><label>Evidence file (optional)</label>'
         + '<input type="file" id="cw-act-evidence-file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">'
         + '<div class="cw-hint">Photo, PDF, Word, Excel, or PowerPoint — whatever the actual evidence is.</div></div>'
-        + '<button class="cw-btn ghost" id="cw-act-log-btn">Log Update</button>'
+        + '<button class="cw-btn ghost" id="cw-act-log-btn">Log Update</button> '
+        + '<button class="cw-btn primary" id="cw-act-log-close-btn">Log &amp; Close Action</button>'
       : '<div class="cw-hint">Closed — no further progress updates.</div>';
     area.innerHTML = feed + addForm;
     var logBtn = document.getElementById('cw-act-log-btn');
     if (logBtn) logBtn.addEventListener('click', submitActionProgress);
+    var logCloseBtn = document.getElementById('cw-act-log-close-btn');
+    if (logCloseBtn) logCloseBtn.addEventListener('click', submitActionProgressAndClose);
   }
 
   /* Saving-lock mirrors submitProgress()'s own guard — prevents a
@@ -423,6 +436,82 @@
         .catch(function (err) {
           actProgressSaving = false;
           if (btn) { btn.disabled = false; btn.textContent = 'Log Update'; }
+          alert('Could not reach the live sheet: ' + err);
+        });
+    });
+  }
+
+  /* "Log & Close Action" — one click logs the closing note/evidence
+     AND flips the sheet Status to Closed, same two-step-in-one pattern
+     as the full CAPA Implementation panel's submitProgress(statusChange)
+     above. Pulls Status/Residual fields from the outer form into state
+     first (mirrors onSaveAction()) since this button bypasses the
+     separate "Save Action" button entirely, and enforces the same RA
+     Residual Level gate for any incident-linked Action. */
+  function submitActionProgressAndClose() {
+    if (actProgressSaving) return;
+    var note = val('cw-act-note');
+    var fileInput = document.getElementById('cw-act-evidence-file');
+    var file = fileInput && fileInput.files ? fileInput.files[0] : null;
+    if (!note.trim()) { alert('Add a closing note before marking this Action Closed.'); return; }
+
+    if (document.getElementById('cw-act-residual-level')) {
+      state.residualLevel = val('cw-act-residual-level');
+      state.residualComment = val('cw-act-residual-comment');
+    }
+    if (state.sourceIncidentId && !state.residualLevel) {
+      alert('RA Residual Level is required before this Action can be closed — select the risk level as it stands after the corrective action (in the field above), then try again.');
+      return;
+    }
+
+    actProgressSaving = true;
+    var btn = document.getElementById('cw-act-log-close-btn');
+    var logOnlyBtn = document.getElementById('cw-act-log-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    if (logOnlyBtn) logOnlyBtn.disabled = true;
+
+    function restoreButtons() {
+      actProgressSaving = false;
+      if (btn) { btn.disabled = false; btn.textContent = 'Log & Close Action'; }
+      if (logOnlyBtn) logOnlyBtn.disabled = false;
+    }
+
+    uploadEvidence(file, state.capaId, function (evidenceLink) {
+      var logRow = {
+        'Log ID': 'LOG-' + state.capaId + '-' + Date.now(),
+        'CAPA ID': state.capaId,
+        'Date': new Date().toISOString().split('T')[0],
+        'Note': note,
+        'Photo URL': evidenceLink || '',
+        'Logged By': currentUserName(),
+        'Status Change': '→ Closed',
+      };
+      fetch(SHEETS_URL + '?action=write&tab=' + LOG_TAB, { method: 'POST', body: JSON.stringify([logRow]) })
+        .then(function (r) { return r.json(); })
+        .then(function (result) {
+          if (!(result && result.status === 'ok')) {
+            restoreButtons();
+            alert('Log entry did not confirm success: ' + JSON.stringify(result) + '\nConfirm the "' + LOG_TAB + '" tab exists on the live sheet with the right headers.');
+            return;
+          }
+          var updatePayload = { 'Status': 'Closed' };
+          if (state.sourceIncidentId) {
+            updatePayload['RA Residual Level'] = state.residualLevel;
+            updatePayload['RA Residual Comment'] = state.residualComment || '';
+          }
+          fetch(SHEETS_URL + '?action=update&tab=capa&idCol=' + encodeURIComponent('CAPA ID') + '&id=' + encodeURIComponent(state.capaId), {
+            method: 'POST', body: JSON.stringify(updatePayload),
+          })
+            .then(function (r) { return r.json(); })
+            .then(function () {
+              actProgressSaving = false;
+              state.status = 'Closed';
+              alert(state.capaId + ' marked Closed.'); closeWizard(); if (global.reloadLive) reloadLive();
+            })
+            .catch(function (err) { restoreButtons(); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
+        })
+        .catch(function (err) {
+          restoreButtons();
           alert('Could not reach the live sheet: ' + err);
         });
     });
