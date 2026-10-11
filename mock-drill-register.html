@@ -522,25 +522,70 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
      textareaFields, since several of this form's fields are
      inherently multi-line (a scenario narrative, a deficiency
      write-up) in a way PTW's own fields weren't. ─────────────────── */
-  // Photos staged inside the Add/Edit wizard itself (as opposed to
-  // _photoModalStaged, staged in the separate 📷 Photos popup). Kept
-  // as its own array so the two entry points never collide if both
-  // happened to be open in some edge case.
-  var _wizardStagedPhotos = [];
-  function renderWizardPhotoStagingList(){
-    var listEl = document.getElementById('md-wizard-photo-staging-list');
-    if (!listEl) return;
-    listEl.innerHTML = _wizardStagedPhotos.map(function(item, i){
-      return '<div class="md-field" style="margin-bottom:8px">' +
-        '<label style="display:flex;justify-content:space-between;align-items:center">' +
-          '<span>'+String(item.file.name).replace(/</g,'&lt;')+'</span>' +
-          '<span style="cursor:pointer;color:var(--mdw-red);font-weight:700" onclick="MD.removeWizardStagedPhoto('+i+')">✕</span>' +
-        '</label>' +
-        '<input type="text" placeholder="Date | Time | Location | Description" data-wizard-staged-caption="'+i+'" value="'+String(item.caption||'').replace(/"/g,'&quot;')+'">' +
+  // Repeater field definitions: fields whose storage format is a
+  // pipe-joined line (for parseActionLines / parsePhotoLines / the
+  // printed SST-FRM-40 table) but whose DATA ENTRY should never
+  // expose that pipe symbol to the person typing. Each sub-input is
+  // its own plain box; the pipe-joined string is assembled only at
+  // Save time, from these boxes, in the same column order the
+  // existing parsers already expect — so storage and printing are
+  // completely unchanged.
+  var REPEATER_FIELDS = {
+    'Corrective Actions': { itemLabel: 'Corrective Action', subFields: [
+      { key:'rec', label:'Recommendation', type:'text' },
+      { key:'resp', label:'Responsibility', type:'text' },
+      { key:'date', label:'Date', type:'date' }
+    ]},
+    'Photos': { itemLabel: 'Photo', subFields: [
+      { key:'date', label:'Date', type:'date' },
+      { key:'time', label:'Time', type:'text' },
+      { key:'loc', label:'Location', type:'text' },
+      { key:'desc', label:'Description', type:'text' }
+    ]}
+  };
+  function parseRepeaterValue(fieldName, text){
+    var def = REPEATER_FIELDS[fieldName];
+    var lines = String(text||'').split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+    return lines.map(function(l){
+      var parts = l.split('|').map(function(p){ return p.trim(); });
+      var item = {};
+      def.subFields.forEach(function(sf, i){ item[sf.key] = parts[i] || ''; });
+      return item;
+    });
+  }
+  function renderRepeaterGroup(fieldName, items){
+    var def = REPEATER_FIELDS[fieldName];
+    if (!items.length) items = [{}];
+    return items.map(function(item, i){
+      var subInputsHtml = def.subFields.map(function(sf){
+        var val = String(item[sf.key] || '').replace(/"/g,'&quot;');
+        return '<div class="md-repeater-subfield">' +
+          '<label style="font-size:10px;opacity:.75">'+sf.label+'</label>' +
+          '<input type="'+sf.type+'" data-repeater="'+fieldName+'" data-repeater-row="'+i+'" data-repeater-key="'+sf.key+'" value="'+val+'">' +
+        '</div>';
+      }).join('');
+      return '<div class="md-repeater-row" data-repeater-row-wrap="'+fieldName+':'+i+'" style="border:1px solid var(--mdw-border,#444);border-radius:6px;padding:8px;margin-bottom:6px;position:relative">' +
+        '<span style="position:absolute;top:4px;right:8px;cursor:pointer;color:var(--mdw-red);font-weight:700" onclick="MD.removeRepeaterRow(\''+fieldName+'\','+i+')">✕</span>' +
+        '<div class="md-repeater-subgrid" style="display:grid;grid-template-columns:repeat('+def.subFields.length+',1fr);gap:6px">' + subInputsHtml + '</div>' +
       '</div>';
-    }).join('');
-    listEl.querySelectorAll('[data-wizard-staged-caption]').forEach(function(inp){
-      inp.addEventListener('input', function(){ _wizardStagedPhotos[inp.getAttribute('data-wizard-staged-caption')].caption = inp.value; });
+    }).join('') +
+    '<button type="button" class="md-btn md-btn-cancel" style="font-size:11px;padding:4px 10px" onclick="MD.addRepeaterRow(\''+fieldName+'\')">+ Add another '+def.itemLabel+'</button>';
+  }
+  var _repeaterState = {};
+  function refreshRepeaterGroup(fieldName){
+    var wrap = document.getElementById('md-repeater-wrap-' + fieldName.replace(/[^a-zA-Z0-9]/g,'_'));
+    if (!wrap) return;
+    wrap.innerHTML = renderRepeaterGroup(fieldName, _repeaterState[fieldName]);
+    wireRepeaterInputs(fieldName);
+  }
+  function wireRepeaterInputs(fieldName){
+    document.querySelectorAll('[data-repeater="'+fieldName+'"]').forEach(function(inp){
+      inp.addEventListener('input', function(){
+        var row = +inp.getAttribute('data-repeater-row');
+        var key = inp.getAttribute('data-repeater-key');
+        if (!_repeaterState[fieldName][row]) _repeaterState[fieldName][row] = {};
+        _repeaterState[fieldName][row][key] = inp.value;
+      });
     });
   }
   function showModal(tKeyName, title, fields, initialValues, onSubmit){
@@ -548,10 +593,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var cfg = TABLES[tKeyName];
     var selFields = cfg.selectFields || {};
     var taFields = cfg.textareaFields || [];
-    _wizardStagedPhotos = [];
+    _repeaterState = {};
     var fieldsHtml = fields.map(function(f, fi){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
+      if (REPEATER_FIELDS[f]){
+        _repeaterState[f] = parseRepeaterValue(f, v);
+        var safeId = f.replace(/[^a-zA-Z0-9]/g,'_');
+        return '<div class="md-field"><label>'+f+'</label>' +
+          '<div id="md-repeater-wrap-'+safeId+'">'+renderRepeaterGroup(f, _repeaterState[f])+'</div></div>';
+      }
       if (selFields[f]){
         var optsHtml = '<option value=""></option>' + selFields[f].map(function(o){
           return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
@@ -559,30 +610,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         return '<div class="md-field"><label>'+f+'</label><select data-field="'+f+'">'+optsHtml+'</select></div>';
       }
       if (taFields.indexOf(f) > -1){
-        var hint = '';
-        if (f === 'Corrective Actions') hint = '<span class="md-hint">One per line: Recommendation | Responsibility | Date</span>';
-        if (f === 'Photos') hint = '<span class="md-hint">One per line: Date | Time | Location | Description — shown on screen as "Photo 1 — date, time, location: description", numbered automatically. Actual image files go via the 📷 Photos button.</span>';
-        return '<div class="md-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea>'+hint+'</div>';
+        return '<div class="md-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
       }
       var isDateField = /date$/i.test(f.trim());
       var inputType = isDateField ? 'date' : 'text';
       return '<div class="md-field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"></div>';
     }).join('');
 
-    // Photo section embedded directly in the wizard — kept to the
-    // register table, since that's the only one this page serves.
-    // Files picked here are only staged (with a caption box each);
-    // they actually upload once Save succeeds and the Drill ID is
-    // known, using the same captioned-upload path as the standalone
-    // 📷 Photos button, so both entry points land in the same place.
-    var photoSectionHtml = (tKeyName === 'register')
-      ? '<div class="md-field"><label>Photos <span style="font-weight:400;opacity:.7">(optional here — can also be added later via the 📷 Photos button)</span></label>' +
-          '<input type="file" id="md-wizard-photo-input" accept="image/*" multiple></div>' +
-          '<div id="md-wizard-photo-staging-list"></div>'
-      : '';
-
     root.innerHTML = '<div class="md-modal-bg" id="md-modal-bg"><div class="md-modal">' +
-      '<h3>'+title+'</h3>' + fieldsHtml + photoSectionHtml +
+      '<h3>'+title+'</h3>' + fieldsHtml +
       '<div id="md-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
       '<div class="md-modal-actions"><button class="md-btn md-btn-cancel" id="md-modal-cancel">Cancel</button>' +
       '<button class="md-btn md-btn-add" id="md-modal-save">Save</button></div></div></div>';
@@ -590,41 +626,29 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('md-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('md-modal-bg').onclick = function(e){ if(e.target.id==='md-modal-bg') root.innerHTML=''; };
 
-    if (tKeyName === 'register'){
-      var wfi = document.getElementById('md-wizard-photo-input');
-      wfi.addEventListener('change', function(){
-        var files = Array.from(wfi.files||[]);
-        files.forEach(function(file){ _wizardStagedPhotos.push({ file: file, caption: '' }); });
-        wfi.value = '';
-        renderWizardPhotoStagingList();
-      });
-    }
+    Object.keys(REPEATER_FIELDS).forEach(function(f){ if (fields.indexOf(f) > -1) wireRepeaterInputs(f); });
 
     document.getElementById('md-modal-save').onclick = function(){
       var values = {};
       root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      // Repeater fields: assemble the pipe-joined storage string from
+      // each row's separate plain boxes, in the same sub-field order
+      // the printed form's parsers already expect. Blank rows (every
+      // box empty) are dropped rather than saved as an empty line.
+      Object.keys(REPEATER_FIELDS).forEach(function(f){
+        if (fields.indexOf(f) === -1) return;
+        var def = REPEATER_FIELDS[f];
+        var rows = (_repeaterState[f] || []).filter(function(item){
+          return def.subFields.some(function(sf){ return String((item||{})[sf.key]||'').trim(); });
+        });
+        values[f] = rows.map(function(item){
+          return def.subFields.map(function(sf){ return String((item||{})[sf.key]||'').trim(); }).join(' | ');
+        }).join('\n');
+      });
       var saveBtn = document.getElementById('md-modal-save');
       saveBtn.disabled = true;
       window._mdReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
-      var statusEl = document.getElementById('md-modal-save-status');
-      // Wraps the "close the modal" callback: if photos were staged
-      // in the wizard, upload them first (tagged to this record's own
-      // ID) and only then clear the modal, so Save covers both the
-      // record and its photos in one action.
-      var wrappedClose = function(){
-        var docIdForPhotos = values[cfg.idCol];
-        if (_wizardStagedPhotos.length && docIdForPhotos){
-          if (statusEl) statusEl.textContent = 'Uploading ' + _wizardStagedPhotos.length + ' photo(s)…';
-          var toUpload = _wizardStagedPhotos;
-          _wizardStagedPhotos = [];
-          uploadStagedPhotos(toUpload, docIdForPhotos, function(done, failed){
-            root.innerHTML = '';
-          });
-        } else {
-          root.innerHTML = '';
-        }
-      };
-      onSubmit(values, wrappedClose);
+      onSubmit(values, function(){ root.innerHTML = ''; });
     };
   }
 
@@ -753,6 +777,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           _photoModalStaged = [];
           renderPhotoStagingList();
           loadAndRenderPhotoGrid(idVal);
+          if (done > 0) syncPhotosFieldFromDrive(idVal);
         });
       };
     }
@@ -761,6 +786,29 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function postJSON(action, params, body){
     var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
     return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  // Rebuilds the Photos TEXT field from the real uploaded photos (and
+  // their captions) and saves it back to the register row, so the
+  // typed field is never a separate thing to maintain by hand — it's
+  // just a mirror of whatever is really uploaded. Called only after
+  // an actual upload or delete (never on merely opening the 📷
+  // modal), so drills that only ever had typed text and no real
+  // uploads are left completely untouched.
+  function syncPhotosFieldFromDrive(idVal){
+    fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(idVal))
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        var files = (res && res.files) || [];
+        var text = files
+          .map(function(f){ return String(f.revNote || '').trim(); })
+          .filter(function(line){ return line; })
+          .join('\n');
+        var cfg = TABLES['register'];
+        return postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, {'Photos': text});
+      })
+      .then(function(){ reloadAll(); })
+      .catch(function(){ /* grid already reflects reality; field sync will retry on the next upload/delete */ });
   }
 
   // ── SST-FRM-40 print template — built field-for-field from the real
@@ -1037,15 +1085,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       _photoModalStaged.splice(i, 1);
       renderPhotoStagingList();
     },
-    removeWizardStagedPhoto: function(i){
-      _wizardStagedPhotos.splice(i, 1);
-      renderWizardPhotoStagingList();
+    addRepeaterRow: function(fieldName){
+      if (!_repeaterState[fieldName]) _repeaterState[fieldName] = [];
+      _repeaterState[fieldName].push({});
+      refreshRepeaterGroup(fieldName);
+    },
+    removeRepeaterRow: function(fieldName, i){
+      _repeaterState[fieldName].splice(i, 1);
+      if (!_repeaterState[fieldName].length) _repeaterState[fieldName].push({});
+      refreshRepeaterGroup(fieldName);
     },
     deletePhoto: function(idVal, fileId){
       if (!can('delete')) return;
       if (!confirm('Remove this photo? It will stay in Google Drive but no longer show here.')) return;
       fetch(SHEETS_URL + '?action=deleteAttachment&fileId=' + encodeURIComponent(fileId) + '&docId=' + encodeURIComponent(idVal))
-        .then(function(){ loadAndRenderPhotoGrid(idVal); })
+        .then(function(){ loadAndRenderPhotoGrid(idVal); syncPhotosFieldFromDrive(idVal); })
         .catch(function(){ alert('Could not remove the photo — check your connection.'); });
     },
     openAdd: function(tKeyName){
