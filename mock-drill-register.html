@@ -830,7 +830,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }).join('') + '</div>';
   }
 
-  function buildDrillPrintHtml(rec){
+  // photoFiles (optional): the real uploaded Drive images for this
+  // drill, from listDocumentFiles — each with its own caption (the
+  // Revision Note field, set at upload time). When present, the
+  // printed form embeds the actual photo next to its real caption,
+  // instead of only the typed Photos text field. Falls back to the
+  // old text-only blocks (no images) when a drill has no uploaded
+  // photos yet, or none of image type — so older drills still print
+  // exactly as before.
+  function buildDrillPrintHtml(rec, photoFiles){
     var scenario = rec['Emergency Situation'] || '';
     var scenRow1 = ['Fire','Glass leak','Emergency evacuation','Medical emergency'];
     var scenRow2 = ['Severe weather','Chemical spillage','Power shortage'];
@@ -842,12 +850,41 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       return '<tr><td style="width:24px;text-align:center">'+(i+1)+'</td><td>'+pfEsc(a.rec)+'</td><td>'+pfEsc(a.resp)+'</td><td>'+pfEsc(a.date)+'</td></tr>';
     }).join('');
 
-    var photoBlocks = parsePhotoLines(rec['Photos']);
-    var photoHtml = photoBlocks.length ? photoBlocks.map(function(p,i){
-      return '<div class="pf-photo-block"><div class="pf-photo-hdr">Photo #'+(i+1)+'</div>' +
-        '<div class="pf-grid4">'+pfField('Date', p.date)+pfField('Time', p.time)+pfField('Location', p.loc)+'</div>' +
-        '<div class="pf-field"><span class="pf-label">Description:</span><span class="pf-value">'+pfEsc(p.desc)+'</span></div></div>';
-    }).join('') : '<div class="pf-note">No photo log entered digitally — see the register\'s 📷 Photos button for uploaded image files.</div>';
+    var textBlocks = parsePhotoLines(rec['Photos']);
+    var images = (photoFiles || []).filter(function(f){ return /^image\//i.test(f.mimeType||''); });
+
+    var photoHtml;
+    if (images.length){
+      photoHtml = images.map(function(f, i){
+        // A caption typed at upload time (the new way) wins. If this
+        // photo was uploaded before that existed and has no caption
+        // of its own, fall back to the i-th line of the old typed
+        // Photos text field, purely by position, same as the on-screen
+        // gallery does — better than showing nothing.
+        var caption = String(f.revNote||'').trim();
+        var fallback = textBlocks[i];
+        var line = caption || (fallback ? [fallback.date, fallback.time, fallback.loc].filter(Boolean).join(', ') + (fallback.desc ? ': '+fallback.desc : '') : '');
+        var parts = line.split('|').map(function(p){ return p.trim(); });
+        // Caption may be the raw "Date | Time | Location | Description"
+        // pipe format (typed at upload) or already the joined fallback
+        // string above — render whichever it is as one readable line.
+        var captionDisplay = parts.length > 1 ? parts.join(', ') : line;
+        return '<div class="pf-photo-block">' +
+          '<div class="pf-photo-hdr">Photo #'+(i+1)+'</div>' +
+          '<img class="pf-photo-img" src="https://drive.google.com/thumbnail?id='+encodeURIComponent(f.fileId)+'&sz=w800" alt="Photo '+(i+1)+'">' +
+          (captionDisplay ? '<div class="pf-field"><span class="pf-label">Description:</span><span class="pf-value">'+pfEsc(captionDisplay)+'</span></div>'
+                          : '<div class="pf-note">No caption recorded for this photo.</div>') +
+        '</div>';
+      }).join('');
+    } else if (textBlocks.length){
+      photoHtml = textBlocks.map(function(p,i){
+        return '<div class="pf-photo-block"><div class="pf-photo-hdr">Photo #'+(i+1)+'</div>' +
+          '<div class="pf-grid4">'+pfField('Date', p.date)+pfField('Time', p.time)+pfField('Location', p.loc)+'</div>' +
+          '<div class="pf-field"><span class="pf-label">Description:</span><span class="pf-value">'+pfEsc(p.desc)+'</span></div></div>';
+      }).join('');
+    } else {
+      photoHtml = '<div class="pf-note">No photo log entered digitally — see the register\'s 📷 Photos button for uploaded image files.</div>';
+    }
 
     var printedAt = new Date().toLocaleString();
     var drillId = rec['Drill ID'] || '';
@@ -883,8 +920,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     + '.pf-action-tbl{width:100%;border-collapse:collapse;font-size:10px;margin-top:4px}'
     + '.pf-action-tbl th,.pf-action-tbl td{border:1px solid #999;padding:4px 6px;text-align:left}'
     + '.pf-action-tbl th{background:#f0f0f0}'
-    + '.pf-photo-block{border:1px dashed #999;padding:6px;margin-bottom:6px}'
+    + '.pf-photo-block{border:1px dashed #999;padding:6px;margin-bottom:6px;page-break-inside:avoid}'
     + '.pf-photo-hdr{font-weight:700;margin-bottom:4px}'
+    + '.pf-photo-img{display:block;max-width:100%;max-height:320px;margin:0 auto 6px;border:1px solid #ccc}'
     + '.pf-footer{margin-top:10px;font-size:9px;color:#666;border-top:1px solid #999;padding-top:6px}'
     + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}}'
     + '</style></head><body>'
@@ -1052,9 +1090,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (!row) return alert('Record not found — try refreshing.');
       var rec = {};
       data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      // Opened synchronously (before the fetch below) so browsers don't
+      // treat it as a blocked pop-up — the real content is written into
+      // this same window once the drill's uploaded photos come back.
       var w = window.open('', '_blank');
       if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print the drill report.'); return; }
-      w.document.open(); w.document.write(buildDrillPrintHtml(rec)); w.document.close();
+      w.document.open(); w.document.write('<p style="font-family:Arial,sans-serif;padding:24px">Loading report…</p>'); w.document.close();
+      fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(idVal))
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          var files = (res && res.files) || [];
+          w.document.open(); w.document.write(buildDrillPrintHtml(rec, files)); w.document.close();
+        })
+        .catch(function(){
+          // Uploaded photos couldn't be fetched (connection issue) —
+          // still print the report from the typed fields rather than
+          // leaving the window stuck on "Loading…".
+          w.document.open(); w.document.write(buildDrillPrintHtml(rec, [])); w.document.close();
+        });
     },
     remove: function(tKeyName, idVal){
       var cfg = TABLES[tKeyName];
