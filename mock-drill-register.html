@@ -74,15 +74,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <div class="kpi-card kc-red md-clickable" onclick="MD.cardClick('openactions')" title="Click to view drills with open corrective actions"><div class="kpi-lbl">Open Corrective Actions</div><div class="kpi-val" id="md-kpi-open">—</div><div class="kpi-sub">Drills not yet Closed</div></div>
 </div>
 
-<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
-  <div class="chart-card">
-    <div class="chart-title">Drill Volume by Month<span class="chart-sub">drills conducted, by month</span></div>
-    <div class="chart-wrap"><canvas id="mdVolumeChart"></canvas></div>
-    <div id="md-volume-caption" class="chart-sub" style="display:block;margin-top:6px;text-align:center"></div>
-  </div>
+<div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:18px">
   <div class="chart-card">
     <div class="chart-title">Drills by Emergency Situation<span class="chart-sub">breakdown by scenario type</span></div>
-    <div class="chart-wrap"><canvas id="mdScenarioChart"></canvas></div>
+    <div class="chart-wrap" style="height:280px"><canvas id="mdScenarioChart"></canvas></div>
   </div>
 </div>
 
@@ -220,7 +215,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   var _selected = {};
   var STATUS_COL = 'Record Status';
   var _cache = {};
-  var _charts = { volume: null, scenario: null };
+  var _charts = { scenario: null };
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
   function currentUsername(){
@@ -454,30 +449,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var openCount = visibleRows.filter(function(r){ return hasOpenActions(r, reg.headers); }).length;
     document.getElementById('md-kpi-open').textContent = openCount;
 
-    var monthCounts = {};
-    visibleRows.forEach(function(r){
-      var raw = dateIdx>=0 ? r[dateIdx] : null;
-      if (!raw) return;
-      var s = String(raw).trim();
-      if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return;
-      monthCounts[s.slice(0,7)] = (monthCounts[s.slice(0,7)] || 0) + 1;
-    });
-    var sortedMonths = Object.keys(monthCounts).sort();
-    var GOLD = '#C9A84C', BLUE = '#5B9BD5';
+    var BLUE = '#5B9BD5';
     var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
-    if (_charts.volume) { _charts.volume.destroy(); _charts.volume = null; }
     if (_charts.scenario) { _charts.scenario.destroy(); _charts.scenario = null; }
-
-    if (window.Chart && sortedMonths.length){
-      _charts.volume = new Chart(document.getElementById('mdVolumeChart'), {
-        type:'bar', data:{ labels: sortedMonths.map(monthLabel), datasets:[{ label:'Drills', data: sortedMonths.map(function(m){ return monthCounts[m]; }), backgroundColor:GOLD, borderRadius:4 }] },
-        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } }, x:{ ticks:{ color:TICK }, grid:{ color:GRID } } }, plugins:{ legend:{ display:false } } }
-      });
-      var cap = document.getElementById('md-volume-caption');
-      if (cap){ var lastM = sortedMonths[sortedMonths.length-1]; cap.textContent = monthLabel(lastM)+': '+monthCounts[lastM]+' drill'+(monthCounts[lastM]===1?'':'s'); }
-    } else {
-      var capE = document.getElementById('md-volume-caption'); if (capE) capE.textContent='';
-    }
 
     var scenCounts = {};
     SCENARIOS.forEach(function(s){ scenCounts[s] = 0; });
@@ -485,10 +459,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var s = scenIdx>=0 ? String(r[scenIdx]||'').trim() : '';
       if (s) scenCounts[s] = (scenCounts[s]||0) + 1;
     });
-    if (window.Chart){
-      var maxScenCount = Math.max.apply(null, SCENARIOS.map(function(s){ return scenCounts[s]||0; }).concat([0]));
+    // Only chart scenarios that actually have a drill logged — a scenario
+    // with zero drills belongs in the Scenario Coverage table below
+    // (where "Not Yet Drilled" is the whole point), not as a dead 0-bar
+    // cluttering this chart.
+    var drilledScenarios = SCENARIOS.filter(function(s){ return (scenCounts[s]||0) > 0; });
+    if (window.Chart && drilledScenarios.length){
+      var maxScenCount = Math.max.apply(null, drilledScenarios.map(function(s){ return scenCounts[s]||0; }).concat([0]));
       _charts.scenario = new Chart(document.getElementById('mdScenarioChart'), {
-        type:'bar', data:{ labels: SCENARIOS, datasets:[{ label:'Drills', data: SCENARIOS.map(function(s){ return scenCounts[s]||0; }), backgroundColor:BLUE, borderRadius:4 }] },
+        type:'bar', data:{ labels: drilledScenarios, datasets:[{ label:'Drills', data: drilledScenarios.map(function(s){ return scenCounts[s]||0; }), backgroundColor:BLUE, borderRadius:4 }] },
         options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
           // Same fix as PTW's "by Work Involved" chart: hover anywhere on
           // the row (not just the bar pixels) and print the exact count
@@ -567,12 +546,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     el.innerHTML = html;
   }
 
-  function monthLabel(ym){
-    var parts = ym.split('-');
-    var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var mi = parseInt(parts[1],10) - 1;
-    return (names[mi] || parts[1]) + ' ' + parts[0];
-  }
   function setExpanded(tKeyName, expanded){
     var containerId = tKeyName === 'coverage' ? 'live-table-coverage' : TABLES[tKeyName].containerId;
     var el = document.getElementById(containerId);
