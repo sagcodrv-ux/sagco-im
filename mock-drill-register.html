@@ -312,11 +312,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     renderTableArea(tKeyName);
   }
 
+  // Matches the KPI card's own label ("Drills not yet Closed"): any
+  // drill whose Status isn't Closed counts as open, regardless of
+  // whether a Corrective Action has been typed in yet. Previously this
+  // also required the Corrective Actions field to be non-empty, which
+  // silently excluded Open drills that hadn't had a corrective action
+  // entered yet — undercounting the real number of open drills.
   function hasOpenActions(row, headers){
-    var corrIdx = colIdx(headers, 'Corrective Actions');
     var statusIdx = colIdx(headers, 'Status');
-    var corr = corrIdx >= 0 ? String(row[corrIdx]||'').trim() : '';
-    if (!corr) return false;
     var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
     return st !== 'closed';
   }
