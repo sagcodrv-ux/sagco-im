@@ -198,7 +198,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
                'Scenario Description','Time of Declaration','First Responder Response Time',
                'Alarm Sounded','Assembled at Point','Ambulance/Medical Called',
                'Finish Time','Total Time Elapsed','Previous Total Time','Production Lines Affected',
-               'Deficiency Observed','Corrective Actions','Photos','Attachments','Remarks',
+               'Deficiency Observed','Corrective Actions','Remarks',
                'Observer(s)','HSE In Charge','Status'],
       selectFields: {
         'Emergency Situation': SCENARIOS,
@@ -209,7 +209,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // Multi-line by nature on the real paper form — a scenario
       // narrative, a deficiency write-up, a list of corrective actions,
       // or a per-photo log can't realistically be one line.
-      textareaFields: ['Scenario Description','Deficiency Observed','Corrective Actions','Photos','Remarks'],
+      textareaFields: ['Scenario Description','Deficiency Observed','Corrective Actions','Remarks'],
       filterField: 'Emergency Situation'
     }
   };
@@ -281,6 +281,29 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     toolbarHtml += '<button class="md-btn" id="md-tb-photos-'+tKeyName+'"'+disabledAttr+' onclick="MD.managePhotos(MD.getSelected(\''+tKeyName+'\'))">📷 Photos</button>';
     if (can('edit')) toolbarHtml += '<button class="md-btn" id="md-tb-edit-'+tKeyName+'"'+disabledAttr+' onclick="MD.openEdit(\''+tKeyName+'\', MD.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
     if (can('delete')) toolbarHtml += '<button class="md-btn" id="md-tb-remove-'+tKeyName+'"'+disabledAttr+' onclick="MD.remove(\''+tKeyName+'\', MD.getSelected(\''+tKeyName+'\'))">🗑️ Remove</button>';
+    // Escalate to Action — same hand-off pattern as the Observation
+    // Register's own "Forward to Action Register" (observations-
+    // register.html's escalate()): this button never writes anything
+    // itself. It stores context in sessionStorage and opens
+    // action-register.html in a new tab, which is the ONLY place that
+    // actually creates the Action record and — only once that record
+    // is really saved — writes the "Action Reference" back onto this
+    // drill row (see capa-wizard.js's notifySourceDrill(), called from
+    // persistAction()). If the person opens that tab and cancels, or
+    // just closes it, this button stays exactly as it was — nothing
+    // gets stuck half-escalated. Requires an "Action Reference" column
+    // on the live mock_drill sheet tab (same requirement capa-wizard.js
+    // already documents for 'Source Incident ID'/'Source Observation
+    // Case ID' — see its own header comment); until that column
+    // exists, every row just reads as not-yet-escalated.
+    if (tKeyName === 'register'){
+      var selActionRef = sel ? getFieldForId(tKeyName, sel, 'Action Reference') : '';
+      if (sel && selActionRef){
+        toolbarHtml += '<span class="md-btn" style="opacity:.75;cursor:default;background:var(--mdw-bg3)" title="Already escalated — see the Action Register">✓ Escalated → '+String(selActionRef).replace(/</g,'&lt;')+'</span>';
+      } else {
+        toolbarHtml += '<button class="md-btn" id="md-tb-escalate-'+tKeyName+'"'+disabledAttr+' onclick="MD.escalateToAction(MD.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
+      }
+    }
 
     var categoryHtml = '';
     if (cfg.filterField){
@@ -311,6 +334,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       '</div>' +
       '<div class="md-table-area" id="md-table-area-'+tKeyName+'"></div>';
     renderTableArea(tKeyName);
+  }
+
+  // Looks up one field's current value for a given row ID, straight
+  // from the already-loaded table cache — used by the Escalate button
+  // to check whether this drill already has an Action Reference,
+  // without a separate network round-trip.
+  function getFieldForId(tKeyName, idVal, fieldName){
+    var data = _cache[tKeyName];
+    var cfg = TABLES[tKeyName];
+    if (!data || !data.headers) return '';
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var fIdx = colIdx(data.headers, fieldName);
+    if (idIdx < 0 || fIdx < 0) return '';
+    var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+    return row ? String(row[fIdx]||'').trim() : '';
   }
 
   function hasOpenActions(row, headers){
@@ -1142,6 +1180,40 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       fetch(SHEETS_URL + '?action=deleteAttachment&fileId=' + encodeURIComponent(fileId) + '&docId=' + encodeURIComponent(idVal))
         .then(function(){ loadAndRenderPhotoGrid(idVal); syncPhotosFieldFromDrive(idVal); })
         .catch(function(){ alert('Could not remove the photo — check your connection.'); });
+    },
+    // Hands off to the real Action Register — never a direct write
+    // from here, mirroring observations-register.html's escalate()
+    // exactly. The context travels via sessionStorage under the same
+    // key naming convention as the Observation hand-off
+    // ('incomingDrillContext', parallel to 'incomingObservationContext'),
+    // and action-register.html's capa-wizard.js reads it back via the
+    // matching openFromDrill() entry point (fromDrill=<id>&lane=ACT in
+    // the URL). The "already escalated" state is written entirely by
+    // the RECEIVING side, only once a real Action is actually saved
+    // (see capa-wizard.js's notifySourceDrill()) — so cancelling that
+    // tab leaves this button exactly as it was, with no way to get
+    // stuck.
+    escalateToAction: function(idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache['register'];
+      var idIdx = colIdx(data.headers, 'Drill ID');
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var rec = {};
+      data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      var deficiency = String(rec['Deficiency Observed']||'').trim();
+      var corrective = String(rec['Corrective Actions']||'').trim();
+      var description = deficiency
+        ? ('Deficiency observed during Mock Drill ' + idVal + ': ' + deficiency + (corrective ? '\n\nProposed corrective action:\n' + corrective : ''))
+        : (corrective ? ('Corrective action from Mock Drill ' + idVal + ':\n' + corrective) : ('Follow-up from Mock Drill ' + idVal));
+      var ctx = {
+        drillId: idVal,
+        description: description,
+        location: rec['Area & Location'] || '',
+        date: (rec['Date'] || '').toString().slice(0, 10),
+      };
+      try { sessionStorage.setItem('incomingDrillContext', JSON.stringify(ctx)); } catch(e){}
+      window.open('action-register.html?fromDrill=' + encodeURIComponent(idVal) + '&lane=ACT', '_blank');
     },
     openAdd: function(tKeyName){
       var cfg = TABLES[tKeyName];

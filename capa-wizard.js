@@ -56,6 +56,21 @@
    by this file's notifySourceIncident(); the last two written by this
    file's notifyIncidentActionCompleted() once an ACT-lane record is
    saved with Status='Closed', closing the loop back onto the incident.
+
+   Rev.04 (Issam, 2026-10-12) — Mock Drill Register hand-off. Same
+   lightweight ACT-lane pattern as openFromObservation() below, entered
+   via action-register.html?fromDrill=<Drill ID>&lane=ACT, opened by
+   mock-drill-register.html's "⚡ Escalate to Action" button. Provenance
+   is recorded in state.sourceDrillId / a new 'Source Drill ID' column
+   (parallel to 'Source Observation Case ID'), and the "already
+   escalated" state is written back onto the MOCK DRILL sheet tab
+   directly via notifySourceDrill() (an 'Action Reference' column on
+   that tab) — simpler than the Observation hand-off's obs_escalations
+   detour, because the Mock Drill sheet is NOT read-only from its own
+   page the way the AppSheet-driven Observation sheet is, so there is
+   no need for a separate escalations tab or an upsert-based join.
+   REQUIRES: 'Source Drill ID' column on this CAPA sheet tab, and an
+   'Action Reference' column on the mock_drill sheet tab.
    ═══════════════════════════════════════════════════════════════ */
 
 (function (global) {
@@ -130,6 +145,7 @@
       lane: 'CAPA',
       sourceIncidentId: '',
       sourceObservationCaseId: '', /* Point 2 — set when this ACT record was forwarded directly from an Observation (Raw Risk Score Medium-or-below), not from an Incident. Mutually exclusive with sourceIncidentId in practice. */
+      sourceDrillId: '', /* Rev.04 — set when this ACT record was forwarded from the Mock Drill Register's "Escalate to Action" button. Mutually exclusive with sourceIncidentId/sourceObservationCaseId in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -316,7 +332,9 @@
   function actionFormHtml() {
     var fromHint = state.sourceIncidentId
       ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Incident <strong>' + esc(state.sourceIncidentId) + '</strong> — RA Level Low/Moderate, so this stays a plain Action: no root cause analysis, no approval gate.</div>'
-      : '';
+      : (state.sourceDrillId
+        ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Mock Drill <strong>' + esc(state.sourceDrillId) + '</strong> — a plain Action: no root cause analysis, no approval gate.</div>'
+        : '');
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -927,6 +945,7 @@
       'Type': 'Action',
       'Source Incident ID': state.sourceIncidentId || '',
       'Source Observation Case ID': state.sourceObservationCaseId || '',
+      'Source Drill ID': state.sourceDrillId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
@@ -1101,6 +1120,27 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.04 (Issam, 2026-10-12) — closes the loop back to the Mock
+     Drill Register, same fire-and-forget reasoning as
+     notifySourceObservation/notifySourceIncident above: the Action
+     record itself is already safely saved either way, and this just
+     writes the durable "Action Reference" the drill row's own toolbar
+     button reads to show its "✓ Escalated → ACT-…" state. Unlike
+     notifySourceObservation, this writes DIRECTLY onto the mock_drill
+     tab's own row — no separate escalations tab and no upsert needed,
+     because (unlike the AppSheet-driven Observation sheet) the Mock
+     Drill sheet is this app's own, already-writable data, so the row
+     is guaranteed to already exist. Only fires on first save (see
+     afterAssignId in persistAction below) — the reference is assigned
+     once, at creation, never changes on a later resume. */
+  function notifySourceDrill() {
+    if (!state.sourceDrillId) return;
+    fetch(SHEETS_URL + '?action=update&tab=mock_drill&idCol=' + encodeURIComponent('Drill ID') + '&id=' + encodeURIComponent(state.sourceDrillId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* ── Save for the lightweight Action lane — one write, no steps ── */
   function persistAction() {
     if (saving) return;
@@ -1124,6 +1164,7 @@
           if (result && result.status === 'ok') {
             notifySourceIncident();
             notifySourceObservation();
+            notifySourceDrill();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
@@ -1421,6 +1462,7 @@
     state.status = col('Status') || 'Open';
     state.sourceIncidentId = col('Source Incident ID');
     state.sourceObservationCaseId = col('Source Observation Case ID');
+    state.sourceDrillId = col('Source Drill ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2138,6 +2180,27 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.04 (Issam, 2026-10-12) — Mock Drill Register hand-off
+     (mock-drill-register.html's "⚡ Escalate to Action" button). Same
+     lightweight-Action shape as openFromObservation just above — no
+     RCA/approval ceremony, no risk-score gating (the Mock Drill
+     Register deliberately carries no risk-assessment field of its
+     own — risk assessment already lives on the CAPA/Observation side,
+     by Issam's earlier explicit decision) — but records provenance in
+     sourceDrillId instead, and tags Source as 'Mock Drill' so the
+     record's origin is visible at a glance. */
+  function openFromDrill(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceDrillId = ctx.drillId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Mock Drill';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -2203,6 +2266,23 @@
         loadUserDirectory(function () { openFromObservation(obsCtx); });
       } else {
         loadUserDirectory(function () { openFromObservation({ caseId: fromObservation }); });
+      }
+      return;
+    }
+
+    /* Rev.04 — Mock Drill Register hand-off —
+       action-register.html?fromDrill=MD-2026-0XX&lane=ACT, opened by
+       mock-drill-register.html's "⚡ Escalate to Action" button. Same
+       sessionStorage-plus-URL-verification pattern as the Incident and
+       Observation hand-offs above. */
+    var fromDrill = params.get('fromDrill');
+    if (fromDrill) {
+      var drillCtx = null;
+      try { drillCtx = JSON.parse(sessionStorage.getItem('incomingDrillContext') || 'null'); } catch (e) { drillCtx = null; }
+      if (drillCtx && String(drillCtx.drillId) === String(fromDrill)) {
+        loadUserDirectory(function () { openFromDrill(drillCtx); });
+      } else {
+        loadUserDirectory(function () { openFromDrill({ drillId: fromDrill }); });
       }
     }
   }
