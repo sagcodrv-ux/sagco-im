@@ -700,10 +700,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         reader.onerror = function(){ failed++; resolve(); };
         reader.onload = function(ev){
           var b64 = ev.target.result.split(',')[1];
+          // Assemble the pipe-joined caption from the item's separate
+          // Date/Time/Location/Description boxes, in the exact order
+          // REPEATER_FIELDS['Photos'] / parsePhotoLines() expect —
+          // matching the wizard's own storage format, so a photo
+          // captioned here reads back correctly as proper Photo
+          // blocks on the Edit wizard and the printed SST-FRM-40.
+          var subFields = REPEATER_FIELDS['Photos'].subFields;
+          var parts = item.parts || {};
+          var caption = subFields.some(function(sf){ return String(parts[sf.key]||'').trim(); })
+            ? subFields.map(function(sf){ return String(parts[sf.key]||'').trim(); }).join(' | ')
+            : '';
           fetch(SHEETS_URL, { method:'POST', body: JSON.stringify({
             action:'uploadFilePicker', docId: idVal, username: currentUsername(),
             fileName: item.file.name, mimeType: item.file.type || 'image/jpeg', b64: b64,
-            caption: item.caption || ''
+            caption: caption
           }) }).then(function(r){ return r.json(); })
             .then(function(res){ if (res && res.ok) uploaded++; else failed++; resolve(); })
             .catch(function(){ failed++; resolve(); });
@@ -720,23 +731,42 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // selected photo gets its own caption box first, and only the
   // "Upload" button actually sends them.
   var _photoModalStaged = [];
+  // Each staged photo's caption is entered as separate plain boxes —
+  // the exact same Date/Time/Location/Description sub-fields, in the
+  // same order, as REPEATER_FIELDS['Photos'] uses in the wizard — so
+  // no one has to type the pipe symbol here either. The pipe-joined
+  // string is assembled only at upload time, from item.parts, right
+  // before it's sent as the file's caption/Revision Note.
   function renderPhotoStagingList(){
     var listEl = document.getElementById('md-photo-staging-list');
     var uploadBtn = document.getElementById('md-photo-upload-btn');
     if (!listEl) return;
     if (!_photoModalStaged.length){ listEl.innerHTML = ''; if (uploadBtn) uploadBtn.style.display = 'none'; return; }
     if (uploadBtn) uploadBtn.style.display = '';
+    var subFields = REPEATER_FIELDS['Photos'].subFields;
     listEl.innerHTML = _photoModalStaged.map(function(item, i){
-      return '<div class="md-field" style="margin-bottom:8px">' +
-        '<label style="display:flex;justify-content:space-between;align-items:center">' +
+      var subInputsHtml = subFields.map(function(sf){
+        var val = String((item.parts||{})[sf.key] || '').replace(/"/g,'&quot;');
+        return '<div class="md-repeater-subfield">' +
+          '<label style="font-size:10px;opacity:.75">'+sf.label+'</label>' +
+          '<input type="'+sf.type+'" data-staged-caption="'+i+'" data-staged-key="'+sf.key+'" value="'+val+'">' +
+        '</div>';
+      }).join('');
+      return '<div class="md-field" style="border:1px solid var(--mdw-border,#444);border-radius:6px;padding:8px;margin-bottom:8px">' +
+        '<label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
           '<span>'+String(item.file.name).replace(/</g,'&lt;')+'</span>' +
           '<span style="cursor:pointer;color:var(--mdw-red);font-weight:700" onclick="MD.removeStagedPhoto('+i+')">✕</span>' +
         '</label>' +
-        '<input type="text" placeholder="Date | Time | Location | Description" data-staged-caption="'+i+'" value="'+String(item.caption||'').replace(/"/g,'&quot;')+'">' +
+        '<div class="md-repeater-subgrid" style="display:grid;grid-template-columns:repeat('+subFields.length+',1fr);gap:6px">' + subInputsHtml + '</div>' +
       '</div>';
     }).join('');
     listEl.querySelectorAll('[data-staged-caption]').forEach(function(inp){
-      inp.addEventListener('input', function(){ _photoModalStaged[inp.getAttribute('data-staged-caption')].caption = inp.value; });
+      inp.addEventListener('input', function(){
+        var i = inp.getAttribute('data-staged-caption');
+        var key = inp.getAttribute('data-staged-key');
+        if (!_photoModalStaged[i].parts) _photoModalStaged[i].parts = {};
+        _photoModalStaged[i].parts[key] = inp.value;
+      });
     });
     if (uploadBtn) uploadBtn.textContent = 'Upload ' + _photoModalStaged.length + ' photo' + (_photoModalStaged.length>1?'s':'');
   }
@@ -761,7 +791,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var fi = document.getElementById('md-photo-input');
       fi.addEventListener('change', function(){
         var files = Array.from(fi.files||[]);
-        files.forEach(function(file){ _photoModalStaged.push({ file: file, caption: '' }); });
+        files.forEach(function(file){ _photoModalStaged.push({ file: file, parts: {} }); });
         fi.value = '';
         renderPhotoStagingList();
       });
@@ -795,15 +825,26 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // an actual upload or delete (never on merely opening the 📷
   // modal), so drills that only ever had typed text and no real
   // uploads are left completely untouched.
-  function syncPhotosFieldFromDrive(idVal){
-    fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(idVal))
+  // Fetches the real list of uploaded Drive files for this drill and
+  // builds the Photos TEXT (one caption per line) they should produce
+  // — the single source of truth both syncPhotosFieldFromDrive (write
+  // path, after upload/delete) and openEdit (read path, when the
+  // wizard opens) use, so neither can drift from what's really in
+  // Drive.
+  function fetchPhotosTextFromDrive(idVal){
+    return fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(idVal))
       .then(function(r){ return r.json(); })
       .then(function(res){
         var files = (res && res.files) || [];
-        var text = files
+        return files
           .map(function(f){ return String(f.revNote || '').trim(); })
           .filter(function(line){ return line; })
           .join('\n');
+      });
+  }
+  function syncPhotosFieldFromDrive(idVal){
+    fetchPhotosTextFromDrive(idVal)
+      .then(function(text){
         var cfg = TABLES['register'];
         return postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, {'Photos': text});
       })
@@ -1125,16 +1166,33 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (!row) return alert('Record not found — try refreshing.');
       var initial = {};
       data.headers.forEach(function(h,i){ initial[h] = row[i]; });
-      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
-        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
-          if (res && res.status === 'error'){
-            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
-            if (window._mdReenableModalSave) window._mdReenableModalSave();
-            return;
-          }
-          close(); reloadAll();
-        }).catch(function(){ alert('Could not save — check your connection.'); if (window._mdReenableModalSave) window._mdReenableModalSave(); });
-      });
+      var openIt = function(){
+        showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+          postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+            if (res && res.status === 'error'){
+              alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+              if (window._mdReenableModalSave) window._mdReenableModalSave();
+              return;
+            }
+            close(); reloadAll();
+          }).catch(function(){ alert('Could not save — check your connection.'); if (window._mdReenableModalSave) window._mdReenableModalSave(); });
+        });
+      };
+      // Before opening the wizard, refresh the Photos field from the
+      // REAL files sitting in Drive right now — not just whatever was
+      // last written to the sheet. This is what makes photos uploaded
+      // through the standalone 📷 modal (including ones uploaded
+      // before auto-sync existed) show up as proper Photo blocks here,
+      // instead of the wizard showing an empty Photos section while
+      // Drive actually holds several photos. If the fetch fails for
+      // any reason, fall back silently to whatever was already stored.
+      if (cfg.fields.indexOf('Photos') > -1){
+        fetchPhotosTextFromDrive(idVal)
+          .then(function(liveText){ initial['Photos'] = liveText; openIt(); })
+          .catch(function(){ openIt(); });
+      } else {
+        openIt();
+      }
     },
     printDrill: function(idVal){
       if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
