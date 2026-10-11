@@ -67,10 +67,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 </head><body><div class="md-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div><div class="req-text">ISO 45001 §8.2 — Minimum 2 drills per year: at least one full-site evacuation drill plus one scenario-specific drill. Every drill is documented on SST-FRM-40 (Rev.1, effective 12 Dec 2024), with deficiencies and corrective actions tracked to close-out. This register is the digital record of that form.</div>
 
 <div class="sec-banner">MOCK DRILL QUICK STATUS</div>
-<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
   <div class="kpi-card kc-nvy md-clickable" onclick="MD.cardClick('total')" title="Click to view the Mock Drill Register"><div class="kpi-lbl">Total Drills</div><div class="kpi-val" id="md-kpi-total">—</div><div class="kpi-sub">Mock Drill Register</div></div>
   <div class="kpi-card kc-blue md-clickable" onclick="MD.cardClick('total')" title="Click to view this year's drills"><div class="kpi-lbl">This Year's Drills</div><div class="kpi-val" id="md-kpi-year">—</div><div class="kpi-sub" id="md-kpi-year-sub">Loading…</div></div>
-  <div class="kpi-card kc-amb"><div class="kpi-lbl">Scenarios Covered</div><div class="kpi-val" id="md-kpi-scenarios">—</div><div class="kpi-sub" id="md-kpi-scenarios-sub">of 7 official scenarios</div></div>
   <div class="kpi-card kc-red md-clickable" onclick="MD.cardClick('openactions')" title="Click to view drills with open corrective actions"><div class="kpi-lbl">Open Corrective Actions</div><div class="kpi-val" id="md-kpi-open">—</div><div class="kpi-sub">Drills not yet Closed</div></div>
 </div>
 
@@ -198,7 +197,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
                'Scenario Description','Time of Declaration','First Responder Response Time',
                'Alarm Sounded','Assembled at Point','Ambulance/Medical Called',
                'Finish Time','Total Time Elapsed','Previous Total Time','Production Lines Affected',
-               'Deficiency Observed','Corrective Actions','Remarks',
+               'Deficiency Observed','Corrective Actions','Photos','Attachments','Remarks',
                'Observer(s)','HSE In Charge','Status'],
       selectFields: {
         'Emergency Situation': SCENARIOS,
@@ -209,7 +208,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // Multi-line by nature on the real paper form — a scenario
       // narrative, a deficiency write-up, a list of corrective actions,
       // or a per-photo log can't realistically be one line.
-      textareaFields: ['Scenario Description','Deficiency Observed','Corrective Actions','Remarks'],
+      textareaFields: ['Scenario Description','Deficiency Observed','Corrective Actions','Photos','Remarks'],
       filterField: 'Emergency Situation'
     }
   };
@@ -281,29 +280,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     toolbarHtml += '<button class="md-btn" id="md-tb-photos-'+tKeyName+'"'+disabledAttr+' onclick="MD.managePhotos(MD.getSelected(\''+tKeyName+'\'))">📷 Photos</button>';
     if (can('edit')) toolbarHtml += '<button class="md-btn" id="md-tb-edit-'+tKeyName+'"'+disabledAttr+' onclick="MD.openEdit(\''+tKeyName+'\', MD.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
     if (can('delete')) toolbarHtml += '<button class="md-btn" id="md-tb-remove-'+tKeyName+'"'+disabledAttr+' onclick="MD.remove(\''+tKeyName+'\', MD.getSelected(\''+tKeyName+'\'))">🗑️ Remove</button>';
-    // Escalate to Action — same hand-off pattern as the Observation
-    // Register's own "Forward to Action Register" (observations-
-    // register.html's escalate()): this button never writes anything
-    // itself. It stores context in sessionStorage and opens
-    // action-register.html in a new tab, which is the ONLY place that
-    // actually creates the Action record and — only once that record
-    // is really saved — writes the "Action Reference" back onto this
-    // drill row (see capa-wizard.js's notifySourceDrill(), called from
-    // persistAction()). If the person opens that tab and cancels, or
-    // just closes it, this button stays exactly as it was — nothing
-    // gets stuck half-escalated. Requires an "Action Reference" column
-    // on the live mock_drill sheet tab (same requirement capa-wizard.js
-    // already documents for 'Source Incident ID'/'Source Observation
-    // Case ID' — see its own header comment); until that column
-    // exists, every row just reads as not-yet-escalated.
-    if (tKeyName === 'register'){
-      var selActionRef = sel ? getFieldForId(tKeyName, sel, 'Action Reference') : '';
-      if (sel && selActionRef){
-        toolbarHtml += '<span class="md-btn" style="opacity:.75;cursor:default;background:var(--mdw-bg3)" title="Already escalated — see the Action Register">✓ Escalated → '+String(selActionRef).replace(/</g,'&lt;')+'</span>';
-      } else {
-        toolbarHtml += '<button class="md-btn" id="md-tb-escalate-'+tKeyName+'"'+disabledAttr+' onclick="MD.escalateToAction(MD.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
-      }
-    }
 
     var categoryHtml = '';
     if (cfg.filterField){
@@ -334,21 +310,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       '</div>' +
       '<div class="md-table-area" id="md-table-area-'+tKeyName+'"></div>';
     renderTableArea(tKeyName);
-  }
-
-  // Looks up one field's current value for a given row ID, straight
-  // from the already-loaded table cache — used by the Escalate button
-  // to check whether this drill already has an Action Reference,
-  // without a separate network round-trip.
-  function getFieldForId(tKeyName, idVal, fieldName){
-    var data = _cache[tKeyName];
-    var cfg = TABLES[tKeyName];
-    if (!data || !data.headers) return '';
-    var idIdx = colIdx(data.headers, cfg.idCol);
-    var fIdx = colIdx(data.headers, fieldName);
-    if (idIdx < 0 || fIdx < 0) return '';
-    var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
-    return row ? String(row[fIdx]||'').trim() : '';
   }
 
   function hasOpenActions(row, headers){
@@ -439,8 +400,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             '<div class="md-detail-grid">' + detailFields.map(function(f){
               var fi = colIdx(data.headers, f);
               var val = fi>=0 ? row[fi] : '';
-              var valHtml = (f === 'Photos') ? formatPhotosDisplay(val) : formatCell(val);
-              return '<div class="md-detail-item"><span class="md-detail-lbl">'+f+'</span><span class="md-detail-val">'+valHtml+'</span></div>';
+              return '<div class="md-detail-item"><span class="md-detail-lbl">'+f+'</span><span class="md-detail-val">'+formatCell(val)+'</span></div>';
             }).join('') +
             '</div></td></tr>';
         }
@@ -499,13 +459,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('md-kpi-year-sub').textContent = 'Commitment: 2 drills / year';
 
     var scenIdx = colIdx(reg.headers, 'Emergency Situation');
-    var covered = {};
-    visibleRows.forEach(function(r){
-      var s = scenIdx>=0 ? String(r[scenIdx]||'').trim() : '';
-      if (s) covered[s] = true;
-    });
-    var coveredCount = Object.keys(covered).length;
-    document.getElementById('md-kpi-scenarios').textContent = coveredCount + ' of ' + SCENARIOS.length;
 
     var openCount = visibleRows.filter(function(r){ return hasOpenActions(r, reg.headers); }).length;
     document.getElementById('md-kpi-open').textContent = openCount;
@@ -560,87 +513,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
      textareaFields, since several of this form's fields are
      inherently multi-line (a scenario narrative, a deficiency
      write-up) in a way PTW's own fields weren't. ─────────────────── */
-  // Repeater field definitions: fields whose storage format is a
-  // pipe-joined line (for parseActionLines / parsePhotoLines / the
-  // printed SST-FRM-40 table) but whose DATA ENTRY should never
-  // expose that pipe symbol to the person typing. Each sub-input is
-  // its own plain box; the pipe-joined string is assembled only at
-  // Save time, from these boxes, in the same column order the
-  // existing parsers already expect — so storage and printing are
-  // completely unchanged.
-  var REPEATER_FIELDS = {
-    'Corrective Actions': { itemLabel: 'Corrective Action', subFields: [
-      { key:'rec', label:'Recommendation', type:'text' },
-      { key:'resp', label:'Responsibility', type:'text' },
-      { key:'date', label:'Date', type:'date' }
-    ]},
-    'Photos': { itemLabel: 'Photo', subFields: [
-      { key:'date', label:'Date', type:'date' },
-      { key:'time', label:'Time', type:'text' },
-      { key:'loc', label:'Location', type:'text' },
-      { key:'desc', label:'Description', type:'text' }
-    ]}
-  };
-  function parseRepeaterValue(fieldName, text){
-    var def = REPEATER_FIELDS[fieldName];
-    var lines = String(text||'').split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
-    return lines.map(function(l){
-      var parts = l.split('|').map(function(p){ return p.trim(); });
-      var item = {};
-      def.subFields.forEach(function(sf, i){ item[sf.key] = parts[i] || ''; });
-      return item;
-    });
-  }
-  function renderRepeaterGroup(fieldName, items){
-    var def = REPEATER_FIELDS[fieldName];
-    if (!items.length) items = [{}];
-    return items.map(function(item, i){
-      var subInputsHtml = def.subFields.map(function(sf){
-        var val = String(item[sf.key] || '').replace(/"/g,'&quot;');
-        return '<div class="md-repeater-subfield">' +
-          '<label style="font-size:10px;opacity:.75">'+sf.label+'</label>' +
-          '<input type="'+sf.type+'" data-repeater="'+fieldName+'" data-repeater-row="'+i+'" data-repeater-key="'+sf.key+'" value="'+val+'">' +
-        '</div>';
-      }).join('');
-      return '<div class="md-repeater-row" data-repeater-row-wrap="'+fieldName+':'+i+'" style="border:1px solid var(--mdw-border,#444);border-radius:6px;padding:8px;margin-bottom:6px;position:relative">' +
-        '<span style="position:absolute;top:4px;right:8px;cursor:pointer;color:var(--mdw-red);font-weight:700" onclick="MD.removeRepeaterRow(\''+fieldName+'\','+i+')">✕</span>' +
-        '<div class="md-repeater-subgrid" style="display:grid;grid-template-columns:repeat('+def.subFields.length+',1fr);gap:6px">' + subInputsHtml + '</div>' +
-      '</div>';
-    }).join('') +
-    '<button type="button" class="md-btn md-btn-cancel" style="font-size:11px;padding:4px 10px" onclick="MD.addRepeaterRow(\''+fieldName+'\')">+ Add another '+def.itemLabel+'</button>';
-  }
-  var _repeaterState = {};
-  function refreshRepeaterGroup(fieldName){
-    var wrap = document.getElementById('md-repeater-wrap-' + fieldName.replace(/[^a-zA-Z0-9]/g,'_'));
-    if (!wrap) return;
-    wrap.innerHTML = renderRepeaterGroup(fieldName, _repeaterState[fieldName]);
-    wireRepeaterInputs(fieldName);
-  }
-  function wireRepeaterInputs(fieldName){
-    document.querySelectorAll('[data-repeater="'+fieldName+'"]').forEach(function(inp){
-      inp.addEventListener('input', function(){
-        var row = +inp.getAttribute('data-repeater-row');
-        var key = inp.getAttribute('data-repeater-key');
-        if (!_repeaterState[fieldName][row]) _repeaterState[fieldName][row] = {};
-        _repeaterState[fieldName][row][key] = inp.value;
-      });
-    });
-  }
   function showModal(tKeyName, title, fields, initialValues, onSubmit){
     var root = document.getElementById('md-modal-root');
     var cfg = TABLES[tKeyName];
     var selFields = cfg.selectFields || {};
     var taFields = cfg.textareaFields || [];
-    _repeaterState = {};
     var fieldsHtml = fields.map(function(f, fi){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
-      if (REPEATER_FIELDS[f]){
-        _repeaterState[f] = parseRepeaterValue(f, v);
-        var safeId = f.replace(/[^a-zA-Z0-9]/g,'_');
-        return '<div class="md-field"><label>'+f+'</label>' +
-          '<div id="md-repeater-wrap-'+safeId+'">'+renderRepeaterGroup(f, _repeaterState[f])+'</div></div>';
-      }
       if (selFields[f]){
         var optsHtml = '<option value=""></option>' + selFields[f].map(function(o){
           return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
@@ -648,7 +528,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         return '<div class="md-field"><label>'+f+'</label><select data-field="'+f+'">'+optsHtml+'</select></div>';
       }
       if (taFields.indexOf(f) > -1){
-        return '<div class="md-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+        var hint = '';
+        if (f === 'Corrective Actions') hint = '<span class="md-hint">One per line: Recommendation | Responsibility | Date</span>';
+        if (f === 'Photos') hint = '<span class="md-hint">One per line: Date | Time | Location | Description (actual image files go via the 📷 Photos button)</span>';
+        return '<div class="md-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea>'+hint+'</div>';
       }
       var isDateField = /date$/i.test(f.trim());
       var inputType = isDateField ? 'date' : 'text';
@@ -664,25 +547,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('md-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('md-modal-bg').onclick = function(e){ if(e.target.id==='md-modal-bg') root.innerHTML=''; };
 
-    Object.keys(REPEATER_FIELDS).forEach(function(f){ if (fields.indexOf(f) > -1) wireRepeaterInputs(f); });
-
     document.getElementById('md-modal-save').onclick = function(){
       var values = {};
       root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
-      // Repeater fields: assemble the pipe-joined storage string from
-      // each row's separate plain boxes, in the same sub-field order
-      // the printed form's parsers already expect. Blank rows (every
-      // box empty) are dropped rather than saved as an empty line.
-      Object.keys(REPEATER_FIELDS).forEach(function(f){
-        if (fields.indexOf(f) === -1) return;
-        var def = REPEATER_FIELDS[f];
-        var rows = (_repeaterState[f] || []).filter(function(item){
-          return def.subFields.some(function(sf){ return String((item||{})[sf.key]||'').trim(); });
-        });
-        values[f] = rows.map(function(item){
-          return def.subFields.map(function(sf){ return String((item||{})[sf.key]||'').trim(); }).join(' | ');
-        }).join('\n');
-      });
       var saveBtn = document.getElementById('md-modal-save');
       saveBtn.disabled = true;
       window._mdReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
@@ -712,113 +579,46 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         }
         var canDel = can('delete');
         gridEl.innerHTML = files.map(function(f){
-          var caption = String(f.revNote || '').trim();
           return '<div class="md-photo-item">' +
             '<a href="'+String(f.webViewLink||'#').replace(/"/g,'&quot;')+'" target="_blank" title="'+String(f.fileName||'').replace(/"/g,'&quot;')+'">' +
               '<img src="'+photoThumbUrl(f.fileId)+'" alt="" loading="lazy"></a>' +
             (canDel ? '<span class="md-photo-del" title="Remove photo" onclick="MD.deletePhoto(\''+idVal+'\',\''+String(f.fileId).replace(/'/g,"\\'")+'\')">✕</span>' : '') +
-            (caption ? '<div class="md-photo-caption" style="font-size:10px;line-height:1.35;margin-top:4px;color:var(--mdw-text)">'+caption.replace(/</g,'&lt;')+'</div>'
-                     : '<div class="md-photo-caption" style="font-size:10px;font-style:italic;margin-top:4px;color:var(--mdw-text-dim)">No caption</div>') +
             '<div class="md-photo-meta">'+String(f.date||f.uploadedDate||'').replace(/</g,'&lt;')+(f.uploadedBy?' · '+String(f.uploadedBy).replace(/</g,'&lt;'):'')+'</div>' +
           '</div>';
         }).join('');
       })
       .catch(function(){ gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:#E06060;font-size:11px">Could not load photos — check your connection.</div>'; });
   }
-  // items: array of {file, caption}. Each photo now carries its own
-  // caption (date/time/location/description, typed at upload time)
-  // through to recordAttachmentInSheet's Revision Note column, so the
-  // gallery can show a real caption under each picture — not just
-  // match them up by upload order against the separate Photos field.
-  function uploadStagedPhotos(items, idVal, done){
+  function uploadStagedPhotos(files, idVal, done){
     var uploaded = 0, failed = 0;
-    function uploadOne(item){
+    function uploadOne(file){
       return new Promise(function(resolve){
         var reader = new FileReader();
         reader.onerror = function(){ failed++; resolve(); };
         reader.onload = function(ev){
           var b64 = ev.target.result.split(',')[1];
-          // Assemble the pipe-joined caption from the item's separate
-          // Date/Time/Location/Description boxes, in the exact order
-          // REPEATER_FIELDS['Photos'] / parsePhotoLines() expect —
-          // matching the wizard's own storage format, so a photo
-          // captioned here reads back correctly as proper Photo
-          // blocks on the Edit wizard and the printed SST-FRM-40.
-          var subFields = REPEATER_FIELDS['Photos'].subFields;
-          var parts = item.parts || {};
-          var caption = subFields.some(function(sf){ return String(parts[sf.key]||'').trim(); })
-            ? subFields.map(function(sf){ return String(parts[sf.key]||'').trim(); }).join(' | ')
-            : '';
           fetch(SHEETS_URL, { method:'POST', body: JSON.stringify({
             action:'uploadFilePicker', docId: idVal, username: currentUsername(),
-            fileName: item.file.name, mimeType: item.file.type || 'image/jpeg', b64: b64,
-            caption: caption
+            fileName: file.name, mimeType: file.type || 'image/jpeg', b64: b64
           }) }).then(function(r){ return r.json(); })
             .then(function(res){ if (res && res.ok) uploaded++; else failed++; resolve(); })
             .catch(function(){ failed++; resolve(); });
         };
-        reader.readAsDataURL(item.file);
+        reader.readAsDataURL(file);
       });
     }
     var chain = Promise.resolve();
-    items.forEach(function(item){ chain = chain.then(function(){ return uploadOne(item); }); });
+    files.forEach(function(file){ chain = chain.then(function(){ return uploadOne(file); }); });
     chain.then(function(){ done(uploaded, failed); });
-  }
-  // Staged-but-not-yet-uploaded photos for the currently open 📷
-  // Photos modal: picking files no longer uploads immediately — each
-  // selected photo gets its own caption box first, and only the
-  // "Upload" button actually sends them.
-  var _photoModalStaged = [];
-  // Each staged photo's caption is entered as separate plain boxes —
-  // the exact same Date/Time/Location/Description sub-fields, in the
-  // same order, as REPEATER_FIELDS['Photos'] uses in the wizard — so
-  // no one has to type the pipe symbol here either. The pipe-joined
-  // string is assembled only at upload time, from item.parts, right
-  // before it's sent as the file's caption/Revision Note.
-  function renderPhotoStagingList(){
-    var listEl = document.getElementById('md-photo-staging-list');
-    var uploadBtn = document.getElementById('md-photo-upload-btn');
-    if (!listEl) return;
-    if (!_photoModalStaged.length){ listEl.innerHTML = ''; if (uploadBtn) uploadBtn.style.display = 'none'; return; }
-    if (uploadBtn) uploadBtn.style.display = '';
-    var subFields = REPEATER_FIELDS['Photos'].subFields;
-    listEl.innerHTML = _photoModalStaged.map(function(item, i){
-      var subInputsHtml = subFields.map(function(sf){
-        var val = String((item.parts||{})[sf.key] || '').replace(/"/g,'&quot;');
-        return '<div class="md-repeater-subfield">' +
-          '<label style="font-size:10px;opacity:.75">'+sf.label+'</label>' +
-          '<input type="'+sf.type+'" data-staged-caption="'+i+'" data-staged-key="'+sf.key+'" value="'+val+'">' +
-        '</div>';
-      }).join('');
-      return '<div class="md-field" style="border:1px solid var(--mdw-border,#444);border-radius:6px;padding:8px;margin-bottom:8px">' +
-        '<label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
-          '<span>'+String(item.file.name).replace(/</g,'&lt;')+'</span>' +
-          '<span style="cursor:pointer;color:var(--mdw-red);font-weight:700" onclick="MD.removeStagedPhoto('+i+')">✕</span>' +
-        '</label>' +
-        '<div class="md-repeater-subgrid" style="display:grid;grid-template-columns:repeat('+subFields.length+',1fr);gap:6px">' + subInputsHtml + '</div>' +
-      '</div>';
-    }).join('');
-    listEl.querySelectorAll('[data-staged-caption]').forEach(function(inp){
-      inp.addEventListener('input', function(){
-        var i = inp.getAttribute('data-staged-caption');
-        var key = inp.getAttribute('data-staged-key');
-        if (!_photoModalStaged[i].parts) _photoModalStaged[i].parts = {};
-        _photoModalStaged[i].parts[key] = inp.value;
-      });
-    });
-    if (uploadBtn) uploadBtn.textContent = 'Upload ' + _photoModalStaged.length + ' photo' + (_photoModalStaged.length>1?'s':'');
   }
   function managePhotosModal(idVal){
     var root = document.getElementById('md-modal-root');
     var canUpload = can('edit');
-    _photoModalStaged = [];
     root.innerHTML = '<div class="md-modal-bg" id="md-photo-modal-bg"><div class="md-modal" style="width:560px">' +
       '<h3>📷 Photos — ' + String(idVal).replace(/</g,'&lt;') + '</h3>' +
-      (canUpload ? '<div class="md-field"><label>Add Photos <span style="font-weight:400;opacity:.7">(select one or more, JPG/PNG — a caption box appears for each)</span></label>' +
-        '<input type="file" id="md-photo-input" accept="image/*" multiple></div>' +
-        '<div id="md-photo-staging-list"></div>' +
-        '<button class="md-btn md-btn-add" id="md-photo-upload-btn" style="display:none;margin-bottom:10px">Upload</button>' +
-        '<div id="md-photo-upload-status" style="font-size:10px;margin-bottom:6px;min-height:14px"></div>' : '') +
+      (canUpload ? '<div class="md-field"><label>Add Photos <span style="font-weight:400;opacity:.7">(select one or more, JPG/PNG)</span></label>' +
+        '<input type="file" id="md-photo-input" accept="image/*" multiple>' +
+        '<div id="md-photo-upload-status" style="font-size:10px;margin-top:6px;min-height:14px"></div></div>' : '') +
       '<div id="md-photo-grid" class="md-photo-grid"></div>' +
       '<div class="md-modal-actions"><button class="md-btn md-btn-cancel" id="md-photo-close">Close</button></div>' +
     '</div></div>';
@@ -829,65 +629,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var fi = document.getElementById('md-photo-input');
       fi.addEventListener('change', function(){
         var files = Array.from(fi.files||[]);
-        files.forEach(function(file){ _photoModalStaged.push({ file: file, parts: {} }); });
-        fi.value = '';
-        renderPhotoStagingList();
-      });
-      document.getElementById('md-photo-upload-btn').onclick = function(){
-        if (!_photoModalStaged.length) return;
+        if (!files.length) return;
         var statusEl = document.getElementById('md-photo-upload-status');
-        var uploadBtn = document.getElementById('md-photo-upload-btn');
-        uploadBtn.disabled = true; fi.disabled = true;
-        if (statusEl) statusEl.textContent = 'Uploading ' + _photoModalStaged.length + ' photo(s)…';
-        uploadStagedPhotos(_photoModalStaged, idVal, function(done, failed){
-          uploadBtn.disabled = false; fi.disabled = false;
+        fi.disabled = true;
+        if (statusEl) statusEl.textContent = 'Uploading ' + files.length + ' photo(s)…';
+        uploadStagedPhotos(files, idVal, function(done, failed){
+          fi.disabled = false; fi.value = '';
           if (statusEl){ statusEl.textContent = done+' uploaded'+(failed?', '+failed+' failed':'')+'.'; statusEl.style.color = failed ? '#E06060' : '#6FCF97'; }
-          _photoModalStaged = [];
-          renderPhotoStagingList();
           loadAndRenderPhotoGrid(idVal);
-          if (done > 0) syncPhotosFieldFromDrive(idVal);
         });
-      };
+      });
     }
   }
 
   function postJSON(action, params, body){
     var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
     return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
-  }
-
-  // Rebuilds the Photos TEXT field from the real uploaded photos (and
-  // their captions) and saves it back to the register row, so the
-  // typed field is never a separate thing to maintain by hand — it's
-  // just a mirror of whatever is really uploaded. Called only after
-  // an actual upload or delete (never on merely opening the 📷
-  // modal), so drills that only ever had typed text and no real
-  // uploads are left completely untouched.
-  // Fetches the real list of uploaded Drive files for this drill and
-  // builds the Photos TEXT (one caption per line) they should produce
-  // — the single source of truth both syncPhotosFieldFromDrive (write
-  // path, after upload/delete) and openEdit (read path, when the
-  // wizard opens) use, so neither can drift from what's really in
-  // Drive.
-  function fetchPhotosTextFromDrive(idVal){
-    return fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(idVal))
-      .then(function(r){ return r.json(); })
-      .then(function(res){
-        var files = (res && res.files) || [];
-        return files
-          .map(function(f){ return String(f.revNote || '').trim(); })
-          .filter(function(line){ return line; })
-          .join('\n');
-      });
-  }
-  function syncPhotosFieldFromDrive(idVal){
-    fetchPhotosTextFromDrive(idVal)
-      .then(function(text){
-        var cfg = TABLES['register'];
-        return postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, {'Photos': text});
-      })
-      .then(function(){ reloadAll(); })
-      .catch(function(){ /* grid already reflects reality; field sync will retry on the next upload/delete */ });
   }
 
   // ── SST-FRM-40 print template — built field-for-field from the real
@@ -923,49 +680,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
     return rows;
   }
-  // Parses "Date | Time | Location | Description" lines into photo
-  // blocks matching the form's own Photo #1, #2... layout. Raised
-  // from 4 to 20 so a drill with more than 4 real photos (e.g. MD-006
-  // with 6) no longer gets silently truncated on the printed SST-FRM-40.
+  // Parses "Date | Time | Location | Description" lines into up to 4
+  // photo blocks matching the form's own Photo #1–#4 layout.
   function parsePhotoLines(text){
     var lines = String(text||'').split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
-    return lines.slice(0,20).map(function(l){
+    return lines.slice(0,4).map(function(l){
       var parts = l.split('|').map(function(p){ return p.trim(); });
       return { date: parts[0]||'', time: parts[1]||'', loc: parts[2]||'', desc: parts[3]||'' };
     });
   }
-  // Renders the Photos field for on-screen viewing (the expanded row
-  // detail panel) as a numbered, labeled list — "Photo 1 — <date>,
-  // <time>, <location>: <description>" — instead of dumping the raw
-  // "Date | Time | Location | Description" text as one unlabeled
-  // blob. The stored format is unchanged (still pipe-separated lines,
-  // still what parsePhotoLines() above reads for the printed form);
-  // only how it's displayed on this page changes, so no data needs
-  // to be rewritten for this to take effect.
-  function formatPhotosDisplay(text){
-    var lines = String(text||'').split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
-    if (!lines.length) return '<span class="muted">—</span>';
-    return '<div class="md-photo-list">' + lines.map(function(l, i){
-      var parts = l.split('|').map(function(p){ return p.trim(); });
-      var date = parts[0]||'', time = parts[1]||'', loc = parts[2]||'', desc = parts[3]||'';
-      var when = [date, time, loc].filter(Boolean).join(', ');
-      return '<div class="md-photo-item" style="margin-bottom:6px">' +
-        '<span style="color:var(--mdw-gold-lt);font-weight:700">Photo ' + (i+1) + '</span>' +
-        (when ? ' — <span style="opacity:.85">' + pfEsc(when) + '</span>' : '') +
-        (desc ? ': ' + pfEsc(desc) : '') +
-        '</div>';
-    }).join('') + '</div>';
-  }
 
-  // photoFiles (optional): the real uploaded Drive images for this
-  // drill, from listDocumentFiles — each with its own caption (the
-  // Revision Note field, set at upload time). When present, the
-  // printed form embeds the actual photo next to its real caption,
-  // instead of only the typed Photos text field. Falls back to the
-  // old text-only blocks (no images) when a drill has no uploaded
-  // photos yet, or none of image type — so older drills still print
-  // exactly as before.
-  function buildDrillPrintHtml(rec, photoFiles){
+  function buildDrillPrintHtml(rec){
     var scenario = rec['Emergency Situation'] || '';
     var scenRow1 = ['Fire','Glass leak','Emergency evacuation','Medical emergency'];
     var scenRow2 = ['Severe weather','Chemical spillage','Power shortage'];
@@ -977,41 +702,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       return '<tr><td style="width:24px;text-align:center">'+(i+1)+'</td><td>'+pfEsc(a.rec)+'</td><td>'+pfEsc(a.resp)+'</td><td>'+pfEsc(a.date)+'</td></tr>';
     }).join('');
 
-    var textBlocks = parsePhotoLines(rec['Photos']);
-    var images = (photoFiles || []).filter(function(f){ return /^image\//i.test(f.mimeType||''); });
-
-    var photoHtml;
-    if (images.length){
-      photoHtml = images.map(function(f, i){
-        // A caption typed at upload time (the new way) wins. If this
-        // photo was uploaded before that existed and has no caption
-        // of its own, fall back to the i-th line of the old typed
-        // Photos text field, purely by position, same as the on-screen
-        // gallery does — better than showing nothing.
-        var caption = String(f.revNote||'').trim();
-        var fallback = textBlocks[i];
-        var line = caption || (fallback ? [fallback.date, fallback.time, fallback.loc].filter(Boolean).join(', ') + (fallback.desc ? ': '+fallback.desc : '') : '');
-        var parts = line.split('|').map(function(p){ return p.trim(); });
-        // Caption may be the raw "Date | Time | Location | Description"
-        // pipe format (typed at upload) or already the joined fallback
-        // string above — render whichever it is as one readable line.
-        var captionDisplay = parts.length > 1 ? parts.join(', ') : line;
-        return '<div class="pf-photo-block">' +
-          '<div class="pf-photo-hdr">Photo #'+(i+1)+'</div>' +
-          '<img class="pf-photo-img" src="https://drive.google.com/thumbnail?id='+encodeURIComponent(f.fileId)+'&sz=w800" alt="Photo '+(i+1)+'">' +
-          (captionDisplay ? '<div class="pf-field"><span class="pf-label">Description:</span><span class="pf-value">'+pfEsc(captionDisplay)+'</span></div>'
-                          : '<div class="pf-note">No caption recorded for this photo.</div>') +
-        '</div>';
-      }).join('');
-    } else if (textBlocks.length){
-      photoHtml = textBlocks.map(function(p,i){
-        return '<div class="pf-photo-block"><div class="pf-photo-hdr">Photo #'+(i+1)+'</div>' +
-          '<div class="pf-grid4">'+pfField('Date', p.date)+pfField('Time', p.time)+pfField('Location', p.loc)+'</div>' +
-          '<div class="pf-field"><span class="pf-label">Description:</span><span class="pf-value">'+pfEsc(p.desc)+'</span></div></div>';
-      }).join('');
-    } else {
-      photoHtml = '<div class="pf-note">No photo log entered digitally — see the register\'s 📷 Photos button for uploaded image files.</div>';
-    }
+    var photoBlocks = parsePhotoLines(rec['Photos']);
+    var photoHtml = photoBlocks.length ? photoBlocks.map(function(p,i){
+      return '<div class="pf-photo-block"><div class="pf-photo-hdr">Photo #'+(i+1)+'</div>' +
+        '<div class="pf-grid4">'+pfField('Date', p.date)+pfField('Time', p.time)+pfField('Location', p.loc)+'</div>' +
+        '<div class="pf-field"><span class="pf-label">Description:</span><span class="pf-value">'+pfEsc(p.desc)+'</span></div></div>';
+    }).join('') : '<div class="pf-note">No photo log entered digitally — see the register\'s 📷 Photos button for uploaded image files.</div>';
 
     var printedAt = new Date().toLocaleString();
     var drillId = rec['Drill ID'] || '';
@@ -1047,9 +743,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     + '.pf-action-tbl{width:100%;border-collapse:collapse;font-size:10px;margin-top:4px}'
     + '.pf-action-tbl th,.pf-action-tbl td{border:1px solid #999;padding:4px 6px;text-align:left}'
     + '.pf-action-tbl th{background:#f0f0f0}'
-    + '.pf-photo-block{border:1px dashed #999;padding:6px;margin-bottom:6px;page-break-inside:avoid}'
+    + '.pf-photo-block{border:1px dashed #999;padding:6px;margin-bottom:6px}'
     + '.pf-photo-hdr{font-weight:700;margin-bottom:4px}'
-    + '.pf-photo-img{display:block;max-width:100%;max-height:320px;margin:0 auto 6px;border:1px solid #ccc}'
     + '.pf-footer{margin-top:10px;font-size:9px;color:#666;border-top:1px solid #999;padding-top:6px}'
     + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}}'
     + '</style></head><body>'
@@ -1160,60 +855,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
       managePhotosModal(idVal);
     },
-    removeStagedPhoto: function(i){
-      _photoModalStaged.splice(i, 1);
-      renderPhotoStagingList();
-    },
-    addRepeaterRow: function(fieldName){
-      if (!_repeaterState[fieldName]) _repeaterState[fieldName] = [];
-      _repeaterState[fieldName].push({});
-      refreshRepeaterGroup(fieldName);
-    },
-    removeRepeaterRow: function(fieldName, i){
-      _repeaterState[fieldName].splice(i, 1);
-      if (!_repeaterState[fieldName].length) _repeaterState[fieldName].push({});
-      refreshRepeaterGroup(fieldName);
-    },
     deletePhoto: function(idVal, fileId){
       if (!can('delete')) return;
       if (!confirm('Remove this photo? It will stay in Google Drive but no longer show here.')) return;
       fetch(SHEETS_URL + '?action=deleteAttachment&fileId=' + encodeURIComponent(fileId) + '&docId=' + encodeURIComponent(idVal))
-        .then(function(){ loadAndRenderPhotoGrid(idVal); syncPhotosFieldFromDrive(idVal); })
+        .then(function(){ loadAndRenderPhotoGrid(idVal); })
         .catch(function(){ alert('Could not remove the photo — check your connection.'); });
-    },
-    // Hands off to the real Action Register — never a direct write
-    // from here, mirroring observations-register.html's escalate()
-    // exactly. The context travels via sessionStorage under the same
-    // key naming convention as the Observation hand-off
-    // ('incomingDrillContext', parallel to 'incomingObservationContext'),
-    // and action-register.html's capa-wizard.js reads it back via the
-    // matching openFromDrill() entry point (fromDrill=<id>&lane=ACT in
-    // the URL). The "already escalated" state is written entirely by
-    // the RECEIVING side, only once a real Action is actually saved
-    // (see capa-wizard.js's notifySourceDrill()) — so cancelling that
-    // tab leaves this button exactly as it was, with no way to get
-    // stuck.
-    escalateToAction: function(idVal){
-      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
-      var data = _cache['register'];
-      var idIdx = colIdx(data.headers, 'Drill ID');
-      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
-      if (!row) return alert('Record not found — try refreshing.');
-      var rec = {};
-      data.headers.forEach(function(h,i){ rec[h] = row[i]; });
-      var deficiency = String(rec['Deficiency Observed']||'').trim();
-      var corrective = String(rec['Corrective Actions']||'').trim();
-      var description = deficiency
-        ? ('Deficiency observed during Mock Drill ' + idVal + ': ' + deficiency + (corrective ? '\n\nProposed corrective action:\n' + corrective : ''))
-        : (corrective ? ('Corrective action from Mock Drill ' + idVal + ':\n' + corrective) : ('Follow-up from Mock Drill ' + idVal));
-      var ctx = {
-        drillId: idVal,
-        description: description,
-        location: rec['Area & Location'] || '',
-        date: (rec['Date'] || '').toString().slice(0, 10),
-      };
-      try { sessionStorage.setItem('incomingDrillContext', JSON.stringify(ctx)); } catch(e){}
-      window.open('action-register.html?fromDrill=' + encodeURIComponent(idVal) + '&lane=ACT', '_blank');
     },
     openAdd: function(tKeyName){
       var cfg = TABLES[tKeyName];
@@ -1238,33 +885,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (!row) return alert('Record not found — try refreshing.');
       var initial = {};
       data.headers.forEach(function(h,i){ initial[h] = row[i]; });
-      var openIt = function(){
-        showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
-          postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
-            if (res && res.status === 'error'){
-              alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
-              if (window._mdReenableModalSave) window._mdReenableModalSave();
-              return;
-            }
-            close(); reloadAll();
-          }).catch(function(){ alert('Could not save — check your connection.'); if (window._mdReenableModalSave) window._mdReenableModalSave(); });
-        });
-      };
-      // Before opening the wizard, refresh the Photos field from the
-      // REAL files sitting in Drive right now — not just whatever was
-      // last written to the sheet. This is what makes photos uploaded
-      // through the standalone 📷 modal (including ones uploaded
-      // before auto-sync existed) show up as proper Photo blocks here,
-      // instead of the wizard showing an empty Photos section while
-      // Drive actually holds several photos. If the fetch fails for
-      // any reason, fall back silently to whatever was already stored.
-      if (cfg.fields.indexOf('Photos') > -1){
-        fetchPhotosTextFromDrive(idVal)
-          .then(function(liveText){ initial['Photos'] = liveText; openIt(); })
-          .catch(function(){ openIt(); });
-      } else {
-        openIt();
-      }
+      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+            if (window._mdReenableModalSave) window._mdReenableModalSave();
+            return;
+          }
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._mdReenableModalSave) window._mdReenableModalSave(); });
+      });
     },
     printDrill: function(idVal){
       if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
@@ -1274,24 +904,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (!row) return alert('Record not found — try refreshing.');
       var rec = {};
       data.headers.forEach(function(h,i){ rec[h] = row[i]; });
-      // Opened synchronously (before the fetch below) so browsers don't
-      // treat it as a blocked pop-up — the real content is written into
-      // this same window once the drill's uploaded photos come back.
       var w = window.open('', '_blank');
       if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print the drill report.'); return; }
-      w.document.open(); w.document.write('<p style="font-family:Arial,sans-serif;padding:24px">Loading report…</p>'); w.document.close();
-      fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(idVal))
-        .then(function(r){ return r.json(); })
-        .then(function(res){
-          var files = (res && res.files) || [];
-          w.document.open(); w.document.write(buildDrillPrintHtml(rec, files)); w.document.close();
-        })
-        .catch(function(){
-          // Uploaded photos couldn't be fetched (connection issue) —
-          // still print the report from the typed fields rather than
-          // leaving the window stuck on "Loading…".
-          w.document.open(); w.document.write(buildDrillPrintHtml(rec, [])); w.document.close();
-        });
+      w.document.open(); w.document.write(buildDrillPrintHtml(rec)); w.document.close();
     },
     remove: function(tKeyName, idVal){
       var cfg = TABLES[tKeyName];
