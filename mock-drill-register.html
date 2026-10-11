@@ -401,7 +401,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             '<div class="md-detail-grid">' + detailFields.map(function(f){
               var fi = colIdx(data.headers, f);
               var val = fi>=0 ? row[fi] : '';
-              return '<div class="md-detail-item"><span class="md-detail-lbl">'+f+'</span><span class="md-detail-val">'+formatCell(val)+'</span></div>';
+              var valHtml = (f === 'Photos') ? formatPhotosDisplay(val) : formatCell(val);
+              return '<div class="md-detail-item"><span class="md-detail-lbl">'+f+'</span><span class="md-detail-val">'+valHtml+'</span></div>';
             }).join('') +
             '</div></td></tr>';
         }
@@ -521,11 +522,33 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
      textareaFields, since several of this form's fields are
      inherently multi-line (a scenario narrative, a deficiency
      write-up) in a way PTW's own fields weren't. ─────────────────── */
+  // Photos staged inside the Add/Edit wizard itself (as opposed to
+  // _photoModalStaged, staged in the separate 📷 Photos popup). Kept
+  // as its own array so the two entry points never collide if both
+  // happened to be open in some edge case.
+  var _wizardStagedPhotos = [];
+  function renderWizardPhotoStagingList(){
+    var listEl = document.getElementById('md-wizard-photo-staging-list');
+    if (!listEl) return;
+    listEl.innerHTML = _wizardStagedPhotos.map(function(item, i){
+      return '<div class="md-field" style="margin-bottom:8px">' +
+        '<label style="display:flex;justify-content:space-between;align-items:center">' +
+          '<span>'+String(item.file.name).replace(/</g,'&lt;')+'</span>' +
+          '<span style="cursor:pointer;color:var(--mdw-red);font-weight:700" onclick="MD.removeWizardStagedPhoto('+i+')">✕</span>' +
+        '</label>' +
+        '<input type="text" placeholder="Date | Time | Location | Description" data-wizard-staged-caption="'+i+'" value="'+String(item.caption||'').replace(/"/g,'&quot;')+'">' +
+      '</div>';
+    }).join('');
+    listEl.querySelectorAll('[data-wizard-staged-caption]').forEach(function(inp){
+      inp.addEventListener('input', function(){ _wizardStagedPhotos[inp.getAttribute('data-wizard-staged-caption')].caption = inp.value; });
+    });
+  }
   function showModal(tKeyName, title, fields, initialValues, onSubmit){
     var root = document.getElementById('md-modal-root');
     var cfg = TABLES[tKeyName];
     var selFields = cfg.selectFields || {};
     var taFields = cfg.textareaFields || [];
+    _wizardStagedPhotos = [];
     var fieldsHtml = fields.map(function(f, fi){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
@@ -538,7 +561,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (taFields.indexOf(f) > -1){
         var hint = '';
         if (f === 'Corrective Actions') hint = '<span class="md-hint">One per line: Recommendation | Responsibility | Date</span>';
-        if (f === 'Photos') hint = '<span class="md-hint">One per line: Date | Time | Location | Description (actual image files go via the 📷 Photos button)</span>';
+        if (f === 'Photos') hint = '<span class="md-hint">One per line: Date | Time | Location | Description — shown on screen as "Photo 1 — date, time, location: description", numbered automatically. Actual image files go via the 📷 Photos button.</span>';
         return '<div class="md-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea>'+hint+'</div>';
       }
       var isDateField = /date$/i.test(f.trim());
@@ -546,8 +569,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       return '<div class="md-field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"></div>';
     }).join('');
 
+    // Photo section embedded directly in the wizard — kept to the
+    // register table, since that's the only one this page serves.
+    // Files picked here are only staged (with a caption box each);
+    // they actually upload once Save succeeds and the Drill ID is
+    // known, using the same captioned-upload path as the standalone
+    // 📷 Photos button, so both entry points land in the same place.
+    var photoSectionHtml = (tKeyName === 'register')
+      ? '<div class="md-field"><label>Photos <span style="font-weight:400;opacity:.7">(optional here — can also be added later via the 📷 Photos button)</span></label>' +
+          '<input type="file" id="md-wizard-photo-input" accept="image/*" multiple></div>' +
+          '<div id="md-wizard-photo-staging-list"></div>'
+      : '';
+
     root.innerHTML = '<div class="md-modal-bg" id="md-modal-bg"><div class="md-modal">' +
-      '<h3>'+title+'</h3>' + fieldsHtml +
+      '<h3>'+title+'</h3>' + fieldsHtml + photoSectionHtml +
       '<div id="md-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
       '<div class="md-modal-actions"><button class="md-btn md-btn-cancel" id="md-modal-cancel">Cancel</button>' +
       '<button class="md-btn md-btn-add" id="md-modal-save">Save</button></div></div></div>';
@@ -555,13 +590,41 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('md-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('md-modal-bg').onclick = function(e){ if(e.target.id==='md-modal-bg') root.innerHTML=''; };
 
+    if (tKeyName === 'register'){
+      var wfi = document.getElementById('md-wizard-photo-input');
+      wfi.addEventListener('change', function(){
+        var files = Array.from(wfi.files||[]);
+        files.forEach(function(file){ _wizardStagedPhotos.push({ file: file, caption: '' }); });
+        wfi.value = '';
+        renderWizardPhotoStagingList();
+      });
+    }
+
     document.getElementById('md-modal-save').onclick = function(){
       var values = {};
       root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
       var saveBtn = document.getElementById('md-modal-save');
       saveBtn.disabled = true;
       window._mdReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
-      onSubmit(values, function(){ root.innerHTML = ''; });
+      var statusEl = document.getElementById('md-modal-save-status');
+      // Wraps the "close the modal" callback: if photos were staged
+      // in the wizard, upload them first (tagged to this record's own
+      // ID) and only then clear the modal, so Save covers both the
+      // record and its photos in one action.
+      var wrappedClose = function(){
+        var docIdForPhotos = values[cfg.idCol];
+        if (_wizardStagedPhotos.length && docIdForPhotos){
+          if (statusEl) statusEl.textContent = 'Uploading ' + _wizardStagedPhotos.length + ' photo(s)…';
+          var toUpload = _wizardStagedPhotos;
+          _wizardStagedPhotos = [];
+          uploadStagedPhotos(toUpload, docIdForPhotos, function(done, failed){
+            root.innerHTML = '';
+          });
+        } else {
+          root.innerHTML = '';
+        }
+      };
+      onSubmit(values, wrappedClose);
     };
   }
 
@@ -587,19 +650,27 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         }
         var canDel = can('delete');
         gridEl.innerHTML = files.map(function(f){
+          var caption = String(f.revNote || '').trim();
           return '<div class="md-photo-item">' +
             '<a href="'+String(f.webViewLink||'#').replace(/"/g,'&quot;')+'" target="_blank" title="'+String(f.fileName||'').replace(/"/g,'&quot;')+'">' +
               '<img src="'+photoThumbUrl(f.fileId)+'" alt="" loading="lazy"></a>' +
             (canDel ? '<span class="md-photo-del" title="Remove photo" onclick="MD.deletePhoto(\''+idVal+'\',\''+String(f.fileId).replace(/'/g,"\\'")+'\')">✕</span>' : '') +
+            (caption ? '<div class="md-photo-caption" style="font-size:10px;line-height:1.35;margin-top:4px;color:var(--mdw-text)">'+caption.replace(/</g,'&lt;')+'</div>'
+                     : '<div class="md-photo-caption" style="font-size:10px;font-style:italic;margin-top:4px;color:var(--mdw-text-dim)">No caption</div>') +
             '<div class="md-photo-meta">'+String(f.date||f.uploadedDate||'').replace(/</g,'&lt;')+(f.uploadedBy?' · '+String(f.uploadedBy).replace(/</g,'&lt;'):'')+'</div>' +
           '</div>';
         }).join('');
       })
       .catch(function(){ gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:#E06060;font-size:11px">Could not load photos — check your connection.</div>'; });
   }
-  function uploadStagedPhotos(files, idVal, done){
+  // items: array of {file, caption}. Each photo now carries its own
+  // caption (date/time/location/description, typed at upload time)
+  // through to recordAttachmentInSheet's Revision Note column, so the
+  // gallery can show a real caption under each picture — not just
+  // match them up by upload order against the separate Photos field.
+  function uploadStagedPhotos(items, idVal, done){
     var uploaded = 0, failed = 0;
-    function uploadOne(file){
+    function uploadOne(item){
       return new Promise(function(resolve){
         var reader = new FileReader();
         reader.onerror = function(){ failed++; resolve(); };
@@ -607,26 +678,55 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           var b64 = ev.target.result.split(',')[1];
           fetch(SHEETS_URL, { method:'POST', body: JSON.stringify({
             action:'uploadFilePicker', docId: idVal, username: currentUsername(),
-            fileName: file.name, mimeType: file.type || 'image/jpeg', b64: b64
+            fileName: item.file.name, mimeType: item.file.type || 'image/jpeg', b64: b64,
+            caption: item.caption || ''
           }) }).then(function(r){ return r.json(); })
             .then(function(res){ if (res && res.ok) uploaded++; else failed++; resolve(); })
             .catch(function(){ failed++; resolve(); });
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(item.file);
       });
     }
     var chain = Promise.resolve();
-    files.forEach(function(file){ chain = chain.then(function(){ return uploadOne(file); }); });
+    items.forEach(function(item){ chain = chain.then(function(){ return uploadOne(item); }); });
     chain.then(function(){ done(uploaded, failed); });
+  }
+  // Staged-but-not-yet-uploaded photos for the currently open 📷
+  // Photos modal: picking files no longer uploads immediately — each
+  // selected photo gets its own caption box first, and only the
+  // "Upload" button actually sends them.
+  var _photoModalStaged = [];
+  function renderPhotoStagingList(){
+    var listEl = document.getElementById('md-photo-staging-list');
+    var uploadBtn = document.getElementById('md-photo-upload-btn');
+    if (!listEl) return;
+    if (!_photoModalStaged.length){ listEl.innerHTML = ''; if (uploadBtn) uploadBtn.style.display = 'none'; return; }
+    if (uploadBtn) uploadBtn.style.display = '';
+    listEl.innerHTML = _photoModalStaged.map(function(item, i){
+      return '<div class="md-field" style="margin-bottom:8px">' +
+        '<label style="display:flex;justify-content:space-between;align-items:center">' +
+          '<span>'+String(item.file.name).replace(/</g,'&lt;')+'</span>' +
+          '<span style="cursor:pointer;color:var(--mdw-red);font-weight:700" onclick="MD.removeStagedPhoto('+i+')">✕</span>' +
+        '</label>' +
+        '<input type="text" placeholder="Date | Time | Location | Description" data-staged-caption="'+i+'" value="'+String(item.caption||'').replace(/"/g,'&quot;')+'">' +
+      '</div>';
+    }).join('');
+    listEl.querySelectorAll('[data-staged-caption]').forEach(function(inp){
+      inp.addEventListener('input', function(){ _photoModalStaged[inp.getAttribute('data-staged-caption')].caption = inp.value; });
+    });
+    if (uploadBtn) uploadBtn.textContent = 'Upload ' + _photoModalStaged.length + ' photo' + (_photoModalStaged.length>1?'s':'');
   }
   function managePhotosModal(idVal){
     var root = document.getElementById('md-modal-root');
     var canUpload = can('edit');
+    _photoModalStaged = [];
     root.innerHTML = '<div class="md-modal-bg" id="md-photo-modal-bg"><div class="md-modal" style="width:560px">' +
       '<h3>📷 Photos — ' + String(idVal).replace(/</g,'&lt;') + '</h3>' +
-      (canUpload ? '<div class="md-field"><label>Add Photos <span style="font-weight:400;opacity:.7">(select one or more, JPG/PNG)</span></label>' +
-        '<input type="file" id="md-photo-input" accept="image/*" multiple>' +
-        '<div id="md-photo-upload-status" style="font-size:10px;margin-top:6px;min-height:14px"></div></div>' : '') +
+      (canUpload ? '<div class="md-field"><label>Add Photos <span style="font-weight:400;opacity:.7">(select one or more, JPG/PNG — a caption box appears for each)</span></label>' +
+        '<input type="file" id="md-photo-input" accept="image/*" multiple></div>' +
+        '<div id="md-photo-staging-list"></div>' +
+        '<button class="md-btn md-btn-add" id="md-photo-upload-btn" style="display:none;margin-bottom:10px">Upload</button>' +
+        '<div id="md-photo-upload-status" style="font-size:10px;margin-bottom:6px;min-height:14px"></div>' : '') +
       '<div id="md-photo-grid" class="md-photo-grid"></div>' +
       '<div class="md-modal-actions"><button class="md-btn md-btn-cancel" id="md-photo-close">Close</button></div>' +
     '</div></div>';
@@ -637,16 +737,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var fi = document.getElementById('md-photo-input');
       fi.addEventListener('change', function(){
         var files = Array.from(fi.files||[]);
-        if (!files.length) return;
+        files.forEach(function(file){ _photoModalStaged.push({ file: file, caption: '' }); });
+        fi.value = '';
+        renderPhotoStagingList();
+      });
+      document.getElementById('md-photo-upload-btn').onclick = function(){
+        if (!_photoModalStaged.length) return;
         var statusEl = document.getElementById('md-photo-upload-status');
-        fi.disabled = true;
-        if (statusEl) statusEl.textContent = 'Uploading ' + files.length + ' photo(s)…';
-        uploadStagedPhotos(files, idVal, function(done, failed){
-          fi.disabled = false; fi.value = '';
+        var uploadBtn = document.getElementById('md-photo-upload-btn');
+        uploadBtn.disabled = true; fi.disabled = true;
+        if (statusEl) statusEl.textContent = 'Uploading ' + _photoModalStaged.length + ' photo(s)…';
+        uploadStagedPhotos(_photoModalStaged, idVal, function(done, failed){
+          uploadBtn.disabled = false; fi.disabled = false;
           if (statusEl){ statusEl.textContent = done+' uploaded'+(failed?', '+failed+' failed':'')+'.'; statusEl.style.color = failed ? '#E06060' : '#6FCF97'; }
+          _photoModalStaged = [];
+          renderPhotoStagingList();
           loadAndRenderPhotoGrid(idVal);
         });
-      });
+      };
     }
   }
 
@@ -688,14 +796,38 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
     return rows;
   }
-  // Parses "Date | Time | Location | Description" lines into up to 4
-  // photo blocks matching the form's own Photo #1–#4 layout.
+  // Parses "Date | Time | Location | Description" lines into photo
+  // blocks matching the form's own Photo #1, #2... layout. Raised
+  // from 4 to 20 so a drill with more than 4 real photos (e.g. MD-006
+  // with 6) no longer gets silently truncated on the printed SST-FRM-40.
   function parsePhotoLines(text){
     var lines = String(text||'').split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
-    return lines.slice(0,4).map(function(l){
+    return lines.slice(0,20).map(function(l){
       var parts = l.split('|').map(function(p){ return p.trim(); });
       return { date: parts[0]||'', time: parts[1]||'', loc: parts[2]||'', desc: parts[3]||'' };
     });
+  }
+  // Renders the Photos field for on-screen viewing (the expanded row
+  // detail panel) as a numbered, labeled list — "Photo 1 — <date>,
+  // <time>, <location>: <description>" — instead of dumping the raw
+  // "Date | Time | Location | Description" text as one unlabeled
+  // blob. The stored format is unchanged (still pipe-separated lines,
+  // still what parsePhotoLines() above reads for the printed form);
+  // only how it's displayed on this page changes, so no data needs
+  // to be rewritten for this to take effect.
+  function formatPhotosDisplay(text){
+    var lines = String(text||'').split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+    if (!lines.length) return '<span class="muted">—</span>';
+    return '<div class="md-photo-list">' + lines.map(function(l, i){
+      var parts = l.split('|').map(function(p){ return p.trim(); });
+      var date = parts[0]||'', time = parts[1]||'', loc = parts[2]||'', desc = parts[3]||'';
+      var when = [date, time, loc].filter(Boolean).join(', ');
+      return '<div class="md-photo-item" style="margin-bottom:6px">' +
+        '<span style="color:var(--mdw-gold-lt);font-weight:700">Photo ' + (i+1) + '</span>' +
+        (when ? ' — <span style="opacity:.85">' + pfEsc(when) + '</span>' : '') +
+        (desc ? ': ' + pfEsc(desc) : '') +
+        '</div>';
+    }).join('') + '</div>';
   }
 
   function buildDrillPrintHtml(rec){
@@ -862,6 +994,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     managePhotos: function(idVal){
       if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
       managePhotosModal(idVal);
+    },
+    removeStagedPhoto: function(i){
+      _photoModalStaged.splice(i, 1);
+      renderPhotoStagingList();
+    },
+    removeWizardStagedPhoto: function(i){
+      _wizardStagedPhotos.splice(i, 1);
+      renderWizardPhotoStagingList();
     },
     deletePhoto: function(idVal, fileId){
       if (!can('delete')) return;
