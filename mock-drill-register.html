@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Mock Drill Register</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   MOCK DRILL REGISTER — same dark navy/gold theme and card/table
+   shapes as ptw-register.html / fire-extinguisher-log.html. Scoped
+   entirely to .md-dark-wrap so this page's own JS is independent,
+   but every class keeps the same naming convention (md- instead of
+   ptw-/fdw-) for anyone comparing the three pages side by side.
+   ══════════════════════════════════════════════════════════════════ */
+.md-dark-wrap{
+  --mdw-bg:#0D1B35; --mdw-bg2:#142140; --mdw-bg3:#1a2a50;
+  --mdw-gold:#C9A84C; --mdw-gold-lt:#E8C97A;
+  --mdw-text:rgba(255,255,255,.92); --mdw-text-muted:rgba(255,255,255,.55);
+  --mdw-text-dim:rgba(255,255,255,.35); --mdw-border:rgba(255,255,255,.08);
+  --mdw-border-gold:rgba(201,168,76,.35);
+  --mdw-blue:#5B9BD5; --mdw-red:#F0685C; --mdw-amb:#E8B339; --mdw-grn:#4FCB9E;
+  background:var(--mdw-bg); color:var(--mdw-text); margin:0; padding:24px; min-height:100vh;
+}
+.md-dark-wrap *{box-sizing:border-box}
+.md-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.md-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--mdw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--mdw-bg2);
+  border-radius:8px;border:1px solid var(--mdw-border-gold)}
+.md-dark-wrap .back-link:hover{background:var(--mdw-bg3)}
+.md-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--mdw-bg2);
+  border-radius:8px;border-left:3px solid var(--mdw-gold);margin:10px 0;color:var(--mdw-text-muted)}
+.md-dark-wrap .sec-banner{background:var(--mdw-bg2);color:var(--mdw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--mdw-border-gold);border-bottom:none}
+.md-dark-wrap .kpi-grid{display:grid;gap:14px}
+.md-dark-wrap .kpi-card{background:var(--mdw-bg2);border:1px solid var(--mdw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.md-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.md-dark-wrap .kpi-card.kc-nvy::before{background:var(--mdw-gold)}
+.md-dark-wrap .kpi-card.kc-blue::before{background:var(--mdw-blue)}
+.md-dark-wrap .kpi-card.kc-amb::before{background:var(--mdw-amb)}
+.md-dark-wrap .kpi-card.kc-red::before{background:var(--mdw-red)}
+.md-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--mdw-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.md-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--mdw-text);line-height:1.1;margin-bottom:4px}
+.md-dark-wrap .kpi-sub{font-size:10px;color:var(--mdw-text-muted)}
+.md-dark-wrap .kpi-card.md-clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.md-dark-wrap .kpi-card.md-clickable:hover{transform:translateY(-2px);border-color:var(--mdw-gold)}
+.md-dark-wrap .chart-grid{display:grid;gap:14px}
+.md-dark-wrap .chart-card{background:var(--mdw-bg2);border:1px solid var(--mdw-border);
+  border-radius:14px;padding:16px 18px}
+.md-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--mdw-text);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.md-dark-wrap .chart-sub{font-size:10px;color:var(--mdw-text-muted);font-weight:400}
+.md-dark-wrap .chart-wrap{height:220px;position:relative}
+.md-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.md-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--mdw-grn)}
+.md-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--mdw-red)}
+.md-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--mdw-amb)}
+.md-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--mdw-blue)}
+</style>
+</head><body><div class="md-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div><div class="req-text">ISO 45001 §8.2 — Minimum 2 drills per year: at least one full-site evacuation drill plus one scenario-specific drill. Every drill is documented on SST-FRM-40 (Rev.1, effective 12 Dec 2024), with deficiencies and corrective actions tracked to close-out. This register is the digital record of that form; the Scenario Coverage section below shows which of the 7 official emergency situations have real drill evidence behind them.</div>
+
+<div class="sec-banner">MOCK DRILL QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy md-clickable" onclick="MD.cardClick('total')" title="Click to view the Mock Drill Register"><div class="kpi-lbl">Total Drills</div><div class="kpi-val" id="md-kpi-total">—</div><div class="kpi-sub">Mock Drill Register</div></div>
+  <div class="kpi-card kc-blue md-clickable" onclick="MD.cardClick('total')" title="Click to view this year's drills"><div class="kpi-lbl">This Year's Drills</div><div class="kpi-val" id="md-kpi-year">—</div><div class="kpi-sub" id="md-kpi-year-sub">Loading…</div></div>
+  <div class="kpi-card kc-amb md-clickable" onclick="MD.jumpTo('coverage')" title="Click to view scenario coverage"><div class="kpi-lbl">Scenarios Covered</div><div class="kpi-val" id="md-kpi-scenarios">—</div><div class="kpi-sub" id="md-kpi-scenarios-sub">of 7 official scenarios</div></div>
+  <div class="kpi-card kc-red md-clickable" onclick="MD.cardClick('openactions')" title="Click to view drills with open corrective actions"><div class="kpi-lbl">Open Corrective Actions</div><div class="kpi-val" id="md-kpi-open">—</div><div class="kpi-sub">Drills not yet Closed</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+  <div class="chart-card">
+    <div class="chart-title">Drill Volume by Month<span class="chart-sub">drills conducted, by month</span></div>
+    <div class="chart-wrap"><canvas id="mdVolumeChart"></canvas></div>
+    <div id="md-volume-caption" class="chart-sub" style="display:block;margin-top:6px;text-align:center"></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Drills by Emergency Situation<span class="chart-sub">breakdown by scenario type</span></div>
+    <div class="chart-wrap"><canvas id="mdScenarioChart"></canvas></div>
+  </div>
+</div>
+
+<div class="md-jumpbar" style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px">
+  <button class="md-jump-btn" onclick="MD.jumpTo('register')">Mock Drill Register <span id="md-count-register" class="md-jump-count"></span></button>
+  <button class="md-jump-btn" onclick="MD.jumpTo('coverage')">Emergency Scenario Coverage</button>
+</div>
+
+<div class="sec-banner md-sec-toggle" id="md-hdr-register" onclick="MD.toggle('register')"><span class="md-chevron">▶</span> MOCK DRILL REGISTER</div>
+<div id="live-table-register" class="md-collapsible" style="margin-top:0"></div>
+
+<div class="sec-banner md-sec-toggle" id="md-hdr-coverage" style="margin-top:10px" onclick="MD.toggle('coverage')"><span class="md-chevron">▶</span> EMERGENCY SCENARIO COVERAGE &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(computed live from the register — not its own sheet)</span></div>
+<div id="live-table-coverage" class="md-collapsible" style="margin-top:0"></div>
+
+<div style="margin-top:16px;font-size:10px;color:var(--mdw-text-dim);text-align:right" id="md-live-ts"></div>
+<div id="md-modal-root"></div>
+</div>
+<!-- No sidebar/topbar: this page is reached only from inside the Operations Hub, same pattern as ptw-register.html / fire-extinguisher-log.html. -->
+
+<style>
+.md-dark-wrap .md-toolbar{display:flex;justify-content:flex-end;padding:6px 0}
+.md-dark-wrap .md-btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;
+  border:1px solid var(--mdw-border);background:var(--mdw-bg3);color:var(--mdw-text);cursor:pointer;font-family:inherit}
+.md-dark-wrap .md-btn:hover{background:#223457;border-color:var(--mdw-border-gold)}
+.md-dark-wrap .md-btn-add{background:var(--mdw-gold);color:#1a1200;border-color:var(--mdw-gold);font-weight:700}
+.md-dark-wrap .md-btn-add:hover{background:var(--mdw-gold-lt)}
+.md-dark-wrap .md-btn:disabled{opacity:.35;cursor:not-allowed}
+.md-dark-wrap .md-btn:disabled:hover{background:var(--mdw-bg3);border-color:var(--mdw-border)}
+.md-dark-wrap .md-row-selectable{cursor:pointer}
+.md-dark-wrap .md-row-selected td,
+.md-dark-wrap .md-row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--mdw-gold)}
+.md-dark-wrap .md-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
+  align-items:center;justify-content:center;z-index:9999}
+.md-dark-wrap .md-modal{background:var(--mdw-bg2);border:1px solid var(--mdw-border-gold);border-radius:14px;
+  padding:20px;width:460px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--mdw-text)}
+.md-dark-wrap .md-modal h3{margin:0 0 12px;font-size:14px;color:var(--mdw-gold-lt)}
+.md-dark-wrap .md-field{margin-bottom:10px}
+.md-dark-wrap .md-field label{display:block;font-size:10px;font-weight:600;color:var(--mdw-text-muted);margin-bottom:3px}
+.md-dark-wrap .md-field input,.md-dark-wrap .md-field select,.md-dark-wrap .md-field textarea{width:100%;padding:6px 8px;font-size:12px;
+  border:1px solid var(--mdw-border);border-radius:6px;font-family:inherit;box-sizing:border-box;
+  background:var(--mdw-bg3);color:var(--mdw-text)}
+.md-dark-wrap .md-field textarea{min-height:56px;resize:vertical}
+.md-dark-wrap .md-field .md-hint{font-size:9px;color:var(--mdw-text-dim);margin-top:3px;display:block}
+.md-dark-wrap .md-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.md-dark-wrap .md-modal-actions .md-btn-cancel{background:var(--mdw-bg3)}
+.md-dark-wrap .md-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+  margin-top:10px;max-height:340px;overflow-y:auto}
+.md-dark-wrap .md-photo-item{position:relative;border:1px solid var(--mdw-border);border-radius:8px;
+  overflow:hidden;background:var(--mdw-bg3)}
+.md-dark-wrap .md-photo-item img{display:block;width:100%;height:90px;object-fit:cover}
+.md-dark-wrap .md-photo-meta{font-size:8px;color:var(--mdw-text-muted);padding:3px 5px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.md-dark-wrap .md-photo-del{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;
+  background:rgba(20,10,10,.75);color:#fff;font-size:11px;line-height:18px;text-align:center;cursor:pointer}
+.md-dark-wrap .md-photo-del:hover{background:#E06060}
+.md-dark-wrap .md-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
+  border:1px solid var(--mdw-border-gold);background:var(--mdw-bg2);cursor:pointer;font-family:inherit;color:var(--mdw-gold-lt)}
+.md-dark-wrap .md-jump-btn:hover{background:var(--mdw-bg3);border-color:var(--mdw-gold)}
+.md-dark-wrap .md-jump-count{font-weight:400;color:var(--mdw-text-muted);font-size:10px}
+.md-dark-wrap .md-sec-toggle{cursor:pointer;user-select:none}
+.md-dark-wrap .md-sec-toggle:hover{opacity:.9}
+.md-dark-wrap .md-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px;color:var(--mdw-gold-lt)}
+.md-dark-wrap .md-collapsible{overflow:hidden;max-height:0;transition:none;
+  background:var(--mdw-bg2);border:1px solid var(--mdw-border-gold);border-top:none;border-radius:0 0 8px 8px}
+.md-dark-wrap .md-collapsible.md-open{max-height:none;padding:10px 14px}
+.md-dark-wrap .md-filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.md-dark-wrap .md-search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
+  border:1px solid var(--mdw-border);border-radius:8px;font-family:inherit;background:var(--mdw-bg3);color:var(--mdw-text)}
+.md-dark-wrap .md-search-input::placeholder{color:var(--mdw-text-dim)}
+.md-dark-wrap .md-filter-select{padding:6px 8px;font-size:12px;border:1px solid var(--mdw-border);
+  border-radius:8px;font-family:inherit;max-width:220px;background:var(--mdw-bg3);color:var(--mdw-text)}
+.md-dark-wrap .md-filter-status{font-size:10px;color:var(--mdw-text-muted);margin-left:auto}
+.md-dark-wrap .tbl-wrap{overflow-x:auto}
+.md-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
+.md-dark-wrap .tbl-stripe th{text-align:left;color:var(--mdw-gold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--mdw-border-gold);
+  background:var(--mdw-bg3);white-space:nowrap}
+.md-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--mdw-border);color:var(--mdw-text)}
+.md-dark-wrap .tbl-stripe tbody tr:nth-child(odd) td{background:var(--mdw-bg2)}
+.md-dark-wrap .tbl-stripe tbody tr:nth-child(even) td{background:#101d3a}
+.md-dark-wrap .tbl-stripe tbody tr:hover td{background:var(--mdw-bg3)}
+.md-dark-wrap .tbl-compact th,.md-dark-wrap .tbl-compact td{font-size:9px !important;padding:4px 7px !important}
+.md-dark-wrap .empty-state{text-align:center;padding:20px;color:var(--mdw-text-muted)}
+.md-dark-wrap .empty-state strong{display:block;font-size:13px;color:var(--mdw-gold-lt);margin-bottom:4px}
+.md-dark-wrap .nb{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid}
+.md-dark-wrap .nb-red{background:rgba(240,104,92,.15);color:var(--mdw-red);border-color:rgba(240,104,92,.4)}
+.md-dark-wrap .nb-amb{background:rgba(232,179,57,.15);color:var(--mdw-amb);border-color:rgba(232,179,57,.4)}
+.md-dark-wrap .nb-grn{background:rgba(79,203,158,.15);color:var(--mdw-grn);border-color:rgba(79,203,158,.4)}
+</style>
+
+<script>
+/* ── Mock Drill: single live table + computed Scenario Coverage summary
+   + Add/Edit/Remove/Print + photo evidence. Architecture mirrors
+   ptw-register.html exactly (same modal shell, same soft-delete via
+   Record Status, same Drive-backed photo gallery keyed by this
+   record's own ID) — only the field set and print layout are specific
+   to SST-FRM-40 (Mock Drill Report), the real HSE form this digitises.
+   ────────────────────────────────────────────────────────────────── */
+(function(){
+
+  // The 7 official "Emergency situation" checkboxes as they appear,
+  // verbatim, on the live SST-FRM-40 form (Rev.1) — this is the
+  // authoritative scenario list the register and coverage table are
+  // built against, not the OC-01 procedure page's own slightly
+  // different wording for the same 7 situations.
+  var SCENARIOS = ['Fire','Glass leak','Emergency evacuation','Medical emergency',
+                    'Severe weather','Chemical spillage','Power shortage'];
+  var YESNO = ['Yes','No'];
+
+  var TABLES = {
+    register: {
+      label: 'Drill', tabKey: 'mock_drill', containerId: 'live-table-register',
+      idCol: 'Drill ID', idEditable: true,
+      idPrefix: 'MD-', idPad: 3,
+      fields: ['Drill ID','Date','Time','Area & Location','Number of Participants','Emergency Situation',
+               'Scenario Description','Time of Declaration','First Responder Response Time',
+               'Alarm Sounded','Assembled at Point','Ambulance/Medical Called',
+               'Finish Time','Total Time Elapsed','Previous Total Time','Production Lines Affected',
+               'Deficiency Observed','Corrective Actions','Photos','Attachments','Remarks',
+               'Observer(s)','HSE In Charge','Status'],
+      selectFields: {
+        'Emergency Situation': SCENARIOS,
+        'Alarm Sounded': YESNO, 'Assembled at Point': YESNO, 'Ambulance/Medical Called': YESNO,
+        'Production Lines Affected': YESNO,
+        'Status': ['Open','Closed']
+      },
+      // Multi-line by nature on the real paper form — a scenario
+      // narrative, a deficiency write-up, a list of corrective actions,
+      // or a per-photo log can't realistically be one line.
+      textareaFields: ['Scenario Description','Deficiency Observed','Corrective Actions','Photos','Remarks'],
+      filterField: 'Emergency Situation'
+    }
+  };
+  var _filters = {};
+  var _selected = {};
+  var STATUS_COL = 'Record Status';
+  var _cache = {};
+  var _charts = { volume: null, scenario: null };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUsername(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    return (s && s.username) || 'unknown';
+  }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function nextSequentialId(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return '';
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    if (idIdx < 0) return '';
+    var maxN = 0, prefixLower = cfg.idPrefix.toLowerCase();
+    data.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(prefixLower) !== 0) return;
+      var n = parseInt(v.slice(cfg.idPrefix.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    if (maxN === 0) return '';
+    var numStr = String(maxN + 1);
+    while (numStr.length < cfg.idPad) numStr = '0' + numStr;
+    return cfg.idPrefix + numStr;
+  }
+  function getOwnColumnValues(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return [];
+    var idx = colIdx(data.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}, out = [];
+    data.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    });
+    out.sort();
+    return out;
+  }
+
+  function renderShell(tKeyName, data){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    if (!data || !data.headers || !data.rows){
+      el.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      return;
+    }
+    _cache[tKeyName] = data;
+    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+    var f = _filters[tKeyName];
+    var sel = _selected[tKeyName];
+
+    var toolbarHtml = '';
+    if (can('add')) toolbarHtml += '<button class="md-btn md-btn-add" onclick="MD.openAdd(\''+tKeyName+'\')">+ Add Record</button>';
+    var disabledAttr = sel ? '' : ' disabled';
+    toolbarHtml += '<button class="md-btn" id="md-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="MD.printDrill(MD.getSelected(\''+tKeyName+'\'))">🖨️ Print SST-FRM-40</button>';
+    toolbarHtml += '<button class="md-btn" id="md-tb-photos-'+tKeyName+'"'+disabledAttr+' onclick="MD.managePhotos(MD.getSelected(\''+tKeyName+'\'))">📷 Photos</button>';
+    if (can('edit')) toolbarHtml += '<button class="md-btn" id="md-tb-edit-'+tKeyName+'"'+disabledAttr+' onclick="MD.openEdit(\''+tKeyName+'\', MD.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
+    if (can('delete')) toolbarHtml += '<button class="md-btn" id="md-tb-remove-'+tKeyName+'"'+disabledAttr+' onclick="MD.remove(\''+tKeyName+'\', MD.getSelected(\''+tKeyName+'\'))">🗑️ Remove</button>';
+
+    var categoryHtml = '';
+    if (cfg.filterField){
+      var opts = getOwnColumnValues(tKeyName, cfg.filterField);
+      categoryHtml = '<select class="md-filter-select" onchange="MD.onCategoryChange(\''+tKeyName+'\', this.value)">' +
+        '<option value="">All ' + cfg.filterField + '</option>' +
+        opts.map(function(o){
+          var selA = (o === f.category) ? ' selected' : '';
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+selA+'>'+o+'</option>';
+        }).join('') + '</select>';
+    }
+
+    var specialLabels = { openactions: 'Open Corrective Actions' };
+    var specialPillHtml = '';
+    if (f.special && specialLabels[f.special]){
+      specialPillHtml = '<span class="nb nb-amb" style="margin:6px 0;display:inline-block">Showing: ' + specialLabels[f.special] +
+        ' <span style="cursor:pointer" onclick="MD.clearFilters(\''+tKeyName+'\')">✕</span></span>';
+    }
+
+    el.innerHTML =
+      '<div class="md-toolbar">' + toolbarHtml + '</div>' +
+      specialPillHtml +
+      '<div class="md-filterbar">' +
+        '<input type="text" class="md-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="MD.onSearchInput(\''+tKeyName+'\', this.value)">' +
+        categoryHtml +
+        '<button class="md-btn" onclick="MD.clearFilters(\''+tKeyName+'\')">Clear</button>' +
+        '<span class="md-filter-status" id="md-filter-status-'+tKeyName+'"></span>' +
+      '</div>' +
+      '<div class="md-table-area" id="md-table-area-'+tKeyName+'"></div>';
+    renderTableArea(tKeyName);
+  }
+
+  function hasOpenActions(row, headers){
+    var corrIdx = colIdx(headers, 'Corrective Actions');
+    var statusIdx = colIdx(headers, 'Status');
+    var corr = corrIdx >= 0 ? String(row[corrIdx]||'').trim() : '';
+    if (!corr) return false;
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return st !== 'closed';
+  }
+
+  function renderTableArea(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    var areaEl = document.getElementById('md-table-area-' + tKeyName);
+    var statusEl = document.getElementById('md-filter-status-' + tKeyName);
+    if (!data || !areaEl) return;
+
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
+    var f = _filters[tKeyName] || {search:'', category:'', special:null};
+    var searchLower = f.search.trim().toLowerCase();
+
+    var visibleRows = data.rows.filter(function(r){
+      return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+    var totalVisible = visibleRows.length;
+    if (f.category && filterFieldIdx > -1){
+      visibleRows = visibleRows.filter(function(r){ return String(r[filterFieldIdx]||'').trim() === f.category; });
+    }
+    if (searchLower){
+      visibleRows = visibleRows.filter(function(r){
+        return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
+      });
+    }
+    if (f.special === 'openactions'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenActions(r, data.headers); });
+    }
+    if (statusEl){
+      var isFiltered = !!(f.search.trim() || f.category || f.special);
+      statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
+    }
+
+    // Keep the register's own table readable: show a trimmed column set
+    // (the long narrative/action fields are reached via the row itself,
+    // Edit, or Print) rather than 24 columns forcing a tiny compact font.
+    var displayCols = ['Drill ID','Date','Area & Location','Emergency Situation','Number of Participants','Status'];
+    var colIdxs = displayCols.map(function(c){ return colIdx(data.headers, c); }).filter(function(i){ return i >= 0; });
+    var colNames = colIdxs.map(function(i){ return data.headers[i]; });
+
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe">';
+    html += '<thead><tr>'; colNames.forEach(function(h){ html += '<th>'+h+'</th>'; }); html += '</tr></thead><tbody>';
+
+    if (!visibleRows.length){
+      html += '<tr><td colspan="'+colNames.length+'"><div class="empty-state"><strong>No records</strong>Add data in Google Sheets or use + Add Record above.</div></td></tr>';
+    } else {
+      var selId = _selected[tKeyName];
+      visibleRows.forEach(function(row){
+        var idVal = idIdx>-1 ? row[idIdx] : '';
+        var idValEsc = String(idVal).replace(/'/g,"\\'");
+        var isSel = selId !== undefined && selId !== null && String(selId) === String(idVal);
+        html += '<tr class="md-row-selectable'+(isSel?' md-row-selected':'')+'" onclick="MD.selectRow(\''+tKeyName+'\',\''+idValEsc+'\')">';
+        colIdxs.forEach(function(ci){
+          var cell = row[ci];
+          if (data.headers[ci] === 'Status'){
+            var stv = String(cell||'').trim();
+            var cls = stv.toLowerCase()==='closed' ? 'nb-grn' : 'nb-amb';
+            html += '<td>'+(stv?'<span class="nb '+cls+'">'+stv+'</span>':formatCell(cell))+'</td>';
+          } else {
+            html += '<td>' + formatCell(cell) + '</td>';
+          }
+        });
+        html += '</tr>';
+      });
+    }
+    html += '</tbody></table></div>';
+    areaEl.innerHTML = html;
+  }
+
+  function loadTab(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--mdw-text-muted);font-size:11px">⏳ Loading live data…</div>';
+    return fetch(SHEETS_URL + '?tab=' + cfg.tabKey + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        renderShell(tKeyName, data);
+        var countEl = document.getElementById('md-count-' + tKeyName);
+        if (countEl && data && data.rows){
+          var statusIdx = colIdx(data.headers, STATUS_COL);
+          var visibleCount = statusIdx < 0 ? data.rows.length :
+            data.rows.filter(function(r){ return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; }).length;
+          countEl.textContent = '(' + visibleCount + ')';
+        }
+        return data;
+      })
+      .catch(function(){
+        el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
+        return null;
+      });
+  }
+
+  function loadAll(){
+    loadTab('register').then(function(){
+      renderDashboard();
+      renderCoverage();
+    });
+  }
+  function reloadAll(){ return loadAll(); }
+
+  function renderDashboard(){
+    var reg = _cache['register'];
+    if (!reg) return;
+    var statusIdx = colIdx(reg.headers, STATUS_COL);
+    var visibleRows = reg.rows.filter(function(r){ return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+
+    document.getElementById('md-kpi-total').textContent = visibleRows.length;
+
+    var dateIdx = colIdx(reg.headers, 'Date');
+    var thisYear = new Date().getFullYear();
+    var yearCount = 0;
+    visibleRows.forEach(function(r){
+      var s = dateIdx>=0 ? String(r[dateIdx]||'').trim() : '';
+      if (/^\d{4}/.test(s) && parseInt(s.slice(0,4),10) === thisYear) yearCount++;
+    });
+    document.getElementById('md-kpi-year').textContent = yearCount;
+    document.getElementById('md-kpi-year-sub').textContent = 'Commitment: 2 drills / year';
+
+    var scenIdx = colIdx(reg.headers, 'Emergency Situation');
+    var covered = {};
+    visibleRows.forEach(function(r){
+      var s = scenIdx>=0 ? String(r[scenIdx]||'').trim() : '';
+      if (s) covered[s] = true;
+    });
+    var coveredCount = Object.keys(covered).length;
+    document.getElementById('md-kpi-scenarios').textContent = coveredCount + ' of ' + SCENARIOS.length;
+
+    var openCount = visibleRows.filter(function(r){ return hasOpenActions(r, reg.headers); }).length;
+    document.getElementById('md-kpi-open').textContent = openCount;
+
+    var monthCounts = {};
+    visibleRows.forEach(function(r){
+      var raw = dateIdx>=0 ? r[dateIdx] : null;
+      if (!raw) return;
+      var s = String(raw).trim();
+      if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return;
+      monthCounts[s.slice(0,7)] = (monthCounts[s.slice(0,7)] || 0) + 1;
+    });
+    var sortedMonths = Object.keys(monthCounts).sort();
+    var GOLD = '#C9A84C', BLUE = '#5B9BD5';
+    var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
+    if (_charts.volume) { _charts.volume.destroy(); _charts.volume = null; }
+    if (_charts.scenario) { _charts.scenario.destroy(); _charts.scenario = null; }
+
+    if (window.Chart && sortedMonths.length){
+      _charts.volume = new Chart(document.getElementById('mdVolumeChart'), {
+        type:'bar', data:{ labels: sortedMonths.map(monthLabel), datasets:[{ label:'Drills', data: sortedMonths.map(function(m){ return monthCounts[m]; }), backgroundColor:GOLD, borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } }, x:{ ticks:{ color:TICK }, grid:{ color:GRID } } }, plugins:{ legend:{ display:false } } }
+      });
+      var cap = document.getElementById('md-volume-caption');
+      if (cap){ var lastM = sortedMonths[sortedMonths.length-1]; cap.textContent = monthLabel(lastM)+': '+monthCounts[lastM]+' drill'+(monthCounts[lastM]===1?'':'s'); }
+    } else {
+      var capE = document.getElementById('md-volume-caption'); if (capE) capE.textContent='';
+    }
+
+    var scenCounts = {};
+    SCENARIOS.forEach(function(s){ scenCounts[s] = 0; });
+    visibleRows.forEach(function(r){
+      var s = scenIdx>=0 ? String(r[scenIdx]||'').trim() : '';
+      if (s) scenCounts[s] = (scenCounts[s]||0) + 1;
+    });
+    if (window.Chart){
+      var maxScenCount = Math.max.apply(null, SCENARIOS.map(function(s){ return scenCounts[s]||0; }).concat([0]));
+      _charts.scenario = new Chart(document.getElementById('mdScenarioChart'), {
+        type:'bar', data:{ labels: SCENARIOS, datasets:[{ label:'Drills', data: SCENARIOS.map(function(s){ return scenCounts[s]||0; }), backgroundColor:BLUE, borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
+          // Same fix as PTW's "by Work Involved" chart: hover anywhere on
+          // the row (not just the bar pixels) and print the exact count
+          // past the end of every bar, so a scenario with only 1 drill is
+          // still readable next to one with a dozen.
+          interaction:{ mode:'nearest', axis:'y', intersect:false },
+          layout:{ padding:{ right: 28 } },
+          scales:{ x:{ beginAtZero:true, max: Math.ceil(maxScenCount*1.18)||undefined, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } }, y:{ ticks:{ color:TICK }, grid:{ color:GRID } } },
+          plugins:{
+            legend:{ display:false },
+            tooltip:{ callbacks:{ label:function(ctx){ return ctx.parsed.x + ' drill' + (ctx.parsed.x===1?'':'s'); } } },
+            datalabels:{ anchor:'end', align:'end', clamp:true, color:'#E8C97A', font:{ size:10, weight:'600' }, formatter:function(v){ return v; } }
+          }
+        },
+        plugins: (window.ChartDataLabels ? [window.ChartDataLabels] : [])
+      });
+    }
+  }
+
+  // ── Scenario Coverage — computed purely from the register cache, not
+  // its own sheet tab. For each of the 7 official scenarios: the most
+  // recent drill date against it, that drill's ID, an Evidence badge
+  // (Strong = has both Deficiency Observed and Corrective Actions text;
+  // Weak = drilled but one or both of those are blank; Not Drilled =
+  // zero matching rows), and how many of its drills still have open
+  // corrective actions. ────────────────────────────────────────────
+  function renderCoverage(){
+    var el = document.getElementById('live-table-coverage');
+    if (!el) return;
+    var reg = _cache['register'];
+    if (!reg || !reg.headers){
+      el.innerHTML = '<div class="empty-state"><strong>No data yet</strong>Add drill records to the register above to populate scenario coverage.</div>';
+      return;
+    }
+    var statusIdx = colIdx(reg.headers, STATUS_COL);
+    var scenIdx = colIdx(reg.headers, 'Emergency Situation');
+    var idIdx = colIdx(reg.headers, 'Drill ID');
+    var dateIdx = colIdx(reg.headers, 'Date');
+    var defIdx = colIdx(reg.headers, 'Deficiency Observed');
+    var corrIdx = colIdx(reg.headers, 'Corrective Actions');
+
+    var visibleRows = reg.rows.filter(function(r){ return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe"><thead><tr>'+
+      '<th>Emergency Situation</th><th>Drills Logged</th><th>Last Drill Date</th><th>Last Drill ID</th><th>Evidence</th><th>Open Actions</th>'+
+      '</tr></thead><tbody>';
+
+    SCENARIOS.forEach(function(scenario){
+      var rows = visibleRows.filter(function(r){ return scenIdx>=0 && String(r[scenIdx]||'').trim() === scenario; });
+      if (!rows.length){
+        html += '<tr><td>'+scenario+'</td><td>0</td><td>—</td><td>—</td>'+
+          '<td><span class="nb nb-red">Not Yet Drilled</span></td><td>—</td></tr>';
+        return;
+      }
+      // Most recent by Date (string-sortable YYYY-MM-DD; falls back to
+      // the last matching row on file if Date isn't a clean ISO string).
+      var sorted = rows.slice().sort(function(a,b){
+        var da = dateIdx>=0 ? String(a[dateIdx]||'') : '', db = dateIdx>=0 ? String(b[dateIdx]||'') : '';
+        return da < db ? 1 : (da > db ? -1 : 0);
+      });
+      var last = sorted[0];
+      var lastDate = dateIdx>=0 ? String(last[dateIdx]||'—') : '—';
+      var lastId = idIdx>=0 ? String(last[idIdx]||'—') : '—';
+      var hasStrong = rows.some(function(r){
+        return defIdx>=0 && corrIdx>=0 && String(r[defIdx]||'').trim() && String(r[corrIdx]||'').trim();
+      });
+      var evidenceBadge = hasStrong
+        ? '<span class="nb nb-grn">Strong</span>'
+        : '<span class="nb nb-amb">Weak — attendance/partial only</span>';
+      var openCount = rows.filter(function(r){ return hasOpenActions(r, reg.headers); }).length;
+      html += '<tr><td>'+scenario+'</td><td>'+rows.length+'</td><td>'+formatCell(lastDate)+'</td><td>'+formatCell(lastId)+'</td>'+
+        '<td>'+evidenceBadge+'</td><td>'+(openCount ? '<span class="nb nb-red">'+openCount+'</span>' : '0')+'</td></tr>';
+    });
+
+    html += '</tbody></table></div>';
+    el.innerHTML = html;
+  }
+
+  function monthLabel(ym){
+    var parts = ym.split('-');
+    var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mi = parseInt(parts[1],10) - 1;
+    return (names[mi] || parts[1]) + ' ' + parts[0];
+  }
+  function setExpanded(tKeyName, expanded){
+    var containerId = tKeyName === 'coverage' ? 'live-table-coverage' : TABLES[tKeyName].containerId;
+    var el = document.getElementById(containerId);
+    var hdr = document.getElementById('md-hdr-' + tKeyName);
+    var chev = hdr ? hdr.querySelector('.md-chevron') : null;
+    if (expanded){ el.classList.add('md-open'); if (chev) chev.style.transform='rotate(90deg)'; }
+    else { el.classList.remove('md-open'); if (chev) chev.style.transform='rotate(0deg)'; }
+  }
+
+  /* ── Modal (shared by Add + Edit) — same shell as PTW/FE, extended
+     with <select> rendering for selectFields and <textarea> for
+     textareaFields, since several of this form's fields are
+     inherently multi-line (a scenario narrative, a deficiency
+     write-up) in a way PTW's own fields weren't. ─────────────────── */
+  function showModal(tKeyName, title, fields, initialValues, onSubmit){
+    var root = document.getElementById('md-modal-root');
+    var cfg = TABLES[tKeyName];
+    var selFields = cfg.selectFields || {};
+    var taFields = cfg.textareaFields || [];
+    var fieldsHtml = fields.map(function(f, fi){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEsc = String(v).replace(/"/g,'&quot;');
+      if (selFields[f]){
+        var optsHtml = '<option value=""></option>' + selFields[f].map(function(o){
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="md-field"><label>'+f+'</label><select data-field="'+f+'">'+optsHtml+'</select></div>';
+      }
+      if (taFields.indexOf(f) > -1){
+        var hint = '';
+        if (f === 'Corrective Actions') hint = '<span class="md-hint">One per line: Recommendation | Responsibility | Date</span>';
+        if (f === 'Photos') hint = '<span class="md-hint">One per line: Date | Time | Location | Description (actual image files go via the 📷 Photos button)</span>';
+        return '<div class="md-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea>'+hint+'</div>';
+      }
+      var isDateField = /date$/i.test(f.trim());
+      var inputType = isDateField ? 'date' : 'text';
+      return '<div class="md-field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"></div>';
+    }).join('');
+
+    root.innerHTML = '<div class="md-modal-bg" id="md-modal-bg"><div class="md-modal">' +
+      '<h3>'+title+'</h3>' + fieldsHtml +
+      '<div id="md-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
+      '<div class="md-modal-actions"><button class="md-btn md-btn-cancel" id="md-modal-cancel">Cancel</button>' +
+      '<button class="md-btn md-btn-add" id="md-modal-save">Save</button></div></div></div>';
+
+    document.getElementById('md-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('md-modal-bg').onclick = function(e){ if(e.target.id==='md-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('md-modal-save').onclick = function(){
+      var values = {};
+      root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      var saveBtn = document.getElementById('md-modal-save');
+      saveBtn.disabled = true;
+      window._mdReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
+      onSubmit(values, function(){ root.innerHTML = ''; });
+    };
+  }
+
+  /* ── Photo evidence — reuses the EXACT SAME Google Drive attachment
+     backend already live for PTW/Document Register (uploadFilePicker /
+     listFiles / deleteAttachment), keyed by this record's own Drill ID
+     in the same generic "docId" slot. Zero Apps Script changes needed —
+     identical mechanism to ptw-register.html's managePhotosModal. ──── */
+  function photoThumbUrl(fileId){
+    return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w400';
+  }
+  function loadAndRenderPhotoGrid(idVal){
+    var gridEl = document.getElementById('md-photo-grid');
+    if (!gridEl) return;
+    gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--mdw-text-muted);font-size:11px">⏳ Loading photos…</div>';
+    fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(idVal))
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        var files = (res && res.files) || [];
+        if (!files.length){
+          gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--mdw-text-muted);font-size:11px">No photos attached to this drill yet.</div>';
+          return;
+        }
+        var canDel = can('delete');
+        gridEl.innerHTML = files.map(function(f){
+          return '<div class="md-photo-item">' +
+            '<a href="'+String(f.webViewLink||'#').replace(/"/g,'&quot;')+'" target="_blank" title="'+String(f.fileName||'').replace(/"/g,'&quot;')+'">' +
+              '<img src="'+photoThumbUrl(f.fileId)+'" alt="" loading="lazy"></a>' +
+            (canDel ? '<span class="md-photo-del" title="Remove photo" onclick="MD.deletePhoto(\''+idVal+'\',\''+String(f.fileId).replace(/'/g,"\\'")+'\')">✕</span>' : '') +
+            '<div class="md-photo-meta">'+String(f.date||f.uploadedDate||'').replace(/</g,'&lt;')+(f.uploadedBy?' · '+String(f.uploadedBy).replace(/</g,'&lt;'):'')+'</div>' +
+          '</div>';
+        }).join('');
+      })
+      .catch(function(){ gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:#E06060;font-size:11px">Could not load photos — check your connection.</div>'; });
+  }
+  function uploadStagedPhotos(files, idVal, done){
+    var uploaded = 0, failed = 0;
+    function uploadOne(file){
+      return new Promise(function(resolve){
+        var reader = new FileReader();
+        reader.onerror = function(){ failed++; resolve(); };
+        reader.onload = function(ev){
+          var b64 = ev.target.result.split(',')[1];
+          fetch(SHEETS_URL, { method:'POST', body: JSON.stringify({
+            action:'uploadFilePicker', docId: idVal, username: currentUsername(),
+            fileName: file.name, mimeType: file.type || 'image/jpeg', b64: b64
+          }) }).then(function(r){ return r.json(); })
+            .then(function(res){ if (res && res.ok) uploaded++; else failed++; resolve(); })
+            .catch(function(){ failed++; resolve(); });
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    var chain = Promise.resolve();
+    files.forEach(function(file){ chain = chain.then(function(){ return uploadOne(file); }); });
+    chain.then(function(){ done(uploaded, failed); });
+  }
+  function managePhotosModal(idVal){
+    var root = document.getElementById('md-modal-root');
+    var canUpload = can('edit');
+    root.innerHTML = '<div class="md-modal-bg" id="md-photo-modal-bg"><div class="md-modal" style="width:560px">' +
+      '<h3>📷 Photos — ' + String(idVal).replace(/</g,'&lt;') + '</h3>' +
+      (canUpload ? '<div class="md-field"><label>Add Photos <span style="font-weight:400;opacity:.7">(select one or more, JPG/PNG)</span></label>' +
+        '<input type="file" id="md-photo-input" accept="image/*" multiple>' +
+        '<div id="md-photo-upload-status" style="font-size:10px;margin-top:6px;min-height:14px"></div></div>' : '') +
+      '<div id="md-photo-grid" class="md-photo-grid"></div>' +
+      '<div class="md-modal-actions"><button class="md-btn md-btn-cancel" id="md-photo-close">Close</button></div>' +
+    '</div></div>';
+    document.getElementById('md-photo-close').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('md-photo-modal-bg').onclick = function(e){ if (e.target.id==='md-photo-modal-bg') root.innerHTML=''; };
+    loadAndRenderPhotoGrid(idVal);
+    if (canUpload){
+      var fi = document.getElementById('md-photo-input');
+      fi.addEventListener('change', function(){
+        var files = Array.from(fi.files||[]);
+        if (!files.length) return;
+        var statusEl = document.getElementById('md-photo-upload-status');
+        fi.disabled = true;
+        if (statusEl) statusEl.textContent = 'Uploading ' + files.length + ' photo(s)…';
+        uploadStagedPhotos(files, idVal, function(done, failed){
+          fi.disabled = false; fi.value = '';
+          if (statusEl){ statusEl.textContent = done+' uploaded'+(failed?', '+failed+' failed':'')+'.'; statusEl.style.color = failed ? '#E06060' : '#6FCF97'; }
+          loadAndRenderPhotoGrid(idVal);
+        });
+      });
+    }
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  // ── SST-FRM-40 print template — built field-for-field from the real
+  // Word template (Area & Location / Participants / Date / Time; the
+  // 7-box Emergency situation grid; scenario narrative; the 3 Yes/No
+  // timing rows; Finish/Total/Previous time; Deficiency observed;
+  // Action recommended table parsed from the Corrective Actions field;
+  // Attachments/Remarks; Observer(s)/HSE In Charge sign blocks; up to 4
+  // photo blocks parsed from the Photos field). Matches the layout
+  // Issam supplied, not a redesign of it. ─────────────────────────────
+  function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function pfCb(label, checked){ return '<span class="pf-item"><span class="pf-box">'+(checked?'&#9746;':'&#9744;')+'</span><span class="pf-item-label">'+pfEsc(label)+'</span></span>'; }
+  function pfYesNo(label, val){
+    var v = String(val||'').trim().toLowerCase();
+    return '<div class="pf-yn-row"><span class="pf-label">'+pfEsc(label)+'</span>' + pfCb('Yes', v==='yes') + pfCb('No', v==='no') + '</div>';
+  }
+  function pfField(label, value){ return '<div class="pf-field"><span class="pf-label">'+pfEsc(label)+'</span><span class="pf-value">'+pfEsc(value||'')+'</span></div>'; }
+  function pfSignBlock(role, name){
+    return '<div class="pf-sign-block"><div class="pf-sign-role">'+pfEsc(role)+'</div>' +
+      '<div class="pf-sign-line">Name: <span class="pf-value-inline">'+pfEsc(name||'')+'</span></div>' +
+      '<div class="pf-sign-line">Sign: ______________________</div></div>';
+  }
+  // Parses "Recommendation | Responsibility | Date" lines into the
+  // 4-row numbered table the real form uses; blank rows print empty
+  // (ready for a handwritten entry) rather than being omitted, so the
+  // printed sheet still looks like the official SST-FRM-40.
+  function parseActionLines(text){
+    var lines = String(text||'').split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+    var rows = [];
+    for (var i = 0; i < 4; i++){
+      var parts = (lines[i]||'').split('|').map(function(p){ return p.trim(); });
+      rows.push({ rec: parts[0]||'', resp: parts[1]||'', date: parts[2]||'' });
+    }
+    return rows;
+  }
+  // Parses "Date | Time | Location | Description" lines into up to 4
+  // photo blocks matching the form's own Photo #1–#4 layout.
+  function parsePhotoLines(text){
+    var lines = String(text||'').split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+    return lines.slice(0,4).map(function(l){
+      var parts = l.split('|').map(function(p){ return p.trim(); });
+      return { date: parts[0]||'', time: parts[1]||'', loc: parts[2]||'', desc: parts[3]||'' };
+    });
+  }
+
+  function buildDrillPrintHtml(rec){
+    var scenario = rec['Emergency Situation'] || '';
+    var scenRow1 = ['Fire','Glass leak','Emergency evacuation','Medical emergency'];
+    var scenRow2 = ['Severe weather','Chemical spillage','Power shortage'];
+    var scenRow1Html = scenRow1.map(function(s){ return pfCb(s, s===scenario); }).join('');
+    var scenRow2Html = scenRow2.map(function(s){ return pfCb(s, s===scenario); }).join('');
+
+    var actionRows = parseActionLines(rec['Corrective Actions']);
+    var actionTableRows = actionRows.map(function(a,i){
+      return '<tr><td style="width:24px;text-align:center">'+(i+1)+'</td><td>'+pfEsc(a.rec)+'</td><td>'+pfEsc(a.resp)+'</td><td>'+pfEsc(a.date)+'</td></tr>';
+    }).join('');
+
+    var photoBlocks = parsePhotoLines(rec['Photos']);
+    var photoHtml = photoBlocks.length ? photoBlocks.map(function(p,i){
+      return '<div class="pf-photo-block"><div class="pf-photo-hdr">Photo #'+(i+1)+'</div>' +
+        '<div class="pf-grid4">'+pfField('Date', p.date)+pfField('Time', p.time)+pfField('Location', p.loc)+'</div>' +
+        '<div class="pf-field"><span class="pf-label">Description:</span><span class="pf-value">'+pfEsc(p.desc)+'</span></div></div>';
+    }).join('') : '<div class="pf-note">No photo log entered digitally — see the register\'s 📷 Photos button for uploaded image files.</div>';
+
+    var printedAt = new Date().toLocaleString();
+    var drillId = rec['Drill ID'] || '';
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>Mock Drill '+pfEsc(drillId)+' — SST-FRM-40</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;margin:0;padding:24px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:14px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:800px;margin:0 auto;border:1px solid #333;padding:18px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:8px;margin-bottom:10px}'
+    + '.pf-head h1{font-size:16px;margin:0}'
+    + '.pf-head .pf-code{font-size:11px;text-align:right}'
+    + '.pf-section{border:1px solid #999;margin-bottom:8px;padding:8px}'
+    + '.pf-section-title{font-weight:700;font-size:11px;margin-bottom:6px;text-transform:uppercase}'
+    + '.pf-field{margin-bottom:5px}'
+    + '.pf-label{font-weight:700;margin-right:6px}'
+    + '.pf-value{border-bottom:1px dotted #666;padding:0 4px}'
+    + '.pf-value-inline{border-bottom:1px dotted #666;padding:0 4px;font-weight:600}'
+    + '.pf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px}'
+    + '.pf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 10px}'
+    + '.pf-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 10px}'
+    + '.pf-item{display:inline-flex;align-items:flex-start;gap:4px;font-size:10px;margin:0 10px 3px 0}'
+    + '.pf-box{font-size:13px;line-height:1}'
+    + '.pf-yn-row{display:flex;align-items:center;gap:10px;margin-bottom:4px;font-size:10.5px}'
+    + '.pf-yn-row .pf-label{min-width:260px}'
+    + '.pf-note{font-size:10px;color:#a05a00;margin-top:4px;font-style:italic}'
+    + '.pf-sign-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}'
+    + '.pf-sign-block{border:1px dashed #999;padding:6px;font-size:10px}'
+    + '.pf-sign-role{font-weight:700;margin-bottom:4px}'
+    + '.pf-sign-line{margin-bottom:4px}'
+    + '.pf-action-tbl{width:100%;border-collapse:collapse;font-size:10px;margin-top:4px}'
+    + '.pf-action-tbl th,.pf-action-tbl td{border:1px solid #999;padding:4px 6px;text-align:left}'
+    + '.pf-action-tbl th{background:#f0f0f0}'
+    + '.pf-photo-block{border:1px dashed #999;padding:6px;margin-bottom:6px}'
+    + '.pf-photo-hdr{font-weight:700;margin-bottom:4px}'
+    + '.pf-footer{margin-top:10px;font-size:9px;color:#666;border-top:1px solid #999;padding-top:6px}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>Mock Drill Report</h1>'
+      + '<div class="pf-code">SST-FRM-40 · Rev.1<br>Drill ID: <strong>'+pfEsc(drillId)+'</strong></div></div>'
+
+      + '<div class="pf-section"><div class="pf-grid3">'
+        + pfField('Area &amp; Location', rec['Area & Location'])
+        + pfField('Number of participants', rec['Number of Participants'])
+        + pfField('Date', rec['Date'])
+      + '</div><div class="pf-grid3">' + pfField('Time', rec['Time']) + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Emergency Situation</div>'
+        + '<div>' + scenRow1Html + '</div><div>' + scenRow2Html + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Scenario</div>'
+        + '<div class="pf-value" style="display:block;border-bottom:none;min-height:30px">'+pfEsc(rec['Scenario Description'])+'</div></div>'
+
+      + '<div class="pf-section"><div class="pf-grid2">'
+        + pfField('Time of declaration of emergency', rec['Time of Declaration'])
+        + pfField('First responder response time', rec['First Responder Response Time'])
+      + '</div>'
+        + pfYesNo('Whether emergency alarm sounded:', rec['Alarm Sounded'])
+        + pfYesNo('Worker assembled at assembly point:', rec['Assembled at Point'])
+        + pfYesNo('Whether ambulance or medical staff were called:', rec['Ambulance/Medical Called'])
+      + '<div class="pf-grid3" style="margin-top:6px">'
+        + pfField('Finish time', rec['Finish Time'])
+        + pfField('Total time elapsed', rec['Total Time Elapsed'])
+        + pfField('Previous total time', rec['Previous Total Time'])
+      + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Production Lines and Finish Goods Pallets Situation</div>'
+        + pfYesNo('Are the production lines affected?', rec['Production Lines Affected'])
+        + '<div class="pf-note">Detailed line/pallet breakdown is not captured digitally in this register — attach a handwritten sheet if the production lines were affected.</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Deficiency observed during the exercise</div>'
+        + '<div class="pf-value" style="display:block;border-bottom:none;min-height:24px">'+pfEsc(rec['Deficiency Observed'])+'</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Action recommended for improvement</div>'
+        + '<table class="pf-action-tbl"><thead><tr><th>No.</th><th>Recommendation</th><th>Responsibility</th><th>Date</th></tr></thead>'
+        + '<tbody>' + actionTableRows + '</tbody></table></div>'
+
+      + '<div class="pf-section"><div class="pf-grid2">'
+        + pfField('Attachments', rec['Attachments'])
+      + '</div><div class="pf-field"><span class="pf-label">Remarks:</span><span class="pf-value">'+pfEsc(rec['Remarks'])+'</span></div></div>'
+
+      + '<div class="pf-section"><div class="pf-sign-grid">'
+        + pfSignBlock('Observer(s)', rec['Observer(s)'])
+        + pfSignBlock('HSE In Charge', rec['HSE In Charge'])
+      + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Photos</div>' + photoHtml + '</div>'
+
+      + '<div class="pf-footer">SST-FRM-40 · Rev.1 · Effective date: 12 Dec 2024. Generated from the SAGCO IMS Portal on '+pfEsc(printedAt)+'. Not valid without original signatures.</div>'
+    + '</div></body></html>';
+  }
+
+  /* ── Public API used by inline onclick handlers ─────────────────────── */
+  window.MD = {
+    toggle: function(tKeyName){
+      var containerId = tKeyName === 'coverage' ? 'live-table-coverage' : TABLES[tKeyName].containerId;
+      var el = document.getElementById(containerId);
+      setExpanded(tKeyName, !el.classList.contains('md-open'));
+    },
+    jumpTo: function(tKeyName){
+      setExpanded(tKeyName, true);
+      var hdr = document.getElementById('md-hdr-' + tKeyName);
+      if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
+    },
+    onSearchInput: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].search = val; renderTableArea(tKeyName);
+    },
+    onCategoryChange: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].category = val; renderTableArea(tKeyName);
+    },
+    clearFilters: function(tKeyName){
+      _filters[tKeyName] = {search:'', category:'', special:null};
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    cardClick: function(cardName){
+      if (cardName === 'total'){
+        _filters['register'] = {search:'', category:'', special:null};
+        renderShell('register', _cache['register']);
+        this.jumpTo('register');
+      } else if (cardName === 'openactions'){
+        _filters['register'] = {search:'', category:'', special:'openactions'};
+        renderShell('register', _cache['register']);
+        this.jumpTo('register');
+      }
+    },
+    selectRow: function(tKeyName, idVal){
+      var cur = _selected[tKeyName];
+      _selected[tKeyName] = (cur !== undefined && cur !== null && String(cur) === String(idVal)) ? null : idVal;
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    getSelected: function(tKeyName){ return _selected[tKeyName]; },
+    managePhotos: function(idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      managePhotosModal(idVal);
+    },
+    deletePhoto: function(idVal, fileId){
+      if (!can('delete')) return;
+      if (!confirm('Remove this photo? It will stay in Google Drive but no longer show here.')) return;
+      fetch(SHEETS_URL + '?action=deleteAttachment&fileId=' + encodeURIComponent(fileId) + '&docId=' + encodeURIComponent(idVal))
+        .then(function(){ loadAndRenderPhotoGrid(idVal); })
+        .catch(function(){ alert('Could not remove the photo — check your connection.'); });
+    },
+    openAdd: function(tKeyName){
+      var cfg = TABLES[tKeyName];
+      if (!can('add')) return;
+      var initial = {};
+      var suggestedId = nextSequentialId(tKeyName);
+      if (suggestedId) initial[cfg.idCol] = suggestedId;
+      showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._mdReenableModalSave) window._mdReenableModalSave(); });
+      });
+    },
+    openEdit: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('edit')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+            if (window._mdReenableModalSave) window._mdReenableModalSave();
+            return;
+          }
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._mdReenableModalSave) window._mdReenableModalSave(); });
+      });
+    },
+    printDrill: function(idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache['register'];
+      var idIdx = colIdx(data.headers, 'Drill ID');
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var rec = {};
+      data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print the drill report.'); return; }
+      w.document.open(); w.document.write(buildDrillPrintHtml(rec)); w.document.close();
+    },
+    remove: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('delete')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message || 'unknown error')); return; }
+        _selected[tKeyName] = null;
+        reloadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(loadAll, 100); });
+})();
+</script>
+
+<script>
+/* ── Access gate: identical rule to ptw-register.html / fire-extinguisher-log.html ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The detailed Mock Drill register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+
+</body></html>

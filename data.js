@@ -37,6 +37,7 @@ var TAB_KEYS = {
   'documentation.html':         'documentation',
   'calibration-register.html':  'calibration',
   'ptw-register.html':          'ptw_register',
+  'mock-drill-register.html':   'mock_drill',
   'emergency-response.html':    'emergency',
   'contractor-register.html':   'contractor',
   'loto-register.html':         'loto_register',
