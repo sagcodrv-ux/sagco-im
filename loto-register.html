@@ -1,150 +1,952 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SAGCO IMS — LOTO Device Register</title>
+<title>SAGCO IMS — LOTO Register</title>
 <link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
-</head><body>
-<div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--g100);
-  border-radius:var(--radius);border-left:3px solid var(--gold);margin:10px 0;color:var(--text-lt)}
-.alert-red{background:#FFEBEE;border:1px solid #EF9A9A;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#B71C1C;margin-bottom:10px}
-.alert-amb{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:10px}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-.back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--navy);font-size:11px;
-  font-weight:600;text-decoration:none;padding:5px 10px;background:var(--g100);
-  border-radius:var(--radius);border:1px solid #e0e0e0}
-.back-link:hover{background:#e3f0fa}
-</style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety</a></div><div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"><div class="kpi-card kc-blue"><div class="kpi-lbl">LOTO Steps</div><div class="kpi-val">8</div><div class="kpi-sub">One lock per person rule mandatory</div></div><div class="kpi-card kc-amb"><div class="kpi-lbl">Active Isolations</div><div class="kpi-val">—</div><div class="kpi-sub">Enter current count</div></div><div class="kpi-card kc-blue"><div class="kpi-lbl">Devices Required</div><div class="kpi-val">1 per worker</div><div class="kpi-sub">Personal padlock + hasp</div></div><div class="kpi-card kc-red"><div class="kpi-lbl">Key Rule</div><div class="kpi-val">OLPR</div><div class="kpi-sub">One Lock Per Person — no exceptions</div></div><div class="kpi-card kc-nvy"><div class="kpi-lbl">Document Code</div><div class="kpi-val">L4-SHEE-PR-08-FRM-01</div><div class="kpi-sub">OC-01 §A.10</div></div></div><div class="req-text">ISO 45001 §8.1.1 — LOTO must be applied before any work on equipment with hazardous energy. The One Lock Per Person Rule (OLPR) means each worker performing the task applies their own personal lock — no sharing. Equipment cannot be re-energised until every worker has removed their own lock. Governed by OC-01 §A.10.</div><div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
-<script>initPage("loto-register.html");document.getElementById("tb").innerHTML=renderTopbar("LOTO Device Register","L4-SHEE-PR-08-FRM-01 · ISO 45001 §8.1.1 · One Lock Per Person Rule · OC-01 §A.10");</script>
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   LOTO REGISTER — same dark navy/gold theme and card/table shapes as
+   ptw-register.html / mock-drill-register.html. Scoped entirely to
+   .lt-dark-wrap so this page's own JS is independent, but every class
+   keeps the same naming convention (lt- instead of ptw-/md-) for
+   anyone comparing the pages side by side.
+   ══════════════════════════════════════════════════════════════════ */
+.lt-dark-wrap{
+  --ltw-bg:#0D1B35; --ltw-bg2:#142140; --ltw-bg3:#1a2a50;
+  --ltw-gold:#C9A84C; --ltw-gold-lt:#E8C97A;
+  --ltw-text:rgba(255,255,255,.92); --ltw-text-muted:rgba(255,255,255,.55);
+  --ltw-text-dim:rgba(255,255,255,.35); --ltw-border:rgba(255,255,255,.08);
+  --ltw-border-gold:rgba(201,168,76,.35);
+  --ltw-blue:#5B9BD5; --ltw-red:#F0685C; --ltw-amb:#E8B339; --ltw-grn:#4FCB9E;
+  background:var(--ltw-bg); color:var(--ltw-text); margin:0; padding:24px; min-height:100vh;
+}
+.lt-dark-wrap *{box-sizing:border-box}
+.lt-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.lt-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--ltw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--ltw-bg2);
+  border-radius:8px;border:1px solid var(--ltw-border-gold)}
+.lt-dark-wrap .back-link:hover{background:var(--ltw-bg3)}
+.lt-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--ltw-bg2);
+  border-radius:8px;border-left:3px solid var(--ltw-gold);margin:10px 0;color:var(--ltw-text-muted)}
+.lt-dark-wrap .sec-banner{background:var(--ltw-bg2);color:var(--ltw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--ltw-border-gold);border-bottom:none}
+.lt-dark-wrap .kpi-grid{display:grid;gap:14px}
+.lt-dark-wrap .kpi-card{background:var(--ltw-bg2);border:1px solid var(--ltw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.lt-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.lt-dark-wrap .kpi-card.kc-nvy::before{background:var(--ltw-gold)}
+.lt-dark-wrap .kpi-card.kc-blue::before{background:var(--ltw-blue)}
+.lt-dark-wrap .kpi-card.kc-amb::before{background:var(--ltw-amb)}
+.lt-dark-wrap .kpi-card.kc-red::before{background:var(--ltw-red)}
+.lt-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--ltw-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.lt-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--ltw-text);line-height:1.1;margin-bottom:4px}
+.lt-dark-wrap .kpi-sub{font-size:10px;color:var(--ltw-text-muted)}
+.lt-dark-wrap .kpi-card.lt-clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.lt-dark-wrap .kpi-card.lt-clickable:hover{transform:translateY(-2px);border-color:var(--ltw-gold)}
+.lt-dark-wrap .chart-grid{display:grid;gap:14px}
+.lt-dark-wrap .chart-card{background:var(--ltw-bg2);border:1px solid var(--ltw-border);
+  border-radius:14px;padding:16px 18px}
+.lt-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--ltw-text);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.lt-dark-wrap .chart-sub{font-size:10px;color:var(--ltw-text-muted);font-weight:400}
+.lt-dark-wrap .chart-wrap{height:220px;position:relative}
+.lt-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.lt-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--ltw-grn)}
+.lt-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--ltw-red)}
+.lt-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--ltw-amb)}
+.lt-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--ltw-blue)}
+</style>
+</head><body><div class="lt-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a><a href="loto-auth-persons.html" class="back-link">LOTO Authorised Persons →</a></div><div class="req-text">ISO 45001 §8.1 — Operational control of hazardous energy. Every lockout/tagout job is isolated, verified and reinstated against L4-SHEE-PR-08-FRM-01 (Rev.00), the LOTO Isolation and Reinstatement Checklist. This register is the digital record of that form; it does not replace the physical locks, tags, or the one-lock-per-person rule maintained on site via the LOTO Authorised Persons register.</div>
+
+<div class="sec-banner">LOTO QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy lt-clickable" onclick="LT.cardClick('total')" title="Click to view the LOTO Register"><div class="kpi-lbl">Total LOTO Jobs</div><div class="kpi-val" id="lt-kpi-total">—</div><div class="kpi-sub">LOTO Register</div></div>
+  <div class="kpi-card kc-blue lt-clickable" onclick="LT.cardClick('total')" title="Click to view this year's LOTO jobs"><div class="kpi-lbl">This Year's LOTO Jobs</div><div class="kpi-val" id="lt-kpi-year">—</div><div class="kpi-sub" id="lt-kpi-year-sub">Loading…</div></div>
+  <div class="kpi-card kc-red lt-clickable" onclick="LT.cardClick('openactions')" title="Click to view isolations not yet closed"><div class="kpi-lbl">Active Isolations</div><div class="kpi-val" id="lt-kpi-open">—</div><div class="kpi-sub">Jobs not yet Closed</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:18px">
+  <div class="chart-card">
+    <div class="chart-title">LOTO Jobs by Primary Energy Source<span class="chart-sub">breakdown by energy type isolated</span></div>
+    <div class="chart-wrap" style="height:280px"><canvas id="ltEnergyChart"></canvas></div>
+  </div>
+</div>
+
+<div class="lt-jumpbar" style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px">
+  <button class="lt-jump-btn" onclick="LT.jumpTo('register')">LOTO Register <span id="lt-count-register" class="lt-jump-count"></span></button>
+</div>
+
+<div class="sec-banner lt-sec-toggle" id="lt-hdr-register" onclick="LT.toggle('register')"><span class="lt-chevron">▶</span> LOTO REGISTER</div>
+<div id="live-table-register" class="lt-collapsible" style="margin-top:0"></div>
+
+<div style="margin-top:16px;font-size:10px;color:var(--ltw-text-dim);text-align:right" id="lt-live-ts"></div>
+<div id="lt-modal-root"></div>
+</div>
+<!-- No sidebar/topbar: this page is reached only from inside the Operations Hub, same pattern as ptw-register.html / mock-drill-register.html. -->
+
+<style>
+.lt-dark-wrap .lt-toolbar{display:flex;justify-content:flex-end;padding:6px 0}
+.lt-dark-wrap .lt-btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;
+  border:1px solid var(--ltw-border);background:var(--ltw-bg3);color:var(--ltw-text);cursor:pointer;font-family:inherit}
+.lt-dark-wrap .lt-btn:hover{background:#223457;border-color:var(--ltw-border-gold)}
+.lt-dark-wrap .lt-btn-add{background:var(--ltw-gold);color:#1a1200;border-color:var(--ltw-gold);font-weight:700}
+.lt-dark-wrap .lt-btn-add:hover{background:var(--ltw-gold-lt)}
+.lt-dark-wrap .lt-btn:disabled{opacity:.35;cursor:not-allowed}
+.lt-dark-wrap .lt-btn:disabled:hover{background:var(--ltw-bg3);border-color:var(--ltw-border)}
+.lt-dark-wrap .lt-row-selectable{cursor:pointer}
+.lt-dark-wrap .lt-row-selected td,
+.lt-dark-wrap .lt-row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--ltw-gold)}
+.lt-dark-wrap .lt-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
+  align-items:center;justify-content:center;z-index:9999}
+.lt-dark-wrap .lt-modal{background:var(--ltw-bg2);border:1px solid var(--ltw-border-gold);border-radius:14px;
+  padding:20px;width:460px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--ltw-text)}
+.lt-dark-wrap .lt-modal h3{margin:0 0 12px;font-size:14px;color:var(--ltw-gold-lt)}
+.lt-dark-wrap .lt-field{margin-bottom:10px}
+.lt-dark-wrap .lt-field label{display:block;font-size:10px;font-weight:600;color:var(--ltw-text-muted);margin-bottom:3px}
+.lt-dark-wrap .lt-field input,.lt-dark-wrap .lt-field select,.lt-dark-wrap .lt-field textarea{width:100%;padding:6px 8px;font-size:12px;
+  border:1px solid var(--ltw-border);border-radius:6px;font-family:inherit;box-sizing:border-box;
+  background:var(--ltw-bg3);color:var(--ltw-text)}
+.lt-dark-wrap .lt-field textarea{min-height:56px;resize:vertical}
+.lt-dark-wrap .lt-field .lt-hint{font-size:9px;color:var(--ltw-text-dim);margin-top:3px;display:block}
+.lt-dark-wrap .lt-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.lt-dark-wrap .lt-modal-actions .lt-btn-cancel{background:var(--ltw-bg3)}
+.lt-dark-wrap .lt-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+  margin-top:10px;max-height:340px;overflow-y:auto}
+.lt-dark-wrap .lt-photo-item{position:relative;border:1px solid var(--ltw-border);border-radius:8px;
+  overflow:hidden;background:var(--ltw-bg3)}
+.lt-dark-wrap .lt-photo-item img{display:block;width:100%;height:90px;object-fit:cover}
+.lt-dark-wrap .lt-photo-meta{font-size:8px;color:var(--ltw-text-muted);padding:3px 5px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.lt-dark-wrap .lt-photo-del{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:50%;
+  background:rgba(20,10,10,.75);color:#fff;font-size:11px;line-height:18px;text-align:center;cursor:pointer}
+.lt-dark-wrap .lt-photo-del:hover{background:#E06060}
+.lt-dark-wrap .lt-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
+  border:1px solid var(--ltw-border-gold);background:var(--ltw-bg2);cursor:pointer;font-family:inherit;color:var(--ltw-gold-lt)}
+.lt-dark-wrap .lt-jump-btn:hover{background:var(--ltw-bg3);border-color:var(--ltw-gold)}
+.lt-dark-wrap .lt-jump-count{font-weight:400;color:var(--ltw-text-muted);font-size:10px}
+.lt-dark-wrap .lt-sec-toggle{cursor:pointer;user-select:none}
+.lt-dark-wrap .lt-sec-toggle:hover{opacity:.9}
+.lt-dark-wrap .lt-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px;color:var(--ltw-gold-lt)}
+.lt-dark-wrap .lt-collapsible{overflow:hidden;max-height:0;transition:none;
+  background:var(--ltw-bg2);border:1px solid var(--ltw-border-gold);border-top:none;border-radius:0 0 8px 8px}
+.lt-dark-wrap .lt-collapsible.lt-open{max-height:none;padding:10px 14px}
+.lt-dark-wrap .lt-filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.lt-dark-wrap .lt-search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
+  border:1px solid var(--ltw-border);border-radius:8px;font-family:inherit;background:var(--ltw-bg3);color:var(--ltw-text)}
+.lt-dark-wrap .lt-search-input::placeholder{color:var(--ltw-text-dim)}
+.lt-dark-wrap .lt-filter-select{padding:6px 8px;font-size:12px;border:1px solid var(--ltw-border);
+  border-radius:8px;font-family:inherit;max-width:220px;background:var(--ltw-bg3);color:var(--ltw-text)}
+.lt-dark-wrap .lt-filter-status{font-size:10px;color:var(--ltw-text-muted);margin-left:auto}
+.lt-dark-wrap .tbl-wrap{overflow-x:auto}
+.lt-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
+.lt-dark-wrap .tbl-stripe th{text-align:left;color:var(--ltw-gold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--ltw-border-gold);
+  background:var(--ltw-bg3);white-space:nowrap}
+.lt-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--ltw-border);color:var(--ltw-text)}
+.lt-dark-wrap .tbl-stripe tbody tr:nth-child(odd) td{background:var(--ltw-bg2)}
+.lt-dark-wrap .tbl-stripe tbody tr:nth-child(even) td{background:#101d3a}
+.lt-dark-wrap .tbl-stripe tbody tr:hover td{background:var(--ltw-bg3)}
+.lt-dark-wrap .lt-expand-cell:hover{background:rgba(232,179,57,.18)!important}
+.lt-dark-wrap .tbl-compact th,.lt-dark-wrap .tbl-compact td{font-size:9px !important;padding:4px 7px !important}
+.lt-dark-wrap .empty-state{text-align:center;padding:20px;color:var(--ltw-text-muted)}
+.lt-dark-wrap .empty-state strong{display:block;font-size:13px;color:var(--ltw-gold-lt);margin-bottom:4px}
+.lt-dark-wrap .nb{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid}
+.lt-dark-wrap .nb-red{background:rgba(240,104,92,.15);color:var(--ltw-red);border-color:rgba(240,104,92,.4)}
+.lt-dark-wrap .nb-amb{background:rgba(232,179,57,.15);color:var(--ltw-amb);border-color:rgba(232,179,57,.4)}
+.lt-dark-wrap .nb-grn{background:rgba(79,203,158,.15);color:var(--ltw-grn);border-color:rgba(79,203,158,.4)}
+.lt-dark-wrap .lt-detail-row td{background:rgba(255,255,255,.03);padding:10px 14px;border-top:1px dashed rgba(255,255,255,.12)}
+.lt-dark-wrap .lt-detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px}
+.lt-dark-wrap .lt-detail-item{font-size:11px;line-height:1.5}
+.lt-dark-wrap .lt-detail-lbl{display:block;font-weight:600;color:var(--ltw-text-muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.3px}
+.lt-dark-wrap .lt-detail-val{display:block;color:var(--ltw-text);word-break:break-word;white-space:pre-wrap}
+</style>
 
 <script>
-/* ── Auto-update summary cards from live Sheets data ── */
+/* ── LOTO: single live table + Add/Edit/Remove/Print + photo evidence.
+   Architecture mirrors mock-drill-register.html and ptw-register.html
+   exactly (same modal shell, same soft-delete via Record Status, same
+   Drive-backed photo gallery keyed by this record's own ID) — only
+   the field set and print layout are specific to L4-SHEE-PR-08-FRM-01
+   (LOTO Isolation and Reinstatement Checklist), the real HSE form
+   this digitises.
+   ────────────────────────────────────────────────────────────────── */
+(function(){
 
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
+  // The standard energy types as they appear, in order, on the
+  // Section 2 Energy Isolation grid of the live L4-SHEE-PR-08-FRM-01
+  // form (Rev.00) — this fixed order is what the Energy Isolation
+  // Details textarea is parsed against (positional, one line per
+  // source) and what the dashboard chart groups by via the separate
+  // "Primary Energy Source" field.
+  var ENERGY_SOURCES_FORM_ROWS = ['Electrical','Mechanical','Hydraulic','Pneumatic','Pressure / Stored Energy','Other'];
+  var ENERGY_SOURCES = ['Electrical','Mechanical','Hydraulic','Pneumatic','Pressure / Stored Energy','Multiple Energy Sources','Other'];
+  var YESNO = ['Yes','No'];
+
+  var TABLES = {
+    register: {
+      label: 'LOTO Job', tabKey: 'loto_register', containerId: 'live-table-register',
+      idCol: 'LOTO ID', idEditable: true,
+      idPrefix: 'LOTO-', idPad: 3,
+      fields: ['LOTO ID','Date','Department / Location','Equipment Name / ID','Description of Work',
+               'PTW Number','Performing Team / Contractor','Authorized LOTO Person','Primary Energy Source',
+               'Energy Isolation Details',
+               'Equipment Shutdown Safely','All Energy Sources Isolated','Locks and Tags Applied',
+               'Stored Energy Released or Restrained','Zero-Energy Condition Verified',
+               'Absence-of-Voltage Test Completed','Work Area Confirmed Safe and PTW Conditions Satisfied',
+               'Isolation Performed By','Verification Completed By','Verification Date / Time',
+               'Authorization to Start Work',
+               'Maintenance Work Completed','Personnel Tools and Equipment Cleared',
+               'Guards and Safety Devices Reinstated','Affected Personnel Notified',
+               'Each Personal Lock Removed by Owner','Isolation Removal and Restoration Authorized',
+               'Equipment Returned to Service','PTW Closed per Site Procedure',
+               'Work Completed By','LOTO Removal / Reinstatement Authorized By','Reinstatement Date / Time',
+               'Final Remarks','Signatures','Photos','Status'],
+      selectFields: {
+        'Primary Energy Source': ENERGY_SOURCES,
+        'Equipment Shutdown Safely': YESNO, 'All Energy Sources Isolated': YESNO,
+        'Locks and Tags Applied': YESNO, 'Stored Energy Released or Restrained': YESNO,
+        'Zero-Energy Condition Verified': YESNO, 'Absence-of-Voltage Test Completed': YESNO,
+        'Work Area Confirmed Safe and PTW Conditions Satisfied': YESNO,
+        'Maintenance Work Completed': YESNO, 'Personnel Tools and Equipment Cleared': YESNO,
+        'Guards and Safety Devices Reinstated': YESNO, 'Affected Personnel Notified': YESNO,
+        'Each Personal Lock Removed by Owner': YESNO, 'Isolation Removal and Restoration Authorized': YESNO,
+        'Equipment Returned to Service': YESNO, 'PTW Closed per Site Procedure': YESNO,
+        'Status': ['Open','Closed']
+      },
+      // Multi-line by nature on the real paper form — the per-energy
+      // isolation grid, a work description, final remarks, or a
+      // per-photo log can't realistically be one line.
+      textareaFields: ['Description of Work','Energy Isolation Details','Final Remarks','Signatures','Photos'],
+      filterField: 'Primary Energy Source'
+    }
+  };
+  var _filters = {};
+  var _selected = {};
+  var _expandedRows = {};
+  var STATUS_COL = 'Record Status';
+  var _cache = {};
+  var _charts = { energy: null };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUsername(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    return (s && s.username) || 'unknown';
   }
-  return '—';
-}
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function nextSequentialId(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return '';
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    if (idIdx < 0) return '';
+    var maxN = 0, prefixLower = cfg.idPrefix.toLowerCase();
+    data.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(prefixLower) !== 0) return;
+      var n = parseInt(v.slice(cfg.idPrefix.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    if (maxN === 0) return '';
+    var numStr = String(maxN + 1);
+    while (numStr.length < cfg.idPad) numStr = '0' + numStr;
+    return cfg.idPrefix + numStr;
+  }
+  function getOwnColumnValues(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return [];
+    var idx = colIdx(data.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}, out = [];
+    data.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    });
+    out.sort();
+    return out;
+  }
 
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
+  function renderShell(tKeyName, data){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    if (!data || !data.headers || !data.rows){
+      el.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      return;
+    }
+    _cache[tKeyName] = data;
+    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+    var f = _filters[tKeyName];
+    var sel = _selected[tKeyName];
+
+    var toolbarHtml = '';
+    if (can('add')) toolbarHtml += '<button class="lt-btn lt-btn-add" onclick="LT.openAdd(\''+tKeyName+'\')">+ Add Record</button>';
+    var disabledAttr = sel ? '' : ' disabled';
+    toolbarHtml += '<button class="lt-btn" id="lt-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="LT.printLoto(LT.getSelected(\''+tKeyName+'\'))">🖨️ Print FRM-08</button>';
+    toolbarHtml += '<button class="lt-btn" id="lt-tb-photos-'+tKeyName+'"'+disabledAttr+' onclick="LT.managePhotos(LT.getSelected(\''+tKeyName+'\'))">📷 Photos</button>';
+    if (can('edit')) toolbarHtml += '<button class="lt-btn" id="lt-tb-edit-'+tKeyName+'"'+disabledAttr+' onclick="LT.openEdit(\''+tKeyName+'\', LT.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
+    if (can('delete')) toolbarHtml += '<button class="lt-btn" id="lt-tb-remove-'+tKeyName+'"'+disabledAttr+' onclick="LT.remove(\''+tKeyName+'\', LT.getSelected(\''+tKeyName+'\'))">🗑️ Remove</button>';
+
+    var categoryHtml = '';
+    if (cfg.filterField){
+      var opts = getOwnColumnValues(tKeyName, cfg.filterField);
+      categoryHtml = '<select class="lt-filter-select" onchange="LT.onCategoryChange(\''+tKeyName+'\', this.value)">' +
+        '<option value="">All ' + cfg.filterField + '</option>' +
+        opts.map(function(o){
+          var selA = (o === f.category) ? ' selected' : '';
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+selA+'>'+o+'</option>';
+        }).join('') + '</select>';
+    }
+
+    var specialLabels = { openactions: 'Active Isolations' };
+    var specialPillHtml = '';
+    if (f.special && specialLabels[f.special]){
+      specialPillHtml = '<span class="nb nb-amb" style="margin:6px 0;display:inline-block">Showing: ' + specialLabels[f.special] +
+        ' <span style="cursor:pointer" onclick="LT.clearFilters(\''+tKeyName+'\')">✕</span></span>';
+    }
+
+    el.innerHTML =
+      '<div class="lt-toolbar">' + toolbarHtml + '</div>' +
+      specialPillHtml +
+      '<div class="lt-filterbar">' +
+        '<input type="text" class="lt-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="LT.onSearchInput(\''+tKeyName+'\', this.value)">' +
+        categoryHtml +
+        '<button class="lt-btn" onclick="LT.clearFilters(\''+tKeyName+'\')">Clear</button>' +
+        '<span class="lt-filter-status" id="lt-filter-status-'+tKeyName+'"></span>' +
+      '</div>' +
+      '<div class="lt-table-area" id="lt-table-area-'+tKeyName+'"></div>';
+    renderTableArea(tKeyName);
+  }
+
+  // Matches the KPI card's own label ("Jobs not yet Closed"): any LOTO
+  // job whose Status isn't Closed counts as an active isolation,
+  // regardless of whether reinstatement fields have been filled in
+  // yet — undercounting active jobs that haven't been closed out would
+  // be worse than including one that's mid-reinstatement.
+  function hasOpenIsolation(row, headers){
+    var statusIdx = colIdx(headers, 'Status');
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return st !== 'closed';
+  }
+
+  function renderTableArea(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    var areaEl = document.getElementById('lt-table-area-' + tKeyName);
+    var statusEl = document.getElementById('lt-filter-status-' + tKeyName);
+    if (!data || !areaEl) return;
+
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
+    var f = _filters[tKeyName] || {search:'', category:'', special:null};
+    var searchLower = f.search.trim().toLowerCase();
+
+    var visibleRows = data.rows.filter(function(r){
+      return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+    var totalVisible = visibleRows.length;
+    if (f.category && filterFieldIdx > -1){
+      visibleRows = visibleRows.filter(function(r){ return String(r[filterFieldIdx]||'').trim() === f.category; });
+    }
+    if (searchLower){
+      visibleRows = visibleRows.filter(function(r){
+        return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
+      });
+    }
+    if (f.special === 'openactions'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenIsolation(r, data.headers); });
+    }
+    if (statusEl){
+      var isFiltered = !!(f.search.trim() || f.category || f.special);
+      statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
+    }
+
+    // Keep the register's own table readable: show a trimmed column
+    // set (the long checklist/narrative fields are reached via the
+    // row itself, Edit, or Print) rather than 36 columns forcing a
+    // tiny compact font. Every field not shown here is still
+    // available per-row via the ▶ expand toggle below, so nothing
+    // captured on the form is hidden — just collapsed out of the
+    // default view.
+    var displayCols = ['LOTO ID','Date','Department / Location','Equipment Name / ID','Primary Energy Source','Status'];
+    var colIdxs = displayCols.map(function(c){ return colIdx(data.headers, c); }).filter(function(i){ return i >= 0; });
+    var colNames = colIdxs.map(function(i){ return data.headers[i]; });
+    var shownSet = {};
+    colNames.forEach(function(n){ shownSet[n] = true; });
+    // All other fields on the form, in form order, for the expanded panel.
+    var detailFields = (cfg.fields||[]).filter(function(f){ return !shownSet[f] && f !== STATUS_COL; });
+
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe">';
+    html += '<thead><tr><th style="width:40px"></th>'; colNames.forEach(function(h){ html += '<th>'+h+'</th>'; }); html += '</tr></thead><tbody>';
+
+    if (!visibleRows.length){
+      html += '<tr><td colspan="'+(colNames.length+1)+'"><div class="empty-state"><strong>No records</strong>Add data in Google Sheets or use + Add Record above.</div></td></tr>';
+    } else {
+      var selId = _selected[tKeyName];
+      var expandedSet = _expandedRows[tKeyName] || {};
+      visibleRows.forEach(function(row){
+        var idVal = idIdx>-1 ? row[idIdx] : '';
+        var idValEsc = String(idVal).replace(/'/g,"\\'");
+        var isSel = selId !== undefined && selId !== null && String(selId) === String(idVal);
+        var isExpanded = !!expandedSet[String(idVal)];
+        html += '<tr class="lt-row-selectable'+(isSel?' lt-row-selected':'')+'" onclick="LT.selectRow(\''+tKeyName+'\',\''+idValEsc+'\')">';
+        html += '<td class="lt-expand-cell" style="text-align:center;cursor:pointer;padding:10px 6px" title="Click to show all fields" onclick="event.stopPropagation();LT.toggleRowDetail(\''+tKeyName+'\',\''+idValEsc+'\')">'+
+          '<span class="lt-chevron" style="display:inline-block;font-size:13px;transition:transform .15s'+(isExpanded?';transform:rotate(90deg)':'')+'">▶</span></td>';
+        colIdxs.forEach(function(ci){
+          var cell = row[ci];
+          if (data.headers[ci] === 'Status'){
+            var stv = String(cell||'').trim();
+            var cls = stv.toLowerCase()==='closed' ? 'nb-grn' : 'nb-amb';
+            html += '<td>'+(stv?'<span class="nb '+cls+'">'+stv+'</span>':formatCell(cell))+'</td>';
+          } else {
+            html += '<td>' + formatCell(cell) + '</td>';
+          }
+        });
+        html += '</tr>';
+        if (isExpanded){
+          html += '<tr class="lt-detail-row"><td></td><td colspan="'+colNames.length+'">'+
+            '<div class="lt-detail-grid">' + detailFields.map(function(f){
+              var fi = colIdx(data.headers, f);
+              var val = fi>=0 ? row[fi] : '';
+              return '<div class="lt-detail-item"><span class="lt-detail-lbl">'+f+'</span><span class="lt-detail-val">'+formatCell(val)+'</span></div>';
+            }).join('') +
+            '</div></td></tr>';
+        }
+      });
+    }
+    html += '</tbody></table></div>';
+    areaEl.innerHTML = html;
+  }
+
+  function loadTab(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--ltw-text-muted);font-size:11px">⏳ Loading live data…</div>';
+    return fetch(SHEETS_URL + '?tab=' + cfg.tabKey + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        renderShell(tKeyName, data);
+        var countEl = document.getElementById('lt-count-' + tKeyName);
+        if (countEl && data && data.rows){
+          var statusIdx = colIdx(data.headers, STATUS_COL);
+          var visibleCount = statusIdx < 0 ? data.rows.length :
+            data.rows.filter(function(r){ return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; }).length;
+          countEl.textContent = '(' + visibleCount + ')';
+        }
+        return data;
+      })
+      .catch(function(){
+        el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
+        return null;
+      });
+  }
+
+  function loadAll(){
+    loadTab('register').then(function(){
+      renderDashboard();
+    });
+  }
+  function reloadAll(){ return loadAll(); }
+
+  function renderDashboard(){
+    var reg = _cache['register'];
+    if (!reg) return;
+    var statusIdx = colIdx(reg.headers, STATUS_COL);
+    var visibleRows = reg.rows.filter(function(r){ return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+
+    document.getElementById('lt-kpi-total').textContent = visibleRows.length;
+
+    var dateIdx = colIdx(reg.headers, 'Date');
+    var thisYear = new Date().getFullYear();
+    var yearCount = 0;
+    visibleRows.forEach(function(r){
+      var s = dateIdx>=0 ? String(r[dateIdx]||'').trim() : '';
+      if (/^\d{4}/.test(s) && parseInt(s.slice(0,4),10) === thisYear) yearCount++;
+    });
+    document.getElementById('lt-kpi-year').textContent = yearCount;
+    document.getElementById('lt-kpi-year-sub').textContent = 'Year to date';
+
+    var srcIdx = colIdx(reg.headers, 'Primary Energy Source');
+
+    var openCount = visibleRows.filter(function(r){ return hasOpenIsolation(r, reg.headers); }).length;
+    document.getElementById('lt-kpi-open').textContent = openCount;
+
+    var BLUE = '#5B9BD5';
+    var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
+    if (_charts.energy) { _charts.energy.destroy(); _charts.energy = null; }
+
+    var srcCounts = {};
+    ENERGY_SOURCES.forEach(function(s){ srcCounts[s] = 0; });
+    visibleRows.forEach(function(r){
+      var s = srcIdx>=0 ? String(r[srcIdx]||'').trim() : '';
+      if (s) srcCounts[s] = (srcCounts[s]||0) + 1;
+    });
+    // Only chart energy sources that actually have a job logged — a
+    // source with zero jobs would just be a dead 0-bar cluttering
+    // this chart.
+    var usedSources = ENERGY_SOURCES.filter(function(s){ return (srcCounts[s]||0) > 0; });
+    if (window.Chart && usedSources.length){
+      var maxSrcCount = Math.max.apply(null, usedSources.map(function(s){ return srcCounts[s]||0; }).concat([0]));
+      _charts.energy = new Chart(document.getElementById('ltEnergyChart'), {
+        type:'bar', data:{ labels: usedSources, datasets:[{ label:'LOTO Jobs', data: usedSources.map(function(s){ return srcCounts[s]||0; }), backgroundColor:BLUE, borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
+          // Same fix as PTW's "by Work Involved" chart: hover anywhere
+          // on the row (not just the bar pixels) and print the exact
+          // count past the end of every bar, so a source with only 1
+          // job is still readable next to one with a dozen.
+          interaction:{ mode:'nearest', axis:'y', intersect:false },
+          layout:{ padding:{ right: 28 } },
+          scales:{ x:{ beginAtZero:true, max: Math.ceil(maxSrcCount*1.18)||undefined, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } }, y:{ ticks:{ color:TICK }, grid:{ color:GRID } } },
+          plugins:{
+            legend:{ display:false },
+            tooltip:{ callbacks:{ label:function(ctx){ return ctx.parsed.x + ' job' + (ctx.parsed.x===1?'':'s'); } } },
+            datalabels:{ anchor:'end', align:'end', clamp:true, color:'#E8C97A', font:{ size:10, weight:'600' }, formatter:function(v){ return v; } }
+          }
+        },
+        plugins: (window.ChartDataLabels ? [window.ChartDataLabels] : [])
+      });
     }
   }
-}
-(function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('Active Isolations', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Status","ACTIVE") + countContains("Status","Active"); })(d.rows||[],d.headers||[]));
+
+  function setExpanded(tKeyName, expanded){
+    var containerId = TABLES[tKeyName].containerId;
+    var el = document.getElementById(containerId);
+    var hdr = document.getElementById('lt-hdr-' + tKeyName);
+    var chev = hdr ? hdr.querySelector('.lt-chevron') : null;
+    if (expanded){ el.classList.add('lt-open'); if (chev) chev.style.transform='rotate(90deg)'; }
+    else { el.classList.remove('lt-open'); if (chev) chev.style.transform='rotate(0deg)'; }
+  }
+
+  /* ── Modal (shared by Add + Edit) — same shell as PTW/Mock Drill,
+     extended with <select> rendering for selectFields and <textarea>
+     for textareaFields, since several of this form's fields are
+     inherently multi-line (a work description, the per-energy
+     isolation grid, final remarks) in a way PTW's own fields weren't.
+     ─────────────────────────────────────────────────────────────── */
+  function showModal(tKeyName, title, fields, initialValues, onSubmit){
+    var root = document.getElementById('lt-modal-root');
+    var cfg = TABLES[tKeyName];
+    var selFields = cfg.selectFields || {};
+    var taFields = cfg.textareaFields || [];
+    var fieldsHtml = fields.map(function(f, fi){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEsc = String(v).replace(/"/g,'&quot;');
+      if (selFields[f]){
+        var optsHtml = '<option value=""></option>' + selFields[f].map(function(o){
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="lt-field"><label>'+f+'</label><select data-field="'+f+'">'+optsHtml+'</select></div>';
       }
+      if (taFields.indexOf(f) > -1){
+        var hint = '';
+        if (f === 'Energy Isolation Details') hint = '<span class="lt-hint">One line per source, in order: Electrical / Mechanical / Hydraulic / Pneumatic / Pressure-Stored Energy / Other. Format: Isolation Point or ID | Isolated Y/N | Lock/Tag No. Leave a line blank if not applicable.</span>';
+        if (f === 'Photos') hint = '<span class="lt-hint">One per line: Date | Time | Location | Description (actual image files go via the 📷 Photos button)</span>';
+        return '<div class="lt-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea>'+hint+'</div>';
+      }
+      var isDateField = /date$/i.test(f.trim());
+      var inputType = isDateField ? 'date' : 'text';
+      return '<div class="lt-field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"></div>';
+    }).join('');
+
+    root.innerHTML = '<div class="lt-modal-bg" id="lt-modal-bg"><div class="lt-modal">' +
+      '<h3>'+title+'</h3>' + fieldsHtml +
+      '<div id="lt-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
+      '<div class="lt-modal-actions"><button class="lt-btn lt-btn-cancel" id="lt-modal-cancel">Cancel</button>' +
+      '<button class="lt-btn lt-btn-add" id="lt-modal-save">Save</button></div></div></div>';
+
+    document.getElementById('lt-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('lt-modal-bg').onclick = function(e){ if(e.target.id==='lt-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('lt-modal-save').onclick = function(){
+      var values = {};
+      root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      var saveBtn = document.getElementById('lt-modal-save');
+      saveBtn.disabled = true;
+      window._ltReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
+      onSubmit(values, function(){ root.innerHTML = ''; });
     };
   }
+
+  /* ── Photo evidence — reuses the EXACT SAME Google Drive attachment
+     backend already live for PTW/Mock Drill/Document Register
+     (uploadFilePicker / listFiles / deleteAttachment), keyed by this
+     record's own LOTO ID in the same generic "docId" slot. Zero Apps
+     Script changes needed — identical mechanism to
+     mock-drill-register.html's managePhotosModal. ──────────────────── */
+  function photoThumbUrl(fileId){
+    return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w400';
+  }
+  function loadAndRenderPhotoGrid(idVal){
+    var gridEl = document.getElementById('lt-photo-grid');
+    if (!gridEl) return;
+    gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--ltw-text-muted);font-size:11px">⏳ Loading photos…</div>';
+    fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(idVal))
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        var files = (res && res.files) || [];
+        if (!files.length){
+          gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--ltw-text-muted);font-size:11px">No photos attached to this LOTO job yet.</div>';
+          return;
+        }
+        var canDel = can('delete');
+        gridEl.innerHTML = files.map(function(f){
+          return '<div class="lt-photo-item">' +
+            '<a href="'+String(f.webViewLink||'#').replace(/"/g,'&quot;')+'" target="_blank" title="'+String(f.fileName||'').replace(/"/g,'&quot;')+'">' +
+              '<img src="'+photoThumbUrl(f.fileId)+'" alt="" loading="lazy"></a>' +
+            (canDel ? '<span class="lt-photo-del" title="Remove photo" onclick="LT.deletePhoto(\''+idVal+'\',\''+String(f.fileId).replace(/'/g,"\\'")+'\')">✕</span>' : '') +
+            '<div class="lt-photo-meta">'+String(f.date||f.uploadedDate||'').replace(/</g,'&lt;')+(f.uploadedBy?' · '+String(f.uploadedBy).replace(/</g,'&lt;'):'')+'</div>' +
+          '</div>';
+        }).join('');
+      })
+      .catch(function(){ gridEl.innerHTML = '<div style="padding:16px;text-align:center;color:#E06060;font-size:11px">Could not load photos — check your connection.</div>'; });
+  }
+  function uploadStagedPhotos(files, idVal, done){
+    var uploaded = 0, failed = 0;
+    function uploadOne(file){
+      return new Promise(function(resolve){
+        var reader = new FileReader();
+        reader.onerror = function(){ failed++; resolve(); };
+        reader.onload = function(ev){
+          var b64 = ev.target.result.split(',')[1];
+          fetch(SHEETS_URL, { method:'POST', body: JSON.stringify({
+            action:'uploadFilePicker', docId: idVal, username: currentUsername(),
+            fileName: file.name, mimeType: file.type || 'image/jpeg', b64: b64
+          }) }).then(function(r){ return r.json(); })
+            .then(function(res){ if (res && res.ok) uploaded++; else failed++; resolve(); })
+            .catch(function(){ failed++; resolve(); });
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    var chain = Promise.resolve();
+    files.forEach(function(file){ chain = chain.then(function(){ return uploadOne(file); }); });
+    chain.then(function(){ done(uploaded, failed); });
+  }
+  function managePhotosModal(idVal){
+    var root = document.getElementById('lt-modal-root');
+    var canUpload = can('edit');
+    root.innerHTML = '<div class="lt-modal-bg" id="lt-photo-modal-bg"><div class="lt-modal" style="width:560px">' +
+      '<h3>📷 Photos — ' + String(idVal).replace(/</g,'&lt;') + '</h3>' +
+      (canUpload ? '<div class="lt-field"><label>Add Photos <span style="font-weight:400;opacity:.7">(select one or more, JPG/PNG)</span></label>' +
+        '<input type="file" id="lt-photo-input" accept="image/*" multiple>' +
+        '<div id="lt-photo-upload-status" style="font-size:10px;margin-top:6px;min-height:14px"></div></div>' : '') +
+      '<div id="lt-photo-grid" class="lt-photo-grid"></div>' +
+      '<div class="lt-modal-actions"><button class="lt-btn lt-btn-cancel" id="lt-photo-close">Close</button></div>' +
+    '</div></div>';
+    document.getElementById('lt-photo-close').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('lt-photo-modal-bg').onclick = function(e){ if (e.target.id==='lt-photo-modal-bg') root.innerHTML=''; };
+    loadAndRenderPhotoGrid(idVal);
+    if (canUpload){
+      var fi = document.getElementById('lt-photo-input');
+      fi.addEventListener('change', function(){
+        var files = Array.from(fi.files||[]);
+        if (!files.length) return;
+        var statusEl = document.getElementById('lt-photo-upload-status');
+        fi.disabled = true;
+        if (statusEl) statusEl.textContent = 'Uploading ' + files.length + ' photo(s)…';
+        uploadStagedPhotos(files, idVal, function(done, failed){
+          fi.disabled = false; fi.value = '';
+          if (statusEl){ statusEl.textContent = done+' uploaded'+(failed?', '+failed+' failed':'')+'.'; statusEl.style.color = failed ? '#E06060' : '#6FCF97'; }
+          loadAndRenderPhotoGrid(idVal);
+        });
+      });
+    }
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  // ── L4-SHEE-PR-08-FRM-01 print template — one page, built section-
+  // for-section from the LOTO Isolation and Reinstatement Checklist
+  // content Issam supplied (Job Information; the Energy Isolation
+  // grid parsed positionally from the Energy Isolation Details field;
+  // the 7-item Verification Before Work checklist with its sign-off
+  // line; the 8-item Work Completion and Reinstatement checklist with
+  // its sign-off line and final remarks). Styled after the attached
+  // PTW checklist's bordered-section / checkbox-grid look, compacted
+  // to fit a single printed page rather than the PTW form's full
+  // multi-page layout. ─────────────────────────────────────────────
+  function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function pfCb(label, checked){ return '<span class="pf-item"><span class="pf-box">'+(checked?'&#9746;':'&#9744;')+'</span><span class="pf-item-label">'+pfEsc(label)+'</span></span>'; }
+  function pfYes(val){ return String(val||'').trim().toLowerCase() === 'yes'; }
+  function pfField(label, value){ return '<div class="pf-field"><span class="pf-label">'+pfEsc(label)+'</span><span class="pf-value">'+pfEsc(value||'')+'</span></div>'; }
+  function pfSignLine(role, name){
+    return '<div class="pf-sign-line"><span class="pf-label">'+pfEsc(role)+':</span><span class="pf-value-inline">'+pfEsc(name||'')+'</span></div>';
+  }
+  // Parses the Energy Isolation Details textarea positionally against
+  // the 6 fixed energy-type rows on the live form — "Isolation Point
+  // or ID | Isolated Y/N | Lock/Tag No." per line, in the same order
+  // as ENERGY_SOURCES_FORM_ROWS. Blank rows print empty (ready for a
+  // handwritten entry) rather than being omitted, so the printed
+  // sheet still looks like the official 6-row grid.
+  function parseEnergyLines(text){
+    var lines = String(text||'').split('\n');
+    return ENERGY_SOURCES_FORM_ROWS.map(function(src, i){
+      var parts = (lines[i]||'').split('|').map(function(p){ return p.trim(); });
+      return { src: src, point: parts[0]||'', isolated: parts[1]||'', lock: parts[2]||'' };
+    });
+  }
+
+  function buildLotoPrintHtml(rec){
+    var energyRows = parseEnergyLines(rec['Energy Isolation Details']);
+    var energyTableRows = energyRows.map(function(e){
+      var iso = String(e.isolated||'').trim().toLowerCase();
+      var cb = iso==='y' || iso==='yes' ? '&#9746;' : '&#9744;';
+      return '<tr><td>'+pfEsc(e.src)+'</td><td>'+pfEsc(e.point)+'</td><td style="text-align:center;font-size:12px">'+cb+'</td><td>'+pfEsc(e.lock)+'</td></tr>';
+    }).join('');
+
+    var printedAt = new Date().toLocaleString();
+    var lotoId = rec['LOTO ID'] || '';
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>LOTO '+pfEsc(lotoId)+' — L4-SHEE-PR-08-FRM-01</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#111;margin:0;padding:16px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:10px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:800px;margin:0 auto;border:1px solid #333;padding:14px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}'
+    + '.pf-head h1{font-size:15px;margin:0}'
+    + '.pf-head .pf-code{font-size:10px;text-align:right}'
+    + '.pf-section{border:1px solid #999;margin-bottom:6px;padding:6px 8px}'
+    + '.pf-section-title{font-weight:700;font-size:10px;margin-bottom:5px;text-transform:uppercase}'
+    + '.pf-field{margin-bottom:3px}'
+    + '.pf-label{font-weight:700;margin-right:5px}'
+    + '.pf-value{border-bottom:1px dotted #666;padding:0 4px}'
+    + '.pf-value-inline{border-bottom:1px dotted #666;padding:0 4px;font-weight:600}'
+    + '.pf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}'
+    + '.pf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:2px 10px}'
+    + '.pf-item{display:inline-flex;align-items:flex-start;gap:4px;font-size:9.5px;margin:0 10px 2px 0}'
+    + '.pf-box{font-size:12px;line-height:1}'
+    + '.pf-energy-tbl{width:100%;border-collapse:collapse;font-size:9px;margin-top:2px}'
+    + '.pf-energy-tbl th,.pf-energy-tbl td{border:1px solid #999;padding:3px 5px;text-align:left}'
+    + '.pf-energy-tbl th{background:#f0f0f0}'
+    + '.pf-check-row{display:flex;flex-wrap:wrap}'
+    + '.pf-sign-line{margin-bottom:3px;font-size:9.5px}'
+    + '.pf-sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px}'
+    + '.pf-footer{margin-top:6px;font-size:8px;color:#666;border-top:1px solid #999;padding-top:4px}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}@page{size:A4;margin:10mm}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>LOTO Isolation and Reinstatement Checklist</h1>'
+      + '<div class="pf-code">L4-SHEE-PR-08-FRM-01 · Rev.00<br>LOTO ID: <strong>'+pfEsc(lotoId)+'</strong></div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 1 — Job Information</div>'
+        + '<div class="pf-grid3">'
+          + pfField('Date', rec['Date'])
+          + pfField('Department / Location', rec['Department / Location'])
+          + pfField('PTW Number', rec['PTW Number'])
+        + '</div><div class="pf-grid3">'
+          + pfField('Equipment Name / ID', rec['Equipment Name / ID'])
+          + pfField('Performing Team / Contractor', rec['Performing Team / Contractor'])
+          + pfField('Authorized LOTO Person', rec['Authorized LOTO Person'])
+        + '</div>'
+        + '<div class="pf-field" style="margin-top:2px"><span class="pf-label">Description of Work:</span><span class="pf-value">'+pfEsc(rec['Description of Work'])+'</span></div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 2 — Energy Isolation</div>'
+        + '<table class="pf-energy-tbl"><thead><tr><th>Energy Source</th><th>Isolation Point / ID</th><th style="width:40px">Isolated</th><th>Lock / Tag No.</th></tr></thead>'
+        + '<tbody>' + energyTableRows + '</tbody></table></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 3 — Verification Before Work</div>'
+        + '<div class="pf-check-row">'
+          + pfCb('Equipment shut down safely', pfYes(rec['Equipment Shutdown Safely']))
+          + pfCb('All applicable energy sources isolated', pfYes(rec['All Energy Sources Isolated']))
+          + pfCb('Personal locks and warning tags applied', pfYes(rec['Locks and Tags Applied']))
+          + pfCb('Stored energy released or safely restrained', pfYes(rec['Stored Energy Released or Restrained']))
+        + '</div><div class="pf-check-row">'
+          + pfCb('Zero-energy condition verified', pfYes(rec['Zero-Energy Condition Verified']))
+          + pfCb('Absence-of-voltage test completed where applicable', pfYes(rec['Absence-of-Voltage Test Completed']))
+          + pfCb('Work area confirmed safe and PTW conditions satisfied', pfYes(rec['Work Area Confirmed Safe and PTW Conditions Satisfied']))
+        + '</div>'
+        + '<div class="pf-sign-grid" style="margin-top:4px">'
+          + pfSignLine('Isolation performed by', rec['Isolation Performed By'])
+          + pfSignLine('Verification completed by', rec['Verification Completed By'])
+          + pfSignLine('Date / Time', rec['Verification Date / Time'])
+          + pfSignLine('Authorization to start work', rec['Authorization to Start Work'])
+        + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 4 — Work Completion and Reinstatement</div>'
+        + '<div class="pf-check-row">'
+          + pfCb('Maintenance work completed', pfYes(rec['Maintenance Work Completed']))
+          + pfCb('Personnel, tools and equipment cleared', pfYes(rec['Personnel Tools and Equipment Cleared']))
+          + pfCb('Guards and safety devices reinstated', pfYes(rec['Guards and Safety Devices Reinstated']))
+          + pfCb('Affected personnel notified', pfYes(rec['Affected Personnel Notified']))
+        + '</div><div class="pf-check-row">'
+          + pfCb('Each personal lock removed by its owner', pfYes(rec['Each Personal Lock Removed by Owner']))
+          + pfCb('Isolation removal and equipment restoration authorized', pfYes(rec['Isolation Removal and Restoration Authorized']))
+          + pfCb('Equipment safely returned to service', pfYes(rec['Equipment Returned to Service']))
+          + pfCb('PTW closed according to site procedure', pfYes(rec['PTW Closed per Site Procedure']))
+        + '</div>'
+        + '<div class="pf-sign-grid" style="margin-top:4px">'
+          + pfSignLine('Work completed by', rec['Work Completed By'])
+          + pfSignLine('LOTO removal / reinstatement authorized by', rec['LOTO Removal / Reinstatement Authorized By'])
+          + pfSignLine('Date / Time', rec['Reinstatement Date / Time'])
+        + '</div>'
+        + '<div class="pf-field" style="margin-top:2px"><span class="pf-label">Final remarks:</span><span class="pf-value">'+pfEsc(rec['Final Remarks'])+'</span></div>'
+        + '<div class="pf-field"><span class="pf-label">Signatures:</span><span class="pf-value">'+pfEsc(rec['Signatures'])+'</span></div></div>'
+
+      + '<div class="pf-footer">L4-SHEE-PR-08-FRM-01 · Rev.00. Generated from the SAGCO IMS Portal on '+pfEsc(printedAt)+'. Not valid without original signatures.</div>'
+    + '</div></body></html>';
+  }
+
+  /* ── Public API used by inline onclick handlers ─────────────────────── */
+  window.LT = {
+    toggle: function(tKeyName){
+      var containerId = TABLES[tKeyName].containerId;
+      var el = document.getElementById(containerId);
+      setExpanded(tKeyName, !el.classList.contains('lt-open'));
+    },
+    jumpTo: function(tKeyName){
+      setExpanded(tKeyName, true);
+      var hdr = document.getElementById('lt-hdr-' + tKeyName);
+      if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
+    },
+    onSearchInput: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].search = val; renderTableArea(tKeyName);
+    },
+    onCategoryChange: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].category = val; renderTableArea(tKeyName);
+    },
+    clearFilters: function(tKeyName){
+      _filters[tKeyName] = {search:'', category:'', special:null};
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    cardClick: function(cardName){
+      if (cardName === 'total'){
+        _filters['register'] = {search:'', category:'', special:null};
+        renderShell('register', _cache['register']);
+        this.jumpTo('register');
+      } else if (cardName === 'openactions'){
+        _filters['register'] = {search:'', category:'', special:'openactions'};
+        renderShell('register', _cache['register']);
+        this.jumpTo('register');
+      }
+    },
+    selectRow: function(tKeyName, idVal){
+      var cur = _selected[tKeyName];
+      _selected[tKeyName] = (cur !== undefined && cur !== null && String(cur) === String(idVal)) ? null : idVal;
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    getSelected: function(tKeyName){ return _selected[tKeyName]; },
+    toggleRowDetail: function(tKeyName, idVal){
+      var set = _expandedRows[tKeyName] || (_expandedRows[tKeyName] = {});
+      var key = String(idVal);
+      set[key] = !set[key];
+      renderTableArea(tKeyName);
+    },
+    managePhotos: function(idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      managePhotosModal(idVal);
+    },
+    deletePhoto: function(idVal, fileId){
+      if (!can('delete')) return;
+      if (!confirm('Remove this photo? It will stay in Google Drive but no longer show here.')) return;
+      fetch(SHEETS_URL + '?action=deleteAttachment&fileId=' + encodeURIComponent(fileId) + '&docId=' + encodeURIComponent(idVal))
+        .then(function(){ loadAndRenderPhotoGrid(idVal); })
+        .catch(function(){ alert('Could not remove the photo — check your connection.'); });
+    },
+    openAdd: function(tKeyName){
+      var cfg = TABLES[tKeyName];
+      if (!can('add')) return;
+      var initial = {};
+      var suggestedId = nextSequentialId(tKeyName);
+      if (suggestedId) initial[cfg.idCol] = suggestedId;
+      showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._ltReenableModalSave) window._ltReenableModalSave(); });
+      });
+    },
+    openEdit: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('edit')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+            if (window._ltReenableModalSave) window._ltReenableModalSave();
+            return;
+          }
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._ltReenableModalSave) window._ltReenableModalSave(); });
+      });
+    },
+    printLoto: function(idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache['register'];
+      var idIdx = colIdx(data.headers, 'LOTO ID');
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var rec = {};
+      data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print the LOTO checklist.'); return; }
+      w.document.open(); w.document.write(buildLotoPrintHtml(rec)); w.document.close();
+    },
+    remove: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('delete')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message || 'unknown error')); return; }
+        _selected[tKeyName] = null;
+        reloadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(loadAll, 100); });
 })();
 </script>
 
 <script>
-(function() {
-  function colIdx(headers, name) {
-    var n = name.toLowerCase();
-    for (var i=0;i<headers.length;i++) {
-      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
-    }
-    return -1;
+/* ── Access gate: identical rule to ptw-register.html / mock-drill-register.html ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
   }
-  function countVal(rows, col, val) {
-    if (col < 0) return 0;
-    var v = val ? val.toLowerCase() : null;
-    return rows.filter(function(r){
-      var cell = String(r[col]||'').toLowerCase().trim();
-      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
-    }).length;
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The detailed LOTO register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
   }
-  function sumCol(rows, col) {
-    if (col < 0) return 0;
-    return rows.reduce(function(s,r){
-      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
-      return s + (isNaN(v) ? 0 : v);
-    }, 0);
-  }
-  function setCard(idx, val) {
-    var cards = document.querySelectorAll('.kpi-val');
-    if (cards[idx]) cards[idx].textContent = val;
-  }
-
-  var origRender = window.renderTable;
-  window.renderTable = function(data, container) {
-    if (origRender) origRender(data, container);
-    if (!data || !data.rows || !data.headers) return;
-    var rows = data.rows, h = data.headers;
-    try { setCard(1, countVal(rows, colIdx(h,"status"), "active") + countVal(rows, colIdx(h,"status"), "open")); } catch(e) {}
-  };
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
 })();
 </script>
+
 </body></html>
