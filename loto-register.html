@@ -216,6 +216,34 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       idCol: 'LOTO ID', idEditable: true,
       idPrefix: 'LOTO-', idPad: 3,
       hasPrint: true, hasPhotos: true,
+      // A job can stay isolated for hours (or across shifts) before it's
+      // safe to reinstate, so Add only captures the Pre-Task fields
+      // (job info, isolation grid, verification-before-work) and saves
+      // Status='Open'; the Post-Task reinstatement fields are filled in
+      // later via the "Continue" action on that same record, which sets
+      // Status='Closed'. Nobody has to keep one long form open across
+      // that gap, and nobody fills in reinstatement fields before the
+      // work is actually done.
+      hasStages: true,
+      preTaskFields: ['LOTO ID','Date','Department / Location','Equipment Name / ID','Description of Work',
+               'PTW Number','Performing Team / Contractor','Authorized LOTO Person',
+               'Electrical Isolation Point / ID','Electrical Isolated','Electrical Lock / Tag No.',
+               'Mechanical Isolation Point / ID','Mechanical Isolated','Mechanical Lock / Tag No.',
+               'Hydraulic Isolation Point / ID','Hydraulic Isolated','Hydraulic Lock / Tag No.',
+               'Pneumatic Isolation Point / ID','Pneumatic Isolated','Pneumatic Lock / Tag No.',
+               'Pressure / Stored Energy Isolation Point / ID','Pressure / Stored Energy Isolated','Pressure / Stored Energy Lock / Tag No.',
+               'Other Energy Source (Specify)','Other Isolation Point / ID','Other Isolated','Other Lock / Tag No.',
+               'Equipment Shutdown Safely','All Energy Sources Isolated','Locks and Tags Applied',
+               'Stored Energy Released or Restrained','Zero-Energy Condition Verified',
+               'Absence-of-Voltage Test Completed','Work Area Confirmed Safe and PTW Conditions Satisfied',
+               'Isolation Performed By','Verification Completed By','Verification Date / Time',
+               'Authorization to Start Work'],
+      postTaskFields: ['Maintenance Work Completed','Personnel Tools and Equipment Cleared',
+               'Guards and Safety Devices Reinstated','Affected Personnel Notified',
+               'Each Personal Lock Removed by Owner','Isolation Removal and Restoration Authorized',
+               'Equipment Returned to Service','PTW Closed per Site Procedure',
+               'Work Completed By','LOTO Removal / Reinstatement Authorized By','Reinstatement Date / Time',
+               'Final Remarks','Signatures','Photos'],
       displayCols: ['LOTO ID','Date','Department / Location','Equipment Name / ID','Status'],
       fields: ['LOTO ID','Date','Department / Location','Equipment Name / ID','Description of Work',
                'PTW Number','Performing Team / Contractor','Authorized LOTO Person',
@@ -341,6 +369,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     while (numStr.length < cfg.idPad) numStr = '0' + numStr;
     return cfg.idPrefix + numStr;
   }
+  // Reads one field's value off the currently-selected row of a table,
+  // without needing a separate lookup each time — used to decide
+  // whether the "Continue (Post-Task)" button should be enabled.
+  function getFieldOfSelected(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    var idVal = _selected[tKeyName];
+    if (!data || idVal === undefined || idVal === null || idVal === '') return '';
+    var cfg = TABLES[tKeyName];
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var fIdx = colIdx(data.headers, fieldName);
+    if (idIdx < 0 || fIdx < 0) return '';
+    var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+    return row ? row[fIdx] : '';
+  }
+
   function getOwnColumnValues(tKeyName, fieldName){
     var data = _cache[tKeyName];
     if (!data || !data.headers || !data.rows) return [];
@@ -380,6 +423,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var toolbarHtml = '';
     if (can('add')) toolbarHtml += '<button class="lt-btn lt-btn-add" onclick="LT.openAdd(\''+tKeyName+'\')">+ Add Record</button>';
     var disabledAttr = sel ? '' : ' disabled';
+    if (cfg.hasStages){
+      var selStatus = String(getFieldOfSelected(tKeyName, 'Status')||'').trim().toLowerCase();
+      var canContinue = sel && selStatus === 'open';
+      toolbarHtml += '<button class="lt-btn lt-btn-add" id="lt-tb-continue-'+tKeyName+'"'+(canContinue?'':' disabled')+' onclick="LT.openContinue(\''+tKeyName+'\', LT.getSelected(\''+tKeyName+'\'))">▶ Continue (Post-Task)</button>';
+    }
     if (cfg.hasPrint) toolbarHtml += '<button class="lt-btn" id="lt-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="LT.printLoto(LT.getSelected(\''+tKeyName+'\'))">🖨️ Print FRM-08</button>';
     if (cfg.hasPhotos) toolbarHtml += '<button class="lt-btn" id="lt-tb-photos-'+tKeyName+'"'+disabledAttr+' onclick="LT.managePhotos(LT.getSelected(\''+tKeyName+'\'))">📷 Photos</button>';
     if (can('edit')) toolbarHtml += '<button class="lt-btn" id="lt-tb-edit-'+tKeyName+'"'+disabledAttr+' onclick="LT.openEdit(\''+tKeyName+'\', LT.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
@@ -1075,9 +1123,41 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var initial = {};
       var suggestedId = nextSequentialId(tKeyName);
       if (suggestedId) initial[cfg.idCol] = suggestedId;
-      showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
+      var fieldsToShow = cfg.hasStages ? cfg.preTaskFields : cfg.fields;
+      var modalTitle = cfg.hasStages ? ('Add ' + cfg.label + ' — Pre-Task Isolation') : ('Add ' + cfg.label);
+      showModal(tKeyName, modalTitle, fieldsToShow, initial, function(values, close){
         values[STATUS_COL] = 'Active';
+        if (cfg.hasStages) values['Status'] = 'Open'; // reinstatement is completed later via Continue
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._ltReenableModalSave) window._ltReenableModalSave(); });
+      });
+    },
+    // ── Post-Task step: completes reinstatement on an existing Open
+    // job (selected from the table, never typed) and closes it out.
+    // Only the Section 4 fields are shown — everything from Pre-Task
+    // is already saved and untouched.
+    openContinue: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('edit')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select an open LOTO job first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var statusIdx = colIdx(data.headers, 'Status');
+      var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+      if (st === 'closed') return alert('This LOTO job is already closed.');
+      var initial = {};
+      data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal(tKeyName, 'Complete Reinstatement — ' + idVal, cfg.postTaskFields, initial, function(values, close){
+        values['Status'] = 'Closed';
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+            if (window._ltReenableModalSave) window._ltReenableModalSave();
+            return;
+          }
           close(); reloadAll();
         }).catch(function(){ alert('Could not save — check your connection.'); if (window._ltReenableModalSave) window._ltReenableModalSave(); });
       });
