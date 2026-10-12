@@ -788,8 +788,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (f === 'Photos') hint = '<span class="lt-hint">One per line: Date | Time | Location | Description (actual image files go via the 📷 Photos button)</span>';
         return '<div class="lt-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea>'+hint+'</div>';
       }
-      var isDateField = /date$/i.test(f.trim());
-      var inputType = isDateField ? 'date' : 'text';
+      // Any field whose name mentions "date" gets a real calendar
+      // picker instead of a free-text box — including ones like
+      // "Date Issued" or "Date / Time" that don't end in the word
+      // "date". A field that also mentions "time" (the combined
+      // Date/Time fields) gets a single date+time picker instead of
+      // two separate controls.
+      var fLower = f.trim().toLowerCase();
+      var hasDate = fLower.indexOf('date') > -1;
+      var hasTime = fLower.indexOf('time') > -1;
+      var isDateField = hasDate;
+      var inputType = (hasDate && hasTime) ? 'datetime-local' : (hasDate ? 'date' : 'text');
       var suggestions = isDateField ? [] : getSuggestions(tKeyName, f);
       var dlId = 'lt-dl-' + tKeyName + '-' + fi;
       var dlHtml = '';
@@ -1150,7 +1159,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (st === 'closed') return alert('This LOTO job is already closed.');
       var initial = {};
       data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      // A job isn't actually safe to close just because the form was
+      // submitted — every reinstatement check below has to be a real
+      // "Yes" first. Blank or "No" blocks the save and tells the
+      // person exactly what's still outstanding, and the job stays Open.
+      var REQUIRED_CLOSE_CHECKS = [
+        'Maintenance Work Completed','Personnel Tools and Equipment Cleared',
+        'Guards and Safety Devices Reinstated','Affected Personnel Notified',
+        'Each Personal Lock Removed by Owner','Isolation Removal and Restoration Authorized',
+        'Equipment Returned to Service','PTW Closed per Site Procedure'
+      ];
       showModal(tKeyName, 'Complete Reinstatement — ' + idVal, cfg.postTaskFields, initial, function(values, close){
+        var missing = REQUIRED_CLOSE_CHECKS.filter(function(f){
+          return String(values[f]||'').trim().toLowerCase() !== 'yes';
+        });
+        if (missing.length){
+          alert('This LOTO job cannot be closed yet — the following reinstatement checks must be confirmed as "Yes" first:\n\n- ' + missing.join('\n- ') + '\n\nThe job will remain Open until all checks are confirmed.');
+          if (window._ltReenableModalSave) window._ltReenableModalSave();
+          return;
+        }
         values['Status'] = 'Closed';
         postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
           if (res && res.status === 'error'){
