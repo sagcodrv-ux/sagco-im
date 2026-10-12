@@ -318,12 +318,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       label: 'Station Audit', tabKey: 'loto_station_audit', containerId: 'live-table-audit',
       idCol: 'Audit ID', idPrefix: 'LSA-', idPad: 3,
       filterField: 'Status',
+      // A flagged finding escalates to a single combined Action
+      // Register record (one audit → one Action, covering every
+      // non-conformity found as one action plan) rather than being
+      // tracked only inside this log. 'Action Reference' records the
+      // resulting ACT- ID once raised; it's normally set automatically
+      // by the escalation hand-off (never typed in through the
+      // toolbar), though it's still a plain field in the full Edit
+      // form like any other, for admin correction. The Action
+      // Register's own write-back, once that Action closes, auto-
+      // closes this audit's own Status too — see notifyLotoAuditActionCompleted()
+      // in capa-wizard.js.
+      hasEscalate: true,
       displayCols: ['Audit ID','Date','Area / LOTO Station','Corrective Action Required (Y/N)','Status'],
       fields: ['Audit ID','Date','Area / LOTO Station','Inspector','Devices Present at Station (Y/N)',
                'Locks and Tags in Good Condition (Y/N)','Signage Intact (Y/N)',
                'One-Lock-Per-Person Rule Observed (Y/N)','Missing or Damaged Devices',
                'Non-Conformities Found','Corrective Action Required (Y/N)','Corrective Action Description',
-               'Responsible Person','Target Close Date','Status','Remarks'],
+               'Responsible Person','Target Close Date','Status','Remarks','Action Reference'],
       selectFields: {
         'Devices Present at Station (Y/N)': YESNO, 'Locks and Tags in Good Condition (Y/N)': YESNO,
         'Signage Intact (Y/N)': YESNO, 'One-Lock-Per-Person Rule Observed (Y/N)': YESNO,
@@ -427,6 +439,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var selStatus = String(getFieldOfSelected(tKeyName, 'Status')||'').trim().toLowerCase();
       var canContinue = sel && selStatus === 'open';
       toolbarHtml += '<button class="lt-btn lt-btn-add" id="lt-tb-continue-'+tKeyName+'"'+(canContinue?'':' disabled')+' onclick="LT.openContinue(\''+tKeyName+'\', LT.getSelected(\''+tKeyName+'\'))">▶ Continue (Post-Task)</button>';
+    }
+    if (cfg.hasEscalate){
+      var carVal = String(getFieldOfSelected(tKeyName, 'Corrective Action Required (Y/N)')||'').trim().toLowerCase();
+      var existingRef = String(getFieldOfSelected(tKeyName, 'Action Reference')||'').trim();
+      if (existingRef){
+        toolbarHtml += '<button class="lt-btn" disabled title="Already escalated — see the Action Register">✓ Escalated → '+existingRef+'</button>';
+      } else {
+        var canEscalate = sel && carVal === 'yes';
+        toolbarHtml += '<button class="lt-btn lt-btn-add" id="lt-tb-escalate-'+tKeyName+'"'+(canEscalate?'':' disabled')+' onclick="LT.escalateToAction(\''+tKeyName+'\', LT.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
+      }
     }
     if (cfg.hasPrint) toolbarHtml += '<button class="lt-btn" id="lt-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="LT.printLoto(LT.getSelected(\''+tKeyName+'\'))">🖨️ Print FRM-08</button>';
     if (cfg.hasPhotos) toolbarHtml += '<button class="lt-btn" id="lt-tb-photos-'+tKeyName+'"'+disabledAttr+' onclick="LT.managePhotos(LT.getSelected(\''+tKeyName+'\'))">📷 Photos</button>';
@@ -1189,6 +1211,45 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         }).catch(function(){ alert('Could not save — check your connection.'); if (window._ltReenableModalSave) window._ltReenableModalSave(); });
       });
     },
+    // Escalates a flagged Station Audit finding to a single combined
+    // record in the Action Register — same sessionStorage + URL
+    // hand-off mechanism already used for Mock Drill/Observation/
+    // Incident, so action-register.html/capa-wizard.js open the
+    // lightweight Action lane pre-filled, no separate wiring needed
+    // on that side beyond the matching 'fromLotoAudit' handler.
+    escalateToAction: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select an audit finding first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var carIdx = colIdx(data.headers, 'Corrective Action Required (Y/N)');
+      if (carIdx < 0 || String(row[carIdx]||'').trim().toLowerCase() !== 'yes'){
+        return alert('This audit record is not flagged as requiring corrective action.');
+      }
+      var refIdx = colIdx(data.headers, 'Action Reference');
+      if (refIdx >= 0 && String(row[refIdx]||'').trim()){
+        return alert('This finding was already escalated — see Action Register record ' + row[refIdx] + '.');
+      }
+      var ncIdx = colIdx(data.headers, 'Non-Conformities Found');
+      var cadIdx = colIdx(data.headers, 'Corrective Action Description');
+      var areaIdx = colIdx(data.headers, 'Area / LOTO Station');
+      // Bundle every non-conformity point from this one audit into a
+      // single action-plan description, per the one-audit-one-Action
+      // design — nothing here should need a second escalation later.
+      var descParts = [];
+      if (areaIdx >= 0 && row[areaIdx]) descParts.push('Area: ' + row[areaIdx]);
+      if (ncIdx >= 0 && row[ncIdx]) descParts.push('Non-conformities found: ' + row[ncIdx]);
+      if (cadIdx >= 0 && row[cadIdx]) descParts.push('Corrective action needed: ' + row[cadIdx]);
+      var ctx = {
+        auditId: idVal,
+        description: descParts.join('\n') || ('Corrective action required — LOTO Station Audit ' + idVal),
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingLotoAuditContext', JSON.stringify(ctx)); } catch(e){ /* not fatal — the destination still opens, just without pre-fill */ }
+      window.open('action-register.html?fromLotoAudit=' + encodeURIComponent(idVal) + '&lane=ACT', '_blank');
+    },
     openEdit: function(tKeyName, idVal){
       var cfg = TABLES[tKeyName];
       if (!can('edit')) return;
@@ -1235,7 +1296,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
   };
 
-  document.addEventListener('DOMContentLoaded', function(){ setTimeout(loadAll, 100); });
+  // Deep link from the Action Register's "Source" column — once an
+  // escalated finding's Action is resolved, clicking its LOTO Audit ID
+  // reference lands here as ?lotoAudit=<Audit ID>, jumps to the Station
+  // Audit section, and opens that exact record's full details (not
+  // just a highlighted row), same as asked for the hand-off.
+  function handleLotoAuditDeepLink(){
+    var auditId = new URLSearchParams(window.location.search).get('lotoAudit');
+    if (!auditId) return;
+    LT.jumpTo('audit');
+    LT.openEdit('audit', auditId);
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadAll().then(handleLotoAuditDeepLink); }, 100);
+  });
 })();
 </script>
 

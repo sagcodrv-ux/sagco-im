@@ -176,6 +176,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         sevIdx = colIdx(h,'Severity'), scoreIdx = colIdx(h,'Risk Score'), statusIdx = colIdx(h,'Status'),
         stageIdx = colIdx(h,'Process Stage'), ownerIdx = colIdx(h,'Owner'), dueIdx = colIdx(h,'Due Date'),
         srcIdx = colIdx(h,'Source'), srcIncIdx = colIdx(h,'Source Incident ID'), srcObsIdx = colIdx(h,'Source Observation Case ID'),
+        // Rev.05 (Issam, 2026-10-12) — LOTO Station Audit Log hand-off,
+        // same provenance pattern as Source Incident ID/Source
+        // Observation Case ID above. Lets the Source column link
+        // straight back to the originating audit record.
+        srcLotoIdx = colIdx(h,'Source LOTO Audit ID'),
         // Point (Issam, 2026-10-08): evidence attached via Step 1's
         // "Add Evidence" button is saved to this column (newline-
         // joined links — see uploadInitialEvidence() in capa-wizard.js)
@@ -211,6 +216,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         'Source': srcIdx>=0 ? r[srcIdx] : '',
         'Source Incident ID': srcIncIdx>=0 ? r[srcIncIdx] : '',
         'Source Observation Case ID': srcObsIdx>=0 ? r[srcObsIdx] : '',
+        'Source LOTO Audit ID': srcLotoIdx>=0 ? r[srcLotoIdx] : '',
         'Initial Evidence': evidIdx>=0 ? r[evidIdx] : '',
       };
     });
@@ -315,11 +321,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         var id = r['CAPA ID'];
         var isSel = (_selectedId !== null && String(_selectedId) === String(id));
         var rowCls = ' class="row-selectable'+(isSel ? ' row-selected' : '')+'"';
+        // Rev.05 (Issam, 2026-10-12) — a LOTO-escalated Action shows its
+        // Source LOTO Audit ID as a clickable reference, same pattern as
+        // the Incident/Observation links just below. Clicking it jumps
+        // to loto-register.html's Station Audit section and opens that
+        // exact record's full details (see handleLotoAuditDeepLink()
+        // there), not just a highlighted row.
         var sourceCell = r['Source Incident ID']
           ? '<a href="incident-register.html?incident='+encodeURIComponent(r['Source Incident ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Incident ID'])+'</a>'
           : (r['Source Observation Case ID']
             ? '<a href="observations-register.html?case='+encodeURIComponent(r['Source Observation Case ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Observation Case ID'])+'</a>'
-            : (r.Source ? escHtml(r.Source) : '<span class="action-dim">—</span>'));
+            : (r['Source LOTO Audit ID']
+              ? '<a href="loto-register.html?lotoAudit='+encodeURIComponent(r['Source LOTO Audit ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source LOTO Audit ID'])+'</a>'
+              : (r.Source ? escHtml(r.Source) : '<span class="action-dim">—</span>')));
         // Point (Issam, 2026-10-08): "Initial Evidence" is one or more
         // links, newline-joined by uploadInitialEvidence() in
         // capa-wizard.js. Render one 📎 per link rather than one big

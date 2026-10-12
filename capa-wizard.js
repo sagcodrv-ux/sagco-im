@@ -71,6 +71,28 @@
    no need for a separate escalations tab or an upsert-based join.
    REQUIRES: 'Source Drill ID' column on this CAPA sheet tab, and an
    'Action Reference' column on the mock_drill sheet tab.
+
+   Rev.05 (Issam, 2026-10-12) — LOTO Station Audit Log hand-off. Same
+   lightweight ACT-lane pattern as the Mock Drill hand-off directly
+   above, entered via action-register.html?fromLotoAudit=<Audit
+   ID>&lane=ACT, opened by loto-register.html's "⚡ Escalate to Action"
+   button on the Station Audit Log. One audit raises exactly ONE
+   Action record — every non-conformity point from that audit is
+   bundled into that single Action's description as one action plan,
+   never split into several Actions. Provenance is recorded in
+   state.sourceLotoAuditId / a new 'Source LOTO Audit ID' column, and
+   "already escalated" is written back directly onto the loto_station_audit
+   sheet tab via notifySourceLotoAudit() (an 'Action Reference' column
+   there) — same direct-write reasoning as notifySourceDrill(), since
+   that sheet is this app's own and already writable, same as Mock
+   Drill. Additionally, once this ACT record is actually saved Closed
+   (by whichever path — Save Action's Status dropdown, or Log & Close
+   Action), notifyLotoAuditActionCompleted() writes the source Station
+   Audit record's own Status to Closed too, so the audit never has to
+   be closed manually once its one escalated Action is done.
+   REQUIRES: 'Source LOTO Audit ID' column on this CAPA sheet tab, and
+   an 'Action Reference' column on the loto_station_audit sheet tab
+   (both parallel to the Mock Drill columns above).
    ═══════════════════════════════════════════════════════════════ */
 
 (function (global) {
@@ -146,6 +168,7 @@
       sourceIncidentId: '',
       sourceObservationCaseId: '', /* Point 2 — set when this ACT record was forwarded directly from an Observation (Raw Risk Score Medium-or-below), not from an Incident. Mutually exclusive with sourceIncidentId in practice. */
       sourceDrillId: '', /* Rev.04 — set when this ACT record was forwarded from the Mock Drill Register's "Escalate to Action" button. Mutually exclusive with sourceIncidentId/sourceObservationCaseId in practice. */
+      sourceLotoAuditId: '', /* Rev.05 — set when this ACT record was forwarded from the LOTO Station Audit Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -334,7 +357,9 @@
       ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Incident <strong>' + esc(state.sourceIncidentId) + '</strong> — RA Level Low/Moderate, so this stays a plain Action: no root cause analysis, no approval gate.</div>'
       : (state.sourceDrillId
         ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Mock Drill <strong>' + esc(state.sourceDrillId) + '</strong> — a plain Action: no root cause analysis, no approval gate.</div>'
-        : '');
+        : (state.sourceLotoAuditId
+          ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from LOTO Station Audit <strong>' + esc(state.sourceLotoAuditId) + '</strong> — a plain Action covering every non-conformity found in that audit: no root cause analysis, no approval gate. Closing this Action automatically closes that audit record too.</div>'
+          : ''));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -524,6 +549,9 @@
             .then(function () {
               actProgressSaving = false;
               state.status = 'Closed';
+              notifyIncidentActionCompleted();
+              notifyIncidentResidual();
+              notifyLotoAuditActionCompleted();
               alert(state.capaId + ' marked Closed.'); closeWizard(); if (global.reloadLive) reloadLive();
             })
             .catch(function (err) { restoreButtons(); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
@@ -946,6 +974,7 @@
       'Source Incident ID': state.sourceIncidentId || '',
       'Source Observation Case ID': state.sourceObservationCaseId || '',
       'Source Drill ID': state.sourceDrillId || '',
+      'Source LOTO Audit ID': state.sourceLotoAuditId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
@@ -1020,6 +1049,26 @@
         'Action Completed Date': new Date().toISOString().split('T')[0],
         'Status': 'CLOSED',
       }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
+  /* Rev.05 (Issam, 2026-10-12) — closes the loop back to the LOTO
+     Station Audit Log: once this ACT-lane record reaches Closed, the
+     one audit that escalated it is automatically closed too — the
+     user's explicit requirement being that a LOTO audit finding
+     shouldn't need a separate manual close once its corrective action
+     is actually done. Fire-and-forget and idempotent, same reasoning
+     as notifyIncidentActionCompleted() just above: the Action record
+     itself is already safely saved either way, and re-calling this on
+     a later save of an already-closed Action just re-writes the same
+     value. Writes DIRECTLY onto the loto_station_audit tab's own row
+     (same reasoning as notifySourceDrill() below — that sheet is this
+     app's own, already-writable data, not a read-only external feed). */
+  function notifyLotoAuditActionCompleted() {
+    if (!state.sourceLotoAuditId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=loto_station_audit&idCol=' + encodeURIComponent('Audit ID') + '&id=' + encodeURIComponent(state.sourceLotoAuditId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Status': 'Closed' }),
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
@@ -1141,6 +1190,23 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.05 (Issam, 2026-10-12) — closes the loop back to the LOTO
+     Station Audit Log, same fire-and-forget reasoning and direct-write
+     mechanism as notifySourceDrill() directly above (the loto_station_audit
+     sheet is likewise this app's own, already-writable data — no
+     separate escalations tab or upsert needed). Writes the durable
+     "Action Reference" the audit row's own toolbar button reads to
+     show its "✓ Escalated → ACT-…" state. Only fires on first save
+     (see afterAssignId in persistAction below) — the reference is
+     assigned once, at creation, never changes on a later resume. */
+  function notifySourceLotoAudit() {
+    if (!state.sourceLotoAuditId) return;
+    fetch(SHEETS_URL + '?action=update&tab=loto_station_audit&idCol=' + encodeURIComponent('Audit ID') + '&id=' + encodeURIComponent(state.sourceLotoAuditId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* ── Save for the lightweight Action lane — one write, no steps ── */
   function persistAction() {
     if (saving) return;
@@ -1165,8 +1231,10 @@
             notifySourceIncident();
             notifySourceObservation();
             notifySourceDrill();
+            notifySourceLotoAudit();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
+            notifyLotoAuditActionCompleted();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
@@ -1195,6 +1263,7 @@
           if (result && result.status === 'ok') {
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
+            notifyLotoAuditActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1463,6 +1532,7 @@
     state.sourceIncidentId = col('Source Incident ID');
     state.sourceObservationCaseId = col('Source Observation Case ID');
     state.sourceDrillId = col('Source Drill ID');
+    state.sourceLotoAuditId = col('Source LOTO Audit ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2201,6 +2271,28 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.05 (Issam, 2026-10-12) — LOTO Station Audit Log hand-off
+     (loto-register.html's "⚡ Escalate to Action" button on the Station
+     Audit Log). Same lightweight-Action shape as openFromDrill just
+     above — no RCA/approval ceremony, no risk-score gating — but
+     records provenance in sourceLotoAuditId instead, and tags Source
+     as 'LOTO Station Audit' so the record's origin is visible at a
+     glance. The description carries over every non-conformity point
+     already bundled by loto-register.html's escalateToAction() into
+     one action-plan description, matching the one-audit-one-Action
+     design — not re-derived here. */
+  function openFromLotoAudit(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceLotoAuditId = ctx.auditId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'LOTO Station Audit';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -2283,6 +2375,24 @@
         loadUserDirectory(function () { openFromDrill(drillCtx); });
       } else {
         loadUserDirectory(function () { openFromDrill({ drillId: fromDrill }); });
+      }
+      return;
+    }
+
+    /* Rev.05 — LOTO Station Audit Log hand-off —
+       action-register.html?fromLotoAudit=LSA-2026-0XX&lane=ACT, opened
+       by loto-register.html's "⚡ Escalate to Action" button on the
+       Station Audit Log. Same sessionStorage-plus-URL-verification
+       pattern as the Incident, Observation and Mock Drill hand-offs
+       above. */
+    var fromLotoAudit = params.get('fromLotoAudit');
+    if (fromLotoAudit) {
+      var lotoCtx = null;
+      try { lotoCtx = JSON.parse(sessionStorage.getItem('incomingLotoAuditContext') || 'null'); } catch (e) { lotoCtx = null; }
+      if (lotoCtx && String(lotoCtx.auditId) === String(fromLotoAudit)) {
+        loadUserDirectory(function () { openFromLotoAudit(lotoCtx); });
+      } else {
+        loadUserDirectory(function () { openFromLotoAudit({ auditId: fromLotoAudit }); });
       }
     }
   }
