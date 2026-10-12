@@ -75,7 +75,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
 <div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:18px">
   <div class="chart-card">
-    <div class="chart-title">LOTO Jobs by Primary Energy Source<span class="chart-sub">breakdown by energy type isolated</span></div>
+    <div class="chart-title">LOTO Jobs by Energy Source Isolated<span class="chart-sub">a job isolating several sources counts toward each</span></div>
     <div class="chart-wrap" style="height:280px"><canvas id="ltEnergyChart"></canvas></div>
   </div>
 </div>
@@ -187,7 +187,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // source) and what the dashboard chart groups by via the separate
   // "Primary Energy Source" field.
   var ENERGY_SOURCES_FORM_ROWS = ['Electrical','Mechanical','Hydraulic','Pneumatic','Pressure / Stored Energy','Other'];
-  var ENERGY_SOURCES = ['Electrical','Mechanical','Hydraulic','Pneumatic','Pressure / Stored Energy','Multiple Energy Sources','Other'];
   var YESNO = ['Yes','No'];
 
   var TABLES = {
@@ -196,8 +195,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       idCol: 'LOTO ID', idEditable: true,
       idPrefix: 'LOTO-', idPad: 3,
       fields: ['LOTO ID','Date','Department / Location','Equipment Name / ID','Description of Work',
-               'PTW Number','Performing Team / Contractor','Authorized LOTO Person','Primary Energy Source',
-               'Energy Isolation Details',
+               'PTW Number','Performing Team / Contractor','Authorized LOTO Person',
+               'Electrical Isolation Point / ID','Electrical Isolated','Electrical Lock / Tag No.',
+               'Mechanical Isolation Point / ID','Mechanical Isolated','Mechanical Lock / Tag No.',
+               'Hydraulic Isolation Point / ID','Hydraulic Isolated','Hydraulic Lock / Tag No.',
+               'Pneumatic Isolation Point / ID','Pneumatic Isolated','Pneumatic Lock / Tag No.',
+               'Pressure / Stored Energy Isolation Point / ID','Pressure / Stored Energy Isolated','Pressure / Stored Energy Lock / Tag No.',
+               'Other Energy Source (Specify)','Other Isolation Point / ID','Other Isolated','Other Lock / Tag No.',
                'Equipment Shutdown Safely','All Energy Sources Isolated','Locks and Tags Applied',
                'Stored Energy Released or Restrained','Zero-Energy Condition Verified',
                'Absence-of-Voltage Test Completed','Work Area Confirmed Safe and PTW Conditions Satisfied',
@@ -210,7 +214,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
                'Work Completed By','LOTO Removal / Reinstatement Authorized By','Reinstatement Date / Time',
                'Final Remarks','Signatures','Photos','Status'],
       selectFields: {
-        'Primary Energy Source': ENERGY_SOURCES,
+        'Electrical Isolated': YESNO, 'Mechanical Isolated': YESNO, 'Hydraulic Isolated': YESNO,
+        'Pneumatic Isolated': YESNO, 'Pressure / Stored Energy Isolated': YESNO, 'Other Isolated': YESNO,
         'Equipment Shutdown Safely': YESNO, 'All Energy Sources Isolated': YESNO,
         'Locks and Tags Applied': YESNO, 'Stored Energy Released or Restrained': YESNO,
         'Zero-Energy Condition Verified': YESNO, 'Absence-of-Voltage Test Completed': YESNO,
@@ -224,8 +229,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // Multi-line by nature on the real paper form — the per-energy
       // isolation grid, a work description, final remarks, or a
       // per-photo log can't realistically be one line.
-      textareaFields: ['Description of Work','Energy Isolation Details','Final Remarks','Signatures','Photos'],
-      filterField: 'Primary Energy Source'
+      textareaFields: ['Description of Work','Final Remarks','Signatures','Photos']
     }
   };
   var _filters = {};
@@ -379,7 +383,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // available per-row via the ▶ expand toggle below, so nothing
     // captured on the form is hidden — just collapsed out of the
     // default view.
-    var displayCols = ['LOTO ID','Date','Department / Location','Equipment Name / ID','Primary Energy Source','Status'];
+    var displayCols = ['LOTO ID','Date','Department / Location','Equipment Name / ID','Status'];
     var colIdxs = displayCols.map(function(c){ return colIdx(data.headers, c); }).filter(function(i){ return i >= 0; });
     var colNames = colIdxs.map(function(i){ return data.headers[i]; });
     var shownSet = {};
@@ -477,8 +481,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('lt-kpi-year').textContent = yearCount;
     document.getElementById('lt-kpi-year-sub').textContent = 'Year to date';
 
-    var srcIdx = colIdx(reg.headers, 'Primary Energy Source');
-
     var openCount = visibleRows.filter(function(r){ return hasOpenIsolation(r, reg.headers); }).length;
     document.getElementById('lt-kpi-open').textContent = openCount;
 
@@ -486,16 +488,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
     if (_charts.energy) { _charts.energy.destroy(); _charts.energy = null; }
 
+    // Section 2 of the real form lets one job isolate several energy
+    // sources at once, so this counts "Yes" independently on each of
+    // the 6 real Isolated columns rather than grouping by a single
+    // category field — a job with 3 sources isolated contributes to
+    // 3 bars, not 1.
     var srcCounts = {};
-    ENERGY_SOURCES.forEach(function(s){ srcCounts[s] = 0; });
-    visibleRows.forEach(function(r){
-      var s = srcIdx>=0 ? String(r[srcIdx]||'').trim() : '';
-      if (s) srcCounts[s] = (srcCounts[s]||0) + 1;
+    ENERGY_SOURCES_FORM_ROWS.forEach(function(s){
+      var colName = s + ' Isolated';
+      var idx = colIdx(reg.headers, colName);
+      var count = 0;
+      if (idx >= 0){
+        visibleRows.forEach(function(r){ if (String(r[idx]||'').trim().toLowerCase()==='yes') count++; });
+      }
+      srcCounts[s] = count;
     });
     // Only chart energy sources that actually have a job logged — a
     // source with zero jobs would just be a dead 0-bar cluttering
     // this chart.
-    var usedSources = ENERGY_SOURCES.filter(function(s){ return (srcCounts[s]||0) > 0; });
+    var usedSources = ENERGY_SOURCES_FORM_ROWS.filter(function(s){ return (srcCounts[s]||0) > 0; });
     if (window.Chart && usedSources.length){
       var maxSrcCount = Math.max.apply(null, usedSources.map(function(s){ return srcCounts[s]||0; }).concat([0]));
       _charts.energy = new Chart(document.getElementById('ltEnergyChart'), {
@@ -550,7 +561,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       }
       if (taFields.indexOf(f) > -1){
         var hint = '';
-        if (f === 'Energy Isolation Details') hint = '<span class="lt-hint">One line per source, in order: Electrical / Mechanical / Hydraulic / Pneumatic / Pressure-Stored Energy / Other. Format: Isolation Point or ID | Isolated Y/N | Lock/Tag No. Leave a line blank if not applicable.</span>';
         if (f === 'Photos') hint = '<span class="lt-hint">One per line: Date | Time | Location | Description (actual image files go via the 📷 Photos button)</span>';
         return '<div class="lt-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea>'+hint+'</div>';
       }
@@ -686,25 +696,27 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function pfSignLine(role, name){
     return '<div class="pf-sign-line"><span class="pf-label">'+pfEsc(role)+':</span><span class="pf-value-inline">'+pfEsc(name||'')+'</span></div>';
   }
-  // Parses the Energy Isolation Details textarea positionally against
-  // the 6 fixed energy-type rows on the live form — "Isolation Point
-  // or ID | Isolated Y/N | Lock/Tag No." per line, in the same order
-  // as ENERGY_SOURCES_FORM_ROWS. Blank rows print empty (ready for a
-  // handwritten entry) rather than being omitted, so the printed
-  // sheet still looks like the official 6-row grid.
-  function parseEnergyLines(text){
-    var lines = String(text||'').split('\n');
-    return ENERGY_SOURCES_FORM_ROWS.map(function(src, i){
-      var parts = (lines[i]||'').split('|').map(function(p){ return p.trim(); });
-      return { src: src, point: parts[0]||'', isolated: parts[1]||'', lock: parts[2]||'' };
+  // Reads the 6 real per-source columns directly — each energy type on
+  // the live form has its own Isolation Point/ID, Isolated, and
+  // Lock/Tag No. fields, matching Section 2's 6-row table exactly
+  // rather than being reconstructed from free text.
+  function energyRowsFromRec(rec){
+    return ENERGY_SOURCES_FORM_ROWS.map(function(src){
+      var label = src === 'Other' ? ('Other' + (rec['Other Energy Source (Specify)'] ? ': ' + rec['Other Energy Source (Specify)'] : '')) : src;
+      return {
+        src: label,
+        point: rec[src + ' Isolation Point / ID'] || '',
+        isolated: rec[src + ' Isolated'] || '',
+        lock: rec[src + ' Lock / Tag No.'] || ''
+      };
     });
   }
 
   function buildLotoPrintHtml(rec){
-    var energyRows = parseEnergyLines(rec['Energy Isolation Details']);
+    var energyRows = energyRowsFromRec(rec);
     var energyTableRows = energyRows.map(function(e){
       var iso = String(e.isolated||'').trim().toLowerCase();
-      var cb = iso==='y' || iso==='yes' ? '&#9746;' : '&#9744;';
+      var cb = iso==='yes' ? '&#9746;' : '&#9744;';
       return '<tr><td>'+pfEsc(e.src)+'</td><td>'+pfEsc(e.point)+'</td><td style="text-align:center;font-size:12px">'+cb+'</td><td>'+pfEsc(e.lock)+'</td></tr>';
     }).join('');
 
