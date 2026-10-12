@@ -91,8 +91,7 @@ var TREE = [
         { id:'oc1-ptw',  label:'PTW Register',              file:'ptw-register.html',          level:'L4', tag:'Sh.36' },
         { id:'oc1-eme',  label:'Emergency Response Plan',   file:'emergency-response.html',    level:'L4', tag:'Sh.34b' },
         { id:'oc1-con',  label:'Contractor Register',        file:'contractor-register.html',   level:'L4', tag:'Sh.35' },
-        { id:'oc1-lot',  label:'LOTO Device Register',       file:'loto-register.html',         level:'L4', tag:'Sh.37' },
-        { id:'oc1-lta',  label:'LOTO Authorised Persons',    file:'loto-auth-persons.html',     level:'L4', tag:'Sh.59' },
+        { id:'oc1-lot',  label:'LOTO Register',              file:'loto-register.html',         level:'L4', tag:'Sh.37,70-72' },
         { id:'oc1-csl',  label:'Confined Space Entry Log',   file:'confined-space-log.html',    level:'L4', tag:'Sh.38' },
         { id:'oc1-hts',  label:'Heat Stress / WBGT Log',     file:'heat-stress-log.html',       level:'L4', tag:'Sh.39' },
         { id:'oc1-fxl',  label:'Fire Extinguisher Log',      file:'fire-extinguisher-log.html', level:'L4', tag:'Sh.40' },
@@ -336,7 +335,6 @@ var LIVE_BADGE_RULES = [
 var STAGE2_EMPTY_RULES = [
   { navId: 'oc1-con', tabKey: 'contractor' },
   { navId: 'oc1-lot', tabKey: 'loto_register' },
-  { navId: 'oc1-lta', tabKey: 'loto_auth' },
   { navId: 'oc1-hts', tabKey: 'heat_stress' },
   { navId: 'oc1-ghs', tabKey: 'chemical_inv' },
   { navId: 'oc1-ppe', tabKey: 'ppe_register' },

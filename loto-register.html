@@ -64,7 +64,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .lt-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--ltw-amb)}
 .lt-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--ltw-blue)}
 </style>
-</head><body><div class="lt-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a><a href="loto-auth-persons.html" class="back-link">LOTO Authorised Persons →</a></div><div class="req-text">ISO 45001 §8.1 — Operational control of hazardous energy. Every lockout/tagout job is isolated, verified and reinstated against L4-SHEE-PR-08-FRM-01 (Rev.00), the LOTO Isolation and Reinstatement Checklist. This register is the digital record of that form; it does not replace the physical locks, tags, or the one-lock-per-person rule maintained on site via the LOTO Authorised Persons register.</div>
+</head><body><div class="lt-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div><div class="req-text">ISO 45001 §8.1 — Operational control of hazardous energy. Every lockout/tagout job is isolated, verified and reinstated against L4-SHEE-PR-08-FRM-01 (Rev.00), the LOTO Isolation and Reinstatement Checklist. This single page holds all four LOTO registers — job execution, authorised persons, device inventory, and periodic station audits — each a separate live Google Sheet tab, same as the Fire Extinguisher register.</div>
 
 <div class="sec-banner">LOTO QUICK STATUS</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
@@ -72,25 +72,46 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <div class="kpi-card kc-blue lt-clickable" onclick="LT.cardClick('total')" title="Click to view this year's LOTO jobs"><div class="kpi-lbl">This Year's LOTO Jobs</div><div class="kpi-val" id="lt-kpi-year">—</div><div class="kpi-sub" id="lt-kpi-year-sub">Loading…</div></div>
   <div class="kpi-card kc-red lt-clickable" onclick="LT.cardClick('openactions')" title="Click to view isolations not yet closed"><div class="kpi-lbl">Active Isolations</div><div class="kpi-val" id="lt-kpi-open">—</div><div class="kpi-sub">Jobs not yet Closed</div></div>
 </div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy lt-clickable" onclick="LT.cardClick('authpersons')" title="Click to view active Authorised Persons"><div class="kpi-lbl">Authorised Persons</div><div class="kpi-val" id="lt-kpi-auth">—</div><div class="kpi-sub">Active</div></div>
+  <div class="kpi-card kc-blue lt-clickable" onclick="LT.cardClick('devices')" title="Click to view active LOTO devices"><div class="kpi-lbl">LOTO Devices</div><div class="kpi-val" id="lt-kpi-devices">—</div><div class="kpi-sub">Active</div></div>
+  <div class="kpi-card kc-amb lt-clickable" onclick="LT.cardClick('auditfindings')" title="Click to view open station audit findings"><div class="kpi-lbl">Open Audit Findings</div><div class="kpi-val" id="lt-kpi-findings">—</div><div class="kpi-sub">Corrective action required, not yet closed</div></div>
+</div>
 
-<div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:18px">
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
   <div class="chart-card">
     <div class="chart-title">LOTO Jobs by Energy Source Isolated<span class="chart-sub">a job isolating several sources counts toward each</span></div>
-    <div class="chart-wrap" style="height:280px"><canvas id="ltEnergyChart"></canvas></div>
+    <div class="chart-wrap"><canvas id="ltEnergyChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Upcoming LOTO Certificate Expiry<span class="chart-sub">authorisations expiring, by month</span></div>
+    <div class="chart-wrap"><canvas id="ltCertExpiryChart"></canvas></div>
   </div>
 </div>
 
 <div class="lt-jumpbar" style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px">
   <button class="lt-jump-btn" onclick="LT.jumpTo('register')">LOTO Register <span id="lt-count-register" class="lt-jump-count"></span></button>
+  <button class="lt-jump-btn" onclick="LT.jumpTo('auth')">LOTO Authorised Persons <span id="lt-count-auth" class="lt-jump-count"></span></button>
+  <button class="lt-jump-btn" onclick="LT.jumpTo('devices')">LOTO Device Register <span id="lt-count-devices" class="lt-jump-count"></span></button>
+  <button class="lt-jump-btn" onclick="LT.jumpTo('audit')">LOTO Station Audit Log <span id="lt-count-audit" class="lt-jump-count"></span></button>
 </div>
 
 <div class="sec-banner lt-sec-toggle" id="lt-hdr-register" onclick="LT.toggle('register')"><span class="lt-chevron">▶</span> LOTO REGISTER</div>
 <div id="live-table-register" class="lt-collapsible" style="margin-top:0"></div>
 
+<div class="sec-banner lt-sec-toggle" id="lt-hdr-auth" style="margin-top:10px" onclick="LT.toggle('auth')"><span class="lt-chevron">▶</span> LOTO AUTHORISED PERSONS &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(competency — who may perform or verify isolations)</span></div>
+<div id="live-table-auth" class="lt-collapsible" style="margin-top:0"></div>
+
+<div class="sec-banner lt-sec-toggle" id="lt-hdr-devices" style="margin-top:10px" onclick="LT.toggle('devices')"><span class="lt-chevron">▶</span> LOTO DEVICE REGISTER &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(physical lock/tag inventory)</span></div>
+<div id="live-table-devices" class="lt-collapsible" style="margin-top:0"></div>
+
+<div class="sec-banner lt-sec-toggle" id="lt-hdr-audit" style="margin-top:10px" onclick="LT.toggle('audit')"><span class="lt-chevron">▶</span> LOTO STATION AUDIT LOG &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(periodic station check — independent of any single job)</span></div>
+<div id="live-table-audit" class="lt-collapsible" style="margin-top:0"></div>
+
 <div style="margin-top:16px;font-size:10px;color:var(--ltw-text-dim);text-align:right" id="lt-live-ts"></div>
 <div id="lt-modal-root"></div>
 </div>
-<!-- No sidebar/topbar: this page is reached only from inside the Operations Hub, same pattern as ptw-register.html / mock-drill-register.html. -->
+<!-- No sidebar/topbar: this page is reached only from inside the Operations Hub, same pattern as fire-extinguisher-log.html / ptw-register.html / mock-drill-register.html. -->
 
 <style>
 .lt-dark-wrap .lt-toolbar{display:flex;justify-content:flex-end;padding:6px 0}
@@ -194,6 +215,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       label: 'LOTO Job', tabKey: 'loto_register', containerId: 'live-table-register',
       idCol: 'LOTO ID', idEditable: true,
       idPrefix: 'LOTO-', idPad: 3,
+      hasPrint: true, hasPhotos: true,
+      displayCols: ['LOTO ID','Date','Department / Location','Equipment Name / ID','Status'],
       fields: ['LOTO ID','Date','Department / Location','Equipment Name / ID','Description of Work',
                'PTW Number','Performing Team / Contractor','Authorized LOTO Person',
                'Electrical Isolation Point / ID','Electrical Isolated','Electrical Lock / Tag No.',
@@ -230,6 +253,57 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // isolation grid, a work description, final remarks, or a
       // per-photo log can't realistically be one line.
       textareaFields: ['Description of Work','Final Remarks','Signatures','Photos']
+    },
+    devices: {
+      label: 'LOTO Device', tabKey: 'loto_devices', containerId: 'live-table-devices',
+      idCol: 'Lock/Tag ID', idEditable: true, // physical devices are stamped with their own ID, not auto-generated
+      filterField: 'Status',
+      displayCols: ['Lock/Tag ID','Device Type','Assigned To (Employee Name)','Condition','Status'],
+      fields: ['Lock/Tag ID','Device Type','Colour Code','Assigned To (Employee Name)','Employee ID',
+               'Department','Energy Type Typically Used On','Date Issued','Last Inspection Date',
+               'Condition','Status','Remarks'],
+      selectFields: {
+        'Energy Type Typically Used On': ['Electrical','Mechanical','Hydraulic','Pneumatic','Pressure / Stored Energy','Other'],
+        'Condition': ['Good','Damaged','Missing'],
+        'Status': ['Active','Retired','Lost']
+      },
+      textareaFields: ['Remarks'],
+      // Suggest Employee Name / ID from the Authorised Persons list, so a
+      // device is never assigned to a name that isn't actually on file.
+      crossRef: { 'Assigned To (Employee Name)': 'auth', 'Employee ID': 'auth' }
+    },
+    auth: {
+      label: 'Authorised Person', tabKey: 'loto_auth', containerId: 'live-table-auth',
+      idCol: 'Employee ID', idEditable: true, // matches the person's real SAGCO Employee ID
+      filterField: 'Status',
+      displayCols: ['Employee ID','Employee Name','Department','Certificate Expiry Date','Status'],
+      fields: ['Employee ID','Employee Name','Department','Position','LOTO Training Date',
+               'Certificate Expiry Date','Authorized By','Authorization Date',
+               'Assigned Lock/Tag ID(s)','Competency Level','Status','Remarks'],
+      selectFields: {
+        'Competency Level': ['Basic','Intermediate','Advanced'],
+        'Status': ['Active','Inactive','Suspended']
+      },
+      textareaFields: ['Assigned Lock/Tag ID(s)','Remarks']
+    },
+    audit: {
+      label: 'Station Audit', tabKey: 'loto_station_audit', containerId: 'live-table-audit',
+      idCol: 'Audit ID', idPrefix: 'LSA-', idPad: 3,
+      filterField: 'Status',
+      displayCols: ['Audit ID','Date','Area / LOTO Station','Corrective Action Required (Y/N)','Status'],
+      fields: ['Audit ID','Date','Area / LOTO Station','Inspector','Devices Present at Station (Y/N)',
+               'Locks and Tags in Good Condition (Y/N)','Signage Intact (Y/N)',
+               'One-Lock-Per-Person Rule Observed (Y/N)','Missing or Damaged Devices',
+               'Non-Conformities Found','Corrective Action Required (Y/N)','Corrective Action Description',
+               'Responsible Person','Target Close Date','Status','Remarks'],
+      selectFields: {
+        'Devices Present at Station (Y/N)': YESNO, 'Locks and Tags in Good Condition (Y/N)': YESNO,
+        'Signage Intact (Y/N)': YESNO, 'One-Lock-Per-Person Rule Observed (Y/N)': YESNO,
+        'Corrective Action Required (Y/N)': YESNO, 'Status': ['Open','Closed']
+      },
+      textareaFields: ['Missing or Damaged Devices','Non-Conformities Found','Corrective Action Description','Remarks'],
+      // Suggest Inspector / Responsible Person from the Authorised Persons list.
+      crossRef: { 'Inspector': 'auth', 'Responsible Person': 'auth' }
     }
   };
   var _filters = {};
@@ -280,6 +354,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     out.sort();
     return out;
   }
+  // Datalist suggestions for a modal field — pulls from another table's
+  // already-loaded data when cfg.crossRef points there (e.g. suggest
+  // Employee Name/ID for a device from the Authorised Persons list
+  // rather than only this table's own history), otherwise from the
+  // field's own column.
+  function getSuggestions(tKeyName, fieldName){
+    var cfg = TABLES[tKeyName];
+    var sourceTable = (cfg.crossRef && cfg.crossRef[fieldName]) ? cfg.crossRef[fieldName] : tKeyName;
+    return getOwnColumnValues(sourceTable, fieldName);
+  }
 
   function renderShell(tKeyName, data){
     var cfg = TABLES[tKeyName];
@@ -296,8 +380,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var toolbarHtml = '';
     if (can('add')) toolbarHtml += '<button class="lt-btn lt-btn-add" onclick="LT.openAdd(\''+tKeyName+'\')">+ Add Record</button>';
     var disabledAttr = sel ? '' : ' disabled';
-    toolbarHtml += '<button class="lt-btn" id="lt-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="LT.printLoto(LT.getSelected(\''+tKeyName+'\'))">🖨️ Print FRM-08</button>';
-    toolbarHtml += '<button class="lt-btn" id="lt-tb-photos-'+tKeyName+'"'+disabledAttr+' onclick="LT.managePhotos(LT.getSelected(\''+tKeyName+'\'))">📷 Photos</button>';
+    if (cfg.hasPrint) toolbarHtml += '<button class="lt-btn" id="lt-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="LT.printLoto(LT.getSelected(\''+tKeyName+'\'))">🖨️ Print FRM-08</button>';
+    if (cfg.hasPhotos) toolbarHtml += '<button class="lt-btn" id="lt-tb-photos-'+tKeyName+'"'+disabledAttr+' onclick="LT.managePhotos(LT.getSelected(\''+tKeyName+'\'))">📷 Photos</button>';
     if (can('edit')) toolbarHtml += '<button class="lt-btn" id="lt-tb-edit-'+tKeyName+'"'+disabledAttr+' onclick="LT.openEdit(\''+tKeyName+'\', LT.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
     if (can('delete')) toolbarHtml += '<button class="lt-btn" id="lt-tb-remove-'+tKeyName+'"'+disabledAttr+' onclick="LT.remove(\''+tKeyName+'\', LT.getSelected(\''+tKeyName+'\'))">🗑️ Remove</button>';
 
@@ -342,6 +426,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
     return st !== 'closed';
   }
+  // A Station Audit finding is "open" when corrective action was
+  // required and the audit row itself hasn't been closed out yet.
+  function hasOpenFinding(row, headers){
+    var carIdx = colIdx(headers, 'Corrective Action Required (Y/N)');
+    var statusIdx = colIdx(headers, 'Status');
+    var car = carIdx >= 0 ? String(row[carIdx]||'').trim().toLowerCase() : '';
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return car === 'yes' && st !== 'closed';
+  }
 
   function renderTableArea(tKeyName){
     var cfg = TABLES[tKeyName];
@@ -371,19 +464,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (f.special === 'openactions'){
       visibleRows = visibleRows.filter(function(r){ return hasOpenIsolation(r, data.headers); });
     }
+    if (f.special === 'openfindings'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenFinding(r, data.headers); });
+    }
     if (statusEl){
       var isFiltered = !!(f.search.trim() || f.category || f.special);
       statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
     }
 
-    // Keep the register's own table readable: show a trimmed column
-    // set (the long checklist/narrative fields are reached via the
-    // row itself, Edit, or Print) rather than 36 columns forcing a
-    // tiny compact font. Every field not shown here is still
-    // available per-row via the ▶ expand toggle below, so nothing
-    // captured on the form is hidden — just collapsed out of the
-    // default view.
-    var displayCols = ['LOTO ID','Date','Department / Location','Equipment Name / ID','Status'];
+    // Keep each register's own table readable: show a trimmed column
+    // set per cfg.displayCols (the long checklist/narrative fields are
+    // reached via the row itself, Edit, or Print) rather than every
+    // column forcing a tiny compact font. Every field not shown here
+    // is still available per-row via the ▶ expand toggle below, so
+    // nothing captured on the form is hidden — just collapsed out of
+    // the default view.
+    var displayCols = cfg.displayCols || cfg.fields.slice(0, 5);
     var colIdxs = displayCols.map(function(c){ return colIdx(data.headers, c); }).filter(function(i){ return i >= 0; });
     var colNames = colIdxs.map(function(i){ return data.headers[i]; });
     var shownSet = {};
@@ -457,17 +553,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   }
 
   function loadAll(){
-    loadTab('register').then(function(){
+    var keys = Object.keys(TABLES);
+    return Promise.all(keys.map(loadTab)).then(function(){
       renderDashboard();
     });
   }
   function reloadAll(){ return loadAll(); }
 
+  // Visible (non-Removed) rows for any one cached table.
+  function visibleRowsOf(tKeyName){
+    var data = _cache[tKeyName];
+    if (!data || !data.rows) return [];
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    return data.rows.filter(function(r){ return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+  }
+
   function renderDashboard(){
     var reg = _cache['register'];
     if (!reg) return;
-    var statusIdx = colIdx(reg.headers, STATUS_COL);
-    var visibleRows = reg.rows.filter(function(r){ return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+    var visibleRows = visibleRowsOf('register');
 
     document.getElementById('lt-kpi-total').textContent = visibleRows.length;
 
@@ -484,9 +588,37 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var openCount = visibleRows.filter(function(r){ return hasOpenIsolation(r, reg.headers); }).length;
     document.getElementById('lt-kpi-open').textContent = openCount;
 
-    var BLUE = '#5B9BD5';
+    // ── Cross-register KPIs: only render once each source table has
+    // loaded at least once (loadAll() loads all 4 in parallel, so this
+    // is normally true by the time renderDashboard first runs).
+    var authData = _cache['auth'], devData = _cache['devices'], audData = _cache['audit'];
+    if (authData){
+      var authRows = visibleRowsOf('auth');
+      var authStatusIdx = colIdx(authData.headers, 'Status');
+      var activeAuth = authStatusIdx < 0 ? authRows.length :
+        authRows.filter(function(r){ return String(r[authStatusIdx]||'').trim().toLowerCase() === 'active'; }).length;
+      var kpiAuth = document.getElementById('lt-kpi-auth');
+      if (kpiAuth) kpiAuth.textContent = activeAuth;
+    }
+    if (devData){
+      var devRows = visibleRowsOf('devices');
+      var devStatusIdx = colIdx(devData.headers, 'Status');
+      var activeDev = devStatusIdx < 0 ? devRows.length :
+        devRows.filter(function(r){ return String(r[devStatusIdx]||'').trim().toLowerCase() === 'active'; }).length;
+      var kpiDev = document.getElementById('lt-kpi-devices');
+      if (kpiDev) kpiDev.textContent = activeDev;
+    }
+    if (audData){
+      var audRows = visibleRowsOf('audit');
+      var openFindings = audRows.filter(function(r){ return hasOpenFinding(r, audData.headers); }).length;
+      var kpiAud = document.getElementById('lt-kpi-findings');
+      if (kpiAud) kpiAud.textContent = openFindings;
+    }
+
+    var BLUE = '#5B9BD5', GOLD = '#C9A84C';
     var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
     if (_charts.energy) { _charts.energy.destroy(); _charts.energy = null; }
+    if (_charts.certExpiry) { _charts.certExpiry.destroy(); _charts.certExpiry = null; }
 
     // Section 2 of the real form lets one job isolate several energy
     // sources at once, so this counts "Yes" independently on each of
@@ -528,6 +660,50 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         plugins: (window.ChartDataLabels ? [window.ChartDataLabels] : [])
       });
     }
+
+    // Chart 2: Upcoming LOTO Certificate Expiry (bar, by month) — same
+    // pattern as the Fire Extinguisher page's Service Expiry chart,
+    // built from the Authorised Persons' own Certificate Expiry Date
+    // column so trainers can see renewal load coming up by month.
+    if (authData){
+      var certIdx = colIdx(authData.headers, 'Certificate Expiry Date');
+      var expiryMonths = {};
+      if (certIdx >= 0){
+        visibleRowsOf('auth').forEach(function(r){
+          var raw = r[certIdx];
+          if (!raw) return;
+          var s = String(raw).trim();
+          if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return; // skip non-date / corrupted values
+          var year = parseInt(s.slice(0,4), 10);
+          if (year < 2020) return;
+          var ym = s.slice(0,7);
+          expiryMonths[ym] = (expiryMonths[ym] || 0) + 1;
+        });
+      }
+      var sortedExpiryMonths = Object.keys(expiryMonths).sort();
+      if (window.Chart && sortedExpiryMonths.length){
+        _charts.certExpiry = new Chart(document.getElementById('ltCertExpiryChart'), {
+          type: 'bar',
+          data: { labels: sortedExpiryMonths.map(monthLabel), datasets: [{
+            label: 'Certificates expiring', data: sortedExpiryMonths.map(function(m){ return expiryMonths[m]; }),
+            backgroundColor: GOLD, borderRadius: 4
+          }]},
+          options: { responsive:true, maintainAspectRatio:false,
+            scales: {
+              y: { beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } },
+              x: { ticks:{ color:TICK }, grid:{ color:GRID } }
+            },
+            plugins: { legend: { display:false } } }
+        });
+      }
+    }
+  }
+
+  function monthLabel(ym){
+    var parts = ym.split('-');
+    var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mi = parseInt(parts[1],10) - 1;
+    return (names[mi] || parts[1]) + ' ' + parts[0];
   }
 
   function setExpanded(tKeyName, expanded){
@@ -566,7 +742,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       }
       var isDateField = /date$/i.test(f.trim());
       var inputType = isDateField ? 'date' : 'text';
-      return '<div class="lt-field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"></div>';
+      var suggestions = isDateField ? [] : getSuggestions(tKeyName, f);
+      var dlId = 'lt-dl-' + tKeyName + '-' + fi;
+      var dlHtml = '';
+      if (suggestions.length){
+        dlHtml = '<datalist id="'+dlId+'">' + suggestions.map(function(s){
+          return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
+        }).join('') + '</datalist>';
+      }
+      return '<div class="lt-field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"'+(suggestions.length?' list="'+dlId+'"':'')+'>'+dlHtml+'</div>';
     }).join('');
 
     root.innerHTML = '<div class="lt-modal-bg" id="lt-modal-bg"><div class="lt-modal">' +
@@ -848,6 +1032,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         _filters['register'] = {search:'', category:'', special:'openactions'};
         renderShell('register', _cache['register']);
         this.jumpTo('register');
+      } else if (cardName === 'authpersons'){
+        _filters['auth'] = {search:'', category:'Active', special:null};
+        renderShell('auth', _cache['auth']);
+        this.jumpTo('auth');
+      } else if (cardName === 'devices'){
+        _filters['devices'] = {search:'', category:'Active', special:null};
+        renderShell('devices', _cache['devices']);
+        this.jumpTo('devices');
+      } else if (cardName === 'auditfindings'){
+        _filters['audit'] = {search:'', category:'', special:'openfindings'};
+        renderShell('audit', _cache['audit']);
+        this.jumpTo('audit');
       }
     },
     selectRow: function(tKeyName, idVal){
