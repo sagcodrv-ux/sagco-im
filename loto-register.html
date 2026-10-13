@@ -330,6 +330,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // closes this audit's own Status too — see notifyLotoAuditActionCompleted()
       // in capa-wizard.js.
       hasEscalate: true,
+      // Prints a standalone one-record audit report, same visual
+      // format as the LOTO Register's Print FRM-08 (buildLotoPrintHtml),
+      // but laid out for the Station Audit's own fields and doc code.
+      // Kept as its own flag (not cfg.hasPrint) so its toolbar button
+      // can sit before Escalate to Action instead of after — see the
+      // separate hasPrintAudit block in renderShell().
+      hasPrintAudit: true,
       displayCols: ['Audit ID','Date','Area / LOTO Station','Corrective Action Required (Y/N)','Status'],
       fields: ['Audit ID','Date','Area / LOTO Station','Inspector','Devices Present at Station (Y/N)',
                'Locks and Tags in Good Condition (Y/N)','Signage Intact (Y/N)',
@@ -439,6 +446,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var selStatus = String(getFieldOfSelected(tKeyName, 'Status')||'').trim().toLowerCase();
       var canContinue = sel && selStatus === 'open';
       toolbarHtml += '<button class="lt-btn lt-btn-add" id="lt-tb-continue-'+tKeyName+'"'+(canContinue?'':' disabled')+' onclick="LT.openContinue(\''+tKeyName+'\', LT.getSelected(\''+tKeyName+'\'))">▶ Continue (Post-Task)</button>';
+    }
+    if (cfg.hasPrintAudit){
+      toolbarHtml += '<button class="lt-btn" id="lt-tb-printaudit-'+tKeyName+'"'+disabledAttr+' onclick="LT.printAudit(LT.getSelected(\''+tKeyName+'\'))">🖨️ Print Audit Report</button>';
     }
     if (cfg.hasEscalate){
       var carVal = String(getFieldOfSelected(tKeyName, 'Corrective Action Required (Y/N)')||'').trim().toLowerCase();
@@ -1078,6 +1088,85 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     + '</div></body></html>';
   }
 
+  // Same visual format as buildLotoPrintHtml (identical pf- CSS classes,
+  // self-contained print window) but laid out for the Station Audit's
+  // own fields and doc code L4-SHEE-PR-08-CL-01, for the new
+  // "Print Audit Report" toolbar button.
+  function buildAuditPrintHtml(rec){
+    var printedAt = new Date().toLocaleString();
+    var auditId = rec['Audit ID'] || '';
+    var carRequired = pfYes(rec['Corrective Action Required (Y/N)']);
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>LOTO Station Audit '+pfEsc(auditId)+' — L4-SHEE-PR-08-CL-01</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#111;margin:0;padding:16px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:10px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:800px;margin:0 auto;border:1px solid #333;padding:14px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}'
+    + '.pf-head h1{font-size:15px;margin:0}'
+    + '.pf-head .pf-code{font-size:10px;text-align:right}'
+    + '.pf-section{border:1px solid #999;margin-bottom:6px;padding:6px 8px}'
+    + '.pf-section-title{font-weight:700;font-size:10px;margin-bottom:5px;text-transform:uppercase}'
+    + '.pf-field{margin-bottom:3px}'
+    + '.pf-label{font-weight:700;margin-right:5px}'
+    + '.pf-value{border-bottom:1px dotted #666;padding:0 4px}'
+    + '.pf-value-inline{border-bottom:1px dotted #666;padding:0 4px;font-weight:600}'
+    + '.pf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}'
+    + '.pf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:2px 10px}'
+    + '.pf-item{display:inline-flex;align-items:flex-start;gap:4px;font-size:9.5px;margin:0 10px 2px 0}'
+    + '.pf-box{font-size:12px;line-height:1}'
+    + '.pf-check-row{display:flex;flex-wrap:wrap}'
+    + '.pf-sign-line{margin-bottom:3px;font-size:9.5px}'
+    + '.pf-sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px}'
+    + '.pf-footer{margin-top:6px;font-size:8px;color:#666;border-top:1px solid #999;padding-top:4px}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}@page{size:A4;margin:10mm}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>LOTO Station Audit Log</h1>'
+      + '<div class="pf-code">L4-SHEE-PR-08-CL-01 · Rev.00<br>Audit ID: <strong>'+pfEsc(auditId)+'</strong></div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 1 — Audit Information</div>'
+        + '<div class="pf-grid3">'
+          + pfField('Date', rec['Date'])
+          + pfField('Area / LOTO Station', rec['Area / LOTO Station'])
+          + pfField('Inspector', rec['Inspector'])
+        + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 2 — Compliance Checklist</div>'
+        + '<div class="pf-check-row">'
+          + pfCb('Devices present at station', pfYes(rec['Devices Present at Station (Y/N)']))
+          + pfCb('Locks and tags in good condition', pfYes(rec['Locks and Tags in Good Condition (Y/N)']))
+        + '</div><div class="pf-check-row">'
+          + pfCb('Signage intact', pfYes(rec['Signage Intact (Y/N)']))
+          + pfCb('One-lock-per-person rule observed', pfYes(rec['One-Lock-Per-Person Rule Observed (Y/N)']))
+        + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 3 — Findings and Corrective Action</div>'
+        + '<div class="pf-field"><span class="pf-label">Missing or damaged devices:</span><span class="pf-value">'+pfEsc(rec['Missing or Damaged Devices'])+'</span></div>'
+        + '<div class="pf-field"><span class="pf-label">Non-conformities found:</span><span class="pf-value">'+pfEsc(rec['Non-Conformities Found'])+'</span></div>'
+        + '<div class="pf-check-row" style="margin-top:4px">'
+          + pfCb('Corrective action required', carRequired)
+        + '</div>'
+        + (carRequired ?
+            '<div class="pf-field"><span class="pf-label">Proposed corrective action:</span><span class="pf-value">'+pfEsc(rec['Corrective Action Description'])+'</span></div>'
+            + '<div class="pf-grid3">'
+              + pfField('Responsible Person', rec['Responsible Person'])
+              + pfField('Target Close Date', rec['Target Close Date'])
+              + pfField('Action Reference', rec['Action Reference'])
+            + '</div>'
+          : '')
+        + '<div class="pf-grid2" style="margin-top:4px">'
+          + pfField('Status', rec['Status'])
+        + '</div>'
+        + '<div class="pf-field" style="margin-top:2px"><span class="pf-label">Remarks:</span><span class="pf-value">'+pfEsc(rec['Remarks'])+'</span></div></div>'
+
+      + '<div class="pf-footer">L4-SHEE-PR-08-CL-01 · Rev.00. Generated from the SAGCO IMS Portal on '+pfEsc(printedAt)+'. Not valid without original signatures.</div>'
+    + '</div></body></html>';
+  }
+
   /* ── Public API used by inline onclick handlers ─────────────────────── */
   window.LT = {
     toggle: function(tKeyName){
@@ -1282,6 +1371,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var w = window.open('', '_blank');
       if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print the LOTO checklist.'); return; }
       w.document.open(); w.document.write(buildLotoPrintHtml(rec)); w.document.close();
+    },
+    printAudit: function(idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache['audit'];
+      var idIdx = colIdx(data.headers, 'Audit ID');
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var rec = {};
+      data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print the audit report.'); return; }
+      w.document.open(); w.document.write(buildAuditPrintHtml(rec)); w.document.close();
     },
     remove: function(tKeyName, idVal){
       var cfg = TABLES[tKeyName];
