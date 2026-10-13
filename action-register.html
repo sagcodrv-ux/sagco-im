@@ -185,6 +185,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         // Atmospheric Test Record hand-off, same provenance pattern as
         // Source LOTO Audit ID above.
         srcCsIdx = colIdx(h,'Source Confined Space Entry ID'),
+        // Rev.07 (Issam, 2026-10-13) — Heat Stress / WBGT Log hand-off,
+        // same provenance pattern as Source Confined Space Entry ID
+        // above. Without this, a Heat-Stress-escalated Action showed
+        // only the plain text "Heat Stress / WBGT Log" in the Source
+        // column (the r.Source fallback a few lines below) with no way
+        // to click through to the actual log entry — exactly the gap
+        // Issam flagged after seeing ACT-2026-013 in the live register.
+        srcHsIdx = colIdx(h,'Source Heat Stress Log ID'),
         // Point (Issam, 2026-10-08): evidence attached via Step 1's
         // "Add Evidence" button is saved to this column (newline-
         // joined links — see uploadInitialEvidence() in capa-wizard.js)
@@ -222,6 +230,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         'Source Observation Case ID': srcObsIdx>=0 ? r[srcObsIdx] : '',
         'Source LOTO Audit ID': srcLotoIdx>=0 ? r[srcLotoIdx] : '',
         'Source Confined Space Entry ID': srcCsIdx>=0 ? r[srcCsIdx] : '',
+        'Source Heat Stress Log ID': srcHsIdx>=0 ? r[srcHsIdx] : '',
         'Initial Evidence': evidIdx>=0 ? r[evidIdx] : '',
       };
     });
@@ -340,7 +349,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
               ? '<a href="loto-register.html?lotoAudit='+encodeURIComponent(r['Source LOTO Audit ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source LOTO Audit ID'])+'</a>'
               : (r['Source Confined Space Entry ID']
                 ? '<a href="confined-space.html?entry='+encodeURIComponent(r['Source Confined Space Entry ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Confined Space Entry ID'])+'</a>'
-                : (r.Source ? escHtml(r.Source) : '<span class="action-dim">—</span>'))));
+                : (r['Source Heat Stress Log ID']
+                  // Rev.07 (Issam, 2026-10-13) — a Heat-Stress-escalated
+                  // Action now shows its Source Heat Stress Log ID as a
+                  // clickable reference, same pattern as the Incident/
+                  // Observation/LOTO Audit/Confined Space links above.
+                  // heat-stress-log.html's own ?log=<Log ID> deep-link
+                  // handler opens straight to that exact entry.
+                  ? '<a href="heat-stress-log.html?log='+encodeURIComponent(r['Source Heat Stress Log ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Heat Stress Log ID'])+'</a>'
+                  : (r.Source ? escHtml(r.Source) : '<span class="action-dim">—</span>')))));
         // Point (Issam, 2026-10-08): "Initial Evidence" is one or more
         // links, newline-joined by uploadInitialEvidence() in
         // capa-wizard.js. Render one 📎 per link rather than one big
