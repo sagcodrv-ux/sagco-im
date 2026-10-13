@@ -219,6 +219,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // closes this entry's own Status too — see
       // notifyConfinedSpaceEntryActionCompleted() in capa-wizard.js.
       hasEscalate: true,
+      // Prints a standalone Pre-Entry Checklist / Atmospheric Test
+      // report for one entry — meant to be physically enclosed with
+      // the PTW (HSE-FRM-01) paperwork for that job, same approach as
+      // the LOTO Register's Print FRM-08 and the LOTO Station Audit's
+      // Print Audit Report.
+      hasPrintCS: true,
       displayCols: ['Entry ID','Date','CS Ref','All Safe to Enter (Y/N)','Corrective Action Required (Y/N)','Status'],
       fields: ['Entry ID','Date','CS Ref','PTW Number','Entrant(s)','Standby / Attendant Person',
                'Isolation Confirmed (LOTO) (Y/N)','LOTO Reference',
@@ -313,6 +319,132 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return getOwnColumnValues(sourceTable, fieldName);
   }
 
+  /* ── Print helpers (same pf- convention as loto-register.html's
+     buildLotoPrintHtml / buildAuditPrintHtml) ─────────────────────── */
+  function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function pfCb(label, checked){ return '<span class="pf-item"><span class="pf-box">'+(checked?'&#9746;':'&#9744;')+'</span><span class="pf-item-label">'+pfEsc(label)+'</span></span>'; }
+  function pfYes(val){ return String(val||'').trim().toLowerCase() === 'yes'; }
+  function pfField(label, value){ return '<div class="pf-field"><span class="pf-label">'+pfEsc(label)+'</span><span class="pf-value">'+pfEsc(value||'')+'</span></div>'; }
+  function pfCsRefLookup(csRef){
+    var data = _cache['register'];
+    if (!data || !data.headers || !data.rows) return null;
+    var idIdx = colIdx(data.headers, 'CS Ref');
+    var row = data.rows.find(function(r){ return String(r[idIdx]) === String(csRef); });
+    if (!row) return null;
+    var rec = {};
+    data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+    return rec;
+  }
+
+  // Standalone Pre-Entry Checklist / Atmospheric Test report for one
+  // entry — meant to be physically enclosed with the PTW (HSE-FRM-01)
+  // paperwork, same pf- CSS/layout convention as loto-register.html's
+  // buildLotoPrintHtml / buildAuditPrintHtml.
+  function buildPreEntryPrintHtml(rec){
+    var printedAt = new Date().toLocaleString();
+    var entryId = rec['Entry ID'] || '';
+    var spaceRec = pfCsRefLookup(rec['CS Ref']);
+    var carRequired = pfYes(rec['Corrective Action Required (Y/N)']);
+    var reentryRequired = pfYes(rec['Re-Entry Required (Y/N)']);
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>Confined Space Pre-Entry '+pfEsc(entryId)+' — L4-SHEE-PR-05-FRM-01</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#111;margin:0;padding:16px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:10px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:800px;margin:0 auto;border:1px solid #333;padding:14px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}'
+    + '.pf-head h1{font-size:15px;margin:0}'
+    + '.pf-head .pf-code{font-size:10px;text-align:right}'
+    + '.pf-section{border:1px solid #999;margin-bottom:6px;padding:6px 8px}'
+    + '.pf-section-title{font-weight:700;font-size:10px;margin-bottom:5px;text-transform:uppercase}'
+    + '.pf-field{margin-bottom:3px}'
+    + '.pf-label{font-weight:700;margin-right:5px}'
+    + '.pf-value{border-bottom:1px dotted #666;padding:0 4px}'
+    + '.pf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}'
+    + '.pf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:2px 10px}'
+    + '.pf-item{display:inline-flex;align-items:flex-start;gap:4px;font-size:9.5px;margin:0 10px 2px 0}'
+    + '.pf-box{font-size:12px;line-height:1}'
+    + '.pf-gas-tbl{width:100%;border-collapse:collapse;font-size:9px;margin-top:2px}'
+    + '.pf-gas-tbl th,.pf-gas-tbl td{border:1px solid #999;padding:3px 5px;text-align:left}'
+    + '.pf-gas-tbl th{background:#f0f0f0}'
+    + '.pf-check-row{display:flex;flex-wrap:wrap}'
+    + '.pf-footer{margin-top:6px;font-size:8px;color:#666;border-top:1px solid #999;padding-top:4px}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}@page{size:A4;margin:10mm}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>Confined Space Pre-Entry Checklist &amp; Atmospheric Test</h1>'
+      + '<div class="pf-code">L4-SHEE-PR-05-FRM-01 · Rev.00<br>Entry ID: <strong>'+pfEsc(entryId)+'</strong><br>Encloses PTW No. <strong>'+pfEsc(rec['PTW Number'])+'</strong></div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 1 — Job Information</div>'
+        + '<div class="pf-grid3">'
+          + pfField('Date', rec['Date'])
+          + pfField('Confined Space (CS Ref)', rec['CS Ref'])
+          + pfField('PTW Number', rec['PTW Number'])
+        + '</div>'
+        + (spaceRec ? '<div class="pf-field" style="margin-top:2px"><span class="pf-label">Description / Location:</span><span class="pf-value">'+pfEsc(spaceRec['Description'])+' — '+pfEsc(spaceRec['Location'])+'</span></div>' : '')
+        + '<div class="pf-grid2">'
+          + pfField('Entrant(s)', rec['Entrant(s)'])
+          + pfField('Standby / Attendant Person', rec['Standby / Attendant Person'])
+        + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 2 — Pre-Entry Checklist</div>'
+        + '<div class="pf-check-row">'
+          + pfCb('Isolation confirmed (LOTO)', pfYes(rec['Isolation Confirmed (LOTO) (Y/N)']))
+          + pfCb('Ventilation provided', pfYes(rec['Ventilation Provided (Y/N)']))
+          + pfCb('Rescue equipment ready', pfYes(rec['Rescue Equipment Ready (Y/N)']))
+        + '</div><div class="pf-check-row">'
+          + pfCb('PPE / breathing apparatus confirmed', pfYes(rec['PPE / Breathing Apparatus Confirmed (Y/N)']))
+        + '</div>'
+        + '<div class="pf-grid3" style="margin-top:2px">'
+          + pfField('LOTO Reference', rec['LOTO Reference'])
+          + pfField('Ventilation Type', rec['Ventilation Type'])
+          + pfField('Communication Method', rec['Communication Method'])
+        + '</div>'
+        + '<div class="pf-grid2">'
+          + pfField('Gas Detector Instrument ID', rec['Gas Detector Instrument ID'])
+          + pfField('Instrument Calibration Due Date', rec['Instrument Calibration Due Date'])
+        + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 3 — Atmospheric Test</div>'
+        + '<table class="pf-gas-tbl"><thead><tr><th></th><th>O2 (%)</th><th>CO (ppm)</th><th>H2S (ppm)</th><th>LEL (%)</th><th>Time</th></tr></thead>'
+        + '<tbody>'
+          + '<tr><td><strong>Initial Test</strong></td><td>'+pfEsc(rec['O2 (%)'])+'</td><td>'+pfEsc(rec['CO (ppm)'])+'</td><td>'+pfEsc(rec['H2S (ppm)'])+'</td><td>'+pfEsc(rec['LEL (%)'])+'</td><td>'+pfEsc(rec['Test Time'])+'</td></tr>'
+          + (reentryRequired ? '<tr><td><strong>Re-Test</strong></td><td>'+pfEsc(rec['Re-Test O2 (%)'])+'</td><td>'+pfEsc(rec['Re-Test CO (ppm)'])+'</td><td>'+pfEsc(rec['Re-Test H2S (ppm)'])+'</td><td>'+pfEsc(rec['Re-Test LEL (%)'])+'</td><td>'+pfEsc(rec['Re-Test Time'])+'</td></tr>' : '')
+        + '</tbody></table>'
+        + '<div class="pf-grid3" style="margin-top:4px">'
+          + pfField('Entry Time', rec['Entry Time'])
+          + pfField('Exit Time', rec['Exit Time'])
+          + pfField('All Safe to Enter', rec['All Safe to Enter (Y/N)'])
+        + '</div>'
+        + '<div class="pf-check-row" style="margin-top:2px">'
+          + pfCb('Re-entry required (re-test performed)', reentryRequired)
+        + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 4 — Findings and Corrective Action</div>'
+        + '<div class="pf-field"><span class="pf-label">Comment:</span><span class="pf-value">'+pfEsc(rec['Comment'])+'</span></div>'
+        + '<div class="pf-check-row">'
+          + pfCb('Corrective action required', carRequired)
+        + '</div>'
+        + (carRequired ?
+            '<div class="pf-field"><span class="pf-label">Proposed corrective action:</span><span class="pf-value">'+pfEsc(rec['Proposed Corrective Action'])+'</span></div>'
+            + '<div class="pf-grid3">'
+              + pfField('Responsible Person', rec['Responsible Person'])
+              + pfField('Target Close Date', rec['Target Close Date'])
+              + pfField('Action Reference', rec['Action Reference'])
+            + '</div>'
+          : '')
+        + '<div class="pf-grid2" style="margin-top:4px">'
+          + pfField('Status', rec['Status'])
+        + '</div>'
+        + '<div class="pf-field" style="margin-top:2px"><span class="pf-label">Remarks:</span><span class="pf-value">'+pfEsc(rec['Remarks'])+'</span></div></div>'
+
+      + '<div class="pf-footer">L4-SHEE-PR-05-FRM-01 · Rev.00. Generated from the SAGCO IMS Portal on '+pfEsc(printedAt)+'. Not valid without original signatures. Enclose with PTW No. '+pfEsc(rec['PTW Number'])+'.</div>'
+    + '</div></body></html>';
+  }
+
   function renderShell(tKeyName, data){
     var cfg = TABLES[tKeyName];
     var el = document.getElementById(cfg.containerId);
@@ -328,6 +460,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var toolbarHtml = '';
     if (can('add')) toolbarHtml += '<button class="cs-btn cs-btn-add" onclick="CS.openAdd(\''+tKeyName+'\')">+ Add Record</button>';
     var disabledAttr = sel ? '' : ' disabled';
+    if (cfg.hasPrintCS){
+      toolbarHtml += '<button class="cs-btn" id="cs-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="CS.printPreEntry(CS.getSelected(\''+tKeyName+'\'))">🖨️ Print Pre-Entry Checklist</button>';
+    }
     if (cfg.hasEscalate){
       var carVal = String(getFieldOfSelected(tKeyName, 'Corrective Action Required (Y/N)')||'').trim().toLowerCase();
       var existingRef = String(getFieldOfSelected(tKeyName, 'Action Reference')||'').trim();
@@ -776,6 +911,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           close(); reloadAll();
         }).catch(function(){ alert('Could not save — check your connection.'); if (window._csReenableModalSave) window._csReenableModalSave(); });
       });
+    },
+    // Opens the printable Pre-Entry Checklist / Atmospheric Test report
+    // for one Entry ID in a new tab, to print or save as PDF and
+    // physically enclose with the PTW (HSE-FRM-01) paperwork. Mirrors
+    // LT.printLoto / LT.printAudit in loto-register.html.
+    printPreEntry: function(idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache['preentry'];
+      var idIdx = colIdx(data.headers, 'Entry ID');
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var rec = {};
+      data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print the checklist.'); return; }
+      w.document.open(); w.document.write(buildPreEntryPrintHtml(rec)); w.document.close();
     },
     // Escalates a flagged Pre-Entry record to a single combined record
     // in the Action Register — same sessionStorage + URL hand-off
