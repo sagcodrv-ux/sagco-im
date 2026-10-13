@@ -1,150 +1,1020 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SAGCO IMS — Heat Stress / WBGT Monitoring Log</title>
+<title>SAGCO IMS — Heat Stress / WBGT Log</title>
 <link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
-</head><body>
-<div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--g100);
-  border-radius:var(--radius);border-left:3px solid var(--gold);margin:10px 0;color:var(--text-lt)}
-.alert-red{background:#FFEBEE;border:1px solid #EF9A9A;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#B71C1C;margin-bottom:10px}
-.alert-amb{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:10px}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-.back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--navy);font-size:11px;
-  font-weight:600;text-decoration:none;padding:5px 10px;background:var(--g100);
-  border-radius:var(--radius);border:1px solid #e0e0e0}
-.back-link:hover{background:#e3f0fa}
-</style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety</a></div><div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"><div class="kpi-card kc-blue"><div class="kpi-lbl">WBGT Zones</div><div class="kpi-val">5</div><div class="kpi-sub">Green · Yellow · Amber · Orange · Red</div></div><div class="kpi-card kc-red"><div class="kpi-lbl">Saudi Regulation</div><div class="kpi-val">MO 3337</div><div class="kpi-sub">Outdoor work prohibition triggers</div></div><div class="kpi-card kc-org"><div class="kpi-lbl">Monitoring</div><div class="kpi-val">Daily Jun–Sep</div><div class="kpi-sub">06:00 + 12:00 readings mandatory</div></div><div class="kpi-card kc-blue"><div class="kpi-lbl">Water Requirement</div><div class="kpi-val">250ml/20min</div><div class="kpi-sub">Mandatory in all zones ≥28°C</div></div><div class="kpi-card kc-nvy"><div class="kpi-lbl">Document Code</div><div class="kpi-val">L4-SHEE-PR-12-ML-01</div><div class="kpi-sub">OC-01 §A.13</div></div></div><div class="alert-amb">⚠️ Jeddah Summer (June–September): WBGT monitoring mandatory twice daily (06:00 and 12:00). If ambient temperature exceeds 30°C at 09:00, notify SHEE Head immediately. Work suspended at WBGT &gt;35°C — Plant Manager + SHEE Head joint decision required.</div><div class="req-text">ISO 45001 §8.1.1 / Saudi MO 3337 — WBGT measures combined effect of temperature, humidity, wind, and radiant heat. Heat stroke is a medical emergency — call 911 immediately. All workers in Yellow zone and above must be briefed on heat symptoms: heavy sweating, dizziness, rapid pulse, nausea, confusion.</div><div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
-<script>initPage("heat-stress-log.html");document.getElementById("tb").innerHTML=renderTopbar("Heat Stress / WBGT Monitoring Log","L4-SHEE-PR-12-ML-01 · ISO 45001 §8.1.1 · Saudi MO 3337 · 5 WBGT Zones · OC-01 §A.13");</script>
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   HEAT STRESS / WBGT LOG — same dark navy/gold theme and card/table
+   shapes as loto-register.html / confined-space.html / ptw-register.html.
+   Scoped entirely to .hs-dark-wrap. One live register (Sheet 39, an
+   "ML" — Monitoring Log, not a register pair like Confined Space),
+   with the WBGT Zone auto-calculated from the entered reading against
+   the exact 5-zone Saudi MO 3337 table already live on oc01-safety.html
+   (A.13 — Heat Stress Management) — no thresholds invented here.
+   ══════════════════════════════════════════════════════════════════ */
+.hs-dark-wrap{
+  --hsw-bg:#0D1B35; --hsw-bg2:#142140; --hsw-bg3:#1a2a50;
+  --hsw-gold:#C9A84C; --hsw-gold-lt:#E8C97A;
+  --hsw-text:rgba(255,255,255,.92); --hsw-text-muted:rgba(255,255,255,.55);
+  --hsw-text-dim:rgba(255,255,255,.35); --hsw-border:rgba(255,255,255,.08);
+  --hsw-border-gold:rgba(201,168,76,.35);
+  --hsw-blue:#5B9BD5; --hsw-red:#F0685C; --hsw-amb:#E8B339; --hsw-org:#E08A3C; --hsw-ylw:#D9C34A; --hsw-grn:#4FCB9E;
+  background:var(--hsw-bg); color:var(--hsw-text); margin:0; padding:24px; min-height:100vh;
+}
+.hs-dark-wrap *{box-sizing:border-box}
+.hs-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.hs-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--hsw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--hsw-bg2);
+  border-radius:8px;border:1px solid var(--hsw-border-gold)}
+.hs-dark-wrap .back-link:hover{background:var(--hsw-bg3)}
+.hs-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--hsw-bg2);
+  border-radius:8px;border-left:3px solid var(--hsw-gold);margin:10px 0;color:var(--hsw-text-muted)}
+.hs-dark-wrap .sec-banner{background:var(--hsw-bg2);color:var(--hsw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--hsw-border-gold);border-bottom:none}
+.hs-dark-wrap .kpi-grid{display:grid;gap:14px}
+.hs-dark-wrap .kpi-card{background:var(--hsw-bg2);border:1px solid var(--hsw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.hs-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.hs-dark-wrap .kpi-card.kc-nvy::before{background:var(--hsw-gold)}
+.hs-dark-wrap .kpi-card.kc-blue::before{background:var(--hsw-blue)}
+.hs-dark-wrap .kpi-card.kc-amb::before{background:var(--hsw-amb)}
+.hs-dark-wrap .kpi-card.kc-org::before{background:var(--hsw-org)}
+.hs-dark-wrap .kpi-card.kc-red::before{background:var(--hsw-red)}
+.hs-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--hsw-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.hs-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--hsw-text);line-height:1.1;margin-bottom:4px}
+.hs-dark-wrap .kpi-sub{font-size:10px;color:var(--hsw-text-muted)}
+.hs-dark-wrap .kpi-card.hs-clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.hs-dark-wrap .kpi-card.hs-clickable:hover{transform:translateY(-2px);border-color:var(--hsw-gold)}
+.hs-dark-wrap .chart-grid{display:grid;gap:14px}
+.hs-dark-wrap .chart-card{background:var(--hsw-bg2);border:1px solid var(--hsw-border);
+  border-radius:14px;padding:16px 18px}
+.hs-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--hsw-text);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.hs-dark-wrap .chart-sub{font-size:10px;color:var(--hsw-text-muted);font-weight:400}
+.hs-dark-wrap .chart-wrap{height:220px;position:relative}
+.hs-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.hs-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--hsw-grn)}
+.hs-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--hsw-red)}
+.hs-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--hsw-amb)}
+.hs-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--hsw-blue)}
+.hs-dark-wrap .zone-ref-tbl{width:100%;border-collapse:collapse;font-size:10px;margin-top:8px}
+.hs-dark-wrap .zone-ref-tbl th,.hs-dark-wrap .zone-ref-tbl td{border:1px solid var(--hsw-border);padding:5px 8px;text-align:left}
+.hs-dark-wrap .zone-ref-tbl th{background:var(--hsw-bg3);color:var(--hsw-gold-lt);font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:.3px}
+.hs-dark-wrap .zone-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+</style>
+</head><body><div class="hs-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div><div class="req-text">ISO 45001 §8.1.1 / Saudi Ministerial Order 3337 — Heat Stress Management, per L3-SHEE-PR-12-WI-01. Every WBGT reading taken on site is logged here against the same 5-zone work-rest table already published in OC-01's Safety &amp; Emergency spec (A.13 — Heat Stress Management): the zone, work-rest rotation and escalation trigger for each entry are calculated directly from that table, not re-typed by hand. This is the daily Heat Stress / WBGT Monitoring Log (L4-SHEE-PR-12-ML-01).</div>
+
+<div class="sec-banner">HEAT STRESS QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy hs-clickable" onclick="HS.cardClick('total')" title="Click to view the full log"><div class="kpi-lbl">Readings Logged</div><div class="kpi-val" id="hs-kpi-total">—</div><div class="kpi-sub">Heat Stress / WBGT Log</div></div>
+  <div class="kpi-card kc-blue hs-clickable" onclick="HS.cardClick('total')" title="Click to view this year's readings"><div class="kpi-lbl">This Year's Readings</div><div class="kpi-val" id="hs-kpi-year">—</div><div class="kpi-sub" id="hs-kpi-year-sub">Loading…</div></div>
+  <div class="kpi-card kc-nvy" title="Zone of the most recent reading logged"><div class="kpi-lbl">Latest Zone</div><div class="kpi-val" id="hs-kpi-latest-zone">—</div><div class="kpi-sub" id="hs-kpi-latest-sub">No readings yet</div></div>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-org hs-clickable" onclick="HS.cardClick('orangeplus')" title="Click to view open Orange/Red zone events"><div class="kpi-lbl">Open Orange/Red Events</div><div class="kpi-val" id="hs-kpi-orangeplus">—</div><div class="kpi-sub">Not yet Closed</div></div>
+  <div class="kpi-card kc-red hs-clickable" onclick="HS.cardClick('suspended')" title="Click to view operations-suspended events"><div class="kpi-lbl">Operations Suspended</div><div class="kpi-val" id="hs-kpi-suspended">—</div><div class="kpi-sub">Red zone — Plant Manager + SHEE Head decision</div></div>
+  <div class="kpi-card kc-amb hs-clickable" onclick="HS.cardClick('findings')" title="Click to view open corrective actions"><div class="kpi-lbl">Open Corrective Actions</div><div class="kpi-val" id="hs-kpi-findings">—</div><div class="kpi-sub">Corrective action required, not yet closed</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+  <div class="chart-card">
+    <div class="chart-title">Readings by Zone<span class="chart-sub">distribution across the 5-zone MO 3337 table</span></div>
+    <div class="chart-wrap"><canvas id="hsByZoneChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">WBGT Trend<span class="chart-sub">reading (°C) over time</span></div>
+    <div class="chart-wrap"><canvas id="hsTrendChart"></canvas></div>
+  </div>
+</div>
+
+<div class="chart-card" style="margin-bottom:18px">
+  <div class="chart-title">5-Zone Reference Table<span class="chart-sub">Saudi MO 3337 — as published in OC-01 §A.13</span></div>
+  <div style="overflow-x:auto"><table class="zone-ref-tbl">
+    <thead><tr><th>WBGT Range</th><th>Zone</th><th>Work-Rest Rotation</th><th>PPE / Controls</th><th>Escalation Trigger</th></tr></thead>
+    <tbody>
+      <tr><td>&lt;28°C</td><td><span class="zone-dot" style="background:var(--hsw-grn)"></span>Normal work activities</td><td>Full shift permitted</td><td>Normal PPE</td><td>—</td></tr>
+      <tr><td>28–30°C</td><td><span class="zone-dot" style="background:var(--hsw-ylw)"></span>WBGT Yellow zone</td><td>50 min work / 10 min rest</td><td>Monitor hydration — 250ml water/20 min</td><td>Notify SHEE Head if ambient exceeds 30°C at 09:00</td></tr>
+      <tr><td>30–32°C</td><td><span class="zone-dot" style="background:var(--hsw-amb)"></span>WBGT Amber zone</td><td>45 min work / 15 min rest</td><td>PPE weight reduction; cool rest area mandatory</td><td>Daily WBGT reading at 06:00 and 12:00</td></tr>
+      <tr><td>32–35°C</td><td><span class="zone-dot" style="background:var(--hsw-org)"></span>WBGT Orange zone</td><td>30 min work / 30 min rest; non-essential tasks postponed</td><td>Medical monitoring; heat symptoms awareness briefing</td><td>SHEE Head approval for continued operations</td></tr>
+      <tr><td>&gt;35°C</td><td><span class="zone-dot" style="background:var(--hsw-red)"></span>WBGT Red zone — Saudi MO 3337 prohibition</td><td>Outdoor and uncooled indoor work suspended</td><td>Emergency cooling available on site</td><td>Plant Manager + SHEE Head joint decision to suspend</td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<div class="sec-banner hs-sec-toggle" id="hs-hdr-log" onclick="HS.toggle('log')"><span class="hs-chevron">▶</span> HEAT STRESS / WBGT LOG &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(L4-SHEE-PR-12-ML-01 — daily WBGT readings and work-rest decisions)</span></div>
+<div id="live-table-log" class="hs-collapsible" style="margin-top:0"></div>
+
+<div style="margin-top:16px;font-size:10px;color:var(--hsw-text-dim);text-align:right" id="hs-live-ts"></div>
+<div id="hs-modal-root"></div>
+</div>
+<!-- No sidebar/topbar: this page is reached only from inside the Operations Hub, same pattern as loto-register.html / confined-space.html / ptw-register.html / fire-extinguisher-log.html. -->
+
+<style>
+.hs-dark-wrap .hs-toolbar{display:flex;justify-content:flex-end;padding:6px 0;flex-wrap:wrap;gap:6px}
+.hs-dark-wrap .hs-btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;
+  border:1px solid var(--hsw-border);background:var(--hsw-bg3);color:var(--hsw-text);cursor:pointer;font-family:inherit}
+.hs-dark-wrap .hs-btn:hover{background:#223457;border-color:var(--hsw-border-gold)}
+.hs-dark-wrap .hs-btn-add{background:var(--hsw-gold);color:#1a1200;border-color:var(--hsw-gold);font-weight:700}
+.hs-dark-wrap .hs-btn-add:hover{background:var(--hsw-gold-lt)}
+.hs-dark-wrap .hs-btn:disabled{opacity:.35;cursor:not-allowed}
+.hs-dark-wrap .hs-btn:disabled:hover{background:var(--hsw-bg3);border-color:var(--hsw-border)}
+.hs-dark-wrap .hs-row-selectable{cursor:pointer}
+.hs-dark-wrap .hs-row-selected td,
+.hs-dark-wrap .hs-row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--hsw-gold)}
+.hs-dark-wrap .hs-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
+  align-items:center;justify-content:center;z-index:9999}
+.hs-dark-wrap .hs-modal{background:var(--hsw-bg2);border:1px solid var(--hsw-border-gold);border-radius:14px;
+  padding:20px;width:460px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--hsw-text)}
+.hs-dark-wrap .hs-modal h3{margin:0 0 12px;font-size:14px;color:var(--hsw-gold-lt)}
+.hs-dark-wrap .hs-field{margin-bottom:10px}
+.hs-dark-wrap .hs-field label{display:block;font-size:10px;font-weight:600;color:var(--hsw-text-muted);margin-bottom:3px}
+.hs-dark-wrap .hs-field input,.hs-dark-wrap .hs-field select,.hs-dark-wrap .hs-field textarea{width:100%;padding:6px 8px;font-size:12px;
+  border:1px solid var(--hsw-border);border-radius:6px;font-family:inherit;box-sizing:border-box;
+  background:var(--hsw-bg3);color:var(--hsw-text)}
+.hs-dark-wrap .hs-field textarea{min-height:56px;resize:vertical}
+.hs-dark-wrap .hs-field .hs-hint{font-size:9px;color:var(--hsw-text-dim);margin-top:3px;display:block}
+.hs-dark-wrap .hs-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.hs-dark-wrap .hs-modal-actions .hs-btn-cancel{background:var(--hsw-bg3)}
+.hs-dark-wrap .hs-sec-toggle{cursor:pointer;user-select:none}
+.hs-dark-wrap .hs-sec-toggle:hover{opacity:.9}
+.hs-dark-wrap .hs-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px;color:var(--hsw-gold-lt)}
+.hs-dark-wrap .hs-collapsible{overflow:hidden;max-height:0;transition:none;
+  background:var(--hsw-bg2);border:1px solid var(--hsw-border-gold);border-top:none;border-radius:0 0 8px 8px}
+.hs-dark-wrap .hs-collapsible.hs-open{max-height:none;padding:10px 14px}
+.hs-dark-wrap .hs-filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.hs-dark-wrap .hs-search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
+  border:1px solid var(--hsw-border);border-radius:8px;font-family:inherit;background:var(--hsw-bg3);color:var(--hsw-text)}
+.hs-dark-wrap .hs-search-input::placeholder{color:var(--hsw-text-dim)}
+.hs-dark-wrap .hs-filter-select{padding:6px 8px;font-size:12px;border:1px solid var(--hsw-border);
+  border-radius:8px;font-family:inherit;max-width:220px;background:var(--hsw-bg3);color:var(--hsw-text)}
+.hs-dark-wrap .hs-filter-status{font-size:10px;color:var(--hsw-text-muted);margin-left:auto}
+.hs-dark-wrap .tbl-wrap{overflow-x:auto}
+.hs-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
+.hs-dark-wrap .tbl-stripe th{text-align:left;color:var(--hsw-gold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--hsw-border-gold);
+  background:var(--hsw-bg3);white-space:nowrap}
+.hs-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--hsw-border);color:var(--hsw-text)}
+.hs-dark-wrap .tbl-stripe tbody tr:nth-child(odd) td{background:var(--hsw-bg2)}
+.hs-dark-wrap .tbl-stripe tbody tr:nth-child(even) td{background:#101d3a}
+.hs-dark-wrap .tbl-stripe tbody tr:hover td{background:var(--hsw-bg3)}
+.hs-dark-wrap .hs-expand-cell:hover{background:rgba(232,179,57,.18)!important}
+.hs-dark-wrap .empty-state{text-align:center;padding:20px;color:var(--hsw-text-muted)}
+.hs-dark-wrap .empty-state strong{display:block;font-size:13px;color:var(--hsw-gold-lt);margin-bottom:4px}
+.hs-dark-wrap .nb{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid}
+.hs-dark-wrap .nb-red{background:rgba(240,104,92,.15);color:var(--hsw-red);border-color:rgba(240,104,92,.4)}
+.hs-dark-wrap .nb-org{background:rgba(224,138,60,.15);color:var(--hsw-org);border-color:rgba(224,138,60,.4)}
+.hs-dark-wrap .nb-amb{background:rgba(232,179,57,.15);color:var(--hsw-amb);border-color:rgba(232,179,57,.4)}
+.hs-dark-wrap .nb-ylw{background:rgba(217,195,74,.15);color:var(--hsw-ylw);border-color:rgba(217,195,74,.4)}
+.hs-dark-wrap .nb-grn{background:rgba(79,203,158,.15);color:var(--hsw-grn);border-color:rgba(79,203,158,.4)}
+.hs-dark-wrap .hs-detail-row td{background:rgba(255,255,255,.03);padding:10px 14px;border-top:1px dashed rgba(255,255,255,.12)}
+.hs-dark-wrap .hs-detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px}
+.hs-dark-wrap .hs-detail-item{font-size:11px;line-height:1.5}
+.hs-dark-wrap .hs-detail-lbl{display:block;font-weight:600;color:var(--hsw-text-muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.3px}
+.hs-dark-wrap .hs-detail-val{display:block;color:var(--hsw-text);word-break:break-word;white-space:pre-wrap}
+</style>
 
 <script>
-/* ── Auto-update summary cards from live Sheets data ── */
-
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
-  }
-  return '—';
-}
-
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
-    }
-  }
-}
+/* ── Heat Stress / WBGT Log: one live table + Add/Edit/Remove, same
+   Add/Edit/Remove modal shell, soft-delete via Record Status, and
+   Escalate-to-Action mechanism as loto-register.html / confined-space.html
+   — the only genuinely new piece is the WBGT Zone auto-calculation,
+   which reads the entered WBGT Reading (°C) and looks it up against
+   ZONE_TABLE (the exact 5-zone Saudi MO 3337 table already published
+   on oc01-safety.html §A.13 — not re-derived or guessed here), filling
+   in the Zone, Work-Rest Regime, Controls and Escalation Trigger
+   fields automatically. Each is still a plain editable field afterward
+   for genuine edge cases (e.g. a supervisor's judgment call). */
 (function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('Monitoring Records', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
-      }
-    };
-  }
-})();
-</script>
 
-<script>
-(function() {
-  function colIdx(headers, name) {
-    var n = name.toLowerCase();
-    for (var i=0;i<headers.length;i++) {
-      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
+  var YESNO = ['Yes','No'];
+
+  // The exact 5-zone MO 3337 table from oc01-safety.html §A.13 — the
+  // single source of truth for all thresholds/regimes/triggers on this
+  // page. If that table is ever revised, update it there first, then
+  // mirror the change here.
+  var ZONE_TABLE = [
+    { max: 28,       zone: 'Normal', regime: 'Full shift permitted', controls: 'Normal PPE', trigger: '—' },
+    { max: 30,       zone: 'Yellow', regime: '50 min work / 10 min rest', controls: 'Monitor hydration — 250ml water/20 min', trigger: 'Notify SHEE Head if ambient exceeds 30°C at 09:00' },
+    { max: 32,       zone: 'Amber',  regime: '45 min work / 15 min rest', controls: 'PPE weight reduction; cool rest area mandatory', trigger: 'Daily WBGT reading at 06:00 and 12:00' },
+    { max: 35,       zone: 'Orange', regime: '30 min work / 30 min rest; non-essential tasks postponed', controls: 'Medical monitoring; heat symptoms awareness briefing', trigger: 'SHEE Head approval for continued operations' },
+    { max: Infinity, zone: 'Red',    regime: 'Outdoor and uncooled indoor work suspended', controls: 'Emergency cooling available on site', trigger: 'Plant Manager + SHEE Head joint decision to suspend' }
+  ];
+  function zoneRowFor(reading){
+    var v = parseFloat(reading);
+    if (isNaN(v)) return null;
+    for (var i=0; i<ZONE_TABLE.length; i++){ if (v < ZONE_TABLE[i].max) return ZONE_TABLE[i]; }
+    return ZONE_TABLE[ZONE_TABLE.length-1];
+  }
+  function zoneBadgeClass(zone){
+    var z = String(zone||'').trim().toLowerCase();
+    if (z==='red') return 'nb-red'; if (z==='orange') return 'nb-org';
+    if (z==='amber') return 'nb-amb'; if (z==='yellow') return 'nb-ylw';
+    if (z==='normal') return 'nb-grn'; return 'nb-amb';
+  }
+
+  var TABLES = {
+    log: {
+      label: 'Heat Stress / WBGT Log', tabKey: 'heat_stress', containerId: 'live-table-log',
+      idCol: 'Log ID', idEditable: true,
+      idPrefix: 'HS-', idPad: 4,
+      filterField: 'WBGT Zone',
+      // A flagged entry escalates to a single combined Action Register
+      // record, same one-record-one-Action design as LOTO Station
+      // Audit / Confined Space Pre-Entry. 'Action Reference' records
+      // the resulting ACT- ID once raised.
+      hasEscalate: true,
+      // Prints a standalone daily WBGT record — same visual convention
+      // as the LOTO Register's Print FRM-08 and Confined Space's Print
+      // Pre-Entry Checklist — including the 5-zone reference table so
+      // the printed sheet is self-contained.
+      hasPrintHS: true,
+      displayCols: ['Log ID','Date','Area / Zone Monitored','WBGT Reading (°C)','WBGT Zone','Status'],
+      fields: ['Log ID','Date','Time of Reading','Area / Zone Monitored','WBGT Reading (°C)','WBGT Zone',
+               'Work-Rest Regime Applied','Controls Applied','Escalation Trigger',
+               'Non-Essential Tasks Postponed (Y/N)','Medical Monitoring Triggered (Y/N)',
+               'SHEE Head Notified (Y/N)','Operations Suspended (Y/N)','Recorded By',
+               'Corrective Action Required (Y/N)','Proposed Corrective Action',
+               'Responsible Person','Target Close Date',
+               'Status','Remarks','Action Reference'],
+      selectFields: {
+        'WBGT Zone': ['Normal','Yellow','Amber','Orange','Red'],
+        'Non-Essential Tasks Postponed (Y/N)': YESNO,
+        'Medical Monitoring Triggered (Y/N)': YESNO,
+        'SHEE Head Notified (Y/N)': YESNO,
+        'Operations Suspended (Y/N)': YESNO,
+        'Corrective Action Required (Y/N)': YESNO,
+        'Status': ['Open','Closed']
+      },
+      textareaFields: ['Work-Rest Regime Applied','Controls Applied','Escalation Trigger','Proposed Corrective Action','Remarks']
     }
+  };
+  var _filters = {};
+  var _selected = {};
+  var _expandedRows = {};
+  var STATUS_COL = 'Record Status';
+  var _cache = {};
+  var _charts = { byZone: null, trend: null };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+
+  function colIdx(headers, name){
+    for (var i=0;i<headers.length;i++){ if (String(headers[i]).trim() === name) return i; }
     return -1;
   }
-  function countVal(rows, col, val) {
-    if (col < 0) return 0;
-    var v = val ? val.toLowerCase() : null;
-    return rows.filter(function(r){
-      var cell = String(r[col]||'').toLowerCase().trim();
-      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
-    }).length;
+  function formatCell(v){
+    if (v === null || v === undefined || v === '') return '<span style="color:var(--hsw-text-dim)">—</span>';
+    return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
-  function sumCol(rows, col) {
-    if (col < 0) return 0;
-    return rows.reduce(function(s,r){
-      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
-      return s + (isNaN(v) ? 0 : v);
-    }, 0);
+  function getFieldOfSelected(tKeyName, fieldName){
+    var idVal = _selected[tKeyName];
+    if (idVal === null || idVal === undefined || idVal === '') return null;
+    var cfg = TABLES[tKeyName]; var data = _cache[tKeyName];
+    if (!data) return null;
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var fIdx = colIdx(data.headers, fieldName);
+    if (idIdx<0 || fIdx<0) return null;
+    var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+    return row ? row[fIdx] : null;
   }
-  function setCard(idx, val) {
-    var cards = document.querySelectorAll('.kpi-val');
-    if (cards[idx]) cards[idx].textContent = val;
+  function getOwnColumnValues(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    if (!data || !data.headers) return [];
+    var idx = colIdx(data.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}; var out = [];
+    data.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v]){ seen[v]=true; out.push(v); }
+    });
+    return out.sort();
+  }
+  function nextSequentialId(tKeyName){
+    var cfg = TABLES[tKeyName];
+    if (!cfg.idPrefix) return null;
+    var data = _cache[tKeyName];
+    var maxN = 0;
+    if (data && data.headers){
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      if (idIdx >= 0){
+        data.rows.forEach(function(r){
+          var m = String(r[idIdx]||'').match(new RegExp('^'+cfg.idPrefix+'(\\d+)$'));
+          if (m) maxN = Math.max(maxN, parseInt(m[1],10));
+        });
+      }
+    }
+    var next = maxN + 1;
+    var s = String(next);
+    while (s.length < (cfg.idPad||3)) s = '0'+s;
+    return cfg.idPrefix + s;
+  }
+  function getSuggestions(tKeyName, fieldName){
+    return getOwnColumnValues(tKeyName, fieldName);
   }
 
-  var origRender = window.renderTable;
-  window.renderTable = function(data, container) {
-    if (origRender) origRender(data, container);
-    if (!data || !data.rows || !data.headers) return;
-    var rows = data.rows, h = data.headers;
-    try { setCard(0, rows.length); } catch(e) {}
+  /* ── Print helpers (same pf- convention as loto-register.html /
+     confined-space.html's print builders) ─────────────────────────── */
+  function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function pfField(label, value){ return '<div class="pf-field"><span class="pf-label">'+pfEsc(label)+'</span><span class="pf-value">'+pfEsc(value||'')+'</span></div>'; }
+  function pfYes(val){ return String(val||'').trim().toLowerCase() === 'yes'; }
+  function pfCb(label, checked){ return '<span class="pf-item"><span class="pf-box">'+(checked?'&#9746;':'&#9744;')+'</span><span class="pf-item-label">'+pfEsc(label)+'</span></span>'; }
+
+  // Standalone daily WBGT record — meant to be kept on file alongside
+  // the day's work records, same pf- CSS/layout convention as the
+  // LOTO / Confined Space print builders, with the 5-zone reference
+  // table included so the printed sheet is self-contained.
+  function buildHSPrintHtml(rec){
+    var printedAt = new Date().toLocaleString();
+    var logId = rec['Log ID'] || '';
+    var carRequired = pfYes(rec['Corrective Action Required (Y/N)']);
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>Heat Stress WBGT Record '+pfEsc(logId)+' — L4-SHEE-PR-12-ML-01</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#111;margin:0;padding:16px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:10px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:800px;margin:0 auto;border:1px solid #333;padding:14px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}'
+    + '.pf-head h1{font-size:15px;margin:0}'
+    + '.pf-head .pf-code{font-size:10px;text-align:right}'
+    + '.pf-section{border:1px solid #999;margin-bottom:6px;padding:6px 8px}'
+    + '.pf-section-title{font-weight:700;font-size:10px;margin-bottom:5px;text-transform:uppercase}'
+    + '.pf-field{margin-bottom:3px}'
+    + '.pf-label{font-weight:700;margin-right:5px}'
+    + '.pf-value{border-bottom:1px dotted #666;padding:0 4px}'
+    + '.pf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}'
+    + '.pf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:2px 10px}'
+    + '.pf-item{display:inline-flex;align-items:flex-start;gap:4px;font-size:9.5px;margin:0 10px 2px 0}'
+    + '.pf-box{font-size:12px;line-height:1}'
+    + '.pf-check-row{display:flex;flex-wrap:wrap}'
+    + '.pf-zone-tbl{width:100%;border-collapse:collapse;font-size:8px;margin-top:2px}'
+    + '.pf-zone-tbl th,.pf-zone-tbl td{border:1px solid #999;padding:3px 5px;text-align:left}'
+    + '.pf-zone-tbl th{background:#f0f0f0}'
+    + '.pf-zone-tbl tr.pf-hl td{background:#fff4d6;font-weight:700}'
+    + '.pf-footer{margin-top:6px;font-size:8px;color:#666;border-top:1px solid #999;padding-top:4px}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}@page{size:A4;margin:10mm}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>Heat Stress / WBGT Monitoring Record</h1>'
+      + '<div class="pf-code">L4-SHEE-PR-12-ML-01 · Rev.00<br>Log ID: <strong>'+pfEsc(logId)+'</strong></div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 1 — Reading</div>'
+        + '<div class="pf-grid3">'
+          + pfField('Date', rec['Date'])
+          + pfField('Time of Reading', rec['Time of Reading'])
+          + pfField('Area / Zone Monitored', rec['Area / Zone Monitored'])
+        + '</div>'
+        + '<div class="pf-grid3">'
+          + pfField('WBGT Reading (°C)', rec['WBGT Reading (°C)'])
+          + pfField('WBGT Zone', rec['WBGT Zone'])
+          + pfField('Recorded By', rec['Recorded By'])
+        + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 2 — Work-Rest Decision &amp; Controls</div>'
+        + pfField('Work-Rest Regime Applied', rec['Work-Rest Regime Applied'])
+        + pfField('Controls Applied', rec['Controls Applied'])
+        + pfField('Escalation Trigger', rec['Escalation Trigger'])
+        + '<div class="pf-check-row" style="margin-top:2px">'
+          + pfCb('Non-essential tasks postponed', pfYes(rec['Non-Essential Tasks Postponed (Y/N)']))
+          + pfCb('Medical monitoring triggered', pfYes(rec['Medical Monitoring Triggered (Y/N)']))
+          + pfCb('SHEE Head notified', pfYes(rec['SHEE Head Notified (Y/N)']))
+          + pfCb('Operations suspended', pfYes(rec['Operations Suspended (Y/N)']))
+        + '</div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">Section 3 — Findings and Corrective Action</div>'
+        + '<div class="pf-check-row">' + pfCb('Corrective action required', carRequired) + '</div>'
+        + (carRequired ?
+            '<div class="pf-field"><span class="pf-label">Proposed corrective action:</span><span class="pf-value">'+pfEsc(rec['Proposed Corrective Action'])+'</span></div>'
+            + '<div class="pf-grid3">'
+              + pfField('Responsible Person', rec['Responsible Person'])
+              + pfField('Target Close Date', rec['Target Close Date'])
+              + pfField('Action Reference', rec['Action Reference'])
+            + '</div>'
+          : '')
+        + '<div class="pf-grid2" style="margin-top:4px">' + pfField('Status', rec['Status']) + '</div>'
+        + '<div class="pf-field" style="margin-top:2px"><span class="pf-label">Remarks:</span><span class="pf-value">'+pfEsc(rec['Remarks'])+'</span></div></div>'
+
+      + '<div class="pf-section"><div class="pf-section-title">5-Zone Reference Table — Saudi MO 3337 (OC-01 §A.13)</div>'
+        + '<table class="pf-zone-tbl"><thead><tr><th>WBGT Range</th><th>Zone</th><th>Work-Rest Rotation</th><th>Escalation Trigger</th></tr></thead><tbody>'
+        + ['Normal','Yellow','Amber','Orange','Red'].map(function(z){
+            var rows = {
+              Normal: ['&lt;28°C','Normal work activities','Full shift permitted','—'],
+              Yellow: ['28–30°C','WBGT Yellow zone','50 min work / 10 min rest','Notify SHEE Head if ambient exceeds 30°C at 09:00'],
+              Amber:  ['30–32°C','WBGT Amber zone','45 min work / 15 min rest','Daily WBGT reading at 06:00 and 12:00'],
+              Orange: ['32–35°C','WBGT Orange zone','30 min work / 30 min rest; non-essential postponed','SHEE Head approval for continued operations'],
+              Red:    ['&gt;35°C','WBGT Red zone — MO 3337 prohibition','Outdoor/uncooled indoor work suspended','Plant Manager + SHEE Head joint decision']
+            }[z];
+            var isThis = String(rec['WBGT Zone']||'').trim() === z;
+            return '<tr'+(isThis?' class="pf-hl"':'')+'><td>'+rows[0]+'</td><td>'+rows[1]+'</td><td>'+rows[2]+'</td><td>'+rows[3]+'</td></tr>';
+          }).join('')
+        + '</tbody></table></div>'
+
+      + '<div class="pf-footer">L4-SHEE-PR-12-ML-01 · Rev.00. Generated from the SAGCO IMS Portal on '+pfEsc(printedAt)+'. Not valid without original signatures.</div>'
+    + '</div></body></html>';
+  }
+
+  function renderShell(tKeyName, data){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    if (!data || !data.headers || !data.rows){
+      el.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      return;
+    }
+    _cache[tKeyName] = data;
+    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+    var f = _filters[tKeyName];
+    var sel = _selected[tKeyName];
+
+    var toolbarHtml = '';
+    if (can('add')) toolbarHtml += '<button class="hs-btn hs-btn-add" onclick="HS.openAdd(\''+tKeyName+'\')">+ Add Record</button>';
+    var disabledAttr = sel ? '' : ' disabled';
+    if (cfg.hasPrintHS){
+      toolbarHtml += '<button class="hs-btn" id="hs-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="HS.printLog(HS.getSelected(\''+tKeyName+'\'))">🖨️ Print WBGT Record</button>';
+    }
+    if (cfg.hasEscalate){
+      var carVal = String(getFieldOfSelected(tKeyName, 'Corrective Action Required (Y/N)')||'').trim().toLowerCase();
+      var existingRef = String(getFieldOfSelected(tKeyName, 'Action Reference')||'').trim();
+      if (existingRef){
+        toolbarHtml += '<button class="hs-btn" disabled title="Already escalated — see the Action Register">✓ Escalated → '+existingRef+'</button>';
+      } else {
+        var canEscalate = sel && carVal === 'yes';
+        toolbarHtml += '<button class="hs-btn hs-btn-add" id="hs-tb-escalate-'+tKeyName+'"'+(canEscalate?'':' disabled')+' onclick="HS.escalateToAction(\''+tKeyName+'\', HS.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
+      }
+    }
+    if (can('edit')) toolbarHtml += '<button class="hs-btn" id="hs-tb-edit-'+tKeyName+'"'+disabledAttr+' onclick="HS.openEdit(\''+tKeyName+'\', HS.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
+    if (can('delete')) toolbarHtml += '<button class="hs-btn" id="hs-tb-remove-'+tKeyName+'"'+disabledAttr+' onclick="HS.remove(\''+tKeyName+'\', HS.getSelected(\''+tKeyName+'\'))">🗑️ Remove</button>';
+
+    var categoryHtml = '';
+    if (cfg.filterField){
+      var opts = getOwnColumnValues(tKeyName, cfg.filterField);
+      categoryHtml = '<select class="hs-filter-select" onchange="HS.onCategoryChange(\''+tKeyName+'\', this.value)">' +
+        '<option value="">All ' + cfg.filterField + '</option>' +
+        opts.map(function(o){
+          var selA = (o === f.category) ? ' selected' : '';
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+selA+'>'+o+'</option>';
+        }).join('') + '</select>';
+    }
+
+    var specialLabels = { orangeplus: 'Open Orange/Red Zone Events', suspended: 'Operations Suspended', findings: 'Open Corrective Actions' };
+    var specialPillHtml = '';
+    if (f.special && specialLabels[f.special]){
+      specialPillHtml = '<span class="nb nb-amb" style="margin:6px 0;display:inline-block">Showing: ' + specialLabels[f.special] +
+        ' <span style="cursor:pointer" onclick="HS.clearFilters(\''+tKeyName+'\')">✕</span></span>';
+    }
+
+    el.innerHTML =
+      '<div class="hs-toolbar">' + toolbarHtml + '</div>' +
+      specialPillHtml +
+      '<div class="hs-filterbar">' +
+        '<input type="text" class="hs-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="HS.onSearchInput(\''+tKeyName+'\', this.value)">' +
+        categoryHtml +
+        '<button class="hs-btn" onclick="HS.clearFilters(\''+tKeyName+'\')">Clear</button>' +
+        '<span class="hs-filter-status" id="hs-filter-status-'+tKeyName+'"></span>' +
+      '</div>' +
+      '<div class="hs-table-area" id="hs-table-area-'+tKeyName+'"></div>';
+    renderTableArea(tKeyName);
+  }
+
+  function isOrangeOrRed(row, headers){
+    var zIdx = colIdx(headers, 'WBGT Zone');
+    var z = zIdx>=0 ? String(row[zIdx]||'').trim() : '';
+    return z === 'Orange' || z === 'Red';
+  }
+  function hasOpenOrangePlus(row, headers){
+    var statusIdx = colIdx(headers, 'Status');
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return isOrangeOrRed(row, headers) && st !== 'closed';
+  }
+  function isSuspended(row, headers){
+    var idx = colIdx(headers, 'Operations Suspended (Y/N)');
+    return idx >= 0 && String(row[idx]||'').trim().toLowerCase() === 'yes';
+  }
+  function hasOpenFinding(row, headers){
+    var carIdx = colIdx(headers, 'Corrective Action Required (Y/N)');
+    var statusIdx = colIdx(headers, 'Status');
+    var car = carIdx >= 0 ? String(row[carIdx]||'').trim().toLowerCase() : '';
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return car === 'yes' && st !== 'closed';
+  }
+
+  function renderTableArea(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    var areaEl = document.getElementById('hs-table-area-' + tKeyName);
+    var statusEl = document.getElementById('hs-filter-status-' + tKeyName);
+    if (!data || !areaEl) return;
+
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
+    var f = _filters[tKeyName] || {search:'', category:'', special:null};
+    var searchLower = f.search.trim().toLowerCase();
+
+    var visibleRows = data.rows.filter(function(r){
+      return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+    var totalVisible = visibleRows.length;
+    if (f.category && filterFieldIdx > -1){
+      visibleRows = visibleRows.filter(function(r){ return String(r[filterFieldIdx]||'').trim() === f.category; });
+    }
+    if (searchLower){
+      visibleRows = visibleRows.filter(function(r){
+        return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
+      });
+    }
+    if (f.special === 'orangeplus'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenOrangePlus(r, data.headers); });
+    }
+    if (f.special === 'suspended'){
+      visibleRows = visibleRows.filter(function(r){ return isSuspended(r, data.headers); });
+    }
+    if (f.special === 'findings'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenFinding(r, data.headers); });
+    }
+    if (statusEl){
+      var isFiltered = !!(f.search.trim() || f.category || f.special);
+      statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
+    }
+
+    var displayCols = cfg.displayCols || cfg.fields.slice(0, 5);
+    var colIdxs = displayCols.map(function(c){ return colIdx(data.headers, c); }).filter(function(i){ return i >= 0; });
+    var colNames = colIdxs.map(function(i){ return data.headers[i]; });
+    var shownSet = {};
+    colNames.forEach(function(n){ shownSet[n] = true; });
+    var detailFields = (cfg.fields||[]).filter(function(f){ return !shownSet[f] && f !== STATUS_COL; });
+
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe">';
+    html += '<thead><tr><th style="width:40px"></th>'; colNames.forEach(function(h){ html += '<th>'+h+'</th>'; }); html += '</tr></thead><tbody>';
+
+    if (!visibleRows.length){
+      html += '<tr><td colspan="'+(colNames.length+1)+'"><div class="empty-state"><strong>No records</strong>Add data in Google Sheets or use + Add Record above.</div></td></tr>';
+    } else {
+      var selId = _selected[tKeyName];
+      var expandedSet = _expandedRows[tKeyName] || {};
+      visibleRows.forEach(function(row){
+        var idVal = idIdx>-1 ? row[idIdx] : '';
+        var idValEsc = String(idVal).replace(/'/g,"\\'");
+        var isSel = selId !== undefined && selId !== null && String(selId) === String(idVal);
+        var isExpanded = !!expandedSet[String(idVal)];
+        html += '<tr class="hs-row-selectable'+(isSel?' hs-row-selected':'')+'" onclick="HS.selectRow(\''+tKeyName+'\',\''+idValEsc+'\')">';
+        html += '<td class="hs-expand-cell" style="text-align:center;cursor:pointer;padding:10px 6px" title="Click to show all fields" onclick="event.stopPropagation();HS.toggleRowDetail(\''+tKeyName+'\',\''+idValEsc+'\')">'+
+          '<span class="hs-chevron" style="display:inline-block;font-size:13px;transition:transform .15s'+(isExpanded?';transform:rotate(90deg)':'')+'">▶</span></td>';
+        colIdxs.forEach(function(ci){
+          var cell = row[ci];
+          if (data.headers[ci] === 'Status'){
+            var stv = String(cell||'').trim();
+            var cls = stv.toLowerCase()==='closed' ? 'nb-grn' : 'nb-amb';
+            html += '<td>'+(stv?'<span class="nb '+cls+'">'+stv+'</span>':formatCell(cell))+'</td>';
+          } else if (data.headers[ci] === 'WBGT Zone'){
+            var zv = String(cell||'').trim();
+            html += '<td>'+(zv?'<span class="nb '+zoneBadgeClass(zv)+'">'+zv+'</span>':formatCell(cell))+'</td>';
+          } else {
+            html += '<td>' + formatCell(cell) + '</td>';
+          }
+        });
+        html += '</tr>';
+        if (isExpanded){
+          html += '<tr class="hs-detail-row"><td></td><td colspan="'+colNames.length+'">'+
+            '<div class="hs-detail-grid">' + detailFields.map(function(f){
+              var fi = colIdx(data.headers, f);
+              var val = fi>=0 ? row[fi] : '';
+              return '<div class="hs-detail-item"><span class="hs-detail-lbl">'+f+'</span><span class="hs-detail-val">'+formatCell(val)+'</span></div>';
+            }).join('') +
+            '</div></td></tr>';
+        }
+      });
+    }
+    html += '</tbody></table></div>';
+    areaEl.innerHTML = html;
+  }
+
+  function loadTab(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--hsw-text-muted);font-size:11px">⏳ Loading live data…</div>';
+    return fetch(SHEETS_URL + '?tab=' + cfg.tabKey + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        renderShell(tKeyName, data);
+        return data;
+      })
+      .catch(function(){
+        el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
+        return null;
+      });
+  }
+
+  function loadAll(){
+    var keys = Object.keys(TABLES);
+    return Promise.all(keys.map(loadTab)).then(function(){
+      renderDashboard();
+    });
+  }
+  function reloadAll(){ return loadAll(); }
+
+  function visibleRowsOf(tKeyName){
+    var data = _cache[tKeyName];
+    if (!data || !data.rows) return [];
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    return data.rows.filter(function(r){ return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+  }
+
+  function renderDashboard(){
+    var log = _cache['log'];
+    if (!log) return;
+    var visibleRows = visibleRowsOf('log');
+
+    document.getElementById('hs-kpi-total').textContent = visibleRows.length;
+
+    var dateIdx = colIdx(log.headers, 'Date');
+    var thisYear = new Date().getFullYear();
+    var yearCount = 0;
+    visibleRows.forEach(function(r){
+      var s = dateIdx>=0 ? String(r[dateIdx]||'').trim() : '';
+      if (/^\d{4}/.test(s) && parseInt(s.slice(0,4),10) === thisYear) yearCount++;
+    });
+    document.getElementById('hs-kpi-year').textContent = yearCount;
+    document.getElementById('hs-kpi-year-sub').textContent = 'Year to date';
+
+    // Latest reading's zone — sort by Date (+ Time of Reading) descending.
+    var timeIdx = colIdx(log.headers, 'Time of Reading');
+    var zoneIdx = colIdx(log.headers, 'WBGT Zone');
+    var sortedByDate = visibleRows.slice().sort(function(a,b){
+      var da = (dateIdx>=0?String(a[dateIdx]||''):'') + 'T' + (timeIdx>=0?String(a[timeIdx]||''):'');
+      var db = (dateIdx>=0?String(b[dateIdx]||''):'') + 'T' + (timeIdx>=0?String(b[timeIdx]||''):'');
+      return db.localeCompare(da);
+    });
+    var latestZoneEl = document.getElementById('hs-kpi-latest-zone');
+    var latestSubEl = document.getElementById('hs-kpi-latest-sub');
+    if (sortedByDate.length && zoneIdx>=0){
+      var lz = String(sortedByDate[0][zoneIdx]||'').trim();
+      latestZoneEl.innerHTML = lz ? '<span class="nb '+zoneBadgeClass(lz)+'" style="font-size:16px;padding:4px 12px">'+lz+'</span>' : '—';
+      latestSubEl.textContent = (dateIdx>=0?String(sortedByDate[0][dateIdx]||''):'') + (timeIdx>=0?(' '+String(sortedByDate[0][timeIdx]||'')):'');
+    } else {
+      latestZoneEl.textContent = '—'; latestSubEl.textContent = 'No readings yet';
+    }
+
+    var orangePlusCount = visibleRows.filter(function(r){ return hasOpenOrangePlus(r, log.headers); }).length;
+    document.getElementById('hs-kpi-orangeplus').textContent = orangePlusCount;
+
+    var suspendedCount = visibleRows.filter(function(r){ return isSuspended(r, log.headers); }).length;
+    document.getElementById('hs-kpi-suspended').textContent = suspendedCount;
+
+    var findingsCount = visibleRows.filter(function(r){ return hasOpenFinding(r, log.headers); }).length;
+    document.getElementById('hs-kpi-findings').textContent = findingsCount;
+
+    var GOLD = '#C9A84C';
+    var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
+    var ZONE_COLORS = { Normal:'#4FCB9E', Yellow:'#D9C34A', Amber:'#E8B339', Orange:'#E08A3C', Red:'#F0685C' };
+    if (_charts.byZone) { _charts.byZone.destroy(); _charts.byZone = null; }
+    if (_charts.trend) { _charts.trend.destroy(); _charts.trend = null; }
+
+    // Chart 1: Readings by Zone (bar, each bar colored per zone).
+    var zoneCounts = { Normal:0, Yellow:0, Amber:0, Orange:0, Red:0 };
+    if (zoneIdx >= 0){
+      visibleRows.forEach(function(r){
+        var v = String(r[zoneIdx]||'').trim();
+        if (zoneCounts.hasOwnProperty(v)) zoneCounts[v]++;
+      });
+    }
+    var zoneLabels = Object.keys(zoneCounts);
+    if (window.Chart){
+      _charts.byZone = new Chart(document.getElementById('hsByZoneChart'), {
+        type:'bar',
+        data:{ labels: zoneLabels, datasets:[{ label:'Readings', data: zoneLabels.map(function(z){ return zoneCounts[z]; }),
+          backgroundColor: zoneLabels.map(function(z){ return ZONE_COLORS[z]; }), borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false,
+          scales:{ y:{ beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } }, x:{ ticks:{ color:TICK }, grid:{ color:GRID } } },
+          plugins:{ legend:{ display:false },
+            datalabels:{ anchor:'end', align:'end', clamp:true, color:'#E8C97A', font:{ size:10, weight:'600' }, formatter:function(v){ return v||''; } } }
+        },
+        plugins: (window.ChartDataLabels ? [window.ChartDataLabels] : [])
+      });
+    }
+
+    // Chart 2: WBGT Trend — reading (°C) over time, points colored per zone.
+    var readingIdx = colIdx(log.headers, 'WBGT Reading (°C)');
+    var trendPoints = [];
+    if (dateIdx >= 0 && readingIdx >= 0){
+      visibleRows.forEach(function(r){
+        var d = String(r[dateIdx]||'').trim();
+        var v = parseFloat(r[readingIdx]);
+        if (/^\d{4}-\d{2}-\d{2}/.test(d) && !isNaN(v)) trendPoints.push({ d: d, v: v, z: zoneIdx>=0?String(r[zoneIdx]||'').trim():'' });
+      });
+      trendPoints.sort(function(a,b){ return a.d.localeCompare(b.d); });
+    }
+    if (window.Chart && trendPoints.length){
+      _charts.trend = new Chart(document.getElementById('hsTrendChart'), {
+        type:'line',
+        data:{ labels: trendPoints.map(function(p){ return p.d; }),
+          datasets:[{ label:'WBGT (°C)', data: trendPoints.map(function(p){ return p.v; }),
+            borderColor: GOLD, backgroundColor: GOLD, tension:.25, pointRadius:4,
+            pointBackgroundColor: trendPoints.map(function(p){ return ZONE_COLORS[p.z] || GOLD; }) }] },
+        options:{ responsive:true, maintainAspectRatio:false,
+          scales:{ y:{ ticks:{ color:TICK }, grid:{ color:GRID } }, x:{ ticks:{ color:TICK }, grid:{ color:GRID } } },
+          plugins:{ legend:{ display:false },
+            tooltip:{ callbacks:{ label:function(ctx){ return ctx.parsed.y + '°C'; } } } }
+        }
+      });
+    }
+  }
+
+  function setExpanded(tKeyName, expanded){
+    var containerId = TABLES[tKeyName].containerId;
+    var el = document.getElementById(containerId);
+    var hdr = document.getElementById('hs-hdr-' + tKeyName);
+    var chev = hdr ? hdr.querySelector('.hs-chevron') : null;
+    if (expanded){ el.classList.add('hs-open'); if (chev) chev.style.transform='rotate(90deg)'; }
+    else { el.classList.remove('hs-open'); if (chev) chev.style.transform='rotate(0deg)'; }
+  }
+
+  /* ── Modal (shared by Add + Edit) — same shell as confined-space.html,
+     extended with the WBGT Reading → Zone/Regime/Controls/Trigger
+     auto-fill: as soon as a number is typed into "WBGT Reading (°C)",
+     the other four fields are looked up from ZONE_TABLE and filled in
+     (still plain editable fields afterward, for a supervisor's
+     judgment call on a genuine edge case). ─────────────────────────── */
+  function showModal(tKeyName, title, fields, initialValues, onSubmit){
+    var root = document.getElementById('hs-modal-root');
+    var cfg = TABLES[tKeyName];
+    var selFields = cfg.selectFields || {};
+    var taFields = cfg.textareaFields || [];
+    var fieldsHtml = fields.map(function(f, fi){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEsc = String(v).replace(/"/g,'&quot;');
+      if (selFields[f]){
+        var optsHtml = '<option value=""></option>' + selFields[f].map(function(o){
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="hs-field"><label>'+f+'</label><select data-field="'+f+'">'+optsHtml+'</select></div>';
+      }
+      if (taFields.indexOf(f) > -1){
+        return '<div class="hs-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+      }
+      var fLower = f.trim().toLowerCase();
+      var hasDate = fLower.indexOf('date') > -1;
+      var hasTime = fLower.indexOf('time') > -1;
+      var isNumeric = fLower.indexOf('reading') > -1 || fLower.indexOf('(°c)') > -1;
+      var inputType = (hasDate && hasTime) ? 'datetime-local' : (hasDate ? 'date' : (hasTime ? 'time' : (isNumeric ? 'number' : 'text')));
+      var stepAttr = isNumeric ? ' step="0.1"' : '';
+      var suggestions = (hasDate || hasTime || isNumeric) ? [] : getSuggestions(tKeyName, f);
+      var dlId = 'hs-dl-' + tKeyName + '-' + fi;
+      var dlHtml = '';
+      if (suggestions.length){
+        dlHtml = '<datalist id="'+dlId+'">' + suggestions.map(function(s){
+          return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
+        }).join('') + '</datalist>';
+      }
+      var hint = (f === 'WBGT Reading (°C)') ? '<span class="hs-hint">Entering a reading auto-fills Zone, Work-Rest Regime, Controls and Escalation Trigger below — still editable.</span>' : '';
+      return '<div class="hs-field"><label>'+f+'</label><input type="'+inputType+'"'+stepAttr+' data-field="'+f+'" value="'+vEsc+'"'+(suggestions.length?' list="'+dlId+'"':'')+'>'+dlHtml+hint+'</div>';
+    }).join('');
+
+    root.innerHTML = '<div class="hs-modal-bg" id="hs-modal-bg"><div class="hs-modal">' +
+      '<h3>'+title+'</h3>' + fieldsHtml +
+      '<div id="hs-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
+      '<div class="hs-modal-actions"><button class="hs-btn hs-btn-cancel" id="hs-modal-cancel">Cancel</button>' +
+      '<button class="hs-btn hs-btn-add" id="hs-modal-save">Save</button></div></div></div>';
+
+    // Zone auto-calculation — only wired for the 'log' table's WBGT
+    // Reading field, against ZONE_TABLE (mirrors oc01-safety.html's
+    // own 5-zone table exactly).
+    if (tKeyName === 'log'){
+      var readingInput = root.querySelector('[data-field="WBGT Reading (°C)"]');
+      var zoneSelect = root.querySelector('[data-field="WBGT Zone"]');
+      var regimeField = root.querySelector('[data-field="Work-Rest Regime Applied"]');
+      var controlsField = root.querySelector('[data-field="Controls Applied"]');
+      var triggerField = root.querySelector('[data-field="Escalation Trigger"]');
+      if (readingInput){
+        readingInput.addEventListener('input', function(){
+          var zr = zoneRowFor(readingInput.value);
+          if (!zr) return;
+          if (zoneSelect) zoneSelect.value = zr.zone;
+          if (regimeField) regimeField.value = zr.regime;
+          if (controlsField) controlsField.value = zr.controls;
+          if (triggerField) triggerField.value = zr.trigger;
+        });
+      }
+    }
+
+    document.getElementById('hs-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('hs-modal-bg').onclick = function(e){ if(e.target.id==='hs-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('hs-modal-save').onclick = function(){
+      var values = {};
+      root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      var saveBtn = document.getElementById('hs-modal-save');
+      saveBtn.disabled = true;
+      window._hsReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
+      onSubmit(values, function(){ root.innerHTML = ''; });
+    };
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  /* ── Public API used by inline onclick handlers ─────────────────────── */
+  window.HS = {
+    toggle: function(tKeyName){
+      var containerId = TABLES[tKeyName].containerId;
+      var el = document.getElementById(containerId);
+      setExpanded(tKeyName, !el.classList.contains('hs-open'));
+    },
+    jumpTo: function(tKeyName){
+      setExpanded(tKeyName, true);
+      var hdr = document.getElementById('hs-hdr-' + tKeyName);
+      if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
+    },
+    onSearchInput: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].search = val; renderTableArea(tKeyName);
+    },
+    onCategoryChange: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].category = val; renderTableArea(tKeyName);
+    },
+    clearFilters: function(tKeyName){
+      _filters[tKeyName] = {search:'', category:'', special:null};
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    cardClick: function(cardName){
+      if (cardName === 'total'){
+        _filters['log'] = {search:'', category:'', special:null};
+        renderShell('log', _cache['log']);
+        this.jumpTo('log');
+      } else if (cardName === 'orangeplus'){
+        _filters['log'] = {search:'', category:'', special:'orangeplus'};
+        renderShell('log', _cache['log']);
+        this.jumpTo('log');
+      } else if (cardName === 'suspended'){
+        _filters['log'] = {search:'', category:'', special:'suspended'};
+        renderShell('log', _cache['log']);
+        this.jumpTo('log');
+      } else if (cardName === 'findings'){
+        _filters['log'] = {search:'', category:'', special:'findings'};
+        renderShell('log', _cache['log']);
+        this.jumpTo('log');
+      }
+    },
+    selectRow: function(tKeyName, idVal){
+      var cur = _selected[tKeyName];
+      _selected[tKeyName] = (cur !== undefined && cur !== null && String(cur) === String(idVal)) ? null : idVal;
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    getSelected: function(tKeyName){ return _selected[tKeyName]; },
+    toggleRowDetail: function(tKeyName, idVal){
+      var set = _expandedRows[tKeyName] || (_expandedRows[tKeyName] = {});
+      var key = String(idVal);
+      set[key] = !set[key];
+      renderTableArea(tKeyName);
+    },
+    openAdd: function(tKeyName){
+      var cfg = TABLES[tKeyName];
+      if (!can('add')) return;
+      var initial = {};
+      var suggestedId = nextSequentialId(tKeyName);
+      if (suggestedId) initial[cfg.idCol] = suggestedId;
+      showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._hsReenableModalSave) window._hsReenableModalSave(); });
+      });
+    },
+    // Opens the printable daily WBGT record for one Log ID in a new
+    // tab, to print or save as PDF. Mirrors LT.printLoto / CS.printPreEntry.
+    printLog: function(idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache['log'];
+      var idIdx = colIdx(data.headers, 'Log ID');
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var rec = {};
+      data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print the record.'); return; }
+      w.document.open(); w.document.write(buildHSPrintHtml(rec)); w.document.close();
+    },
+    // Escalates a flagged log entry to a single combined record in the
+    // Action Register — same sessionStorage + URL hand-off mechanism
+    // as LOTO Station Audit / Confined Space Pre-Entry.
+    escalateToAction: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a log record first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var carIdx = colIdx(data.headers, 'Corrective Action Required (Y/N)');
+      if (carIdx < 0 || String(row[carIdx]||'').trim().toLowerCase() !== 'yes'){
+        return alert('This log record is not flagged as requiring corrective action.');
+      }
+      var refIdx = colIdx(data.headers, 'Action Reference');
+      if (refIdx >= 0 && String(row[refIdx]||'').trim()){
+        return alert('This entry was already escalated — see Action Register record ' + row[refIdx] + '.');
+      }
+      var zoneIdx = colIdx(data.headers, 'WBGT Zone');
+      var areaIdx = colIdx(data.headers, 'Area / Zone Monitored');
+      var remarksIdx = colIdx(data.headers, 'Remarks');
+      var pcaIdx = colIdx(data.headers, 'Proposed Corrective Action');
+      var descParts = [];
+      if (areaIdx >= 0 && row[areaIdx]) descParts.push('Area: ' + row[areaIdx]);
+      if (zoneIdx >= 0 && row[zoneIdx]) descParts.push('WBGT Zone: ' + row[zoneIdx]);
+      if (remarksIdx >= 0 && row[remarksIdx]) descParts.push('Remarks: ' + row[remarksIdx]);
+      if (pcaIdx >= 0 && row[pcaIdx]) descParts.push('Proposed corrective action: ' + row[pcaIdx]);
+      var ctx = {
+        logId: idVal,
+        description: descParts.join('\n') || ('Corrective action required — Heat Stress Log ' + idVal),
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingHeatStressContext', JSON.stringify(ctx)); } catch(e){ /* not fatal */ }
+      window.open('action-register.html?fromHeatStress=' + encodeURIComponent(idVal) + '&lane=ACT', '_blank');
+    },
+    openEdit: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('edit')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+            if (window._hsReenableModalSave) window._hsReenableModalSave();
+            return;
+          }
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._hsReenableModalSave) window._hsReenableModalSave(); });
+      });
+    },
+    remove: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('delete')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message || 'unknown error')); return; }
+        _selected[tKeyName] = null;
+        reloadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    }
   };
+
+  // Deep link from the Action Register's "Source" column — once an
+  // escalated entry's Action is resolved, clicking its Heat Stress Log
+  // ID reference lands here as ?log=<Log ID>, jumps to the log section
+  // and opens that exact record's full details, same as LOTO/Confined
+  // Space's hand-off.
+  function handleHeatStressDeepLink(){
+    var logId = new URLSearchParams(window.location.search).get('log');
+    if (!logId) return;
+    HS.jumpTo('log');
+    HS.openEdit('log', logId);
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadAll().then(handleHeatStressDeepLink); }, 100);
+  });
 })();
 </script>
+
+<script>
+/* ── Access gate: identical rule to loto-register.html / confined-space.html / ptw-register.html ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The detailed Heat Stress / WBGT Log is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+
 </body></html>
