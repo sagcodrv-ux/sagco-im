@@ -2208,6 +2208,33 @@
       });
   }
 
+  /* Issam, 2026-10-13 — every from* hand-off below (openFromIncident
+     through openFromHeatStress) calls loadUserDirectory() before it can
+     render anything, which fetches the live 'users' tab from the Apps
+     Script backend. That backend is a Google Apps Script web app, which
+     can take several seconds to respond on a cold/first request after
+     being idle — so on a brand-new tab (exactly how every one of these
+     hand-offs opens, via window.open()), the modal can sit invisible
+     for a few seconds while that fetch is still in flight. Nothing was
+     actually broken (confirmed: manually re-running initPage() once the
+     backend was already warm opened the wizard instantly, pre-filled
+     correctly) — the dispatch logic was always correct. The only gap
+     was visual: silence looks identical to "broken" from the outside.
+     This renders an immediate placeholder, synchronously, the moment a
+     from* URL param is recognized — before any fetch — so there's
+     always visible feedback instead of an apparently-blank page while
+     the slow backend call resolves. */
+  function showLoadingWizard() {
+    injectStyles();
+    var mount = document.getElementById('capa-wizard-mount');
+    if (!mount) return;
+    mount.innerHTML = '<div id="capa-wiz-wrap"><div id="capa-wiz-box">'
+      + '<div class="cw-hdr"><h3>Opening Action…</h3>'
+      + '<div style="font-size:11px;opacity:.75">Loading the registered-user directory from the live sheet</div></div>'
+      + '<div class="cw-body"><div class="cw-blocked">This can take a few seconds the first time — the live sheet is waking up.</div></div>'
+      + '</div></div>';
+  }
+
   /* ── Public entry points ──────────────────────────────────── */
   function openNew() { injectStyles(); resetState(); currentStep = 1; loadUserDirectory(render); }
 
@@ -2431,7 +2458,7 @@
        to that CAPA instead of just the general register page. */
     var deepLinkId = new URLSearchParams(window.location.search).get('capa');
     if (deepLinkId) {
-      injectStyles();
+      showLoadingWizard();
       fetch(SHEETS_URL + '?tab=capa&action=read')
         .then(function (r) { return r.json(); })
         .then(function (data) { resumeById(deepLinkId, data); })
@@ -2449,6 +2476,7 @@
     var params = new URLSearchParams(window.location.search);
     var fromIncident = params.get('fromIncident');
     if (fromIncident) {
+      showLoadingWizard();
       var lane = params.get('lane') === 'ACT' ? 'ACT' : 'CAPA';
       var ctx = null;
       try { ctx = JSON.parse(sessionStorage.getItem('incomingCapaContext') || 'null'); } catch (e) { ctx = null; }
@@ -2470,6 +2498,7 @@
        as the Incident hand-off above. */
     var fromObservation = params.get('fromObservation');
     if (fromObservation) {
+      showLoadingWizard();
       var obsCtx = null;
       try { obsCtx = JSON.parse(sessionStorage.getItem('incomingObservationContext') || 'null'); } catch (e) { obsCtx = null; }
       if (obsCtx && String(obsCtx.caseId) === String(fromObservation)) {
@@ -2487,6 +2516,7 @@
        Observation hand-offs above. */
     var fromDrill = params.get('fromDrill');
     if (fromDrill) {
+      showLoadingWizard();
       var drillCtx = null;
       try { drillCtx = JSON.parse(sessionStorage.getItem('incomingDrillContext') || 'null'); } catch (e) { drillCtx = null; }
       if (drillCtx && String(drillCtx.drillId) === String(fromDrill)) {
@@ -2505,6 +2535,7 @@
        above. */
     var fromLotoAudit = params.get('fromLotoAudit');
     if (fromLotoAudit) {
+      showLoadingWizard();
       var lotoCtx = null;
       try { lotoCtx = JSON.parse(sessionStorage.getItem('incomingLotoAuditContext') || 'null'); } catch (e) { lotoCtx = null; }
       if (lotoCtx && String(lotoCtx.auditId) === String(fromLotoAudit)) {
@@ -2522,6 +2553,7 @@
        Observation, Mock Drill and LOTO Audit hand-offs above. */
     var fromConfinedSpace = params.get('fromConfinedSpace');
     if (fromConfinedSpace) {
+      showLoadingWizard();
       var csCtx = null;
       try { csCtx = JSON.parse(sessionStorage.getItem('incomingConfinedSpaceContext') || 'null'); } catch (e) { csCtx = null; }
       if (csCtx && String(csCtx.entryId) === String(fromConfinedSpace)) {
@@ -2540,6 +2572,7 @@
        above. */
     var fromHeatStress = params.get('fromHeatStress');
     if (fromHeatStress) {
+      showLoadingWizard();
       var hsCtx = null;
       try { hsCtx = JSON.parse(sessionStorage.getItem('incomingHeatStressContext') || 'null'); } catch (e) { hsCtx = null; }
       if (hsCtx && String(hsCtx.logId) === String(fromHeatStress)) {
