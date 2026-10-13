@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Confined Space Entry</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   CONFINED SPACE ENTRY — same dark navy/gold theme and card/table
+   shapes as loto-register.html / ptw-register.html. Scoped entirely
+   to .cs-dark-wrap so this page's own JS is independent, but every
+   class keeps the same naming convention (cs- instead of lt-/ptw-)
+   for anyone comparing the pages side by side. Two registers on one
+   page, same collapsible-section concept as LOTO's four: the fixed
+   Confined Space Site Register, and the Pre-Entry / Atmospheric Test
+   Record log (checklist + gas readings bundled into one record per
+   entry, since both happen at the same pre-task moment).
+   ══════════════════════════════════════════════════════════════════ */
+.cs-dark-wrap{
+  --csw-bg:#0D1B35; --csw-bg2:#142140; --csw-bg3:#1a2a50;
+  --csw-gold:#C9A84C; --csw-gold-lt:#E8C97A;
+  --csw-text:rgba(255,255,255,.92); --csw-text-muted:rgba(255,255,255,.55);
+  --csw-text-dim:rgba(255,255,255,.35); --csw-border:rgba(255,255,255,.08);
+  --csw-border-gold:rgba(201,168,76,.35);
+  --csw-blue:#5B9BD5; --csw-red:#F0685C; --csw-amb:#E8B339; --csw-grn:#4FCB9E;
+  background:var(--csw-bg); color:var(--csw-text); margin:0; padding:24px; min-height:100vh;
+}
+.cs-dark-wrap *{box-sizing:border-box}
+.cs-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.cs-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--csw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--csw-bg2);
+  border-radius:8px;border:1px solid var(--csw-border-gold)}
+.cs-dark-wrap .back-link:hover{background:var(--csw-bg3)}
+.cs-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--csw-bg2);
+  border-radius:8px;border-left:3px solid var(--csw-gold);margin:10px 0;color:var(--csw-text-muted)}
+.cs-dark-wrap .sec-banner{background:var(--csw-bg2);color:var(--csw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--csw-border-gold);border-bottom:none}
+.cs-dark-wrap .kpi-grid{display:grid;gap:14px}
+.cs-dark-wrap .kpi-card{background:var(--csw-bg2);border:1px solid var(--csw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.cs-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.cs-dark-wrap .kpi-card.kc-nvy::before{background:var(--csw-gold)}
+.cs-dark-wrap .kpi-card.kc-blue::before{background:var(--csw-blue)}
+.cs-dark-wrap .kpi-card.kc-amb::before{background:var(--csw-amb)}
+.cs-dark-wrap .kpi-card.kc-red::before{background:var(--csw-red)}
+.cs-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--csw-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.cs-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--csw-text);line-height:1.1;margin-bottom:4px}
+.cs-dark-wrap .kpi-sub{font-size:10px;color:var(--csw-text-muted)}
+.cs-dark-wrap .kpi-card.cs-clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.cs-dark-wrap .kpi-card.cs-clickable:hover{transform:translateY(-2px);border-color:var(--csw-gold)}
+.cs-dark-wrap .chart-grid{display:grid;gap:14px}
+.cs-dark-wrap .chart-card{background:var(--csw-bg2);border:1px solid var(--csw-border);
+  border-radius:14px;padding:16px 18px}
+.cs-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--csw-text);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.cs-dark-wrap .chart-sub{font-size:10px;color:var(--csw-text-muted);font-weight:400}
+.cs-dark-wrap .chart-wrap{height:220px;position:relative}
+.cs-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.cs-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--csw-grn)}
+.cs-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--csw-red)}
+.cs-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--csw-amb)}
+.cs-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--csw-blue)}
+</style>
+</head><body><div class="cs-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div><div class="req-text">ISO 45001 §8.1.1 / Saudi MR 3337 — Confined space entry, per L3-SHEE-PR-05-WI-01. Every confined space on site is first identified in the Confined Space Site Register (L4-SHEE-PR-05-R-01) before any entry can be authorised. Every entry is then logged against the Pre-Entry / Atmospheric Test Record (L4-SHEE-PR-05-FRM-01) — the mandatory companion checklist and gas-test record for that entry, kept separate from the general Permit to Work (HSE-FRM-01) since atmospheric testing and the pre-entry checklist items aren't captured on the PTW face. This single page holds both registers, each a separate live Google Sheet tab, same collapsible-section concept as the LOTO Register.</div>
+
+<div class="sec-banner">CONFINED SPACE QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy cs-clickable" onclick="CS.cardClick('total')" title="Click to view the Pre-Entry / Atmospheric Test Record"><div class="kpi-lbl">Total Entries Logged</div><div class="kpi-val" id="cs-kpi-total">—</div><div class="kpi-sub">Pre-Entry / Atmospheric Test Record</div></div>
+  <div class="kpi-card kc-blue cs-clickable" onclick="CS.cardClick('total')" title="Click to view this year's entries"><div class="kpi-lbl">This Year's Entries</div><div class="kpi-val" id="cs-kpi-year">—</div><div class="kpi-sub" id="cs-kpi-year-sub">Loading…</div></div>
+  <div class="kpi-card kc-red cs-clickable" onclick="CS.cardClick('openentries')" title="Click to view entries not yet closed"><div class="kpi-lbl">Open Entries</div><div class="kpi-val" id="cs-kpi-open">—</div><div class="kpi-sub">Entries not yet Closed</div></div>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy cs-clickable" onclick="CS.cardClick('spaces')" title="Click to view registered confined spaces"><div class="kpi-lbl">Confined Spaces Registered</div><div class="kpi-val" id="cs-kpi-spaces">—</div><div class="kpi-sub">Active</div></div>
+  <div class="kpi-card kc-amb cs-clickable" onclick="CS.cardClick('notsafe')" title="Click to view entries flagged not safe to enter"><div class="kpi-lbl">Entries Flagged Not Safe</div><div class="kpi-val" id="cs-kpi-notsafe">—</div><div class="kpi-sub">"All Safe to Enter" = No</div></div>
+  <div class="kpi-card kc-amb cs-clickable" onclick="CS.cardClick('findings')" title="Click to view open corrective actions"><div class="kpi-lbl">Open Corrective Actions</div><div class="kpi-val" id="cs-kpi-findings">—</div><div class="kpi-sub">Corrective action required, not yet closed</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+  <div class="chart-card">
+    <div class="chart-title">Entries by Confined Space<span class="chart-sub">which spaces are entered most often</span></div>
+    <div class="chart-wrap"><canvas id="csBySpaceChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Entries by Month<span class="chart-sub">entry volume over time</span></div>
+    <div class="chart-wrap"><canvas id="csByMonthChart"></canvas></div>
+  </div>
+</div>
+
+<div class="cs-jumpbar" style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px">
+  <button class="cs-jump-btn" onclick="CS.jumpTo('register')">Confined Space Site Register <span id="cs-count-register" class="cs-jump-count"></span></button>
+  <button class="cs-jump-btn" onclick="CS.jumpTo('preentry')">Pre-Entry / Atmospheric Test Record <span id="cs-count-preentry" class="cs-jump-count"></span></button>
+</div>
+
+<div class="sec-banner cs-sec-toggle" id="cs-hdr-register" onclick="CS.toggle('register')"><span class="cs-chevron">▶</span> CONFINED SPACE SITE REGISTER &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(L4-SHEE-PR-05-R-01 — identifies every confined space on site)</span></div>
+<div id="live-table-register" class="cs-collapsible" style="margin-top:0"></div>
+
+<div class="sec-banner cs-sec-toggle" id="cs-hdr-preentry" style="margin-top:10px" onclick="CS.toggle('preentry')"><span class="cs-chevron">▶</span> PRE-ENTRY / ATMOSPHERIC TEST RECORD &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(L4-SHEE-PR-05-FRM-01 — checklist + gas readings, one record per entry)</span></div>
+<div id="live-table-preentry" class="cs-collapsible" style="margin-top:0"></div>
+
+<div style="margin-top:16px;font-size:10px;color:var(--csw-text-dim);text-align:right" id="cs-live-ts"></div>
+<div id="cs-modal-root"></div>
+</div>
+<!-- No sidebar/topbar: this page is reached only from inside the Operations Hub, same pattern as loto-register.html / ptw-register.html / fire-extinguisher-log.html. -->
+
+<style>
+.cs-dark-wrap .cs-toolbar{display:flex;justify-content:flex-end;padding:6px 0}
+.cs-dark-wrap .cs-btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;
+  border:1px solid var(--csw-border);background:var(--csw-bg3);color:var(--csw-text);cursor:pointer;font-family:inherit}
+.cs-dark-wrap .cs-btn:hover{background:#223457;border-color:var(--csw-border-gold)}
+.cs-dark-wrap .cs-btn-add{background:var(--csw-gold);color:#1a1200;border-color:var(--csw-gold);font-weight:700}
+.cs-dark-wrap .cs-btn-add:hover{background:var(--csw-gold-lt)}
+.cs-dark-wrap .cs-btn:disabled{opacity:.35;cursor:not-allowed}
+.cs-dark-wrap .cs-btn:disabled:hover{background:var(--csw-bg3);border-color:var(--csw-border)}
+.cs-dark-wrap .cs-row-selectable{cursor:pointer}
+.cs-dark-wrap .cs-row-selected td,
+.cs-dark-wrap .cs-row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--csw-gold)}
+.cs-dark-wrap .cs-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
+  align-items:center;justify-content:center;z-index:9999}
+.cs-dark-wrap .cs-modal{background:var(--csw-bg2);border:1px solid var(--csw-border-gold);border-radius:14px;
+  padding:20px;width:460px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--csw-text)}
+.cs-dark-wrap .cs-modal h3{margin:0 0 12px;font-size:14px;color:var(--csw-gold-lt)}
+.cs-dark-wrap .cs-field{margin-bottom:10px}
+.cs-dark-wrap .cs-field label{display:block;font-size:10px;font-weight:600;color:var(--csw-text-muted);margin-bottom:3px}
+.cs-dark-wrap .cs-field input,.cs-dark-wrap .cs-field select,.cs-dark-wrap .cs-field textarea{width:100%;padding:6px 8px;font-size:12px;
+  border:1px solid var(--csw-border);border-radius:6px;font-family:inherit;box-sizing:border-box;
+  background:var(--csw-bg3);color:var(--csw-text)}
+.cs-dark-wrap .cs-field textarea{min-height:56px;resize:vertical}
+.cs-dark-wrap .cs-field .cs-hint{font-size:9px;color:var(--csw-text-dim);margin-top:3px;display:block}
+.cs-dark-wrap .cs-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.cs-dark-wrap .cs-modal-actions .cs-btn-cancel{background:var(--csw-bg3)}
+.cs-dark-wrap .cs-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
+  border:1px solid var(--csw-border-gold);background:var(--csw-bg2);cursor:pointer;font-family:inherit;color:var(--csw-gold-lt)}
+.cs-dark-wrap .cs-jump-btn:hover{background:var(--csw-bg3);border-color:var(--csw-gold)}
+.cs-dark-wrap .cs-jump-count{font-weight:400;color:var(--csw-text-muted);font-size:10px}
+.cs-dark-wrap .cs-sec-toggle{cursor:pointer;user-select:none}
+.cs-dark-wrap .cs-sec-toggle:hover{opacity:.9}
+.cs-dark-wrap .cs-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px;color:var(--csw-gold-lt)}
+.cs-dark-wrap .cs-collapsible{overflow:hidden;max-height:0;transition:none;
+  background:var(--csw-bg2);border:1px solid var(--csw-border-gold);border-top:none;border-radius:0 0 8px 8px}
+.cs-dark-wrap .cs-collapsible.cs-open{max-height:none;padding:10px 14px}
+.cs-dark-wrap .cs-filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.cs-dark-wrap .cs-search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
+  border:1px solid var(--csw-border);border-radius:8px;font-family:inherit;background:var(--csw-bg3);color:var(--csw-text)}
+.cs-dark-wrap .cs-search-input::placeholder{color:var(--csw-text-dim)}
+.cs-dark-wrap .cs-filter-select{padding:6px 8px;font-size:12px;border:1px solid var(--csw-border);
+  border-radius:8px;font-family:inherit;max-width:220px;background:var(--csw-bg3);color:var(--csw-text)}
+.cs-dark-wrap .cs-filter-status{font-size:10px;color:var(--csw-text-muted);margin-left:auto}
+.cs-dark-wrap .tbl-wrap{overflow-x:auto}
+.cs-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
+.cs-dark-wrap .tbl-stripe th{text-align:left;color:var(--csw-gold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--csw-border-gold);
+  background:var(--csw-bg3);white-space:nowrap}
+.cs-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--csw-border);color:var(--csw-text)}
+.cs-dark-wrap .tbl-stripe tbody tr:nth-child(odd) td{background:var(--csw-bg2)}
+.cs-dark-wrap .tbl-stripe tbody tr:nth-child(even) td{background:#101d3a}
+.cs-dark-wrap .tbl-stripe tbody tr:hover td{background:var(--csw-bg3)}
+.cs-dark-wrap .cs-expand-cell:hover{background:rgba(232,179,57,.18)!important}
+.cs-dark-wrap .empty-state{text-align:center;padding:20px;color:var(--csw-text-muted)}
+.cs-dark-wrap .empty-state strong{display:block;font-size:13px;color:var(--csw-gold-lt);margin-bottom:4px}
+.cs-dark-wrap .nb{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid}
+.cs-dark-wrap .nb-red{background:rgba(240,104,92,.15);color:var(--csw-red);border-color:rgba(240,104,92,.4)}
+.cs-dark-wrap .nb-amb{background:rgba(232,179,57,.15);color:var(--csw-amb);border-color:rgba(232,179,57,.4)}
+.cs-dark-wrap .nb-grn{background:rgba(79,203,158,.15);color:var(--csw-grn);border-color:rgba(79,203,158,.4)}
+.cs-dark-wrap .cs-detail-row td{background:rgba(255,255,255,.03);padding:10px 14px;border-top:1px dashed rgba(255,255,255,.12)}
+.cs-dark-wrap .cs-detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px}
+.cs-dark-wrap .cs-detail-item{font-size:11px;line-height:1.5}
+.cs-dark-wrap .cs-detail-lbl{display:block;font-weight:600;color:var(--csw-text-muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.3px}
+.cs-dark-wrap .cs-detail-val{display:block;color:var(--csw-text);word-break:break-word;white-space:pre-wrap}
+</style>
+
+<script>
+/* ── Confined Space: two live tables + Add/Edit/Remove, same
+   Add/Edit/Remove modal shell, soft-delete via Record Status, and
+   Escalate-to-Action mechanism as loto-register.html's Station Audit
+   table — only the field set is specific to the Confined Space Site
+   Register (L4-SHEE-PR-05-R-01) and the Pre-Entry / Atmospheric Test
+   Record (L4-SHEE-PR-05-FRM-01), the real HSE forms this digitises.
+   ────────────────────────────────────────────────────────────────── */
+(function(){
+
+  var YESNO = ['Yes','No'];
+
+  var TABLES = {
+    register: {
+      label: 'Confined Space', tabKey: 'cs_register', containerId: 'live-table-register',
+      idCol: 'CS Ref', idEditable: true, // the space's own fixed reference, not auto-generated from a count
+      idPrefix: 'CS-', idPad: 3,
+      filterField: 'Status',
+      displayCols: ['CS Ref','Description','Location','Status'],
+      fields: ['CS Ref','Description','Location','Primary Hazards','Emergency Equipment',
+               'Entry Permit Required (Y/N)','Last Inspection Date','Status','Remarks'],
+      selectFields: {
+        'Entry Permit Required (Y/N)': YESNO,
+        'Status': ['Active','Decommissioned']
+      },
+      textareaFields: ['Description','Primary Hazards','Emergency Equipment','Remarks']
+    },
+    preentry: {
+      label: 'Pre-Entry / Atmospheric Test Record', tabKey: 'cs_entry', containerId: 'live-table-preentry',
+      idCol: 'Entry ID', idPrefix: 'CSE-', idPad: 3,
+      filterField: 'Status',
+      // A flagged entry escalates to a single combined Action Register
+      // record (one entry → one Action, covering the comment and
+      // proposed corrective action together) rather than being tracked
+      // only inside this log — same one-record-one-Action design as
+      // the LOTO Station Audit Log. 'Action Reference' records the
+      // resulting ACT- ID once raised; it's normally set automatically
+      // by the escalation hand-off (never typed in through the
+      // toolbar), though it's still a plain field in the full Edit
+      // form like any other, for admin correction. The Action
+      // Register's own write-back, once that Action closes, auto-
+      // closes this entry's own Status too — see
+      // notifyConfinedSpaceEntryActionCompleted() in capa-wizard.js.
+      hasEscalate: true,
+      displayCols: ['Entry ID','Date','CS Ref','All Safe to Enter (Y/N)','Corrective Action Required (Y/N)','Status'],
+      fields: ['Entry ID','Date','CS Ref','PTW Number','Entrant(s)','Standby / Attendant Person',
+               'Isolation Confirmed (LOTO) (Y/N)','LOTO Reference',
+               'Ventilation Provided (Y/N)','Ventilation Type',
+               'Communication Method','Rescue Equipment Ready (Y/N)','PPE / Breathing Apparatus Confirmed (Y/N)',
+               'Gas Detector Instrument ID','Instrument Calibration Due Date',
+               'O2 (%)','CO (ppm)','H2S (ppm)','LEL (%)','Test Time','Entry Time','Exit Time',
+               'Re-Entry Required (Y/N)','Re-Test O2 (%)','Re-Test CO (ppm)','Re-Test H2S (ppm)','Re-Test LEL (%)','Re-Test Time',
+               'All Safe to Enter (Y/N)',
+               'Comment','Corrective Action Required (Y/N)','Proposed Corrective Action',
+               'Responsible Person','Target Close Date',
+               'Status','Remarks','Action Reference'],
+      selectFields: {
+        'Isolation Confirmed (LOTO) (Y/N)': YESNO,
+        'Ventilation Provided (Y/N)': YESNO,
+        'Ventilation Type': ['Natural','Forced / Mechanical'],
+        'Rescue Equipment Ready (Y/N)': YESNO,
+        'PPE / Breathing Apparatus Confirmed (Y/N)': YESNO,
+        'Re-Entry Required (Y/N)': YESNO,
+        'All Safe to Enter (Y/N)': YESNO,
+        'Corrective Action Required (Y/N)': YESNO,
+        'Status': ['Open','Closed']
+      },
+      textareaFields: ['Comment','Proposed Corrective Action','Remarks'],
+      // Suggest CS Ref from the Site Register, so an entry is never
+      // logged against a confined space that isn't actually on file.
+      crossRef: { 'CS Ref': 'register' }
+    }
+  };
+  var _filters = {};
+  var _selected = {};
+  var _expandedRows = {};
+  var STATUS_COL = 'Record Status';
+  var _cache = {};
+  var _charts = { bySpace: null, byMonth: null };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUsername(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    return (s && s.username) || 'unknown';
+  }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function nextSequentialId(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return '';
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    if (idIdx < 0) return '';
+    var maxN = 0, prefixLower = cfg.idPrefix.toLowerCase();
+    data.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(prefixLower) !== 0) return;
+      var n = parseInt(v.slice(cfg.idPrefix.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    if (maxN === 0) return '';
+    var numStr = String(maxN + 1);
+    while (numStr.length < cfg.idPad) numStr = '0' + numStr;
+    return cfg.idPrefix + numStr;
+  }
+  function getFieldOfSelected(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    var idVal = _selected[tKeyName];
+    if (!data || idVal === undefined || idVal === null || idVal === '') return '';
+    var cfg = TABLES[tKeyName];
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var fIdx = colIdx(data.headers, fieldName);
+    if (idIdx < 0 || fIdx < 0) return '';
+    var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+    return row ? row[fIdx] : '';
+  }
+  function getOwnColumnValues(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return [];
+    var idx = colIdx(data.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}, out = [];
+    data.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    });
+    out.sort();
+    return out;
+  }
+  function getSuggestions(tKeyName, fieldName){
+    var cfg = TABLES[tKeyName];
+    var sourceTable = (cfg.crossRef && cfg.crossRef[fieldName]) ? cfg.crossRef[fieldName] : tKeyName;
+    return getOwnColumnValues(sourceTable, fieldName);
+  }
+
+  function renderShell(tKeyName, data){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    if (!data || !data.headers || !data.rows){
+      el.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      return;
+    }
+    _cache[tKeyName] = data;
+    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+    var f = _filters[tKeyName];
+    var sel = _selected[tKeyName];
+
+    var toolbarHtml = '';
+    if (can('add')) toolbarHtml += '<button class="cs-btn cs-btn-add" onclick="CS.openAdd(\''+tKeyName+'\')">+ Add Record</button>';
+    var disabledAttr = sel ? '' : ' disabled';
+    if (cfg.hasEscalate){
+      var carVal = String(getFieldOfSelected(tKeyName, 'Corrective Action Required (Y/N)')||'').trim().toLowerCase();
+      var existingRef = String(getFieldOfSelected(tKeyName, 'Action Reference')||'').trim();
+      if (existingRef){
+        toolbarHtml += '<button class="cs-btn" disabled title="Already escalated — see the Action Register">✓ Escalated → '+existingRef+'</button>';
+      } else {
+        var canEscalate = sel && carVal === 'yes';
+        toolbarHtml += '<button class="cs-btn cs-btn-add" id="cs-tb-escalate-'+tKeyName+'"'+(canEscalate?'':' disabled')+' onclick="CS.escalateToAction(\''+tKeyName+'\', CS.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
+      }
+    }
+    if (can('edit')) toolbarHtml += '<button class="cs-btn" id="cs-tb-edit-'+tKeyName+'"'+disabledAttr+' onclick="CS.openEdit(\''+tKeyName+'\', CS.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
+    if (can('delete')) toolbarHtml += '<button class="cs-btn" id="cs-tb-remove-'+tKeyName+'"'+disabledAttr+' onclick="CS.remove(\''+tKeyName+'\', CS.getSelected(\''+tKeyName+'\'))">🗑️ Remove</button>';
+
+    var categoryHtml = '';
+    if (cfg.filterField){
+      var opts = getOwnColumnValues(tKeyName, cfg.filterField);
+      categoryHtml = '<select class="cs-filter-select" onchange="CS.onCategoryChange(\''+tKeyName+'\', this.value)">' +
+        '<option value="">All ' + cfg.filterField + '</option>' +
+        opts.map(function(o){
+          var selA = (o === f.category) ? ' selected' : '';
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+selA+'>'+o+'</option>';
+        }).join('') + '</select>';
+    }
+
+    var specialLabels = { openentries: 'Open Entries', notsafe: 'Flagged Not Safe to Enter', findings: 'Open Corrective Actions' };
+    var specialPillHtml = '';
+    if (f.special && specialLabels[f.special]){
+      specialPillHtml = '<span class="nb nb-amb" style="margin:6px 0;display:inline-block">Showing: ' + specialLabels[f.special] +
+        ' <span style="cursor:pointer" onclick="CS.clearFilters(\''+tKeyName+'\')">✕</span></span>';
+    }
+
+    el.innerHTML =
+      '<div class="cs-toolbar">' + toolbarHtml + '</div>' +
+      specialPillHtml +
+      '<div class="cs-filterbar">' +
+        '<input type="text" class="cs-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="CS.onSearchInput(\''+tKeyName+'\', this.value)">' +
+        categoryHtml +
+        '<button class="cs-btn" onclick="CS.clearFilters(\''+tKeyName+'\')">Clear</button>' +
+        '<span class="cs-filter-status" id="cs-filter-status-'+tKeyName+'"></span>' +
+      '</div>' +
+      '<div class="cs-table-area" id="cs-table-area-'+tKeyName+'"></div>';
+    renderTableArea(tKeyName);
+  }
+
+  // An entry is "open" when Status isn't Closed — same undercounting-
+  // is-worse-than-overcounting reasoning as LOTO's hasOpenIsolation.
+  function hasOpenEntry(row, headers){
+    var statusIdx = colIdx(headers, 'Status');
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return st !== 'closed';
+  }
+  // A Pre-Entry record is flagged "not safe" when All Safe to Enter = No.
+  function isFlaggedNotSafe(row, headers){
+    var idx = colIdx(headers, 'All Safe to Enter (Y/N)');
+    return idx >= 0 && String(row[idx]||'').trim().toLowerCase() === 'no';
+  }
+  // A corrective action finding is "open" when it was required and the
+  // record itself hasn't been closed out yet — same pattern as LOTO's
+  // hasOpenFinding.
+  function hasOpenFinding(row, headers){
+    var carIdx = colIdx(headers, 'Corrective Action Required (Y/N)');
+    var statusIdx = colIdx(headers, 'Status');
+    var car = carIdx >= 0 ? String(row[carIdx]||'').trim().toLowerCase() : '';
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return car === 'yes' && st !== 'closed';
+  }
+
+  function renderTableArea(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    var areaEl = document.getElementById('cs-table-area-' + tKeyName);
+    var statusEl = document.getElementById('cs-filter-status-' + tKeyName);
+    if (!data || !areaEl) return;
+
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
+    var f = _filters[tKeyName] || {search:'', category:'', special:null};
+    var searchLower = f.search.trim().toLowerCase();
+
+    var visibleRows = data.rows.filter(function(r){
+      return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+    var totalVisible = visibleRows.length;
+    if (f.category && filterFieldIdx > -1){
+      visibleRows = visibleRows.filter(function(r){ return String(r[filterFieldIdx]||'').trim() === f.category; });
+    }
+    if (searchLower){
+      visibleRows = visibleRows.filter(function(r){
+        return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
+      });
+    }
+    if (f.special === 'openentries'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenEntry(r, data.headers); });
+    }
+    if (f.special === 'notsafe'){
+      visibleRows = visibleRows.filter(function(r){ return isFlaggedNotSafe(r, data.headers); });
+    }
+    if (f.special === 'findings'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenFinding(r, data.headers); });
+    }
+    if (statusEl){
+      var isFiltered = !!(f.search.trim() || f.category || f.special);
+      statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
+    }
+
+    var displayCols = cfg.displayCols || cfg.fields.slice(0, 5);
+    var colIdxs = displayCols.map(function(c){ return colIdx(data.headers, c); }).filter(function(i){ return i >= 0; });
+    var colNames = colIdxs.map(function(i){ return data.headers[i]; });
+    var shownSet = {};
+    colNames.forEach(function(n){ shownSet[n] = true; });
+    var detailFields = (cfg.fields||[]).filter(function(f){ return !shownSet[f] && f !== STATUS_COL; });
+
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe">';
+    html += '<thead><tr><th style="width:40px"></th>'; colNames.forEach(function(h){ html += '<th>'+h+'</th>'; }); html += '</tr></thead><tbody>';
+
+    if (!visibleRows.length){
+      html += '<tr><td colspan="'+(colNames.length+1)+'"><div class="empty-state"><strong>No records</strong>Add data in Google Sheets or use + Add Record above.</div></td></tr>';
+    } else {
+      var selId = _selected[tKeyName];
+      var expandedSet = _expandedRows[tKeyName] || {};
+      visibleRows.forEach(function(row){
+        var idVal = idIdx>-1 ? row[idIdx] : '';
+        var idValEsc = String(idVal).replace(/'/g,"\\'");
+        var isSel = selId !== undefined && selId !== null && String(selId) === String(idVal);
+        var isExpanded = !!expandedSet[String(idVal)];
+        html += '<tr class="cs-row-selectable'+(isSel?' cs-row-selected':'')+'" onclick="CS.selectRow(\''+tKeyName+'\',\''+idValEsc+'\')">';
+        html += '<td class="cs-expand-cell" style="text-align:center;cursor:pointer;padding:10px 6px" title="Click to show all fields" onclick="event.stopPropagation();CS.toggleRowDetail(\''+tKeyName+'\',\''+idValEsc+'\')">'+
+          '<span class="cs-chevron" style="display:inline-block;font-size:13px;transition:transform .15s'+(isExpanded?';transform:rotate(90deg)':'')+'">▶</span></td>';
+        colIdxs.forEach(function(ci){
+          var cell = row[ci];
+          if (data.headers[ci] === 'Status'){
+            var stv = String(cell||'').trim();
+            var cls = stv.toLowerCase()==='closed' ? 'nb-grn' : 'nb-amb';
+            html += '<td>'+(stv?'<span class="nb '+cls+'">'+stv+'</span>':formatCell(cell))+'</td>';
+          } else {
+            html += '<td>' + formatCell(cell) + '</td>';
+          }
+        });
+        html += '</tr>';
+        if (isExpanded){
+          html += '<tr class="cs-detail-row"><td></td><td colspan="'+colNames.length+'">'+
+            '<div class="cs-detail-grid">' + detailFields.map(function(f){
+              var fi = colIdx(data.headers, f);
+              var val = fi>=0 ? row[fi] : '';
+              return '<div class="cs-detail-item"><span class="cs-detail-lbl">'+f+'</span><span class="cs-detail-val">'+formatCell(val)+'</span></div>';
+            }).join('') +
+            '</div></td></tr>';
+        }
+      });
+    }
+    html += '</tbody></table></div>';
+    areaEl.innerHTML = html;
+  }
+
+  function loadTab(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--csw-text-muted);font-size:11px">⏳ Loading live data…</div>';
+    return fetch(SHEETS_URL + '?tab=' + cfg.tabKey + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        renderShell(tKeyName, data);
+        var countEl = document.getElementById('cs-count-' + tKeyName);
+        if (countEl && data && data.rows){
+          var statusIdx = colIdx(data.headers, STATUS_COL);
+          var visibleCount = statusIdx < 0 ? data.rows.length :
+            data.rows.filter(function(r){ return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; }).length;
+          countEl.textContent = '(' + visibleCount + ')';
+        }
+        return data;
+      })
+      .catch(function(){
+        el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
+        return null;
+      });
+  }
+
+  function loadAll(){
+    var keys = Object.keys(TABLES);
+    return Promise.all(keys.map(loadTab)).then(function(){
+      renderDashboard();
+    });
+  }
+  function reloadAll(){ return loadAll(); }
+
+  function visibleRowsOf(tKeyName){
+    var data = _cache[tKeyName];
+    if (!data || !data.rows) return [];
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    return data.rows.filter(function(r){ return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+  }
+
+  function monthLabel(ym){
+    var parts = ym.split('-');
+    var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mi = parseInt(parts[1],10) - 1;
+    return (names[mi] || parts[1]) + ' ' + parts[0];
+  }
+
+  function renderDashboard(){
+    var pre = _cache['preentry'];
+    if (!pre) return;
+    var visibleRows = visibleRowsOf('preentry');
+
+    document.getElementById('cs-kpi-total').textContent = visibleRows.length;
+
+    var dateIdx = colIdx(pre.headers, 'Date');
+    var thisYear = new Date().getFullYear();
+    var yearCount = 0;
+    visibleRows.forEach(function(r){
+      var s = dateIdx>=0 ? String(r[dateIdx]||'').trim() : '';
+      if (/^\d{4}/.test(s) && parseInt(s.slice(0,4),10) === thisYear) yearCount++;
+    });
+    document.getElementById('cs-kpi-year').textContent = yearCount;
+    document.getElementById('cs-kpi-year-sub').textContent = 'Year to date';
+
+    var openCount = visibleRows.filter(function(r){ return hasOpenEntry(r, pre.headers); }).length;
+    document.getElementById('cs-kpi-open').textContent = openCount;
+
+    var notSafeCount = visibleRows.filter(function(r){ return isFlaggedNotSafe(r, pre.headers); }).length;
+    var kpiNotSafe = document.getElementById('cs-kpi-notsafe');
+    if (kpiNotSafe) kpiNotSafe.textContent = notSafeCount;
+
+    var findingsCount = visibleRows.filter(function(r){ return hasOpenFinding(r, pre.headers); }).length;
+    var kpiFindings = document.getElementById('cs-kpi-findings');
+    if (kpiFindings) kpiFindings.textContent = findingsCount;
+
+    // ── Cross-register KPI: only render once the Site Register has
+    // loaded at least once (loadAll() loads both tables in parallel,
+    // so this is normally true by the time renderDashboard first runs).
+    var regData = _cache['register'];
+    if (regData){
+      var regRows = visibleRowsOf('register');
+      var regStatusIdx = colIdx(regData.headers, 'Status');
+      var activeSpaces = regStatusIdx < 0 ? regRows.length :
+        regRows.filter(function(r){ return String(r[regStatusIdx]||'').trim().toLowerCase() === 'active'; }).length;
+      var kpiSpaces = document.getElementById('cs-kpi-spaces');
+      if (kpiSpaces) kpiSpaces.textContent = activeSpaces;
+    }
+
+    var BLUE = '#5B9BD5', GOLD = '#C9A84C';
+    var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
+    if (_charts.bySpace) { _charts.bySpace.destroy(); _charts.bySpace = null; }
+    if (_charts.byMonth) { _charts.byMonth.destroy(); _charts.byMonth = null; }
+
+    // Chart 1: Entries by Confined Space (horizontal bar) — counts
+    // each Pre-Entry record against the CS Ref it was logged for.
+    var csRefIdx = colIdx(pre.headers, 'CS Ref');
+    var spaceCounts = {};
+    if (csRefIdx >= 0){
+      visibleRows.forEach(function(r){
+        var v = String(r[csRefIdx]||'').trim();
+        if (v) spaceCounts[v] = (spaceCounts[v]||0) + 1;
+      });
+    }
+    var usedSpaces = Object.keys(spaceCounts).sort();
+    if (window.Chart && usedSpaces.length){
+      var maxSpaceCount = Math.max.apply(null, usedSpaces.map(function(s){ return spaceCounts[s]||0; }).concat([0]));
+      _charts.bySpace = new Chart(document.getElementById('csBySpaceChart'), {
+        type:'bar', data:{ labels: usedSpaces, datasets:[{ label:'Entries', data: usedSpaces.map(function(s){ return spaceCounts[s]||0; }), backgroundColor:BLUE, borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
+          interaction:{ mode:'nearest', axis:'y', intersect:false },
+          layout:{ padding:{ right: 28 } },
+          scales:{ x:{ beginAtZero:true, max: Math.ceil(maxSpaceCount*1.18)||undefined, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } }, y:{ ticks:{ color:TICK }, grid:{ color:GRID } } },
+          plugins:{
+            legend:{ display:false },
+            tooltip:{ callbacks:{ label:function(ctx){ return ctx.parsed.x + ' entr' + (ctx.parsed.x===1?'y':'ies'); } } },
+            datalabels:{ anchor:'end', align:'end', clamp:true, color:'#E8C97A', font:{ size:10, weight:'600' }, formatter:function(v){ return v; } }
+          }
+        },
+        plugins: (window.ChartDataLabels ? [window.ChartDataLabels] : [])
+      });
+    }
+
+    // Chart 2: Entries by Month (vertical bar) — same monthLabel
+    // bucketing approach as LOTO's Certificate Expiry chart, grouped
+    // here by the entry's own Date instead of an expiry date.
+    var monthCounts = {};
+    if (dateIdx >= 0){
+      visibleRows.forEach(function(r){
+        var raw = r[dateIdx];
+        if (!raw) return;
+        var s = String(raw).trim();
+        if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return;
+        var year = parseInt(s.slice(0,4), 10);
+        if (year < 2020) return;
+        var ym = s.slice(0,7);
+        monthCounts[ym] = (monthCounts[ym] || 0) + 1;
+      });
+    }
+    var sortedMonths = Object.keys(monthCounts).sort();
+    if (window.Chart && sortedMonths.length){
+      _charts.byMonth = new Chart(document.getElementById('csByMonthChart'), {
+        type: 'bar',
+        data: { labels: sortedMonths.map(monthLabel), datasets: [{
+          label: 'Entries', data: sortedMonths.map(function(m){ return monthCounts[m]; }),
+          backgroundColor: GOLD, borderRadius: 4
+        }]},
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: {
+            y: { beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } },
+            x: { ticks:{ color:TICK }, grid:{ color:GRID } }
+          },
+          plugins: { legend: { display:false } } }
+      });
+    }
+  }
+
+  function setExpanded(tKeyName, expanded){
+    var containerId = TABLES[tKeyName].containerId;
+    var el = document.getElementById(containerId);
+    var hdr = document.getElementById('cs-hdr-' + tKeyName);
+    var chev = hdr ? hdr.querySelector('.cs-chevron') : null;
+    if (expanded){ el.classList.add('cs-open'); if (chev) chev.style.transform='rotate(90deg)'; }
+    else { el.classList.remove('cs-open'); if (chev) chev.style.transform='rotate(0deg)'; }
+  }
+
+  /* ── Modal (shared by Add + Edit) — same shell as loto-register.html,
+     extended with <select> rendering for selectFields and <textarea>
+     for textareaFields. ─────────────────────────────────────────── */
+  function showModal(tKeyName, title, fields, initialValues, onSubmit){
+    var root = document.getElementById('cs-modal-root');
+    var cfg = TABLES[tKeyName];
+    var selFields = cfg.selectFields || {};
+    var taFields = cfg.textareaFields || [];
+    var fieldsHtml = fields.map(function(f, fi){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEsc = String(v).replace(/"/g,'&quot;');
+      if (selFields[f]){
+        var optsHtml = '<option value=""></option>' + selFields[f].map(function(o){
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="cs-field"><label>'+f+'</label><select data-field="'+f+'">'+optsHtml+'</select></div>';
+      }
+      if (taFields.indexOf(f) > -1){
+        return '<div class="cs-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+      }
+      var fLower = f.trim().toLowerCase();
+      var hasDate = fLower.indexOf('date') > -1;
+      var hasTime = fLower.indexOf('time') > -1;
+      var inputType = (hasDate && hasTime) ? 'datetime-local' : (hasDate ? 'date' : (hasTime ? 'time' : 'text'));
+      var suggestions = (hasDate || hasTime) ? [] : getSuggestions(tKeyName, f);
+      var dlId = 'cs-dl-' + tKeyName + '-' + fi;
+      var dlHtml = '';
+      if (suggestions.length){
+        dlHtml = '<datalist id="'+dlId+'">' + suggestions.map(function(s){
+          return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
+        }).join('') + '</datalist>';
+      }
+      return '<div class="cs-field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"'+(suggestions.length?' list="'+dlId+'"':'')+'>'+dlHtml+'</div>';
+    }).join('');
+
+    root.innerHTML = '<div class="cs-modal-bg" id="cs-modal-bg"><div class="cs-modal">' +
+      '<h3>'+title+'</h3>' + fieldsHtml +
+      '<div id="cs-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
+      '<div class="cs-modal-actions"><button class="cs-btn cs-btn-cancel" id="cs-modal-cancel">Cancel</button>' +
+      '<button class="cs-btn cs-btn-add" id="cs-modal-save">Save</button></div></div></div>';
+
+    document.getElementById('cs-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('cs-modal-bg').onclick = function(e){ if(e.target.id==='cs-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('cs-modal-save').onclick = function(){
+      var values = {};
+      root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      var saveBtn = document.getElementById('cs-modal-save');
+      saveBtn.disabled = true;
+      window._csReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
+      onSubmit(values, function(){ root.innerHTML = ''; });
+    };
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  /* ── Public API used by inline onclick handlers ─────────────────────── */
+  window.CS = {
+    toggle: function(tKeyName){
+      var containerId = TABLES[tKeyName].containerId;
+      var el = document.getElementById(containerId);
+      setExpanded(tKeyName, !el.classList.contains('cs-open'));
+    },
+    jumpTo: function(tKeyName){
+      setExpanded(tKeyName, true);
+      var hdr = document.getElementById('cs-hdr-' + tKeyName);
+      if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
+    },
+    onSearchInput: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].search = val; renderTableArea(tKeyName);
+    },
+    onCategoryChange: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].category = val; renderTableArea(tKeyName);
+    },
+    clearFilters: function(tKeyName){
+      _filters[tKeyName] = {search:'', category:'', special:null};
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    cardClick: function(cardName){
+      if (cardName === 'total'){
+        _filters['preentry'] = {search:'', category:'', special:null};
+        renderShell('preentry', _cache['preentry']);
+        this.jumpTo('preentry');
+      } else if (cardName === 'openentries'){
+        _filters['preentry'] = {search:'', category:'', special:'openentries'};
+        renderShell('preentry', _cache['preentry']);
+        this.jumpTo('preentry');
+      } else if (cardName === 'spaces'){
+        _filters['register'] = {search:'', category:'Active', special:null};
+        renderShell('register', _cache['register']);
+        this.jumpTo('register');
+      } else if (cardName === 'notsafe'){
+        _filters['preentry'] = {search:'', category:'', special:'notsafe'};
+        renderShell('preentry', _cache['preentry']);
+        this.jumpTo('preentry');
+      } else if (cardName === 'findings'){
+        _filters['preentry'] = {search:'', category:'', special:'findings'};
+        renderShell('preentry', _cache['preentry']);
+        this.jumpTo('preentry');
+      }
+    },
+    selectRow: function(tKeyName, idVal){
+      var cur = _selected[tKeyName];
+      _selected[tKeyName] = (cur !== undefined && cur !== null && String(cur) === String(idVal)) ? null : idVal;
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    getSelected: function(tKeyName){ return _selected[tKeyName]; },
+    toggleRowDetail: function(tKeyName, idVal){
+      var set = _expandedRows[tKeyName] || (_expandedRows[tKeyName] = {});
+      var key = String(idVal);
+      set[key] = !set[key];
+      renderTableArea(tKeyName);
+    },
+    openAdd: function(tKeyName){
+      var cfg = TABLES[tKeyName];
+      if (!can('add')) return;
+      var initial = {};
+      var suggestedId = nextSequentialId(tKeyName);
+      if (suggestedId) initial[cfg.idCol] = suggestedId;
+      showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._csReenableModalSave) window._csReenableModalSave(); });
+      });
+    },
+    // Escalates a flagged Pre-Entry record to a single combined record
+    // in the Action Register — same sessionStorage + URL hand-off
+    // mechanism already used for LOTO Station Audit/Mock Drill/
+    // Observation/Incident, so action-register.html/capa-wizard.js
+    // open the lightweight Action lane pre-filled, no separate wiring
+    // needed on that side beyond the matching 'fromConfinedSpace'
+    // handler.
+    escalateToAction: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a Pre-Entry record first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var carIdx = colIdx(data.headers, 'Corrective Action Required (Y/N)');
+      if (carIdx < 0 || String(row[carIdx]||'').trim().toLowerCase() !== 'yes'){
+        return alert('This Pre-Entry record is not flagged as requiring corrective action.');
+      }
+      var refIdx = colIdx(data.headers, 'Action Reference');
+      if (refIdx >= 0 && String(row[refIdx]||'').trim()){
+        return alert('This entry was already escalated — see Action Register record ' + row[refIdx] + '.');
+      }
+      var csRefIdx = colIdx(data.headers, 'CS Ref');
+      var commentIdx = colIdx(data.headers, 'Comment');
+      var pcaIdx = colIdx(data.headers, 'Proposed Corrective Action');
+      // Bundle the comment and proposed corrective action from this one
+      // entry into a single action-plan description, per the
+      // one-entry-one-Action design — nothing here should need a
+      // second escalation later.
+      var descParts = [];
+      if (csRefIdx >= 0 && row[csRefIdx]) descParts.push('Confined Space: ' + row[csRefIdx]);
+      if (commentIdx >= 0 && row[commentIdx]) descParts.push('Comment: ' + row[commentIdx]);
+      if (pcaIdx >= 0 && row[pcaIdx]) descParts.push('Proposed corrective action: ' + row[pcaIdx]);
+      var ctx = {
+        entryId: idVal,
+        description: descParts.join('\n') || ('Corrective action required — Confined Space Entry ' + idVal),
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingConfinedSpaceContext', JSON.stringify(ctx)); } catch(e){ /* not fatal — the destination still opens, just without pre-fill */ }
+      window.open('action-register.html?fromConfinedSpace=' + encodeURIComponent(idVal) + '&lane=ACT', '_blank');
+    },
+    openEdit: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('edit')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+            if (window._csReenableModalSave) window._csReenableModalSave();
+            return;
+          }
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._csReenableModalSave) window._csReenableModalSave(); });
+      });
+    },
+    remove: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('delete')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message || 'unknown error')); return; }
+        _selected[tKeyName] = null;
+        reloadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    }
+  };
+
+  // Deep link from the Action Register's "Source" column — once an
+  // escalated entry's Action is resolved, clicking its Confined Space
+  // Entry ID reference lands here as ?entry=<Entry ID>, jumps to the
+  // Pre-Entry / Atmospheric Test Record section, and opens that exact
+  // record's full details (not just a highlighted row), same as the
+  // LOTO Station Audit hand-off.
+  function handleConfinedSpaceDeepLink(){
+    var entryId = new URLSearchParams(window.location.search).get('entry');
+    if (!entryId) return;
+    CS.jumpTo('preentry');
+    CS.openEdit('preentry', entryId);
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadAll().then(handleConfinedSpaceDeepLink); }, 100);
+  });
+})();
+</script>
+
+<script>
+/* ── Access gate: identical rule to loto-register.html / ptw-register.html ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The detailed Confined Space Entry register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+
+</body></html>

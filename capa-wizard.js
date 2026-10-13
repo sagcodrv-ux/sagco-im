@@ -169,6 +169,7 @@
       sourceObservationCaseId: '', /* Point 2 — set when this ACT record was forwarded directly from an Observation (Raw Risk Score Medium-or-below), not from an Incident. Mutually exclusive with sourceIncidentId in practice. */
       sourceDrillId: '', /* Rev.04 — set when this ACT record was forwarded from the Mock Drill Register's "Escalate to Action" button. Mutually exclusive with sourceIncidentId/sourceObservationCaseId in practice. */
       sourceLotoAuditId: '', /* Rev.05 — set when this ACT record was forwarded from the LOTO Station Audit Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
+      sourceConfinedSpaceEntryId: '', /* Rev.06 — set when this ACT record was forwarded from the Confined Space Pre-Entry / Atmospheric Test Record's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -359,7 +360,9 @@
         ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Mock Drill <strong>' + esc(state.sourceDrillId) + '</strong> — a plain Action: no root cause analysis, no approval gate.</div>'
         : (state.sourceLotoAuditId
           ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from LOTO Station Audit <strong>' + esc(state.sourceLotoAuditId) + '</strong> — a plain Action covering every non-conformity found in that audit: no root cause analysis, no approval gate. Closing this Action automatically closes that audit record too.</div>'
-          : ''));
+          : (state.sourceConfinedSpaceEntryId
+            ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Confined Space Entry <strong>' + esc(state.sourceConfinedSpaceEntryId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that entry record too.</div>'
+            : '')));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -552,6 +555,7 @@
               notifyIncidentActionCompleted();
               notifyIncidentResidual();
               notifyLotoAuditActionCompleted();
+              notifyConfinedSpaceEntryActionCompleted();
               alert(state.capaId + ' marked Closed.'); closeWizard(); if (global.reloadLive) reloadLive();
             })
             .catch(function (err) { restoreButtons(); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
@@ -975,6 +979,7 @@
       'Source Observation Case ID': state.sourceObservationCaseId || '',
       'Source Drill ID': state.sourceDrillId || '',
       'Source LOTO Audit ID': state.sourceLotoAuditId || '',
+      'Source Confined Space Entry ID': state.sourceConfinedSpaceEntryId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
@@ -1207,6 +1212,37 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.06 (Issam, 2026-10-13) — closes the loop back to the Confined
+     Space Pre-Entry / Atmospheric Test Record, same fire-and-forget
+     reasoning and direct-write mechanism as notifySourceLotoAudit()
+     directly above (the cs_entry sheet is likewise this app's own,
+     already-writable data — no separate escalations tab or upsert
+     needed). Writes the durable "Action Reference" the entry row's own
+     toolbar button reads to show its "✓ Escalated → ACT-…" state. Only
+     fires on first save (see afterAssignId in persistAction below) —
+     the reference is assigned once, at creation, never changes on a
+     later resume. */
+  function notifySourceConfinedSpaceEntry() {
+    if (!state.sourceConfinedSpaceEntryId) return;
+    fetch(SHEETS_URL + '?action=update&tab=cs_entry&idCol=' + encodeURIComponent('Entry ID') + '&id=' + encodeURIComponent(state.sourceConfinedSpaceEntryId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
+  /* Rev.06 (Issam, 2026-10-13) — mirrors notifyLotoAuditActionCompleted()
+     exactly, for the Confined Space Pre-Entry / Atmospheric Test
+     Record: once this ACT-lane record reaches Closed, the one entry
+     that escalated it is automatically closed too. Fire-and-forget and
+     idempotent, same reasoning as notifyLotoAuditActionCompleted(). */
+  function notifyConfinedSpaceEntryActionCompleted() {
+    if (!state.sourceConfinedSpaceEntryId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=cs_entry&idCol=' + encodeURIComponent('Entry ID') + '&id=' + encodeURIComponent(state.sourceConfinedSpaceEntryId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Status': 'Closed' }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* ── Save for the lightweight Action lane — one write, no steps ── */
   function persistAction() {
     if (saving) return;
@@ -1232,9 +1268,11 @@
             notifySourceObservation();
             notifySourceDrill();
             notifySourceLotoAudit();
+            notifySourceConfinedSpaceEntry();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
+            notifyConfinedSpaceEntryActionCompleted();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
@@ -1264,6 +1302,7 @@
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
+            notifyConfinedSpaceEntryActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1533,6 +1572,7 @@
     state.sourceObservationCaseId = col('Source Observation Case ID');
     state.sourceDrillId = col('Source Drill ID');
     state.sourceLotoAuditId = col('Source LOTO Audit ID');
+    state.sourceConfinedSpaceEntryId = col('Source Confined Space Entry ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2293,6 +2333,28 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.06 (Issam, 2026-10-13) — Confined Space Pre-Entry / Atmospheric
+     Test Record hand-off (confined-space.html's "⚡ Escalate to Action"
+     button). Same lightweight-Action shape as openFromLotoAudit just
+     above — no RCA/approval ceremony, no risk-score gating — but
+     records provenance in sourceConfinedSpaceEntryId instead, and tags
+     Source as 'Confined Space Entry' so the record's origin is visible
+     at a glance. The description carries over the Comment and Proposed
+     Corrective Action already bundled by confined-space.html's
+     escalateToAction() into one action-plan description — not
+     re-derived here. */
+  function openFromConfinedSpace(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceConfinedSpaceEntryId = ctx.entryId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Confined Space Entry';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -2393,6 +2455,23 @@
         loadUserDirectory(function () { openFromLotoAudit(lotoCtx); });
       } else {
         loadUserDirectory(function () { openFromLotoAudit({ auditId: fromLotoAudit }); });
+      }
+      return;
+    }
+
+    /* Rev.06 — Confined Space Pre-Entry / Atmospheric Test Record
+       hand-off — action-register.html?fromConfinedSpace=CSE-2026-0XX&lane=ACT,
+       opened by confined-space.html's "⚡ Escalate to Action" button.
+       Same sessionStorage-plus-URL-verification pattern as the Incident,
+       Observation, Mock Drill and LOTO Audit hand-offs above. */
+    var fromConfinedSpace = params.get('fromConfinedSpace');
+    if (fromConfinedSpace) {
+      var csCtx = null;
+      try { csCtx = JSON.parse(sessionStorage.getItem('incomingConfinedSpaceContext') || 'null'); } catch (e) { csCtx = null; }
+      if (csCtx && String(csCtx.entryId) === String(fromConfinedSpace)) {
+        loadUserDirectory(function () { openFromConfinedSpace(csCtx); });
+      } else {
+        loadUserDirectory(function () { openFromConfinedSpace({ entryId: fromConfinedSpace }); });
       }
     }
   }
