@@ -170,6 +170,7 @@
       sourceDrillId: '', /* Rev.04 — set when this ACT record was forwarded from the Mock Drill Register's "Escalate to Action" button. Mutually exclusive with sourceIncidentId/sourceObservationCaseId in practice. */
       sourceLotoAuditId: '', /* Rev.05 — set when this ACT record was forwarded from the LOTO Station Audit Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceConfinedSpaceEntryId: '', /* Rev.06 — set when this ACT record was forwarded from the Confined Space Pre-Entry / Atmospheric Test Record's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
+      sourceHeatStressLogId: '', /* Rev.07 — set when this ACT record was forwarded from the Heat Stress / WBGT Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -362,7 +363,9 @@
           ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from LOTO Station Audit <strong>' + esc(state.sourceLotoAuditId) + '</strong> — a plain Action covering every non-conformity found in that audit: no root cause analysis, no approval gate. Closing this Action automatically closes that audit record too.</div>'
           : (state.sourceConfinedSpaceEntryId
             ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Confined Space Entry <strong>' + esc(state.sourceConfinedSpaceEntryId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that entry record too.</div>'
-            : '')));
+            : (state.sourceHeatStressLogId
+              ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Heat Stress / WBGT Log <strong>' + esc(state.sourceHeatStressLogId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that log entry too.</div>'
+              : ''))));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -556,6 +559,7 @@
               notifyIncidentResidual();
               notifyLotoAuditActionCompleted();
               notifyConfinedSpaceEntryActionCompleted();
+              notifyHeatStressLogActionCompleted();
               alert(state.capaId + ' marked Closed.'); closeWizard(); if (global.reloadLive) reloadLive();
             })
             .catch(function (err) { restoreButtons(); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
@@ -980,6 +984,7 @@
       'Source Drill ID': state.sourceDrillId || '',
       'Source LOTO Audit ID': state.sourceLotoAuditId || '',
       'Source Confined Space Entry ID': state.sourceConfinedSpaceEntryId || '',
+      'Source Heat Stress Log ID': state.sourceHeatStressLogId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
@@ -1243,6 +1248,36 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.07 (Issam, 2026-10-13) — closes the loop back to the Heat
+     Stress / WBGT Log, same fire-and-forget reasoning and direct-write
+     mechanism as notifySourceConfinedSpaceEntry() directly above (the
+     heat_stress sheet is likewise this app's own, already-writable data
+     — no separate escalations tab or upsert needed). Writes the durable
+     "Action Reference" the log row's own toolbar button reads to show
+     its "✓ Escalated → ACT-…" state. Only fires on first save (see
+     afterAssignId in persistAction below) — the reference is assigned
+     once, at creation, never changes on a later resume. */
+  function notifySourceHeatStressLog() {
+    if (!state.sourceHeatStressLogId) return;
+    fetch(SHEETS_URL + '?action=update&tab=heat_stress&idCol=' + encodeURIComponent('Log ID') + '&id=' + encodeURIComponent(state.sourceHeatStressLogId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
+  /* Rev.07 (Issam, 2026-10-13) — mirrors notifyConfinedSpaceEntryActionCompleted()
+     exactly, for the Heat Stress / WBGT Log: once this ACT-lane record
+     reaches Closed, the one log entry that escalated it has its own
+     Status set to Closed too. Fire-and-forget and idempotent, same
+     reasoning as notifyLotoAuditActionCompleted(). */
+  function notifyHeatStressLogActionCompleted() {
+    if (!state.sourceHeatStressLogId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=heat_stress&idCol=' + encodeURIComponent('Log ID') + '&id=' + encodeURIComponent(state.sourceHeatStressLogId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Status': 'Closed' }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* ── Save for the lightweight Action lane — one write, no steps ── */
   function persistAction() {
     if (saving) return;
@@ -1269,10 +1304,12 @@
             notifySourceDrill();
             notifySourceLotoAudit();
             notifySourceConfinedSpaceEntry();
+            notifySourceHeatStressLog();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
             notifyConfinedSpaceEntryActionCompleted();
+            notifyHeatStressLogActionCompleted();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
@@ -1303,6 +1340,7 @@
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
             notifyConfinedSpaceEntryActionCompleted();
+            notifyHeatStressLogActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1573,6 +1611,7 @@
     state.sourceDrillId = col('Source Drill ID');
     state.sourceLotoAuditId = col('Source LOTO Audit ID');
     state.sourceConfinedSpaceEntryId = col('Source Confined Space Entry ID');
+    state.sourceHeatStressLogId = col('Source Heat Stress Log ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2355,6 +2394,23 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.07 — Heat Stress / WBGT Log hand-off — action-register.html
+     ?fromHeatStress=HS-2026-0XX&lane=ACT, opened by heat-stress-log.html's
+     "⚡ Escalate to Action" button. Same sessionStorage-plus-URL-
+     verification pattern as the Incident, Observation, Mock Drill, LOTO
+     Audit and Confined Space hand-offs above. */
+  function openFromHeatStress(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceHeatStressLogId = ctx.logId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Heat Stress / WBGT Log';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -2472,6 +2528,24 @@
         loadUserDirectory(function () { openFromConfinedSpace(csCtx); });
       } else {
         loadUserDirectory(function () { openFromConfinedSpace({ entryId: fromConfinedSpace }); });
+      }
+      return;
+    }
+
+    /* Rev.07 — Heat Stress / WBGT Log hand-off —
+       action-register.html?fromHeatStress=HS-2026-0XX&lane=ACT, opened
+       by heat-stress-log.html's "⚡ Escalate to Action" button. Same
+       sessionStorage-plus-URL-verification pattern as the Incident,
+       Observation, Mock Drill, LOTO Audit and Confined Space hand-offs
+       above. */
+    var fromHeatStress = params.get('fromHeatStress');
+    if (fromHeatStress) {
+      var hsCtx = null;
+      try { hsCtx = JSON.parse(sessionStorage.getItem('incomingHeatStressContext') || 'null'); } catch (e) { hsCtx = null; }
+      if (hsCtx && String(hsCtx.logId) === String(fromHeatStress)) {
+        loadUserDirectory(function () { openFromHeatStress(hsCtx); });
+      } else {
+        loadUserDirectory(function () { openFromHeatStress({ logId: fromHeatStress }); });
       }
     }
   }
