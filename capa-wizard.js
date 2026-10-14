@@ -173,6 +173,7 @@
       sourceHeatStressLogId: '', /* Rev.07 — set when this ACT record was forwarded from the Heat Stress / WBGT Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceScaffoldInspectionId: '', /* Rev.08 — set when this ACT record was forwarded from the Scaffold Inspection Register's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceFirePumpLogId: '', /* Rev.09 — set when this ACT record was forwarded from the Fire Pump Test Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
+      sourceCraneLiftingId: '', /* Rev.10 — set when this ACT record was forwarded from the Crane & Lifting Pre-Use Inspection Checklist's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -371,7 +372,9 @@
                 ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Scaffold Inspection <strong>' + esc(state.sourceScaffoldInspectionId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection record too.</div>'
                 : (state.sourceFirePumpLogId
                   ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Fire Pump Test Log <strong>' + esc(state.sourceFirePumpLogId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that log sheet too.</div>'
-                  : ''))))));
+                  : (state.sourceCraneLiftingId
+                    ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Crane &amp; Lifting Inspection <strong>' + esc(state.sourceCraneLiftingId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection entry too.</div>'
+                    : '')))))));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -568,6 +571,7 @@
               notifyHeatStressLogActionCompleted();
               notifyScaffoldInspectionActionCompleted();
               notifyFirePumpActionCompleted();
+              notifyCraneLiftingActionCompleted();
               alert(state.capaId + ' marked Closed.'); closeWizard(); if (global.reloadLive) reloadLive();
             })
             .catch(function (err) { restoreButtons(); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
@@ -995,6 +999,7 @@
       'Source Heat Stress Log ID': state.sourceHeatStressLogId || '',
       'Source Scaffold Inspection ID': state.sourceScaffoldInspectionId || '',
       'Source Fire Pump Log ID': state.sourceFirePumpLogId || '',
+      'Source Crane Lifting ID': state.sourceCraneLiftingId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
@@ -1326,6 +1331,19 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.10 (Issam, 2026-10-14) — mirrors notifySourceFirePump() exactly,
+     for the Crane & Lifting Pre-Use Inspection Checklist: writes the
+     durable "Action Reference" back to the one checklist entry that
+     escalated it, so the register's own toolbar button can show its
+     "✓ Escalated → ACT-…" state. Only fires on first save. */
+  function notifySourceCraneLifting() {
+    if (!state.sourceCraneLiftingId) return;
+    fetch(SHEETS_URL + '?action=update&tab=crane_checklist&idCol=' + encodeURIComponent('Entry ID') + '&id=' + encodeURIComponent(state.sourceCraneLiftingId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* Rev.09 (Issam, 2026-10-14) — mirrors notifyScaffoldInspectionActionCompleted()
      exactly, for the Fire Pump Test Log: once this ACT-lane record
      reaches Closed, the one log sheet that escalated it has its own
@@ -1333,6 +1351,19 @@
   function notifyFirePumpActionCompleted() {
     if (!state.sourceFirePumpLogId || state.lane !== 'ACT' || state.status !== 'Closed') return;
     fetch(SHEETS_URL + '?action=update&tab=fire_pump_log&idCol=' + encodeURIComponent('Log ID') + '&id=' + encodeURIComponent(state.sourceFirePumpLogId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Status': 'Closed' }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
+  /* Rev.10 (Issam, 2026-10-14) — mirrors notifyFirePumpActionCompleted()
+     exactly, for the Crane & Lifting Pre-Use Inspection Checklist: once
+     this ACT-lane record reaches Closed, the one checklist entry that
+     escalated it has its own Status set to Closed too. Fire-and-forget
+     and idempotent. */
+  function notifyCraneLiftingActionCompleted() {
+    if (!state.sourceCraneLiftingId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=crane_checklist&idCol=' + encodeURIComponent('Entry ID') + '&id=' + encodeURIComponent(state.sourceCraneLiftingId), {
       method: 'POST',
       body: JSON.stringify({ 'Status': 'Closed' }),
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
@@ -1367,6 +1398,7 @@
             notifySourceHeatStressLog();
             notifySourceScaffoldInspection();
             notifySourceFirePump();
+            notifySourceCraneLifting();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
@@ -1374,6 +1406,7 @@
             notifyHeatStressLogActionCompleted();
             notifyScaffoldInspectionActionCompleted();
             notifyFirePumpActionCompleted();
+            notifyCraneLiftingActionCompleted();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
@@ -1407,6 +1440,7 @@
             notifyHeatStressLogActionCompleted();
             notifyScaffoldInspectionActionCompleted();
             notifyFirePumpActionCompleted();
+            notifyCraneLiftingActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1680,6 +1714,7 @@
     state.sourceHeatStressLogId = col('Source Heat Stress Log ID');
     state.sourceScaffoldInspectionId = col('Source Scaffold Inspection ID');
     state.sourceFirePumpLogId = col('Source Fire Pump Log ID');
+    state.sourceCraneLiftingId = col('Source Crane Lifting ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2542,6 +2577,24 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.10 (Issam, 2026-10-14) — Crane & Lifting Inspection hand-off —
+     action-register.html?fromCraneLifting=CRI-2026-0XX&lane=ACT, opened
+     by crane-lifting.html's "⚡ Escalate to Action" button. Same
+     sessionStorage-plus-URL-verification pattern as the Incident,
+     Observation, Mock Drill, LOTO Audit, Confined Space, Heat Stress,
+     Scaffold Inspection and Fire Pump hand-offs above. */
+  function openFromCraneLifting(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceCraneLiftingId = ctx.entryId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Crane & Lifting Inspection';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -2721,6 +2774,24 @@
         loadUserDirectory(function () { openFromFirePump(fplCtx); });
       } else {
         loadUserDirectory(function () { openFromFirePump({ logId: fromFirePump }); });
+      }
+    }
+
+    /* Rev.10 (Issam, 2026-10-14) — Crane & Lifting Inspection hand-off —
+       action-register.html?fromCraneLifting=CRI-2026-0XX&lane=ACT, opened
+       by crane-lifting.html's "⚡ Escalate to Action" button. Same
+       sessionStorage-plus-URL-verification pattern as the Incident,
+       Observation, Mock Drill, LOTO Audit, Confined Space, Heat Stress,
+       Scaffold Inspection and Fire Pump hand-offs above. */
+    var fromCraneLifting = params.get('fromCraneLifting');
+    if (fromCraneLifting) {
+      showLoadingWizard();
+      var clCtx = null;
+      try { clCtx = JSON.parse(sessionStorage.getItem('incomingCraneLiftingContext') || 'null'); } catch (e) { clCtx = null; }
+      if (clCtx && String(clCtx.entryId) === String(fromCraneLifting)) {
+        loadUserDirectory(function () { openFromCraneLifting(clCtx); });
+      } else {
+        loadUserDirectory(function () { openFromCraneLifting({ entryId: fromCraneLifting }); });
       }
     }
   }

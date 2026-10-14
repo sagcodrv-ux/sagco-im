@@ -1,146 +1,807 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SAGCO IMS — Crane & Lifting Equipment Register</title>
 <link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
-</head><body>
-<div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--g100);
-  border-radius:var(--radius);border-left:3px solid var(--gold);margin:10px 0;color:var(--text-lt)}
-.alert-red{background:#FFEBEE;border:1px solid #EF9A9A;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#B71C1C;margin-bottom:10px}
-.alert-amb{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:10px}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-</style><div class="alert-red">⚠️ Stage 2 Blocker: All cranes and lifting equipment must have current third-party annual inspection certificates. Equipment without a current certificate must not be used.</div><div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"><div class="kpi-card kc-blue"><div class="kpi-lbl">Equipment Items</div><div class="kpi-val">—</div><div class="kpi-sub">Enter total count</div></div><div class="kpi-card kc-red"><div class="kpi-lbl">Annual Inspection</div><div class="kpi-val">Third-party</div><div class="kpi-sub">SASO-certified inspector required</div></div><div class="kpi-card kc-org"><div class="kpi-lbl">SWL</div><div class="kpi-val">Must be marked</div><div class="kpi-sub">On all lifting equipment</div></div><div class="kpi-card kc-blue"><div class="kpi-lbl">Pre-use Check</div><div class="kpi-val">Daily</div><div class="kpi-sub">Visual inspection before every lift</div></div><div class="kpi-card kc-nvy"><div class="kpi-lbl">Sheet</div><div class="kpi-val">57</div><div class="kpi-sub">L4-SHEE-PR-11-R-01</div></div></div><div class="req-text">ISO 45001 §8.1 / SASO — All cranes, hoists, slings, and shackles require annual third-party inspection. SWL clearly marked. Pre-use visual inspection before every lift. Operators must hold current SASO certification. Exclusion zone mandatory for any lift. Governed by OC-01 §A.11.</div><div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">📡 LIVE DATA — Google Sheets  |  Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
-<script>initPage("crane-lifting.html");document.getElementById("tb").innerHTML=renderTopbar("Crane & Lifting Equipment Register","L4-SHEE-PR-11-R-01 · ISO 45001 §8.1 / SASO · Third-party Annual Inspection · Workbook Sheet 57");</script>
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   CRANE & LIFTING EQUIPMENT REGISTER — same dark navy/gold theme and
+   card/table shapes as confined-space.html / fire-pump.html. Scoped
+   entirely to .cl-dark-wrap, class prefix clw-. Two live tables:
+   'crane_lifting' (equipment master — one row per crane/lifting item,
+   carries the 3rd-party certificate expiry as "Next Inspection Due",
+   which the existing reminder engine in google-apps-script.js already
+   watches) and 'crane_checklist' (the digitised HSE-FRM-18 pre-use
+   inspection log — one row per inspection event, 23-item checklist
+   stored as one JSON blob alongside flat fields, same "flat fields +
+   one JSON blob" approach used by fire-pump.html, since 23 individual
+   columns would be unwieldy). CHECKLIST_ITEMS below is the single
+   source of truth for the item set — the entry modal and the print
+   function both read from it.
+   ══════════════════════════════════════════════════════════════════ */
+.cl-dark-wrap{
+  --clw-bg:#0D1B35; --clw-bg2:#142140; --clw-bg3:#1a2a50;
+  --clw-gold:#C9A84C; --clw-gold-lt:#E8C97A;
+  --clw-text:rgba(255,255,255,.92); --clw-text-muted:rgba(255,255,255,.55);
+  --clw-text-dim:rgba(255,255,255,.35); --clw-border:rgba(255,255,255,.08);
+  --clw-border-gold:rgba(201,168,76,.35);
+  --clw-blue:#5B9BD5; --clw-red:#F0685C; --clw-amb:#E8B339; --clw-grn:#4FCB9E;
+  background:var(--clw-bg); color:var(--clw-text); margin:0; padding:24px; min-height:100vh;
+}
+.cl-dark-wrap *{box-sizing:border-box}
+.cl-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.cl-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--clw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--clw-bg2);
+  border-radius:8px;border:1px solid var(--clw-border-gold)}
+.cl-dark-wrap .back-link:hover{background:var(--clw-bg3)}
+.cl-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--clw-bg2);
+  border-radius:8px;border-left:3px solid var(--clw-gold);margin:10px 0;color:var(--clw-text-muted)}
+.cl-dark-wrap .flag-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.08);
+  border-radius:8px;border-left:3px solid var(--clw-amb);margin:10px 0;color:var(--clw-text-muted)}
+.cl-dark-wrap .sec-banner{background:var(--clw-bg2);color:var(--clw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--clw-border-gold);border-bottom:none}
+.cl-dark-wrap .kpi-grid{display:grid;gap:14px}
+.cl-dark-wrap .kpi-card{background:var(--clw-bg2);border:1px solid var(--clw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.cl-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.cl-dark-wrap .kpi-card.kc-nvy::before{background:var(--clw-gold)}
+.cl-dark-wrap .kpi-card.kc-blue::before{background:var(--clw-blue)}
+.cl-dark-wrap .kpi-card.kc-amb::before{background:var(--clw-amb)}
+.cl-dark-wrap .kpi-card.kc-red::before{background:var(--clw-red)}
+.cl-dark-wrap .kpi-card.kc-grn::before{background:var(--clw-grn)}
+.cl-dark-wrap .kpi-lbl{font-size:10px;font-weight:700;color:var(--clw-text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.cl-dark-wrap .kpi-val{font-size:22px;font-weight:800;color:var(--clw-text)}
+.cl-dark-wrap .kpi-sub{font-size:10px;color:var(--clw-text-dim);margin-top:2px}
+.cl-dark-wrap .clw-clickable{cursor:pointer}
+.cl-dark-wrap .clw-clickable:hover{background:var(--clw-bg3)}
+.cl-dark-wrap .chart-grid{display:grid;gap:14px}
+.cl-dark-wrap .chart-card{background:var(--clw-bg2);border:1px solid var(--clw-border);border-radius:14px;padding:14px 16px}
+.cl-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--clw-text);
+  display:flex;justify-content:space-between;margin-bottom:8px}
+.cl-dark-wrap .chart-sub{font-size:10px;color:var(--clw-text-muted);font-weight:400}
+.cl-dark-wrap .chart-wrap{height:220px;position:relative}
+.cl-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.cl-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--clw-grn)}
+.cl-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--clw-red)}
+.cl-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--clw-amb)}
+.cl-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--clw-blue)}
+.cl-dark-wrap .filter-row{display:flex;gap:8px;flex-wrap:wrap;background:var(--clw-bg2);
+  border:1px solid var(--clw-border-gold);border-top:none;border-bottom:none;padding:10px 14px;margin:0}
+.cl-dark-wrap .filter-btn{font-size:11px;font-weight:700;padding:9px 14px;border-radius:9px;
+  border:1px solid var(--clw-border-gold);background:var(--clw-bg2);color:var(--clw-text-muted);cursor:pointer}
+.cl-dark-wrap .filter-btn.active{background:rgba(201,168,76,.18);color:var(--clw-gold-lt);border-color:var(--clw-gold)}
+.cl-dark-wrap .clw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--clw-bg2);border:1px solid var(--clw-border-gold);border-top:none}
+.cl-dark-wrap .clw-toolbar input[type=text]{background:var(--clw-bg3);border:1px solid var(--clw-border);
+  color:var(--clw-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:170px}
+.cl-dark-wrap .clw-toolbar select{background:var(--clw-bg3);border:1px solid var(--clw-border);
+  color:var(--clw-text);border-radius:7px;padding:7px 10px;font-size:11px}
+.cl-dark-wrap .clw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--clw-border-gold);
+  background:var(--clw-bg3);color:var(--clw-gold-lt);cursor:pointer}
+.cl-dark-wrap .clw-btn:hover{background:rgba(201,168,76,.15)}
+.cl-dark-wrap .clw-btn:disabled{opacity:.4;cursor:not-allowed}
+.cl-dark-wrap .clw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--clw-grn)}
+.cl-dark-wrap .clw-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--clw-amb)}
+.cl-dark-wrap .clw-table-wrap{border:1px solid var(--clw-border-gold);border-top:none;max-height:420px;overflow:auto}
+.cl-dark-wrap table.clw-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.cl-dark-wrap table.clw-tbl th{position:sticky;top:0;background:var(--clw-bg3);color:var(--clw-gold-lt);
+  text-align:left;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--clw-border-gold);white-space:nowrap}
+.cl-dark-wrap table.clw-tbl td{padding:7px 10px;border-bottom:1px solid var(--clw-border);color:var(--clw-text)}
+.cl-dark-wrap table.clw-tbl tr.clw-row{cursor:pointer}
+.cl-dark-wrap table.clw-tbl tr.clw-row:hover{background:var(--clw-bg3)}
+.cl-dark-wrap table.clw-tbl tr.clw-row.clw-sel{background:rgba(201,168,76,.12)}
+.cl-dark-wrap .empty-state{padding:30px;text-align:center;color:var(--clw-text-dim);font-size:11px}
+.cl-dark-wrap .empty-state strong{display:block;color:var(--clw-text-muted);margin-bottom:4px;font-size:12px}
+/* Modal */
+.clw-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;
+  justify-content:center;z-index:999;padding:30px 14px;overflow:auto}
+.clw-modal{background:var(--clw-bg2);border:1px solid var(--clw-border-gold);border-radius:14px;
+  padding:20px 22px;max-width:1000px;width:100%;color:var(--clw-text)}
+.clw-modal h3{margin:0 0 12px;font-size:14px;color:var(--clw-gold-lt)}
+.clw-modal-hdr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.clw-modal-hdr-grid label, .clw-field label{display:block;font-size:10px;font-weight:600;color:var(--clw-text-muted);
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.clw-modal-hdr-grid input, .clw-modal-hdr-grid select, .clw-modal-hdr-grid textarea{width:100%;background:var(--clw-bg3);
+  border:1px solid var(--clw-border);color:var(--clw-text);border-radius:7px;padding:7px 9px;font-size:12px}
+.clw-grid-wrap{overflow-x:auto;border:1px solid var(--clw-border);border-radius:8px;margin-bottom:14px}
+table.clw-entry-grid{width:100%;border-collapse:collapse;font-size:11px;min-width:640px}
+table.clw-entry-grid th{background:var(--clw-bg3);color:var(--clw-gold-lt);padding:6px 8px;
+  border:1px solid var(--clw-border);text-align:center;white-space:nowrap}
+table.clw-entry-grid td{padding:5px 7px;border:1px solid var(--clw-border);text-align:center}
+table.clw-entry-grid td.clw-item-cell{text-align:left;white-space:normal;min-width:340px}
+table.clw-entry-grid tr.clw-section-row td{background:var(--clw-bg3);color:var(--clw-gold-lt);
+  font-weight:700;text-align:left;text-transform:uppercase;font-size:9.5px;letter-spacing:.4px}
+table.clw-entry-grid select{width:84px;background:var(--clw-bg);border:1px solid var(--clw-border);
+  color:var(--clw-text);border-radius:5px;padding:3px 2px;font-size:10.5px;text-align:center}
+table.clw-entry-grid input.clw-remark{width:100%;min-width:130px;background:var(--clw-bg);border:1px solid var(--clw-border);
+  color:var(--clw-text);border-radius:5px;padding:3px 6px;font-size:10.5px}
+.clw-result-bar{display:flex;gap:16px;align-items:center;padding:10px 14px;background:var(--clw-bg3);
+  border-radius:8px;margin-bottom:14px;font-size:12px;font-weight:700}
+.clw-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.clw-note{font-size:10.5px;color:var(--clw-amb);background:rgba(232,179,57,.1);border-left:3px solid var(--clw-amb);
+  padding:8px 10px;border-radius:6px;margin-bottom:12px;line-height:1.5}
+</style>
+</head><body><div class="cl-dark-wrap">
+<div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div>
+<div class="req-text">L4-SHEE-PR-11-R-01 · ISO 45001 §8.1 / SASO — Crane & Lifting Equipment Register, covering the equipment master list (with 3rd-party annual inspection certificate tracking) and the digitised HSE-FRM-18 Operator Pre-Use Inspection Checklist. All cranes, hoists, slings and shackles require a valid annual third-party certificate; SWL marked; pre-use visual inspection before every lift. Governed by OC-01 §A.11.</div>
+<div class="flag-text">⚠ The 23-item checklist below reproduces HSE-FRM-18 exactly. The form itself only checks whether a valid 3rd-party certificate <em>exists</em> (item D2) — it doesn't capture the certificate's own expiry date. Since the auto-reminder engine already watches a "Next Inspection Due" field on this register, that expiry is tracked separately per piece of equipment in the master list below, not per checklist entry — add or update it there when a new certificate is issued. The previous placeholder page referenced this register as "Sheet 57"; nav.js and the Operations Hub scopes list it under Sh.45 — flagging this label mismatch rather than resolving it, as it may refer to the master reference workbook's own numbering.</div>
+
+<div class="sec-banner">CRANE & LIFTING QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy clw-clickable" onclick="CRL.equipCardClick('total')" title="Click to view the equipment register"><div class="kpi-lbl">Total Equipment</div><div class="kpi-val" id="cl-kpi-equip-total">—</div><div class="kpi-sub">Crane & Lifting Register</div></div>
+  <div class="kpi-card kc-amb clw-clickable" onclick="CRL.equipCardClick('due')" title="Click to view equipment due for re-certification"><div class="kpi-lbl">Certificates Due ≤14 Days</div><div class="kpi-val" id="cl-kpi-due">—</div><div class="kpi-sub">Next Inspection Due approaching</div></div>
+  <div class="kpi-card kc-red clw-clickable" onclick="CRL.equipCardClick('overdue')" title="Click to view overdue certificates"><div class="kpi-lbl">Certificates Overdue</div><div class="kpi-val" id="cl-kpi-overdue">—</div><div class="kpi-sub">Must not be used until renewed</div></div>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-blue clw-clickable" onclick="CRL.chkCardClick('month')" title="Click to view this month's inspections"><div class="kpi-lbl">Inspections This Month</div><div class="kpi-val" id="cl-kpi-month">—</div><div class="kpi-sub" id="cl-kpi-month-sub">Loading…</div></div>
+  <div class="kpi-card kc-red clw-clickable" onclick="CRL.chkCardClick('open')" title="Click to view open corrective actions"><div class="kpi-lbl">Open Corrective Actions</div><div class="kpi-val" id="cl-kpi-open">—</div><div class="kpi-sub">Deficiency found, not yet closed</div></div>
+  <div class="kpi-card kc-grn clw-clickable" onclick="CRL.chkCardClick('accept')" title="Click to view accepted inspections"><div class="kpi-lbl">Accepted / Rejected</div><div class="kpi-val" id="cl-kpi-acc-rej">—</div><div class="kpi-sub">All-time checklist results</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+  <div class="chart-card"><div class="chart-title">Inspection Results<span class="chart-sub">accept vs reject</span></div><div class="chart-wrap"><canvas id="clResultChart"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Inspections by Month<span class="chart-sub">based on inspection date</span></div><div class="chart-wrap"><canvas id="clMonthChart"></canvas></div></div>
+</div>
+
+<div class="sec-banner">CRANE & LIFTING EQUIPMENT REGISTER</div>
+<div class="clw-toolbar">
+  <input type="text" id="cl-equip-search" placeholder="Search model / serial…" oninput="CRL.onEquipSearch(this.value)">
+  <button class="clw-btn clw-btn-add" id="cl-equip-btn-new" onclick="CRL.openEquipAdd()">+ Add Equipment</button>
+  <button class="clw-btn" id="cl-equip-btn-edit" disabled onclick="CRL.openEquipEditSelected()">Open / Edit</button>
+  <button class="clw-btn" id="cl-equip-btn-remove" disabled onclick="CRL.removeEquipSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--clw-text-dim)" id="cl-equip-count-sub"></span>
+</div>
+<div class="clw-table-wrap"><div id="live-table-equip"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div class="sec-banner">PRE-USE INSPECTION CHECKLIST LOG — HSE-FRM-18</div>
+<div class="filter-row">
+  <button class="filter-btn active" id="cl-chk-f-all" onclick="CRL.setChkFilter('all')">All</button>
+  <button class="filter-btn" id="cl-chk-f-open" onclick="CRL.setChkFilter('open')">Open</button>
+  <button class="filter-btn" id="cl-chk-f-closed" onclick="CRL.setChkFilter('closed')">Closed</button>
+</div>
+<div class="clw-toolbar">
+  <input type="text" id="cl-chk-search" placeholder="Search equipment ID…" oninput="CRL.onChkSearch(this.value)">
+  <button class="clw-btn clw-btn-add" id="cl-chk-btn-new" onclick="CRL.openChkAdd()">+ New Inspection</button>
+  <button class="clw-btn" id="cl-chk-btn-edit" disabled onclick="CRL.openChkEditSelected()">Open / Edit</button>
+  <button class="clw-btn" id="cl-chk-btn-print" disabled onclick="CRL.printChkSelected()">🖨️ Print</button>
+  <button class="clw-btn clw-btn-esc" id="cl-chk-btn-esc" disabled onclick="CRL.escalateChkSelected()">⚡ Escalate to Action</button>
+  <button class="clw-btn" id="cl-chk-btn-remove" disabled onclick="CRL.removeChkSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--clw-text-dim)" id="cl-chk-count-sub"></span>
+</div>
+<div class="clw-table-wrap"><div id="live-table-chk"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div id="cl-modal-root"></div>
 
 <script>
-/* ── Auto-update summary cards from live Sheets data ── */
-
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
-  }
-  return '—';
-}
-
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
-    }
-  }
-}
 (function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows && d.rows.length > 0){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('Equipment Items', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
-      }
+
+  /* ── CHECKLIST_ITEMS: single source of truth, mirrors HSE-FRM-18
+     exactly — 23 items in 5 categories, every item a simple Ok/No. ── */
+  var CHECKLIST_ITEMS = [
+    {id:'D1', cat:'Documents', item:'Driver has a valid operating & driving license'},
+    {id:'D2', cat:'Documents', item:'Equipment has a valid 3rd party certificate'},
+    {id:'D3', cat:'Documents', item:'Equipment has a valid insurance'},
+    {id:'D4', cat:'Documents', item:'Equipment has a load chart'},
+    {id:'L1', cat:'Leakages', item:'All outriggers with no leakage and have cribbing in good condition'},
+    {id:'L2', cat:'Leakages', item:'Telescopic boom in a good condition and has no leakage'},
+    {id:'L3', cat:'Leakages', item:'No oil/fuel leakage from engine'},
+    {id:'L4', cat:'Leakages', item:'All hydraulic hoses in good condition with no leaks'},
+    {id:'W1', cat:'Wires Safety', item:'Lifting wires inspected, certified and in good condition'},
+    {id:'W2', cat:'Wires Safety', item:'Equipment reels have no cracks, dents or damage and in good condition'},
+    {id:'W3', cat:'Wires Safety', item:'Crane wires reels around the drum smoothly'},
+    {id:'S1', cat:'Safety Requirements During Lifting', item:'Hook has a safety latch and in good condition'},
+    {id:'S2', cat:'Safety Requirements During Lifting', item:'Overload switch working properly'},
+    {id:'S3', cat:'Safety Requirements During Lifting', item:'Load indicator, boom length and angle indicator in the crane'},
+    {id:'S4', cat:'Safety Requirements During Lifting', item:'Telescopic limit device working'},
+    {id:'S5', cat:'Safety Requirements During Lifting', item:'Anti-two block device (Hoist limit switch) working'},
+    {id:'G1', cat:'General Safety Requirement', item:'All lights are working with good condition'},
+    {id:'G2', cat:'General Safety Requirement', item:'All tires have no cuts or damage and in good condition'},
+    {id:'G3', cat:'General Safety Requirement', item:'Fire extinguisher is present and valid'},
+    {id:'G4', cat:'General Safety Requirement', item:'Operator cabin has no broken glass and the vision is clear'},
+    {id:'G5', cat:'General Safety Requirement', item:'Warning horn and Backward siren are working'},
+    {id:'G6', cat:'General Safety Requirement', item:'Wire rope is fixed in the load to control load turn (2 at least)'},
+    {id:'G7', cat:'General Safety Requirement', item:'Safe working loads and corresponding radius are known and considered before any lifting commences'}
+  ];
+
+  var EQUIP_TYPES = ['Mobile Crane','Tower Crane','Overhead Crane','Forklift','Telehandler','Hoist / Chain Block','Other'];
+  var EQUIP_STATUSES = ['Active','Out of Service','Decommissioned'];
+
+  var EQUIP = { tabKey:'crane_lifting', containerId:'live-table-equip', idCol:'Equipment ID', idPrefix:'CRN-', idPad:3 };
+  var CHK = { tabKey:'crane_checklist', containerId:'live-table-chk', idCol:'Entry ID', idPrefix:'CRI-', idPad:3 };
+  var STATUS_COL = 'Record Status';
+
+  var _equipCache = null, _chkCache = null;
+  var _equipSelected = null, _chkSelected = null;
+  var _equipFilters = { search:'', special:null };
+  var _chkFilters = { search:'', status:'all', special:null };
+  var _charts = { result:null, month:null };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function clEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+  function nextId(table, cache){
+    if (!cache || !cache.headers || !cache.rows) return table.idPrefix + '001';
+    var idIdx = colIdx(cache.headers, table.idCol);
+    if (idIdx < 0) return table.idPrefix + '001';
+    var maxN = 0;
+    cache.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(table.idPrefix.toLowerCase()) !== 0) return;
+      var n = parseInt(v.slice(table.idPrefix.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    var numStr = String(maxN + 1);
+    while (numStr.length < table.idPad) numStr = '0' + numStr;
+    return table.idPrefix + numStr;
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){
+    return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
+  }
+
+  /* ── Deficiency logic ─────────────────────────────────────────── */
+  function computeResult(items){
+    var count = 0, parts = [];
+    CHECKLIST_ITEMS.forEach(function(def){
+      var it = (items||[]).find(function(x){ return x.id === def.id; });
+      if (it && String(it.result).toUpperCase() === 'NO'){ count++; parts.push(def.id + ' (' + def.item + ')'); }
+    });
+    return {
+      count: count,
+      summary: parts.join('; '),
+      overall: count > 0 ? 'Reject Crane' : 'Accept Crane',
+      status: count > 0 ? 'Open' : 'Closed'
     };
   }
+  function daysUntil(dateStr){
+    if (!dateStr) return null;
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    var today = new Date(); today.setHours(0,0,0,0); d.setHours(0,0,0,0);
+    return Math.round((d - today) / 86400000);
+  }
+
+  /* ── Load both tabs ───────────────────────────────────────────── */
+  function loadAll(){
+    return Promise.all([
+      loadTab(EQUIP.tabKey).then(function(data){
+        if (data && data.headers && data.rows){
+          var si = colIdx(data.headers, STATUS_COL);
+          if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+        }
+        _equipCache = data;
+      }).catch(function(){ _equipCache = null; }),
+      loadTab(CHK.tabKey).then(function(data){
+        if (data && data.headers && data.rows){
+          var si = colIdx(data.headers, STATUS_COL);
+          if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+        }
+        _chkCache = data;
+      }).catch(function(){ _chkCache = null; })
+    ]).then(render);
+  }
+
+  function getEquipRecs(){
+    if (!_equipCache || !_equipCache.headers || !_equipCache.rows) return [];
+    return _equipCache.rows.map(function(r){ return recFromRow(_equipCache.headers, r); });
+  }
+  function getChkRecs(){
+    if (!_chkCache || !_chkCache.headers || !_chkCache.rows) return [];
+    return _chkCache.rows.map(function(r){ return recFromRow(_chkCache.headers, r); });
+  }
+
+  /* ── KPIs + charts ────────────────────────────────────────────── */
+  function render(){
+    var eqRecs = getEquipRecs(), chkRecs = getChkRecs();
+
+    var dueSoon = eqRecs.filter(function(rc){ var d = daysUntil(rc['Next Inspection Due']); return d !== null && d >= 0 && d <= 14; }).length;
+    var overdue = eqRecs.filter(function(rc){ var d = daysUntil(rc['Next Inspection Due']); return d !== null && d < 0; }).length;
+    setTxt('cl-kpi-equip-total', eqRecs.length);
+    setTxt('cl-kpi-due', dueSoon);
+    setTxt('cl-kpi-overdue', overdue);
+
+    var now = new Date();
+    var thisMonth = chkRecs.filter(function(rc){
+      var d = new Date(rc['Date']);
+      return !isNaN(d.getTime()) && d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+    }).length;
+    var openCount = chkRecs.filter(function(rc){ return rc['Status']==='Open'; }).length;
+    var accepted = chkRecs.filter(function(rc){ return rc['Overall Result']==='Accept Crane'; }).length;
+    var rejected = chkRecs.filter(function(rc){ return rc['Overall Result']==='Reject Crane'; }).length;
+    setTxt('cl-kpi-month', thisMonth); setTxt('cl-kpi-month-sub', now.toLocaleString('en',{month:'long'}) + ' ' + now.getFullYear());
+    setTxt('cl-kpi-open', openCount);
+    setTxt('cl-kpi-acc-rej', accepted + ' / ' + rejected);
+
+    renderCharts(chkRecs);
+    renderEquipTable(eqRecs);
+    renderChkTable(chkRecs);
+  }
+
+  function renderCharts(chkRecs){
+    var accepted = chkRecs.filter(function(rc){ return rc['Overall Result']==='Accept Crane'; }).length;
+    var rejected = chkRecs.filter(function(rc){ return rc['Overall Result']==='Reject Crane'; }).length;
+    var byMonth = {};
+    chkRecs.forEach(function(rc){
+      var d = new Date(rc['Date']);
+      var mk = isNaN(d.getTime()) ? 'Unknown' : d.toLocaleString('en',{month:'short'}) + ' ' + d.getFullYear();
+      byMonth[mk] = (byMonth[mk]||0) + 1;
+    });
+    var monthLabels = Object.keys(byMonth);
+    var monthData = monthLabels.map(function(k){ return byMonth[k]; });
+
+    if (typeof Chart === 'undefined') return;
+    if (_charts.result) _charts.result.destroy();
+    if (_charts.month) _charts.month.destroy();
+    var ctx1 = document.getElementById('clResultChart');
+    if (ctx1) _charts.result = new Chart(ctx1, {
+      type:'bar',
+      data:{ labels:['Accept Crane','Reject Crane'], datasets:[{ label:'Entries', data:[accepted, rejected], backgroundColor:['#4FCB9E','#F0685C'] }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#fff', font:{size:9}}}, y:{ticks:{color:'#fff'}} } }
+    });
+    var ctx2 = document.getElementById('clMonthChart');
+    if (ctx2) _charts.month = new Chart(ctx2, {
+      type:'line',
+      data:{ labels: monthLabels, datasets:[{ label:'Inspections', data: monthData, borderColor:'#5B9BD5', backgroundColor:'rgba(91,155,213,.2)', fill:true, tension:.3 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#fff', font:{size:9}}}, y:{ticks:{color:'#fff'}} } }
+    });
+  }
+
+  /* ── Equipment master table ──────────────────────────────────── */
+  function filteredEquip(recs){
+    var f = _equipFilters;
+    return recs.filter(function(rc){
+      if (f.search){
+        var hay = ((rc['Model']||'')+' '+(rc['Serial Number']||'')).toLowerCase();
+        if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+      }
+      if (f.special === 'due'){ var d = daysUntil(rc['Next Inspection Due']); if (!(d !== null && d >= 0 && d <= 14)) return false; }
+      if (f.special === 'overdue'){ var d2 = daysUntil(rc['Next Inspection Due']); if (!(d2 !== null && d2 < 0)) return false; }
+      return true;
+    });
+  }
+  function renderEquipTable(recs){
+    var list = filteredEquip(recs);
+    var el = document.getElementById(EQUIP.containerId);
+    setTxt('cl-equip-count-sub', list.length + ' of ' + recs.length + ' items shown');
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No equipment found</strong>Add the first crane or lifting item to get started.</div>';
+      updateEquipButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(a['Equipment ID']||'').localeCompare(String(b['Equipment ID']||'')); });
+    var rows = list.map(function(rc){
+      var sel = _equipSelected === rc['Equipment ID'];
+      var d = daysUntil(rc['Next Inspection Due']);
+      var dueBadge = d === null ? '—' : (d < 0 ? '<span class="badge kc-red">Overdue ' + Math.abs(d) + 'd</span>'
+        : (d <= 14 ? '<span class="badge kc-amb">Due in ' + d + 'd</span>' : '<span class="badge kc-grn">OK</span>'));
+      var statusBadge = rc['Status'] === 'Active' ? '<span class="badge kc-grn">Active</span>'
+        : (rc['Status'] === 'Out of Service' ? '<span class="badge kc-amb">Out of Service</span>' : '<span class="badge kc-red">Decommissioned</span>');
+      return '<tr class="clw-row' + (sel?' clw-sel':'') + '" onclick="CRL.selectEquip(\'' + clEsc(rc['Equipment ID']) + '\')">'
+        + '<td>' + clEsc(rc['Equipment ID']) + '</td>'
+        + '<td>' + clEsc(rc['Equipment Type']) + '</td>'
+        + '<td>' + clEsc(rc['Model']) + '</td>'
+        + '<td>' + clEsc(rc['Serial Number']) + '</td>'
+        + '<td>' + clEsc(rc['Next Inspection Due']) + ' ' + dueBadge + '</td>'
+        + '<td>' + statusBadge + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="clw-tbl"><thead><tr><th>Equipment ID</th><th>Type</th><th>Model</th><th>Serial Number</th><th>Next Inspection Due</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateEquipButtons();
+  }
+  function updateEquipButtons(){
+    var rc = getSelectedEquip();
+    document.getElementById('cl-equip-btn-edit').disabled = !rc;
+    document.getElementById('cl-equip-btn-remove').disabled = !rc || !can('delete');
+  }
+  function getSelectedEquip(){
+    if (!_equipCache || !_equipSelected) return null;
+    var idIdx = colIdx(_equipCache.headers, EQUIP.idCol);
+    var row = _equipCache.rows.find(function(r){ return String(r[idIdx]) === String(_equipSelected); });
+    return row ? recFromRow(_equipCache.headers, row) : null;
+  }
+  function getEquipOptions(){
+    return getEquipRecs().map(function(rc){ return rc['Equipment ID']; }).filter(Boolean).sort();
+  }
+
+  /* ── Equipment Add/Edit modal (plain field form) ─────────────── */
+  function buildEquipModal(existingRec){
+    var root = document.getElementById('cl-modal-root');
+    var isEdit = !!existingRec;
+    var eqId = isEdit ? existingRec['Equipment ID'] : nextId(EQUIP, _equipCache);
+    var typeOpts = EQUIP_TYPES.map(function(t){ return '<option value="'+t+'"'+((existingRec&&existingRec['Equipment Type']===t)?' selected':'')+'>'+t+'</option>'; }).join('');
+    var statusOpts = EQUIP_STATUSES.map(function(s){ return '<option value="'+s+'"'+((existingRec&&existingRec['Status']===s)?' selected':(!existingRec&&s==='Active'?' selected':''))+'>'+s+'</option>'; }).join('');
+    root.innerHTML = '<div class="clw-modal-bg" id="clm-bg"><div class="clw-modal">'
+      + '<h3>' + (isEdit?'Edit':'Add') + ' Equipment — ' + clEsc(eqId) + '</h3>'
+      + '<div class="clw-modal-hdr-grid">'
+        + '<div><label>Equipment Type</label><select id="clm-eq-type">' + typeOpts + '</select></div>'
+        + '<div><label>Model</label><input type="text" id="clm-eq-model" value="' + clEsc(existingRec?existingRec['Model']:'') + '"></div>'
+        + '<div><label>Serial Number</label><input type="text" id="clm-eq-serial" value="' + clEsc(existingRec?existingRec['Serial Number']:'') + '"></div>'
+        + '<div><label>Status</label><select id="clm-eq-status">' + statusOpts + '</select></div>'
+        + '<div><label>Last Inspection Date</label><input type="date" id="clm-eq-last" value="' + clEsc(existingRec?existingRec['Last Inspection Date']:'') + '"></div>'
+        + '<div><label>Next Inspection Due</label><input type="date" id="clm-eq-next" value="' + clEsc(existingRec?existingRec['Next Inspection Due']:'') + '"></div>'
+      + '</div>'
+      + '<div class="clw-field" style="margin-bottom:14px"><label>Remarks</label><textarea id="clm-eq-remarks" rows="2" style="width:100%;background:var(--clw-bg3);border:1px solid var(--clw-border);color:var(--clw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + clEsc(existingRec?existingRec['Remarks']:'') + '</textarea></div>'
+      + '<div id="clm-eq-status-msg" style="font-size:10px;min-height:14px"></div>'
+      + '<div class="clw-modal-actions"><button class="clw-btn" id="clm-eq-cancel">Cancel</button><button class="clw-btn clw-btn-add" id="clm-eq-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('clm-eq-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('clm-bg').onclick = function(e){ if (e.target.id==='clm-bg') root.innerHTML=''; };
+    document.getElementById('clm-eq-save').onclick = function(){ saveEquip(eqId, isEdit); };
+  }
+  function saveEquip(eqId, isEdit){
+    var root = document.getElementById('cl-modal-root');
+    var btn = document.getElementById('clm-eq-save'); btn.disabled = true;
+    var values = {
+      'Equipment ID': eqId,
+      'Equipment Type': document.getElementById('clm-eq-type').value,
+      'Model': document.getElementById('clm-eq-model').value.trim(),
+      'Serial Number': document.getElementById('clm-eq-serial').value.trim(),
+      'Last Inspection Date': document.getElementById('clm-eq-last').value,
+      'Next Inspection Due': document.getElementById('clm-eq-next').value,
+      'Status': document.getElementById('clm-eq-status').value,
+      'Remarks': document.getElementById('clm-eq-remarks').value.trim()
+    };
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    if (isEdit){
+      postJSON('update', {tab: EQUIP.tabKey, idCol: EQUIP.idCol, id: eqId}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: EQUIP.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ── Checklist log table ─────────────────────────────────────── */
+  function filteredChk(recs){
+    var f = _chkFilters;
+    return recs.filter(function(rc){
+      if (f.status === 'open' && rc['Status'] !== 'Open') return false;
+      if (f.status === 'closed' && rc['Status'] !== 'Closed') return false;
+      if (f.search && (rc['Equipment ID']||'').toLowerCase().indexOf(f.search.toLowerCase()) < 0) return false;
+      if (f.special === 'month'){
+        var now = new Date(); var d = new Date(rc['Date']);
+        if (isNaN(d.getTime()) || d.getMonth()!==now.getMonth() || d.getFullYear()!==now.getFullYear()) return false;
+      }
+      if (f.special === 'open' && rc['Status'] !== 'Open') return false;
+      if (f.special === 'accept' && rc['Overall Result'] !== 'Accept Crane') return false;
+      return true;
+    });
+  }
+  function renderChkTable(recs){
+    var list = filteredChk(recs);
+    var el = document.getElementById(CHK.containerId);
+    setTxt('cl-chk-count-sub', list.length + ' of ' + recs.length + ' entries shown');
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No inspections match</strong>Try a different filter or clear the search.</div>';
+      updateChkButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Entry ID']||'').localeCompare(String(a['Entry ID']||'')); });
+    var rows = list.map(function(rc){
+      var sel = _chkSelected === rc['Entry ID'];
+      var resultBadge = rc['Overall Result']==='Accept Crane' ? '<span class="badge kc-grn">Accept</span>' : '<span class="badge kc-red">Reject</span>';
+      var statusBadge = rc['Status']==='Open' ? '<span class="badge kc-amb">Open</span>' : '<span class="badge kc-blue">Closed</span>';
+      var actionCell = rc['Action Reference']
+        ? '<a href="action-register.html?capa=' + encodeURIComponent(rc['Action Reference']) + '" style="color:var(--clw-gold-lt)">' + clEsc(rc['Action Reference']) + '</a>'
+        : '—';
+      return '<tr class="clw-row' + (sel?' clw-sel':'') + '" onclick="CRL.selectChk(\'' + clEsc(rc['Entry ID']) + '\')">'
+        + '<td>' + clEsc(rc['Entry ID']) + '</td>'
+        + '<td>' + clEsc(rc['Date']) + '</td>'
+        + '<td>' + clEsc(rc['Equipment ID']) + '</td>'
+        + '<td>' + clEsc(rc['Operator Name & ID']) + '</td>'
+        + '<td>' + clEsc(rc['Deficiency Count']||0) + '</td>'
+        + '<td>' + resultBadge + '</td>'
+        + '<td>' + statusBadge + '</td>'
+        + '<td>' + actionCell + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="clw-tbl"><thead><tr><th>Entry ID</th><th>Date</th><th>Equipment ID</th><th>Operator</th><th>Deficiencies</th><th>Result</th><th>Status</th><th>Action Ref.</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateChkButtons();
+  }
+  function updateChkButtons(){
+    var rc = getSelectedChk();
+    document.getElementById('cl-chk-btn-edit').disabled = !rc;
+    document.getElementById('cl-chk-btn-print').disabled = !rc;
+    document.getElementById('cl-chk-btn-remove').disabled = !rc || !can('delete');
+    var escBtn = document.getElementById('cl-chk-btn-esc');
+    escBtn.disabled = !rc || (rc['Deficiency Count']|0) <= 0 || !!(rc['Action Reference']);
+    escBtn.title = rc && rc['Action Reference'] ? 'Already escalated — see ' + rc['Action Reference'] : '';
+  }
+  function getSelectedChk(){
+    if (!_chkCache || !_chkSelected) return null;
+    var idIdx = colIdx(_chkCache.headers, CHK.idCol);
+    var row = _chkCache.rows.find(function(r){ return String(r[idIdx]) === String(_chkSelected); });
+    return row ? recFromRow(_chkCache.headers, row) : null;
+  }
+
+  /* ── Checklist entry modal (custom grid, all 23 items) ───────── */
+  function buildChkModal(existingRec){
+    var root = document.getElementById('cl-modal-root');
+    var isEdit = !!existingRec;
+    var entryId = isEdit ? existingRec['Entry ID'] : nextId(CHK, _chkCache);
+    var items = [];
+    if (isEdit && existingRec['Checklist Data (JSON)']){
+      try { items = JSON.parse(existingRec['Checklist Data (JSON)']).items || []; } catch(e){ items = []; }
+    }
+    var equipOpts = getEquipOptions();
+    var curEquip = existingRec ? existingRec['Equipment ID'] : '';
+
+    var hdrHtml = '<div class="clw-modal-hdr-grid">'
+      + '<div><label>Date</label><input type="date" id="clm-chk-date" value="' + clEsc(existingRec ? existingRec['Date'] : new Date().toISOString().slice(0,10)) + '"></div>'
+      + '<div><label>Equipment ID</label><select id="clm-chk-equip">'
+        + '<option value="">— select —</option>'
+        + equipOpts.map(function(e){ return '<option value="'+clEsc(e)+'"'+(e===curEquip?' selected':'')+'>'+clEsc(e)+'</option>'; }).join('')
+      + '</select></div>'
+      + '<div><label>Operator Name &amp; ID</label><input type="text" id="clm-chk-operator" value="' + clEsc(existingRec?existingRec['Operator Name & ID']:'') + '"></div>'
+      + '<div><label>Inspected By</label><input type="text" id="clm-chk-inspector" value="' + clEsc(existingRec?existingRec['Inspected By']:'') + '"></div>'
+    + '</div>';
+    if (!equipOpts.length){
+      hdrHtml = '<div class="clw-note">⚠ No equipment is on file yet. Add a crane or lifting item to the Equipment Register above before logging an inspection.</div>' + hdrHtml;
+    }
+
+    var lastCat = null, gridRows = '';
+    CHECKLIST_ITEMS.forEach(function(def){
+      if (def.cat !== lastCat){
+        gridRows += '<tr class="clw-section-row"><td colspan="3">' + clEsc(def.cat) + '</td></tr>';
+        lastCat = def.cat;
+      }
+      var existing = items.find(function(x){ return x.id === def.id; }) || {};
+      var res = existing.result || '';
+      var rem = existing.remarks || '';
+      gridRows += '<tr>'
+        + '<td class="clw-item-cell">#' + clEsc(def.id) + ' — ' + clEsc(def.item) + '</td>'
+        + '<td><select data-item="' + def.id + '" data-field="result">'
+          + '<option value=""' + (res===''?' selected':'') + '></option>'
+          + '<option value="OK"' + (res==='OK'?' selected':'') + '>Ok</option>'
+          + '<option value="NO"' + (res==='NO'?' selected':'') + '>No</option>'
+        + '</select></td>'
+        + '<td><input type="text" class="clw-remark" data-item="' + def.id + '" data-field="remarks" value="' + clEsc(rem) + '" placeholder="Remarks"></td>'
+      + '</tr>';
+    });
+    var gridHtml = '<div class="clw-grid-wrap"><table class="clw-entry-grid"><thead><tr><th>Checklist Item</th><th>Compliance</th><th>Remarks</th></tr></thead><tbody>' + gridRows + '</tbody></table></div>';
+
+    root.innerHTML = '<div class="clw-modal-bg" id="clm-bg"><div class="clw-modal">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' Inspection — ' + clEsc(entryId) + ' · HSE-FRM-18</h3>'
+      + hdrHtml + gridHtml
+      + '<div class="clw-result-bar" id="clm-chk-resultbar">Result: — &nbsp;|&nbsp; Status: —</div>'
+      + '<div id="clm-chk-status-msg" style="font-size:10px;min-height:14px"></div>'
+      + '<div class="clw-modal-actions"><button class="clw-btn" id="clm-chk-cancel">Cancel</button><button class="clw-btn clw-btn-add" id="clm-chk-save">Save</button></div>'
+    + '</div></div>';
+
+    function refreshResultBar(){
+      var curItems = readGridItems(root);
+      var res = computeResult(curItems);
+      var bar = document.getElementById('clm-chk-resultbar');
+      bar.innerHTML = 'Result: <span style="color:' + (res.overall==='Accept Crane'?'var(--clw-grn)':'var(--clw-red)') + '">' + res.overall + '</span>'
+        + ' &nbsp;|&nbsp; Status: <span style="color:' + (res.status==='Open'?'var(--clw-amb)':'var(--clw-blue)') + '">' + res.status + '</span>'
+        + (res.count>0 ? ' &nbsp;|&nbsp; ' + res.count + ' item(s) flagged' : '');
+    }
+    root.querySelectorAll('select[data-item]').forEach(function(sel){ sel.addEventListener('change', refreshResultBar); });
+    refreshResultBar();
+
+    document.getElementById('clm-chk-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('clm-bg').onclick = function(e){ if (e.target.id==='clm-bg') root.innerHTML=''; };
+    document.getElementById('clm-chk-save').onclick = function(){ saveChk(entryId, isEdit); };
+  }
+  function readGridItems(root){
+    return CHECKLIST_ITEMS.map(function(def){
+      var resSel = root.querySelector('select[data-item="'+def.id+'"][data-field="result"]');
+      var remInp = root.querySelector('input[data-item="'+def.id+'"][data-field="remarks"]');
+      return { id: def.id, result: resSel ? resSel.value : '', remarks: remInp ? remInp.value.trim() : '' };
+    });
+  }
+  function saveChk(entryId, isEdit){
+    var root = document.getElementById('cl-modal-root');
+    var btn = document.getElementById('clm-chk-save'); btn.disabled = true;
+    var equipId = document.getElementById('clm-chk-equip').value;
+    if (!equipId){ alert('Select the equipment this inspection is for.'); btn.disabled = false; return; }
+    var items = readGridItems(root);
+    var res = computeResult(items);
+    var equipRec = getEquipRecs().find(function(e){ return e['Equipment ID'] === equipId; }) || {};
+    var values = {
+      'Entry ID': entryId,
+      'Date': document.getElementById('clm-chk-date').value,
+      'Equipment ID': equipId,
+      'Model of Equipment': equipRec['Model'] || '',
+      'Operator Name & ID': document.getElementById('clm-chk-operator').value.trim(),
+      'Inspected By': document.getElementById('clm-chk-inspector').value.trim(),
+      'Checklist Data (JSON)': JSON.stringify({ items: items }),
+      'Deficiency Count': res.count,
+      'Deficiency Summary': res.summary,
+      'Overall Result': res.overall,
+      'Status': res.status
+    };
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    if (isEdit){
+      postJSON('update', {tab: CHK.tabKey, idCol: CHK.idCol, id: entryId}, values).then(function(r){
+        if (r && r.status==='error'){ alert('Save failed: '+(r.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: CHK.tabKey}, [values]).then(function(r){
+        if (r && r.status==='error'){ alert('Save failed: '+(r.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ── Print form — reconstructs HSE-FRM-18's layout ───────────── */
+  function buildPrintHtml(rec){
+    var items = [];
+    try { items = JSON.parse(rec['Checklist Data (JSON)']||'{}').items || []; } catch(e){}
+    var printedAt = new Date().toLocaleString();
+    var lastCat = null, itemRows = '';
+    CHECKLIST_ITEMS.forEach(function(def){
+      if (def.cat !== lastCat){
+        itemRows += '<tr><td colspan="3" style="background:#e8e8e8;font-weight:700;text-align:left;text-transform:uppercase;font-size:9px">' + clEsc(def.cat) + '</td></tr>';
+        lastCat = def.cat;
+      }
+      var it = items.find(function(x){ return x.id === def.id; }) || {};
+      var disp = it.result === 'OK' ? '&#10003;' : (it.result === 'NO' ? '&#10007;' : '');
+      itemRows += '<tr><td style="text-align:left">' + clEsc(def.item) + '</td><td>' + disp + '</td><td style="text-align:left">' + clEsc(it.remarks||'') + '</td></tr>';
+    });
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>Crane Inspection Checklist — ' + clEsc(rec['Entry ID']) + '</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#111;margin:0;padding:16px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:10px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:780px;margin:0 auto;border:1px solid #333;padding:14px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}'
+    + '.pf-head h1{font-size:15px;margin:0}'
+    + '.pf-head .pf-code{font-size:10px;text-align:right}'
+    + '.pf-infobar{display:flex;gap:18px;flex-wrap:wrap;border:1px solid #999;padding:6px 8px;margin-bottom:8px;background:#f7f7f7}'
+    + '.pf-field{font-size:9.5px}.pf-label{font-weight:700;margin-right:4px}'
+    + 'table.pf-grid{width:100%;border-collapse:collapse;font-size:9px;margin-bottom:8px}'
+    + 'table.pf-grid th,table.pf-grid td{border:1px solid #999;padding:4px 6px;text-align:center}'
+    + 'table.pf-grid th{background:#222;color:#fff}'
+    + '.pf-result{font-size:12px;font-weight:700;margin:8px 0;padding:6px 10px;border:1px solid #333}'
+    + '.pf-footer{margin-top:6px;font-size:8px;color:#666;border-top:1px solid #999;padding-top:4px}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}@page{size:A4;margin:10mm}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>Saudi Arabian Glass Co. Ltd. — HSE Department<br>Crane Inspection Checklist</h1>'
+      + '<div class="pf-code">HSE-FRM-18<br>Entry ID: <strong>' + clEsc(rec['Entry ID']) + '</strong></div></div>'
+      + '<div class="pf-infobar">'
+        + '<div class="pf-field"><span class="pf-label">Date:</span><span>' + clEsc(rec['Date']) + '</span></div>'
+        + '<div class="pf-field"><span class="pf-label">Equipment ID:</span><span>' + clEsc(rec['Equipment ID']) + '</span></div>'
+        + '<div class="pf-field"><span class="pf-label">Model:</span><span>' + clEsc(rec['Model of Equipment']) + '</span></div>'
+        + '<div class="pf-field"><span class="pf-label">Operator:</span><span>' + clEsc(rec['Operator Name & ID']) + '</span></div>'
+      + '</div>'
+      + '<table class="pf-grid"><thead><tr><th>Checklist Item</th><th>Compliance</th><th>Remarks</th></tr></thead><tbody>' + itemRows + '</tbody></table>'
+      + '<div class="pf-result" style="color:' + (rec['Overall Result']==='Accept Crane'?'#1B5E20':'#B71C1C') + '">Inspection Result: ' + clEsc(rec['Overall Result']) + '</div>'
+      + '<div class="pf-field"><span class="pf-label">Inspected by:</span><span>' + clEsc(rec['Inspected By']) + '</span></div>'
+      + (rec['Deficiency Count']>0 ? '<div class="pf-footer" style="color:#9C0006;font-weight:700">Deficiency found: ' + clEsc(rec['Deficiency Summary']) + (rec['Action Reference']?(' — escalated as '+clEsc(rec['Action Reference'])):' — not yet escalated') + '</div>' : '')
+      + '<div class="pf-footer">Generated from the SAGCO IMS Portal on ' + clEsc(printedAt) + '. Not valid without original signatures.</div>'
+    + '</div></body></html>';
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.CRL = {
+    onEquipSearch: function(v){ _equipFilters.search = v; render(); },
+    onChkSearch: function(v){ _chkFilters.search = v; render(); },
+    setChkFilter: function(status){
+      _chkFilters.status = status; _chkFilters.special = null;
+      ['all','open','closed'].forEach(function(s){ var btn=document.getElementById('cl-chk-f-'+s); if(btn) btn.classList.toggle('active', s===status); });
+      render();
+    },
+    equipCardClick: function(name){
+      _equipFilters.special = (name==='total') ? null : name;
+      render();
+    },
+    chkCardClick: function(name){
+      _chkFilters.status = 'all'; _chkFilters.special = name;
+      ['all','open','closed'].forEach(function(s){ var btn=document.getElementById('cl-chk-f-'+s); if(btn) btn.classList.toggle('active', s==='all'); });
+      render();
+    },
+    selectEquip: function(id){ _equipSelected = (_equipSelected!==null && String(_equipSelected)===String(id)) ? null : id; render(); },
+    selectChk: function(id){ _chkSelected = (_chkSelected!==null && String(_chkSelected)===String(id)) ? null : id; render(); },
+    openEquipAdd: function(){ if (can('add')) buildEquipModal(null); },
+    openEquipEditSelected: function(){ var rc=getSelectedEquip(); if(!rc) return alert('Select a row first.'); buildEquipModal(rc); },
+    removeEquipSelected: function(){
+      if (!can('delete')) return;
+      var rc = getSelectedEquip(); if(!rc) return alert('Select a row first.');
+      if (!confirm('Remove equipment ' + rc['Equipment ID'] + '? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: EQUIP.tabKey, idCol: EQUIP.idCol, id: rc['Equipment ID']}, {'Record Status':'Removed'}).then(function(r){
+        if (r && r.status==='error'){ alert('Remove failed: '+(r.message||'unknown error')); return; }
+        _equipSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+    openChkAdd: function(){ if (can('add')) buildChkModal(null); },
+    openChkEditSelected: function(){ var rc=getSelectedChk(); if(!rc) return alert('Select a row first.'); buildChkModal(rc); },
+    printChkSelected: function(){
+      var rc = getSelectedChk(); if(!rc) return alert('Select a row first.');
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked — please allow pop-ups to print.'); return; }
+      w.document.open(); w.document.write(buildPrintHtml(rc)); w.document.close();
+    },
+    removeChkSelected: function(){
+      if (!can('delete')) return;
+      var rc = getSelectedChk(); if(!rc) return alert('Select a row first.');
+      if (!confirm('Remove inspection ' + rc['Entry ID'] + '? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: CHK.tabKey, idCol: CHK.idCol, id: rc['Entry ID']}, {'Record Status':'Removed'}).then(function(r){
+        if (r && r.status==='error'){ alert('Remove failed: '+(r.message||'unknown error')); return; }
+        _chkSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+    // Escalates a deficient, not-yet-escalated checklist entry to a
+    // single combined Action Register record, same sessionStorage +
+    // URL hand-off mechanism as Fire Pump / Scaffold / Confined Space.
+    escalateChkSelected: function(){
+      var rc = getSelectedChk(); if(!rc) return alert('Select a row first.');
+      if ((rc['Deficiency Count']|0) <= 0) return alert('This inspection has no deficiency to escalate.');
+      if (rc['Action Reference']) return alert('This inspection was already escalated — see Action Register record ' + rc['Action Reference'] + '.');
+      var ctx = {
+        entryId: rc['Entry ID'],
+        description: 'Crane Inspection (' + rc['Equipment ID'] + ') — ' + rc['Date'] + '. Deficiency found: ' + rc['Deficiency Summary'],
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingCraneLiftingContext', JSON.stringify(ctx)); } catch(e){}
+      window.open('action-register.html?fromCraneLifting=' + encodeURIComponent(rc['Entry ID']) + '&lane=ACT', '_blank');
+    }
+  };
+
+  // Deep link from the Action Register's Source column —
+  // ?entry=<Entry ID> jumps straight to and opens that record.
+  function handleDeepLink(){
+    var entryId = new URLSearchParams(window.location.search).get('entry');
+    if (!entryId) return;
+    _chkSelected = entryId;
+    render();
+    CRL.openChkEditSelected();
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadAll().then(handleDeepLink); }, 100);
+  });
 })();
 </script>
 
 <script>
-(function() {
-  function colIdx(headers, name) {
-    var n = name.toLowerCase();
-    for (var i=0;i<headers.length;i++) {
-      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
-    }
-    return -1;
+/* ── Access gate: identical rule to confined-space.html / fire-pump.html ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
   }
-  function countVal(rows, col, val) {
-    if (col < 0) return 0;
-    var v = val ? val.toLowerCase() : null;
-    return rows.filter(function(r){
-      var cell = String(r[col]||'').toLowerCase().trim();
-      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
-    }).length;
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The Crane & Lifting Equipment Register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
   }
-  function sumCol(rows, col) {
-    if (col < 0) return 0;
-    return rows.reduce(function(s,r){
-      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
-      return s + (isNaN(v) ? 0 : v);
-    }, 0);
-  }
-  function setCard(idx, val) {
-    var cards = document.querySelectorAll('.kpi-val');
-    if (cards[idx]) cards[idx].textContent = val;
-  }
-
-  var origRender = window.renderTable;
-  window.renderTable = function(data, container) {
-    if (origRender) origRender(data, container);
-    if (!data || !data.rows || !data.headers) return;
-    var rows = data.rows, h = data.headers;
-    try { setCard(0, rows.length); } catch(e) {}
-  };
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
 })();
 </script>
-</body></html>
+
+</div></body></html>
