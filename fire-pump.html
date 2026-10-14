@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Fire Pump Test Log</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   FIRE PUMP TEST LOG — same dark navy/gold theme and card/table
+   shapes as confined-space.html / scaffold-inspection.html. Scoped
+   entirely to .fp-dark-wrap, class prefix fpw-. One live table
+   (fire_pump_log, tab key 'fire_pump_log') covers all four
+   inspection scenarios — Diesel/Electrical × Daily/Monthly — since
+   every scenario is really the same shape (a header + an item-by-
+   period compliance grid + a per-period sign-off row), just with a
+   different item set, column count and period type. Each row stores
+   its own grid as one JSON field (Checklist Data) alongside flat
+   fields used for the KPI/register/CAPA-hand-off machinery, same
+   "flat fields + one JSON blob" compromise used nowhere else in this
+   portal yet because no other register is itself a grid/log-sheet
+   form. SCENARIOS below is the single source of truth for every
+   item set, column layout and print form — the entry modal and the
+   print function both read from it, so changing an item list only
+   needs editing in one place.
+   ══════════════════════════════════════════════════════════════════ */
+.fp-dark-wrap{
+  --fpw-bg:#0D1B35; --fpw-bg2:#142140; --fpw-bg3:#1a2a50;
+  --fpw-gold:#C9A84C; --fpw-gold-lt:#E8C97A;
+  --fpw-text:rgba(255,255,255,.92); --fpw-text-muted:rgba(255,255,255,.55);
+  --fpw-text-dim:rgba(255,255,255,.35); --fpw-border:rgba(255,255,255,.08);
+  --fpw-border-gold:rgba(201,168,76,.35);
+  --fpw-blue:#5B9BD5; --fpw-red:#F0685C; --fpw-amb:#E8B339; --fpw-grn:#4FCB9E;
+  background:var(--fpw-bg); color:var(--fpw-text); margin:0; padding:24px; min-height:100vh;
+}
+.fp-dark-wrap *{box-sizing:border-box}
+.fp-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.fp-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--fpw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--fpw-bg2);
+  border-radius:8px;border:1px solid var(--fpw-border-gold)}
+.fp-dark-wrap .back-link:hover{background:var(--fpw-bg3)}
+.fp-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--fpw-bg2);
+  border-radius:8px;border-left:3px solid var(--fpw-gold);margin:10px 0;color:var(--fpw-text-muted)}
+.fp-dark-wrap .flag-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.08);
+  border-radius:8px;border-left:3px solid var(--fpw-amb);margin:10px 0;color:var(--fpw-text-muted)}
+.fp-dark-wrap .sec-banner{background:var(--fpw-bg2);color:var(--fpw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--fpw-border-gold);border-bottom:none}
+.fp-dark-wrap .kpi-grid{display:grid;gap:14px}
+.fp-dark-wrap .kpi-card{background:var(--fpw-bg2);border:1px solid var(--fpw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.fp-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.fp-dark-wrap .kpi-card.kc-nvy::before{background:var(--fpw-gold)}
+.fp-dark-wrap .kpi-card.kc-blue::before{background:var(--fpw-blue)}
+.fp-dark-wrap .kpi-card.kc-amb::before{background:var(--fpw-amb)}
+.fp-dark-wrap .kpi-card.kc-red::before{background:var(--fpw-red)}
+.fp-dark-wrap .kpi-card.kc-grn::before{background:var(--fpw-grn)}
+.fp-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--fpw-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.fp-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--fpw-text);line-height:1.1;margin-bottom:4px}
+.fp-dark-wrap .kpi-sub{font-size:10px;color:var(--fpw-text-muted)}
+.fp-dark-wrap .kpi-card.fp-clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.fp-dark-wrap .kpi-card.fp-clickable:hover{transform:translateY(-2px);border-color:var(--fpw-gold)}
+.fp-dark-wrap .chart-grid{display:grid;gap:14px}
+.fp-dark-wrap .chart-card{background:var(--fpw-bg2);border:1px solid var(--fpw-border);
+  border-radius:14px;padding:16px 18px}
+.fp-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--fpw-text);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.fp-dark-wrap .chart-sub{font-size:10px;color:var(--fpw-text-muted);font-weight:400}
+.fp-dark-wrap .chart-wrap{height:220px;position:relative}
+.fp-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.fp-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--fpw-grn)}
+.fp-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--fpw-red)}
+.fp-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--fpw-amb)}
+.fp-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--fpw-blue)}
+.fp-dark-wrap .scenario-row{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.fp-dark-wrap .scenario-btn{font-size:11px;font-weight:700;padding:9px 14px;border-radius:9px;
+  border:1px solid var(--fpw-border-gold);background:var(--fpw-bg2);color:var(--fpw-text-muted);cursor:pointer}
+.fp-dark-wrap .scenario-btn.active{background:rgba(201,168,76,.18);color:var(--fpw-gold-lt);border-color:var(--fpw-gold)}
+.fp-dark-wrap .fp-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--fpw-bg2);border:1px solid var(--fpw-border-gold);border-top:none}
+.fp-dark-wrap .fp-toolbar input[type=text]{background:var(--fpw-bg3);border:1px solid var(--fpw-border);
+  color:var(--fpw-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:170px}
+.fp-dark-wrap .fp-toolbar select{background:var(--fpw-bg3);border:1px solid var(--fpw-border);
+  color:var(--fpw-text);border-radius:7px;padding:7px 10px;font-size:11px}
+.fp-dark-wrap .fp-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--fpw-border-gold);
+  background:var(--fpw-bg3);color:var(--fpw-gold-lt);cursor:pointer}
+.fp-dark-wrap .fp-btn:hover{background:rgba(201,168,76,.15)}
+.fp-dark-wrap .fp-btn:disabled{opacity:.4;cursor:not-allowed}
+.fp-dark-wrap .fp-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--fpw-grn)}
+.fp-dark-wrap .fp-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--fpw-amb)}
+.fp-dark-wrap .fp-table-wrap{border:1px solid var(--fpw-border-gold);border-top:none;max-height:480px;overflow:auto}
+.fp-dark-wrap table.fp-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.fp-dark-wrap table.fp-tbl th{position:sticky;top:0;background:var(--fpw-bg3);color:var(--fpw-gold-lt);
+  text-align:left;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--fpw-border-gold);white-space:nowrap}
+.fp-dark-wrap table.fp-tbl td{padding:7px 10px;border-bottom:1px solid var(--fpw-border);color:var(--fpw-text)}
+.fp-dark-wrap table.fp-tbl tr.fp-row{cursor:pointer}
+.fp-dark-wrap table.fp-tbl tr.fp-row:hover{background:var(--fpw-bg3)}
+.fp-dark-wrap table.fp-tbl tr.fp-row.fp-sel{background:rgba(201,168,76,.12)}
+.fp-dark-wrap .empty-state{padding:30px;text-align:center;color:var(--fpw-text-dim);font-size:11px}
+.fp-dark-wrap .empty-state strong{display:block;color:var(--fpw-text-muted);margin-bottom:4px;font-size:12px}
+/* Modal */
+.fp-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;
+  justify-content:center;z-index:999;padding:30px 14px;overflow:auto}
+.fp-modal{background:var(--fpw-bg2);border:1px solid var(--fpw-border-gold);border-radius:14px;
+  padding:20px 22px;max-width:1150px;width:100%;color:var(--fpw-text)}
+.fp-modal h3{margin:0 0 12px;font-size:14px;color:var(--fpw-gold-lt)}
+.fp-modal-hdr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.fp-modal-hdr-grid label, .fp-field label{display:block;font-size:10px;font-weight:600;color:var(--fpw-text-muted);
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.fp-modal-hdr-grid input, .fp-modal-hdr-grid select{width:100%;background:var(--fpw-bg3);
+  border:1px solid var(--fpw-border);color:var(--fpw-text);border-radius:7px;padding:7px 9px;font-size:12px}
+.fp-grid-wrap{overflow-x:auto;border:1px solid var(--fpw-border);border-radius:8px;margin-bottom:14px}
+table.fp-entry-grid{width:100%;border-collapse:collapse;font-size:10.5px;min-width:760px}
+table.fp-entry-grid th{background:var(--fpw-bg3);color:var(--fpw-gold-lt);padding:6px 7px;
+  border:1px solid var(--fpw-border);text-align:center;white-space:nowrap}
+table.fp-entry-grid td{padding:5px 6px;border:1px solid var(--fpw-border);text-align:center}
+table.fp-entry-grid td.fp-item-cell{text-align:left;white-space:normal;min-width:130px}
+table.fp-entry-grid td.fp-crit-cell{text-align:left;white-space:normal;min-width:200px;color:var(--fpw-text-muted)}
+table.fp-entry-grid tr.fp-section-row td{background:var(--fpw-bg3);color:var(--fpw-gold-lt);
+  font-weight:700;text-align:left;text-transform:uppercase;font-size:9.5px;letter-spacing:.4px}
+table.fp-entry-grid select, table.fp-entry-grid input{width:100%;background:var(--fpw-bg);
+  border:1px solid var(--fpw-border);color:var(--fpw-text);border-radius:5px;padding:3px 2px;font-size:10px;text-align:center}
+table.fp-signoff-grid{width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:12px}
+table.fp-signoff-grid th{background:var(--fpw-bg3);color:var(--fpw-gold-lt);padding:6px 8px;border:1px solid var(--fpw-border);text-align:left}
+table.fp-signoff-grid td{padding:4px 6px;border:1px solid var(--fpw-border)}
+table.fp-signoff-grid input{width:100%;background:var(--fpw-bg);border:1px solid var(--fpw-border);
+  color:var(--fpw-text);border-radius:5px;padding:4px 6px;font-size:10.5px}
+.fp-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.fp-note{font-size:10.5px;color:var(--fpw-amb);background:rgba(232,179,57,.1);border-left:3px solid var(--fpw-amb);
+  padding:8px 10px;border-radius:6px;margin-bottom:12px;line-height:1.5}
+</style>
+</head><body><div class="fp-dark-wrap">
+<div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div>
+<div class="req-text">L4-SHEE-PR-14-ML-01 · ISO 45001 §8.1 / NFPA 25 practice — Fire Pump Test Log, covering the Diesel Firefighting Pump (HSE-FRM-11) and Electrical Firefighting Pump (HSE-FRM-12) inspections, each at two cadences: a Daily/weekly visual check and a Monthly No-Flow ("Churn") Test run. Every log sheet below reproduces the item set and column layout of its corresponding paper form exactly, so the printed version can stand in for the original.</div>
+<div class="flag-text" id="fp-flag-electrical-daily">⚠ The <strong>Electrical — Daily</strong> scenario is constructed from HSE-FRM-12's weekly visual-inspection items, laid out in the same Day 1–7 grid as the Diesel Daily form — no scanned Electrical Daily form was supplied for this build. Please verify this item set and layout against the actual field form before relying on it. The Diesel Daily grid also carries two item rows (#14 and #16) whose criteria text duplicates an earlier row verbatim, exactly as printed on the source PDF — flagging this in case it's a form typo rather than intentional. Two further requirements named on the previous placeholder page for this doc code are not yet modeled in this log-sheet register and would need separate handling if still required: an annual full-flow test by a Civil Defense-licensed engineer, and a &lt;30-second pump-startup CRITICAL alert threshold.</div>
+
+<div class="sec-banner">FIRE PUMP QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy fp-clickable" onclick="FP.cardClick('total')" title="Click to view the register"><div class="kpi-lbl">Total Log Sheets</div><div class="kpi-val" id="fp-kpi-total">—</div><div class="kpi-sub">Fire Pump Test Log</div></div>
+  <div class="kpi-card kc-blue fp-clickable" onclick="FP.cardClick('total')" title="Click to view this year's log sheets"><div class="kpi-lbl">This Year's Log Sheets</div><div class="kpi-val" id="fp-kpi-year">—</div><div class="kpi-sub" id="fp-kpi-year-sub">Loading…</div></div>
+  <div class="kpi-card kc-red fp-clickable" onclick="FP.cardClick('open')" title="Click to view open corrective actions"><div class="kpi-lbl">Open Corrective Actions</div><div class="kpi-val" id="fp-kpi-open">—</div><div class="kpi-sub">Deficiency found, not yet closed</div></div>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy fp-clickable" onclick="FP.cardClick('diesel')" title="Click to view Diesel pump log sheets"><div class="kpi-lbl">Diesel Pump Logs</div><div class="kpi-val" id="fp-kpi-diesel">—</div><div class="kpi-sub">HSE-FRM-11</div></div>
+  <div class="kpi-card kc-blue fp-clickable" onclick="FP.cardClick('electrical')" title="Click to view Electrical pump log sheets"><div class="kpi-lbl">Electrical Pump Logs</div><div class="kpi-val" id="fp-kpi-electrical">—</div><div class="kpi-sub">HSE-FRM-12</div></div>
+  <div class="kpi-card kc-grn fp-clickable" onclick="FP.cardClick('clean')" title="Click to view logs with no deficiency"><div class="kpi-lbl">Clean Logs</div><div class="kpi-val" id="fp-kpi-clean">—</div><div class="kpi-sub">No deficiency found</div></div>
+  <div class="kpi-card kc-amb fp-clickable" onclick="FP.cardClick('deficient')" title="Click to view logs with a deficiency"><div class="kpi-lbl">Logs With Deficiencies</div><div class="kpi-val" id="fp-kpi-deficient">—</div><div class="kpi-sub">At least one item flagged</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+  <div class="chart-card"><div class="chart-title">Logs by Scenario<span class="chart-sub">pump type × cadence</span></div><div class="chart-wrap"><canvas id="fpByScenarioChart"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Logs by Month<span class="chart-sub">based on each log's period</span></div><div class="chart-wrap"><canvas id="fpByMonthChart"></canvas></div></div>
+</div>
+
+<div class="sec-banner">FIRE PUMP TEST LOG REGISTER</div>
+<div class="scenario-row" style="background:var(--fpw-bg2);border:1px solid var(--fpw-border-gold);border-top:none;border-bottom:none;padding:10px 14px;margin:0">
+  <button class="scenario-btn active" id="fp-scn-all" onclick="FP.setScenario('all')">All</button>
+  <button class="scenario-btn" id="fp-scn-dieselDaily" onclick="FP.setScenario('dieselDaily')">Diesel — Daily</button>
+  <button class="scenario-btn" id="fp-scn-dieselMonthly" onclick="FP.setScenario('dieselMonthly')">Diesel — Monthly</button>
+  <button class="scenario-btn" id="fp-scn-electricalDaily" onclick="FP.setScenario('electricalDaily')">Electrical — Daily</button>
+  <button class="scenario-btn" id="fp-scn-electricalMonthly" onclick="FP.setScenario('electricalMonthly')">Electrical — Monthly</button>
+</div>
+<div class="fp-toolbar">
+  <input type="text" id="fp-search" placeholder="Search location…" oninput="FP.onSearchInput(this.value)">
+  <button class="fp-btn fp-btn-add" id="fp-btn-new" onclick="FP.openAddForCurrentScenario()">+ New Log Sheet</button>
+  <button class="fp-btn" id="fp-btn-edit" disabled onclick="FP.openEditSelected()">Open / Edit</button>
+  <button class="fp-btn" id="fp-btn-print" disabled onclick="FP.printSelected()">🖨️ Print</button>
+  <button class="fp-btn fp-btn-esc" id="fp-btn-esc" disabled onclick="FP.escalateSelected()">⚡ Escalate to Action</button>
+  <button class="fp-btn" id="fp-btn-remove" disabled onclick="FP.removeSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--fpw-text-dim)" id="fp-count-sub"></span>
+</div>
+<div class="fp-table-wrap"><div id="live-table-log"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div id="fp-modal-root"></div>
+
+<script>
+(function(){
+
+  /* ── SCENARIOS: single source of truth for item sets, column
+     layout and print-form shape. See file header comment. ────────── */
+  var SCENARIOS = {
+    dieselDaily: {
+      key:'dieselDaily', pumpType:'Diesel', cadence:'Daily', label:'Diesel — Daily Inspection',
+      formCode:'HSE-FRM-11', effectiveDate:'28 May 2020', periodType:'week', columns:7,
+      colLabels:['Day 1','Day 2','Day 3','Day 4','Day 5','Day 6','Day 7'],
+      signoffLabels:['Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday'],
+      sectionTitle:'Visual Inspection - Daily',
+      items:[
+        {id:'1', item:'Priming tank', criteria:'Priming water level', type:'check'},
+        {id:'2', item:'Ventilating Louvers', criteria:'Operating freely', type:'check'},
+        {id:'3', item:'Housekeeping', criteria:'Room free of combustible storage', type:'check'},
+        {id:'4', item:'Valves', criteria:'Pump suction, discharge and bypass valves fully open', type:'check'},
+        {id:'5', item:'Piping', criteria:'Free of leaks', type:'check'},
+        {id:'6', item:'Suction Line', criteria:'Pressure gauge normal', type:'check'},
+        {id:'7', item:'Reservoir/Tanks', criteria:'Suction reservoir or tank full', type:'check'},
+        {id:'8', item:'Controller Pilot Light', criteria:'Pilot light (power on) illuminated', type:'check'},
+        {id:'9', item:'Fuel Tank', criteria:'Fuel tank at least two-thirds full', type:'check'},
+        {id:'10', item:'Controller', criteria:'Selector switch in "AUTO" position', type:'check'},
+        {id:'11.1', item:'Batteries', criteria:'Voltage readings normal', type:'check'},
+        {id:'11.2', item:'Batteries', criteria:'Charging current-readings normal', type:'check'},
+        {id:'11.3', item:'Batteries', criteria:'Pilot lights off terminals free of corrosion', type:'check'},
+        {id:'11.4', item:'Batteries', criteria:'Pilot light on', type:'check'},
+        {id:'12', item:'Engine Oil', criteria:'Engine oil is full', type:'check'},
+        {id:'13', item:'Cooling Water', criteria:'Cooling water is full', type:'check'},
+        {id:'14', item:'Engine Running', criteria:'Pilot lights off terminals free of corrosion', type:'check'},
+        {id:'15', item:'Time meter', criteria:'Meter is reading', type:'check'},
+        {id:'16', item:'Time Meter', criteria:'Engine oil is full', type:'check'},
+        {id:'17.1', item:'Pressure readings', criteria:'Suction readings (Psi)', type:'numeric'},
+        {id:'17.2', item:'Pressure readings', criteria:'Discharge readings (Psi)', type:'numeric'},
+        {id:'18', item:'Fire pipes', criteria:'Is leakage observed from fire pipes.', type:'leak'}
+      ]
+    },
+    dieselMonthly: {
+      key:'dieselMonthly', pumpType:'Diesel', cadence:'Monthly', label:'Diesel — Monthly Inspection',
+      formCode:'HSE-FRM-11', effectiveDate:'', periodType:'month', columns:5,
+      colLabels:['Week 1','Week 2','Week 3','Week 4','Week 5'],
+      signoffLabels:['Week 1','Week 2','Week 3','Week 4','Week 5'],
+      sectionTitle:'Visual Inspection',
+      items:[
+        {id:'1', item:'Priming tank', criteria:'Priming water level', type:'check'},
+        {id:'2', item:'Ventilating Louvers', criteria:'Operating freely', type:'check'},
+        {id:'3', item:'Housekeeping', criteria:'Room free of combustible storage', type:'check'},
+        {id:'4', item:'Valves', criteria:'Pump suction, discharge and bypass valves fully open', type:'check'},
+        {id:'5', item:'Piping', criteria:'Free of leaks', type:'check'},
+        {id:'6', item:'Suction Line', criteria:'Pressure gauge normal', type:'check'},
+        {id:'7', item:'Reservoir/Tanks', criteria:'Suction reservoir or tank full', type:'check'},
+        {id:'8', item:'Controller Pilot Light', criteria:'Pilot light (power on) illuminated', type:'check'},
+        {id:'9', item:'Fuel Tank', criteria:'Fuel tank at least two-thirds full', type:'check'},
+        {id:'10', item:'Controller', criteria:'Selector switch in "AUTO" position', type:'check'},
+        {id:'11.1', item:'Batteries', criteria:'Voltage readings normal', type:'check'},
+        {id:'11.2', item:'Batteries', criteria:'Charging current readings normal', type:'check'},
+        {id:'11.3', item:'Batteries', criteria:'Pilot lights on', type:'check'},
+        {id:'11.4', item:'Batteries', criteria:'Pilot lights off terminals free of corrosion', type:'check'},
+        {id:'12', item:'Engine Oil', criteria:'Engine oil is full', type:'check'},
+        {id:'13', item:'Cooling Water', criteria:'Cooling water is full', type:'check'},
+        {id:'14', item:'Engine Running / Time Meter', criteria:'Meter is reading', type:'check'},
+        {id:'15', item:'Jockey Pump', criteria:'Power to jockey pump', type:'check', sectionBreakAfter:'No Flow ("Churn") Test'},
+        {id:'16.1', item:'Pump', criteria:'Start Properly', type:'check'},
+        {id:'16.2', item:'Pump', criteria:'Run for 30 minutes', type:'check'},
+        {id:'17.1', item:'Record pressure readings', criteria:'Suction pressure (psi)', type:'numeric'},
+        {id:'17.2', item:'Record pressure readings', criteria:'Discharge pressure (psi)', type:'numeric'},
+        {id:'18', item:'Pump glands', criteria:'Slight discharge when running', type:'check'},
+        {id:'19', item:'General pump function', criteria:'No unusual noises or vibration', type:'check'},
+        {id:'20', item:'Packing Box, bearings, and pump casings', criteria:'No signs of overheating in packing box, bearings, or pump casings', type:'check'},
+        {id:'21', item:'Heat Exchanger', criteria:'Cooling water flow', type:'check'}
+      ]
+    },
+    electricalMonthly: {
+      key:'electricalMonthly', pumpType:'Electrical', cadence:'Monthly', label:'Electrical — Monthly Inspection',
+      formCode:'HSE-FRM-12', effectiveDate:'', periodType:'month', columns:5,
+      colLabels:['Week 1','Week 2','Week 3','Week 4','Week 5'],
+      signoffLabels:['Week 1','Week 2','Week 3','Week 4','Week 5'],
+      sectionTitle:'Visual Inspection - Weekly',
+      items:[
+        {id:'1', item:'Priming tank', criteria:'Priming water level', type:'check'},
+        {id:'2', item:'Housekeeping', criteria:'Room free of combustible storage', type:'check'},
+        {id:'3', item:'Valves', criteria:'Pump suction, discharge and bypass valves fully open', type:'check'},
+        {id:'4', item:'Piping', criteria:'Free of leaks', type:'check'},
+        {id:'5', item:'Suction Line', criteria:'Pressure gauge normal', type:'check'},
+        {id:'6', item:'Reservoir/Tanks', criteria:'Suction reservoir or tank full', type:'check'},
+        {id:'7', item:'Controller Pilot Light', criteria:'Pilot light (power on) illuminated', type:'check'},
+        {id:'8', item:'Controller', criteria:'Selector switch in "AUTO" position', type:'check', sectionBreakAfter:'No Flow ("Churn") Test - Monthly'},
+        {id:'9.1', item:'Pump', criteria:'Start Properly', type:'check'},
+        {id:'9.2', item:'Pump', criteria:'Run for 10 minutes', type:'check'},
+        {id:'10.1', item:'Record pressure readings', criteria:'Suction pressure (psi)', type:'numeric'},
+        {id:'10.2', item:'Record pressure readings', criteria:'Discharge pressure (psi)', type:'numeric'},
+        {id:'11', item:'Pump glands', criteria:'Slight discharge when running', type:'check'},
+        {id:'12', item:'General pump function', criteria:'No unusual noises or vibration', type:'check'},
+        {id:'13', item:'Packing Box, bearings, and pump casings', criteria:'No signs of overheating in packing box, bearings, or pump casings', type:'check'},
+        {id:'14', item:'Heat Exchanger', criteria:'Cooling water flow', type:'check'}
+      ]
+    },
+    electricalDaily: {
+      key:'electricalDaily', pumpType:'Electrical', cadence:'Daily', label:'Electrical — Daily Inspection',
+      formCode:'HSE-FRM-12 (adapted)', effectiveDate:'', periodType:'week', columns:7,
+      colLabels:['Day 1','Day 2','Day 3','Day 4','Day 5','Day 6','Day 7'],
+      signoffLabels:['Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday'],
+      sectionTitle:'Visual Inspection - Daily',
+      constructedNote:'Constructed from HSE-FRM-12\'s weekly visual-inspection items, laid out in the same Day 1–7 grid as the Diesel Daily form (HSE-FRM-11). No scanned Electrical Daily form was supplied for this build — verify against the actual field form before relying on it.',
+      items:[
+        {id:'1', item:'Priming tank', criteria:'Priming water level', type:'check'},
+        {id:'2', item:'Housekeeping', criteria:'Room free of combustible storage', type:'check'},
+        {id:'3', item:'Valves', criteria:'Pump suction, discharge and bypass valves fully open', type:'check'},
+        {id:'4', item:'Piping', criteria:'Free of leaks', type:'check'},
+        {id:'5', item:'Suction Line', criteria:'Pressure gauge normal', type:'check'},
+        {id:'6', item:'Reservoir/Tanks', criteria:'Suction reservoir or tank full', type:'check'},
+        {id:'7', item:'Controller Pilot Light', criteria:'Pilot light (power on) illuminated', type:'check'},
+        {id:'8', item:'Controller', criteria:'Selector switch in "AUTO" position', type:'check'}
+      ]
+    }
+  };
+  var SCENARIO_ORDER = ['dieselDaily','dieselMonthly','electricalDaily','electricalMonthly'];
+
+  var TABLE = { tabKey:'fire_pump_log', containerId:'live-table-log', idCol:'Log ID', idPrefix:'FPL-', idPad:3 };
+  var STATUS_COL = 'Record Status';
+  var _cache = null;
+  var _filters = { search:'', scenario:'all', special:null };
+  var _selected = null;
+  var _charts = { scenario:null, month:null };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function recFromRow(headers, row){
+    var rec = {}; headers.forEach(function(h,i){ rec[h] = row[i]; }); return rec;
+  }
+  function nextLogId(){
+    if (!_cache || !_cache.headers || !_cache.rows) return '';
+    var idIdx = colIdx(_cache.headers, TABLE.idCol);
+    if (idIdx < 0) return '';
+    var maxN = 0;
+    _cache.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(TABLE.idPrefix.toLowerCase()) !== 0) return;
+      var n = parseInt(v.slice(TABLE.idPrefix.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    var numStr = String(maxN + 1);
+    while (numStr.length < TABLE.idPad) numStr = '0' + numStr;
+    return TABLE.idPrefix + numStr;
+  }
+  function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  /* ── Deficiency logic ─────────────────────────────────────────── */
+  function isDeficient(item, val){
+    val = String(val||'').trim();
+    if (item.type === 'check') return val.toUpperCase() === 'NO';
+    if (item.type === 'leak') return val.toLowerCase() === 'yes';
+    return false; // numeric items never flagged
+  }
+  function computeDeficiencies(scn, grid){
+    var count = 0, parts = [];
+    scn.items.forEach(function(item, idx){
+      var row = (grid.values && grid.values[idx]) || [];
+      var hit = false;
+      row.forEach(function(v){ if (isDeficient(item, v)) hit = true; });
+      if (hit){ count++; parts.push('#'+item.id+' ('+item.item+')'); }
+    });
+    return { count: count, summary: parts.join('; ') };
+  }
+  function periodLabel(rec){
+    if (rec['Period From'] || rec['Period To']) return (rec['Period From']||'?') + ' to ' + (rec['Period To']||'?');
+    if (rec['Month'] || rec['Year']) return (rec['Month']||'') + ' ' + (rec['Year']||'');
+    return '—';
+  }
+  function monthKeyOf(rec){
+    if (rec['Month'] && rec['Year']) return rec['Month'].slice(0,3) + ' ' + rec['Year'];
+    if (rec['Period From']){
+      var d = new Date(rec['Period From']);
+      if (!isNaN(d.getTime())) return d.toLocaleString('en', {month:'short'}) + ' ' + d.getFullYear();
+    }
+    return 'Unknown';
+  }
+  function scenarioKeyOf(rec){
+    var pt = (rec['Pump Type']||'').trim();
+    var it = (rec['Inspection Type']||'').trim();
+    for (var i=0;i<SCENARIO_ORDER.length;i++){
+      var s = SCENARIOS[SCENARIO_ORDER[i]];
+      if (s.pumpType === pt && s.cadence === it) return s.key;
+    }
+    return null;
+  }
+
+  /* ── Data load ────────────────────────────────────────────────── */
+  function loadAll(){
+    return fetch(SHEETS_URL + '?tab=' + TABLE.tabKey + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data && data.headers && data.rows){
+          var statIdx = colIdx(data.headers, STATUS_COL);
+          if (statIdx >= 0) data.rows = data.rows.filter(function(r){ return String(r[statIdx]||'').trim().toLowerCase() !== 'removed'; });
+        }
+        _cache = data;
+        render();
+      }).catch(function(){
+        document.getElementById(TABLE.containerId).innerHTML = '<div class="empty-state"><strong>Could not load</strong>Check your connection and refresh.</div>';
+      });
+  }
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  /* ── KPIs + charts ────────────────────────────────────────────── */
+  function render(){
+    if (!_cache || !_cache.headers || !_cache.rows){
+      document.getElementById(TABLE.containerId).innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      return;
+    }
+    var headers = _cache.headers;
+    var recs = _cache.rows.map(function(r){ return recFromRow(headers, r); });
+    var year = new Date().getFullYear();
+    var total = recs.length;
+    var thisYear = recs.filter(function(rc){
+      var p = rc['Period From'] || '';
+      var y = rc['Year'] || '';
+      return String(p).slice(0,4) === String(year) || String(y) === String(year);
+    }).length;
+    var diesel = recs.filter(function(rc){ return rc['Pump Type']==='Diesel'; }).length;
+    var electrical = recs.filter(function(rc){ return rc['Pump Type']==='Electrical'; }).length;
+    var deficient = recs.filter(function(rc){ return rc['Has Deficiency']==='Yes'; }).length;
+    var clean = total - deficient;
+    var openCount = recs.filter(function(rc){ return rc['Status']==='Open'; }).length;
+
+    setTxt('fp-kpi-total', total);
+    setTxt('fp-kpi-year', thisYear); setTxt('fp-kpi-year-sub', year + ' to date');
+    setTxt('fp-kpi-open', openCount);
+    setTxt('fp-kpi-diesel', diesel);
+    setTxt('fp-kpi-electrical', electrical);
+    setTxt('fp-kpi-clean', clean);
+    setTxt('fp-kpi-deficient', deficient);
+
+    renderCharts(recs);
+    renderTable(recs);
+  }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+
+  function renderCharts(recs){
+    var byScn = {}; SCENARIO_ORDER.forEach(function(k){ byScn[k] = 0; });
+    recs.forEach(function(rc){ var k = scenarioKeyOf(rc); if (k) byScn[k]++; });
+    var scnLabels = SCENARIO_ORDER.map(function(k){ return SCENARIOS[k].label; });
+    var scnData = SCENARIO_ORDER.map(function(k){ return byScn[k]; });
+
+    var byMonth = {};
+    recs.forEach(function(rc){ var mk = monthKeyOf(rc); byMonth[mk] = (byMonth[mk]||0) + 1; });
+    var monthLabels = Object.keys(byMonth);
+    var monthData = monthLabels.map(function(k){ return byMonth[k]; });
+
+    if (typeof Chart === 'undefined') return;
+    if (_charts.scenario) _charts.scenario.destroy();
+    if (_charts.month) _charts.month.destroy();
+    var ctx1 = document.getElementById('fpByScenarioChart');
+    if (ctx1) _charts.scenario = new Chart(ctx1, {
+      type:'bar',
+      data:{ labels: scnLabels, datasets:[{ label:'Log Sheets', data: scnData, backgroundColor:'#C9A84C' }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#fff', font:{size:9}}}, y:{ticks:{color:'#fff'}} } }
+    });
+    var ctx2 = document.getElementById('fpByMonthChart');
+    if (ctx2) _charts.month = new Chart(ctx2, {
+      type:'line',
+      data:{ labels: monthLabels, datasets:[{ label:'Log Sheets', data: monthData, borderColor:'#5B9BD5', backgroundColor:'rgba(91,155,213,.2)', fill:true, tension:.3 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#fff', font:{size:9}}}, y:{ticks:{color:'#fff'}} } }
+    });
+  }
+
+  /* ── Register table ───────────────────────────────────────────── */
+  function filteredRecs(recs){
+    var f = _filters;
+    return recs.filter(function(rc){
+      if (f.scenario !== 'all' && scenarioKeyOf(rc) !== f.scenario) return false;
+      if (f.search && (rc['Location']||'').toLowerCase().indexOf(f.search.toLowerCase()) < 0) return false;
+      if (f.special === 'diesel' && rc['Pump Type'] !== 'Diesel') return false;
+      if (f.special === 'electrical' && rc['Pump Type'] !== 'Electrical') return false;
+      if (f.special === 'clean' && rc['Has Deficiency'] !== 'No') return false;
+      if (f.special === 'deficient' && rc['Has Deficiency'] !== 'Yes') return false;
+      if (f.special === 'open' && rc['Status'] !== 'Open') return false;
+      return true;
+    });
+  }
+  function renderTable(recs){
+    var list = filteredRecs(recs);
+    var el = document.getElementById(TABLE.containerId);
+    document.getElementById('fp-count-sub').textContent = list.length + ' of ' + recs.length + ' log sheets shown';
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No log sheets match</strong>Try a different scenario or clear the search.</div>';
+      updateActionButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Log ID']||'').localeCompare(String(a['Log ID']||'')); });
+    var rows = list.map(function(rc){
+      var sel = _selected === rc['Log ID'];
+      var defBadge = rc['Has Deficiency'] === 'Yes'
+        ? '<span class="badge kc-red">Deficiency (' + (rc['Deficiency Count']||0) + ')</span>'
+        : '<span class="badge kc-grn">Clean</span>';
+      var statusBadge = rc['Status'] === 'Open' ? '<span class="badge kc-amb">Open</span>' : '<span class="badge kc-blue">Closed</span>';
+      var actionCell = rc['Action Reference']
+        ? '<a href="action-register.html?capa=' + encodeURIComponent(rc['Action Reference']) + '" style="color:var(--fpw-gold-lt)">' + pfEsc(rc['Action Reference']) + '</a>'
+        : '—';
+      var scn = scenarioKeyOf(rc);
+      return '<tr class="fp-row' + (sel?' fp-sel':'') + '" onclick="FP.selectRow(\'' + pfEsc(rc['Log ID']) + '\')">'
+        + '<td>' + pfEsc(rc['Log ID']) + '</td>'
+        + '<td>' + pfEsc(rc['Pump Type']) + '</td>'
+        + '<td>' + pfEsc(rc['Inspection Type']) + '</td>'
+        + '<td>' + pfEsc(rc['Location']) + '</td>'
+        + '<td>' + pfEsc(periodLabel(rc)) + '</td>'
+        + '<td>' + defBadge + '</td>'
+        + '<td>' + statusBadge + '</td>'
+        + '<td>' + actionCell + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="fp-tbl"><thead><tr>'
+      + '<th>Log ID</th><th>Pump Type</th><th>Cadence</th><th>Location</th><th>Period</th><th>Result</th><th>Status</th><th>Action Ref.</th>'
+      + '</tr></thead><tbody>' + rows + '</tbody></table>';
+    updateActionButtons();
+  }
+  function updateActionButtons(){
+    var rc = getSelectedRec();
+    document.getElementById('fp-btn-edit').disabled = !rc;
+    document.getElementById('fp-btn-print').disabled = !rc;
+    document.getElementById('fp-btn-remove').disabled = !rc || !can('delete');
+    var escBtn = document.getElementById('fp-btn-esc');
+    escBtn.disabled = !rc || rc['Has Deficiency'] !== 'Yes' || !!(rc['Action Reference']);
+    escBtn.title = rc && rc['Action Reference'] ? 'Already escalated — see ' + rc['Action Reference'] : '';
+  }
+  function getSelectedRec(){
+    if (!_cache || !_selected) return null;
+    var idIdx = colIdx(_cache.headers, TABLE.idCol);
+    var row = _cache.rows.find(function(r){ return String(r[idIdx]) === String(_selected); });
+    return row ? recFromRow(_cache.headers, row) : null;
+  }
+
+  /* ── Entry modal (shared by Add + Edit, all 4 scenarios) ─────── */
+  function buildEntryModal(scnKey, existingRec){
+    var scn = SCENARIOS[scnKey];
+    var root = document.getElementById('fp-modal-root');
+    var isEdit = !!existingRec;
+    var logId = isEdit ? existingRec['Log ID'] : nextLogId();
+    var grid = { values:[], signoff:[] };
+    if (isEdit && existingRec['Checklist Data (JSON)']){
+      try { grid = JSON.parse(existingRec['Checklist Data (JSON)']); } catch(e){ grid = { values:[], signoff:[] }; }
+    }
+    if (!grid.values) grid.values = [];
+    if (!grid.signoff) grid.signoff = [];
+
+    var noteHtml = scn.constructedNote ? '<div class="fp-note">⚠ ' + pfEsc(scn.constructedNote) + '</div>' : '';
+
+    var headerFieldsHtml = '<div class="fp-modal-hdr-grid">'
+      + '<div><label>Location / Unit</label><input type="text" id="fpm-location" value="' + pfEsc(existingRec ? existingRec['Location'] : '') + '" list="fpm-loc-list"></div>';
+    var locSuggestions = getLocationSuggestions();
+    headerFieldsHtml += '<datalist id="fpm-loc-list">' + locSuggestions.map(function(s){ return '<option value="'+pfEsc(s)+'">'; }).join('') + '</datalist>';
+    if (scn.periodType === 'week'){
+      headerFieldsHtml += '<div><label>Date From</label><input type="date" id="fpm-from" value="' + pfEsc(existingRec ? existingRec['Period From'] : '') + '"></div>'
+        + '<div><label>Date To</label><input type="date" id="fpm-to" value="' + pfEsc(existingRec ? existingRec['Period To'] : '') + '"></div>';
+    } else {
+      var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      var curMonth = existingRec ? existingRec['Month'] : '';
+      headerFieldsHtml += '<div><label>Month</label><select id="fpm-month">' + months.map(function(m){ return '<option value="'+m+'"'+(m===curMonth?' selected':'')+'>'+m+'</option>'; }).join('') + '</select></div>'
+        + '<div><label>Year</label><input type="number" id="fpm-year" value="' + pfEsc(existingRec ? existingRec['Year'] : new Date().getFullYear()) + '"></div>';
+    }
+    headerFieldsHtml += '</div>';
+
+    var gridRows = scn.items.map(function(item, idx){
+      var rowVals = grid.values[idx] || [];
+      var sectionRow = item.sectionBreakAfter ? '' : '';
+      var cells = [];
+      for (var c=0;c<scn.columns;c++){
+        var v = rowVals[c] || '';
+        if (item.type === 'numeric'){
+          cells.push('<td><input type="text" data-item="'+idx+'" data-col="'+c+'" value="'+pfEsc(v)+'" placeholder="psi"></td>');
+        } else if (item.type === 'leak'){
+          cells.push('<td><select data-item="'+idx+'" data-col="'+c+'">'
+            + '<option value=""' + (v===''?' selected':'') + '></option>'
+            + '<option value="No"' + (v==='No'?' selected':'') + '>No</option>'
+            + '<option value="Yes"' + (v==='Yes'?' selected':'') + '>Yes</option>'
+            + '</select></td>');
+        } else {
+          cells.push('<td><select data-item="'+idx+'" data-col="'+c+'">'
+            + '<option value=""' + (v===''?' selected':'') + '></option>'
+            + '<option value="OK"' + (v==='OK'?' selected':'') + '>OK</option>'
+            + '<option value="NO"' + (v==='NO'?' selected':'') + '>NO</option>'
+            + '</select></td>');
+        }
+      }
+      var mainRow = '<tr><td class="fp-item-cell">#' + pfEsc(item.id) + ' — ' + pfEsc(item.item) + '</td>'
+        + '<td class="fp-crit-cell">' + pfEsc(item.criteria) + '</td>' + cells.join('') + '</tr>';
+      if (item.sectionBreakAfter){
+        mainRow += '<tr class="fp-section-row"><td colspan="' + (scn.columns+2) + '">' + pfEsc(item.sectionBreakAfter) + '</td></tr>';
+      }
+      return mainRow;
+    }).join('');
+    var colHeaders = scn.colLabels.map(function(c){ return '<th>'+pfEsc(c)+'</th>'; }).join('');
+    var gridHtml = '<div class="fp-grid-wrap"><table class="fp-entry-grid"><thead><tr><th>Item</th><th>Criteria</th>' + colHeaders + '</tr></thead>'
+      + '<tbody>' + gridRows + '</tbody></table></div>';
+
+    var signoffRows = scn.signoffLabels.map(function(lbl, idx){
+      var so = grid.signoff[idx] || {};
+      return '<tr><td>' + pfEsc(lbl) + '</td>'
+        + '<td><input type="text" data-so="checkedBy" data-idx="'+idx+'" value="'+pfEsc(so.checkedBy||'')+'" placeholder="Checked by"></td>'
+        + '<td><input type="date" data-so="date" data-idx="'+idx+'" value="'+pfEsc(so.date||'')+'"></td>'
+        + '<td><input type="text" data-so="comments" data-idx="'+idx+'" value="'+pfEsc(so.comments||'')+'" placeholder="Comments"></td>'
+      + '</tr>';
+    }).join('');
+    var signoffHtml = '<table class="fp-signoff-grid"><thead><tr><th>' + (scn.periodType==='week'?'Day':'Week') + '</th><th>Checked By</th><th>Date</th><th>Comments</th></tr></thead>'
+      + '<tbody>' + signoffRows + '</tbody></table>';
+
+    root.innerHTML = '<div class="fp-modal-bg" id="fpm-bg"><div class="fp-modal">'
+      + '<h3>' + (isEdit ? 'Edit' : 'New') + ' Log Sheet — ' + pfEsc(logId) + ' · ' + pfEsc(scn.label) + ' (' + pfEsc(scn.formCode) + ')</h3>'
+      + noteHtml + headerFieldsHtml + gridHtml + signoffHtml
+      + '<div id="fpm-save-status" style="font-size:10px;min-height:14px"></div>'
+      + '<div class="fp-modal-actions"><button class="fp-btn" id="fpm-cancel">Cancel</button><button class="fp-btn fp-btn-add" id="fpm-save">Save</button></div>'
+      + '</div></div>';
+
+    document.getElementById('fpm-cancel').onclick = function(){ root.innerHTML = ''; };
+    document.getElementById('fpm-bg').onclick = function(e){ if (e.target.id === 'fpm-bg') root.innerHTML = ''; };
+    document.getElementById('fpm-save').onclick = function(){ saveEntry(scn, logId, isEdit); };
+  }
+
+  function getLocationSuggestions(){
+    if (!_cache || !_cache.headers || !_cache.rows) return [];
+    var idx = colIdx(_cache.headers, 'Location');
+    if (idx < 0) return [];
+    var seen = {}, out = [];
+    _cache.rows.forEach(function(r){ var v = String(r[idx]||'').trim(); if (v && !seen[v]){ seen[v]=true; out.push(v); } });
+    return out;
+  }
+
+  function saveEntry(scn, logId, isEdit){
+    var root = document.getElementById('fp-modal-root');
+    var saveBtn = document.getElementById('fpm-save');
+    saveBtn.disabled = true;
+    var grid = { values: [], signoff: [] };
+    scn.items.forEach(function(item, idx){
+      var row = [];
+      for (var c=0;c<scn.columns;c++){
+        var inp = root.querySelector('[data-item="'+idx+'"][data-col="'+c+'"]');
+        row.push(inp ? inp.value.trim() : '');
+      }
+      grid.values.push(row);
+    });
+    scn.signoffLabels.forEach(function(lbl, idx){
+      var cb = root.querySelector('[data-so="checkedBy"][data-idx="'+idx+'"]');
+      var dt = root.querySelector('[data-so="date"][data-idx="'+idx+'"]');
+      var cm = root.querySelector('[data-so="comments"][data-idx="'+idx+'"]');
+      grid.signoff.push({ checkedBy: cb?cb.value.trim():'', date: dt?dt.value:'', comments: cm?cm.value.trim():'' });
+    });
+    var def = computeDeficiencies(scn, grid);
+    var location = document.getElementById('fpm-location').value.trim();
+    var values = {
+      'Log ID': logId,
+      'Pump Type': scn.pumpType,
+      'Inspection Type': scn.cadence,
+      'Location': location,
+      'Checklist Data (JSON)': JSON.stringify(grid),
+      'Deficiency Count': def.count,
+      'Has Deficiency': def.count > 0 ? 'Yes' : 'No',
+      'Deficiency Summary': def.summary,
+      'Status': def.count > 0 ? 'Open' : 'Closed'
+    };
+    if (scn.periodType === 'week'){
+      values['Period From'] = document.getElementById('fpm-from').value;
+      values['Period To'] = document.getElementById('fpm-to').value;
+      values['Month'] = ''; values['Year'] = '';
+    } else {
+      values['Month'] = document.getElementById('fpm-month').value;
+      values['Year'] = document.getElementById('fpm-year').value;
+      values['Period From'] = ''; values['Period To'] = '';
+    }
+    var reenable = function(){ if (saveBtn) saveBtn.disabled = false; };
+    if (isEdit){
+      postJSON('update', {tab: TABLE.tabKey, idCol: TABLE.idCol, id: logId}, values).then(function(res){
+        if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+        root.innerHTML = ''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: TABLE.tabKey}, [values]).then(function(res){
+        if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+        root.innerHTML = ''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ── Print form — reconstructs the original paper form layout ─── */
+  function buildPrintHtml(scn, rec){
+    var grid = { values:[], signoff:[] };
+    try { grid = JSON.parse(rec['Checklist Data (JSON)']||'{}'); } catch(e){}
+    if (!grid.values) grid.values = [];
+    if (!grid.signoff) grid.signoff = [];
+    var printedAt = new Date().toLocaleString();
+
+    var headerBlock = scn.periodType === 'week'
+      ? '<div class="pf-field"><span class="pf-label">Date:</span><span class="pf-value">From ' + pfEsc(rec['Period From']) + ' To ' + pfEsc(rec['Period To']) + '</span></div>'
+      : '<div class="pf-field"><span class="pf-label">Month:</span><span class="pf-value">' + pfEsc(rec['Month']) + '</span></div>'
+        + '<div class="pf-field"><span class="pf-label">Year:</span><span class="pf-value">' + pfEsc(rec['Year']) + '</span></div>';
+
+    var colHeaders = scn.colLabels.map(function(c){ return '<th>'+pfEsc(c)+'</th>'; }).join('');
+    var itemRows = scn.items.map(function(item, idx){
+      var rowVals = grid.values[idx] || [];
+      var cells = rowVals.map(function(v, c){
+        if (c >= scn.columns) return '';
+        var disp = v;
+        if (item.type === 'check') disp = v === 'OK' ? '&#10003;' : (v === 'NO' ? '&#10007;' : '');
+        return '<td>' + (item.type==='check' ? disp : pfEsc(v)) + '</td>';
+      });
+      while (cells.length < scn.columns) cells.push('<td></td>');
+      var row = '<tr><td>' + pfEsc(item.id) + '</td><td>' + pfEsc(item.item) + '</td><td style="text-align:left">' + pfEsc(item.criteria) + '</td>' + cells.join('') + '</tr>';
+      if (item.sectionBreakAfter){
+        row += '<tr><td colspan="' + (scn.columns+3) + '" style="background:#e8e8e8;font-weight:700;text-align:left;text-transform:uppercase;font-size:9px">' + pfEsc(item.sectionBreakAfter) + '</td></tr>';
+      }
+      return row;
+    }).join('');
+
+    var signoffRows = scn.signoffLabels.map(function(lbl, idx){
+      var so = grid.signoff[idx] || {};
+      return '<tr><td style="font-weight:700">' + pfEsc(lbl) + '</td><td>Checked by</td><td>' + pfEsc(so.checkedBy) + '</td><td>Date</td><td>' + pfEsc(so.date) + '</td><td>Comments</td><td>' + pfEsc(so.comments) + '</td></tr>';
+    }).join('');
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>' + pfEsc(rec['Pump Type']) + ' Firefighting Pump Inspection — ' + pfEsc(rec['Log ID']) + '</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:9px;color:#111;margin:0;padding:16px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:10px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:1050px;margin:0 auto;border:1px solid #333;padding:14px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}'
+    + '.pf-head h1{font-size:15px;margin:0}'
+    + '.pf-head .pf-code{font-size:10px;text-align:right}'
+    + '.pf-infobar{display:flex;gap:18px;flex-wrap:wrap;border:1px solid #999;padding:6px 8px;margin-bottom:8px;background:#f7f7f7}'
+    + '.pf-field{font-size:9.5px}'
+    + '.pf-label{font-weight:700;margin-right:4px}'
+    + 'table.pf-grid{width:100%;border-collapse:collapse;font-size:8.3px;margin-bottom:8px}'
+    + 'table.pf-grid th,table.pf-grid td{border:1px solid #999;padding:3px 4px;text-align:center}'
+    + 'table.pf-grid th{background:#222;color:#fff}'
+    + 'table.pf-grid td:nth-child(3){text-align:left}'
+    + 'table.pf-signoff{width:100%;border-collapse:collapse;font-size:9px}'
+    + 'table.pf-signoff td{border:1px solid #999;padding:4px 6px}'
+    + '.pf-footer{margin-top:6px;font-size:8px;color:#666;border-top:1px solid #999;padding-top:4px}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}@page{size:A4 landscape;margin:8mm}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>Saudi Arabian Glass Co. Ltd. — HSE Department<br>' + pfEsc(rec['Pump Type']) + ' Firefighting Pump Inspection</h1>'
+      + '<div class="pf-code">' + pfEsc(scn.formCode) + (scn.effectiveDate ? ' · Effective date: ' + pfEsc(scn.effectiveDate) : '') + '<br>Log ID: <strong>' + pfEsc(rec['Log ID']) + '</strong></div></div>'
+      + '<div class="pf-infobar">' + headerBlock + '<div class="pf-field"><span class="pf-label">Location:</span><span class="pf-value">' + pfEsc(rec['Location']) + '</span></div></div>'
+      + '<table class="pf-grid"><thead><tr><th>#</th><th>Item</th><th>Criteria</th>' + colHeaders + '</tr></thead><tbody>' + itemRows + '</tbody></table>'
+      + '<div style="font-weight:700;font-size:9.5px;margin-bottom:4px">Responsibility &amp; Signature</div>'
+      + '<table class="pf-signoff"><tbody>' + signoffRows + '</tbody></table>'
+      + (rec['Has Deficiency']==='Yes' ? '<div class="pf-footer" style="color:#9C0006;font-weight:700">Deficiency found: ' + pfEsc(rec['Deficiency Summary']) + (rec['Action Reference']?(' — escalated as ' + pfEsc(rec['Action Reference'])):' — not yet escalated') + '</div>' : '')
+      + '<div class="pf-footer">Generated from the SAGCO IMS Portal on ' + pfEsc(printedAt) + '. Not valid without original signatures.</div>'
+    + '</div></body></html>';
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.FP = {
+    onSearchInput: function(v){ _filters.search = v; render(); },
+    setScenario: function(key){
+      _filters.scenario = key; _filters.special = null;
+      SCENARIO_ORDER.concat(['all']).forEach(function(k){
+        var btn = document.getElementById('fp-scn-' + k);
+        if (btn) btn.classList.toggle('active', k === key);
+      });
+      document.getElementById('fp-flag-electrical-daily').style.display = (key === 'electricalDaily' || key === 'all') ? 'block' : 'none';
+      render();
+    },
+    cardClick: function(name){
+      _filters.scenario = 'all'; _filters.special = (name === 'total') ? null : name;
+      SCENARIO_ORDER.concat(['all']).forEach(function(k){ var btn = document.getElementById('fp-scn-'+k); if (btn) btn.classList.toggle('active', k==='all'); });
+      render();
+    },
+    selectRow: function(idVal){
+      _selected = (_selected !== null && String(_selected) === String(idVal)) ? null : idVal;
+      render();
+    },
+    openAddForCurrentScenario: function(){
+      if (!can('add')) return;
+      var key = _filters.scenario !== 'all' ? _filters.scenario : 'dieselDaily';
+      buildEntryModal(key, null);
+    },
+    openAdd: function(key){ if (can('add')) buildEntryModal(key, null); },
+    openEditSelected: function(){
+      var rc = getSelectedRec();
+      if (!rc) return alert('Select a row first.');
+      var key = scenarioKeyOf(rc);
+      if (!key) return alert('Could not determine this log sheet\'s scenario.');
+      buildEntryModal(key, rc);
+    },
+    printSelected: function(){
+      var rc = getSelectedRec();
+      if (!rc) return alert('Select a row first.');
+      var key = scenarioKeyOf(rc);
+      if (!key) return alert('Could not determine this log sheet\'s scenario.');
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked — please allow pop-ups to print.'); return; }
+      w.document.open(); w.document.write(buildPrintHtml(SCENARIOS[key], rc)); w.document.close();
+    },
+    removeSelected: function(){
+      if (!can('delete')) return;
+      var rc = getSelectedRec();
+      if (!rc) return alert('Select a row first.');
+      if (!confirm('Remove log sheet ' + rc['Log ID'] + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: TABLE.tabKey, idCol: TABLE.idCol, id: rc['Log ID']}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message||'unknown error')); return; }
+        _selected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+    // Escalates a deficient, not-yet-escalated log sheet to a single
+    // combined record in the Action Register — same sessionStorage +
+    // URL hand-off mechanism as Confined Space / Heat Stress /
+    // Scaffold Inspection, via a new 'fromFirePump' handler in
+    // capa-wizard.js.
+    escalateSelected: function(){
+      var rc = getSelectedRec();
+      if (!rc) return alert('Select a row first.');
+      if (rc['Has Deficiency'] !== 'Yes') return alert('This log sheet has no deficiency to escalate.');
+      if (rc['Action Reference']) return alert('This log sheet was already escalated — see Action Register record ' + rc['Action Reference'] + '.');
+      var ctx = {
+        logId: rc['Log ID'],
+        description: rc['Pump Type'] + ' Fire Pump (' + rc['Inspection Type'] + ') — ' + periodLabel(rc) + ' at ' + rc['Location'] + '. Deficiency found: ' + rc['Deficiency Summary'],
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingFirePumpContext', JSON.stringify(ctx)); } catch(e){}
+      window.open('action-register.html?fromFirePump=' + encodeURIComponent(rc['Log ID']) + '&lane=ACT', '_blank');
+    }
+  };
+
+  // Deep link from the Action Register's Source column —
+  // ?logsheet=<Log ID> jumps straight to and opens that record.
+  function handleDeepLink(){
+    var logId = new URLSearchParams(window.location.search).get('logsheet');
+    if (!logId) return;
+    _selected = logId;
+    render();
+    FP.openEditSelected();
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadAll().then(handleDeepLink); }, 100);
+  });
+})();
+</script>
+
+<script>
+/* ── Access gate: identical rule to confined-space.html / scaffold-inspection.html ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The Fire Pump Test Log is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+
+</div></body></html>

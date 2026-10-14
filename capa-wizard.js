@@ -172,6 +172,7 @@
       sourceConfinedSpaceEntryId: '', /* Rev.06 — set when this ACT record was forwarded from the Confined Space Pre-Entry / Atmospheric Test Record's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceHeatStressLogId: '', /* Rev.07 — set when this ACT record was forwarded from the Heat Stress / WBGT Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceScaffoldInspectionId: '', /* Rev.08 — set when this ACT record was forwarded from the Scaffold Inspection Register's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
+      sourceFirePumpLogId: '', /* Rev.09 — set when this ACT record was forwarded from the Fire Pump Test Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -368,7 +369,9 @@
               ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Heat Stress / WBGT Log <strong>' + esc(state.sourceHeatStressLogId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that log entry too.</div>'
               : (state.sourceScaffoldInspectionId
                 ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Scaffold Inspection <strong>' + esc(state.sourceScaffoldInspectionId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection record too.</div>'
-                : '')))));
+                : (state.sourceFirePumpLogId
+                  ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Fire Pump Test Log <strong>' + esc(state.sourceFirePumpLogId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that log sheet too.</div>'
+                  : ''))))));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -564,6 +567,7 @@
               notifyConfinedSpaceEntryActionCompleted();
               notifyHeatStressLogActionCompleted();
               notifyScaffoldInspectionActionCompleted();
+              notifyFirePumpActionCompleted();
               alert(state.capaId + ' marked Closed.'); closeWizard(); if (global.reloadLive) reloadLive();
             })
             .catch(function (err) { restoreButtons(); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
@@ -990,6 +994,7 @@
       'Source Confined Space Entry ID': state.sourceConfinedSpaceEntryId || '',
       'Source Heat Stress Log ID': state.sourceHeatStressLogId || '',
       'Source Scaffold Inspection ID': state.sourceScaffoldInspectionId || '',
+      'Source Fire Pump Log ID': state.sourceFirePumpLogId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
@@ -1308,6 +1313,31 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.09 (Issam, 2026-10-14) — mirrors notifySourceScaffoldInspection()
+     exactly, for the Fire Pump Test Log: writes the durable
+     "Action Reference" back to the one log sheet that escalated
+     it, so the register's own toolbar button can show its
+     "✓ Escalated → ACT-…" state. Only fires on first save. */
+  function notifySourceFirePump() {
+    if (!state.sourceFirePumpLogId) return;
+    fetch(SHEETS_URL + '?action=update&tab=fire_pump_log&idCol=' + encodeURIComponent('Log ID') + '&id=' + encodeURIComponent(state.sourceFirePumpLogId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
+  /* Rev.09 (Issam, 2026-10-14) — mirrors notifyScaffoldInspectionActionCompleted()
+     exactly, for the Fire Pump Test Log: once this ACT-lane record
+     reaches Closed, the one log sheet that escalated it has its own
+     Status set to Closed too. Fire-and-forget and idempotent. */
+  function notifyFirePumpActionCompleted() {
+    if (!state.sourceFirePumpLogId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=fire_pump_log&idCol=' + encodeURIComponent('Log ID') + '&id=' + encodeURIComponent(state.sourceFirePumpLogId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Status': 'Closed' }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* ── Save for the lightweight Action lane — one write, no steps ── */
   function persistAction() {
     if (saving) return;
@@ -1336,12 +1366,14 @@
             notifySourceConfinedSpaceEntry();
             notifySourceHeatStressLog();
             notifySourceScaffoldInspection();
+            notifySourceFirePump();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
             notifyConfinedSpaceEntryActionCompleted();
             notifyHeatStressLogActionCompleted();
             notifyScaffoldInspectionActionCompleted();
+            notifyFirePumpActionCompleted();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
@@ -1374,6 +1406,7 @@
             notifyConfinedSpaceEntryActionCompleted();
             notifyHeatStressLogActionCompleted();
             notifyScaffoldInspectionActionCompleted();
+            notifyFirePumpActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1646,6 +1679,7 @@
     state.sourceConfinedSpaceEntryId = col('Source Confined Space Entry ID');
     state.sourceHeatStressLogId = col('Source Heat Stress Log ID');
     state.sourceScaffoldInspectionId = col('Source Scaffold Inspection ID');
+    state.sourceFirePumpLogId = col('Source Fire Pump Log ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2490,6 +2524,24 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.09 (Issam, 2026-10-14) — Fire Pump Test Log hand-off —
+     action-register.html?fromFirePump=FPL-2026-0XX&lane=ACT, opened
+     by fire-pump.html's "⚡ Escalate to Action" button. Same
+     sessionStorage-plus-URL-verification pattern as the Incident,
+     Observation, Mock Drill, LOTO Audit, Confined Space, Heat Stress
+     and Scaffold Inspection hand-offs above. */
+  function openFromFirePump(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceFirePumpLogId = ctx.logId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Fire Pump Test Log';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -2650,6 +2702,25 @@
         loadUserDirectory(function () { openFromScaffold(sciCtx); });
       } else {
         loadUserDirectory(function () { openFromScaffold({ inspectionId: fromScaffold }); });
+      }
+      return;
+    }
+
+    /* Rev.09 (Issam, 2026-10-14) — Fire Pump Test Log hand-off —
+       action-register.html?fromFirePump=FPL-2026-0XX&lane=ACT, opened
+       by fire-pump.html's "⚡ Escalate to Action" button. Same
+       sessionStorage-plus-URL-verification pattern as the Incident,
+       Observation, Mock Drill, LOTO Audit, Confined Space, Heat
+       Stress and Scaffold Inspection hand-offs above. */
+    var fromFirePump = params.get('fromFirePump');
+    if (fromFirePump) {
+      showLoadingWizard();
+      var fplCtx = null;
+      try { fplCtx = JSON.parse(sessionStorage.getItem('incomingFirePumpContext') || 'null'); } catch (e) { fplCtx = null; }
+      if (fplCtx && String(fplCtx.logId) === String(fromFirePump)) {
+        loadUserDirectory(function () { openFromFirePump(fplCtx); });
+      } else {
+        loadUserDirectory(function () { openFromFirePump({ logId: fromFirePump }); });
       }
     }
   }

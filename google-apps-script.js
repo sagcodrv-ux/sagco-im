@@ -120,9 +120,32 @@ var TABS = {
   'emergency':       '34b – Emergency Response',
   'contractor':      '35 – Contractor Register',
   'loto_register':   '37 – LOTO Register',
-  'loto_auth':       ' LOTO Auth',
+  'loto_auth':       '70 – LOTO Authorised Persons',
+  'loto_devices':    '71 – LOTO Device Register',
+  'loto_station_audit': '72 – LOTO Station Audit Log',
+  /* 'confined_space': '38 – Confined Space Log' — SUPERSEDED single-table plan, no longer
+     used by confined-space.html (which now reads cs_register + cs_entry below). Left here
+     only so nothing else that may reference 'confined_space' breaks; Sheet 38 can be
+     repurposed or retired once confirmed unused elsewhere. */
   'confined_space':  '38 – Confined Space Log',
+  'cs_register':     '73 – CS Site Register',
+  'cs_entry':        '74 – CS Pre-Entry Atmos Test',
   'heat_stress':     '39 – Heat Stress WBGT Log',
+  /* 'scaffold' below is the OLD generic placeholder tab (plain ID/
+     Description/Date/Status/Owner/Reference columns, no real HSE-FRM-09
+     checklist fields) — left untouched so nothing else that may still
+     reference it breaks, same reasoning as 'confined_space' above.
+     scaffold-inspection.html's real bilingual HSE-FRM-09 register reads
+     'scaffold_inspection' instead, pointed at its own tab. */
+  'scaffold_inspection': 'Scaffold Inspection',
+  /* 'fire_pump' below is the OLD generic placeholder tab (no real
+     HSE-FRM-11/HSE-FRM-12 checklist fields) — left untouched so
+     nothing else that may still reference it breaks, same reasoning
+     as 'confined_space' and 'scaffold' above. fire-pump.html's real
+     four-scenario register (Diesel/Electrical × Daily/Monthly) reads
+     'fire_pump_log' instead, pointed at its own tab — dropping
+     numbered-sheet naming for the same reason as 'scaffold_inspection'. */
+  'fire_pump_log':    'Fire Pump Log',
   'fe_master':        'FE Master Inventory',
   'fe_inspection_log': 'FE Monthly Inspection Log',
   'fe_service_log':    'FE Annual Service Log',
@@ -1053,6 +1076,7 @@ function scanAlerts() {
     { tab: 'scaffold',       dateField: 'Next Inspection Date',warnDays:  7, label: 'Scaffold',         page: 'scaffold-inspection.html'   },
     { tab: 'crane_lifting',  dateField: 'Next Inspection Due', warnDays: 14, label: 'Crane & Lifting',  page: 'crane-lifting.html'         },
     { tab: 'loto_register',  dateField: 'Last Verified',       warnDays: 90, label: 'LOTO',             page: 'loto-register.html'         },
+    { tab: 'cs_entry',       dateField: 'Instrument Calibration Due Date', warnDays: 14, label: 'Confined Space Gas Detector Calib', page: 'confined-space.html' },
   ];
 
   DATE_RULES.forEach(function(rule) {
@@ -1193,7 +1217,21 @@ function findSheetIn(ss, sheetName) {
   if (sheet) return sheet;
 
   function normalize(s) {
-    return String(s).replace(/[^\w\s\-&\.]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+    /* Collapse every dash-like character (en dash –, em dash —, minus
+       sign −) down to a plain ASCII hyphen FIRST, before the character
+       filter below. Without this, a TABS entry written with an en dash
+       (e.g. '70 – LOTO Authorised Persons', copy-pasted from a template)
+       would silently fail to match a live sheet tab typed by hand with
+       an ordinary hyphen ('70 - LOTO Authorised Persons') — the filter
+       keeps a plain '-' but strips '–' entirely, so the two normalized
+       strings came out different and findSheet() returned null even
+       though the sheet clearly existed with matching text otherwise. */
+    return String(s)
+      .replace(/[\u2010-\u2015\u2212]/g, '-')
+      .replace(/[^\w\s\-&\.]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
   }
   var target = normalize(sheetName);
   var all    = ss.getSheets();
