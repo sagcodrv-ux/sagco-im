@@ -171,6 +171,7 @@
       sourceLotoAuditId: '', /* Rev.05 — set when this ACT record was forwarded from the LOTO Station Audit Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceConfinedSpaceEntryId: '', /* Rev.06 — set when this ACT record was forwarded from the Confined Space Pre-Entry / Atmospheric Test Record's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceHeatStressLogId: '', /* Rev.07 — set when this ACT record was forwarded from the Heat Stress / WBGT Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
+      sourceScaffoldInspectionId: '', /* Rev.08 — set when this ACT record was forwarded from the Scaffold Inspection Register's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -365,7 +366,9 @@
             ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Confined Space Entry <strong>' + esc(state.sourceConfinedSpaceEntryId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that entry record too.</div>'
             : (state.sourceHeatStressLogId
               ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Heat Stress / WBGT Log <strong>' + esc(state.sourceHeatStressLogId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that log entry too.</div>'
-              : ''))));
+              : (state.sourceScaffoldInspectionId
+                ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Scaffold Inspection <strong>' + esc(state.sourceScaffoldInspectionId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection record too.</div>'
+                : '')))));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -560,6 +563,7 @@
               notifyLotoAuditActionCompleted();
               notifyConfinedSpaceEntryActionCompleted();
               notifyHeatStressLogActionCompleted();
+              notifyScaffoldInspectionActionCompleted();
               alert(state.capaId + ' marked Closed.'); closeWizard(); if (global.reloadLive) reloadLive();
             })
             .catch(function (err) { restoreButtons(); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
@@ -985,6 +989,7 @@
       'Source LOTO Audit ID': state.sourceLotoAuditId || '',
       'Source Confined Space Entry ID': state.sourceConfinedSpaceEntryId || '',
       'Source Heat Stress Log ID': state.sourceHeatStressLogId || '',
+      'Source Scaffold Inspection ID': state.sourceScaffoldInspectionId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
@@ -1278,6 +1283,31 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.08 (Issam, 2026-10-14) — mirrors notifySourceHeatStressLog()
+     exactly, for the Scaffold Inspection Register: writes the durable
+     "Action Reference" back to the one inspection row that escalated
+     it, so the register's own toolbar button can show its
+     "✓ Escalated → ACT-…" state. Only fires on first save. */
+  function notifySourceScaffoldInspection() {
+    if (!state.sourceScaffoldInspectionId) return;
+    fetch(SHEETS_URL + '?action=update&tab=scaffold_inspection&idCol=' + encodeURIComponent('Inspection ID') + '&id=' + encodeURIComponent(state.sourceScaffoldInspectionId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
+  /* Rev.08 (Issam, 2026-10-14) — mirrors notifyHeatStressLogActionCompleted()
+     exactly, for the Scaffold Inspection Register: once this ACT-lane
+     record reaches Closed, the one inspection that escalated it has
+     its own Status set to Closed too. Fire-and-forget and idempotent. */
+  function notifyScaffoldInspectionActionCompleted() {
+    if (!state.sourceScaffoldInspectionId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=scaffold_inspection&idCol=' + encodeURIComponent('Inspection ID') + '&id=' + encodeURIComponent(state.sourceScaffoldInspectionId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Status': 'Closed' }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* ── Save for the lightweight Action lane — one write, no steps ── */
   function persistAction() {
     if (saving) return;
@@ -1305,11 +1335,13 @@
             notifySourceLotoAudit();
             notifySourceConfinedSpaceEntry();
             notifySourceHeatStressLog();
+            notifySourceScaffoldInspection();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
             notifyConfinedSpaceEntryActionCompleted();
             notifyHeatStressLogActionCompleted();
+            notifyScaffoldInspectionActionCompleted();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
@@ -1341,6 +1373,7 @@
             notifyLotoAuditActionCompleted();
             notifyConfinedSpaceEntryActionCompleted();
             notifyHeatStressLogActionCompleted();
+            notifyScaffoldInspectionActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1612,6 +1645,7 @@
     state.sourceLotoAuditId = col('Source LOTO Audit ID');
     state.sourceConfinedSpaceEntryId = col('Source Confined Space Entry ID');
     state.sourceHeatStressLogId = col('Source Heat Stress Log ID');
+    state.sourceScaffoldInspectionId = col('Source Scaffold Inspection ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2438,6 +2472,24 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.08 (Issam, 2026-10-14) — Scaffold Inspection Register hand-off
+     — action-register.html?fromScaffold=SCI-2026-0XX&lane=ACT, opened
+     by scaffold-inspection.html's "⚡ Escalate to Action" button. Same
+     sessionStorage-plus-URL-verification pattern as the Incident,
+     Observation, Mock Drill, LOTO Audit, Confined Space and Heat
+     Stress hand-offs above. */
+  function openFromScaffold(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceScaffoldInspectionId = ctx.inspectionId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Scaffold Inspection';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -2579,6 +2631,25 @@
         loadUserDirectory(function () { openFromHeatStress(hsCtx); });
       } else {
         loadUserDirectory(function () { openFromHeatStress({ logId: fromHeatStress }); });
+      }
+      return;
+    }
+
+    /* Rev.08 (Issam, 2026-10-14) — Scaffold Inspection Register
+       hand-off — action-register.html?fromScaffold=SCI-2026-0XX&lane=ACT,
+       opened by scaffold-inspection.html's "⚡ Escalate to Action"
+       button. Same sessionStorage-plus-URL-verification pattern as the
+       Incident, Observation, Mock Drill, LOTO Audit, Confined Space and
+       Heat Stress hand-offs above. */
+    var fromScaffold = params.get('fromScaffold');
+    if (fromScaffold) {
+      showLoadingWizard();
+      var sciCtx = null;
+      try { sciCtx = JSON.parse(sessionStorage.getItem('incomingScaffoldContext') || 'null'); } catch (e) { sciCtx = null; }
+      if (sciCtx && String(sciCtx.inspectionId) === String(fromScaffold)) {
+        loadUserDirectory(function () { openFromScaffold(sciCtx); });
+      } else {
+        loadUserDirectory(function () { openFromScaffold({ inspectionId: fromScaffold }); });
       }
     }
   }

@@ -193,6 +193,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         // to click through to the actual log entry — exactly the gap
         // Issam flagged after seeing ACT-2026-013 in the live register.
         srcHsIdx = colIdx(h,'Source Heat Stress Log ID'),
+        // Rev.08 (Issam, 2026-10-14) — Scaffold Inspection Register
+        // hand-off, same provenance pattern as Source Heat Stress Log ID
+        // above.
+        srcSciIdx = colIdx(h,'Source Scaffold Inspection ID'),
         // Point (Issam, 2026-10-08): evidence attached via Step 1's
         // "Add Evidence" button is saved to this column (newline-
         // joined links — see uploadInitialEvidence() in capa-wizard.js)
@@ -231,6 +235,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         'Source LOTO Audit ID': srcLotoIdx>=0 ? r[srcLotoIdx] : '',
         'Source Confined Space Entry ID': srcCsIdx>=0 ? r[srcCsIdx] : '',
         'Source Heat Stress Log ID': srcHsIdx>=0 ? r[srcHsIdx] : '',
+        'Source Scaffold Inspection ID': srcSciIdx>=0 ? r[srcSciIdx] : '',
         'Initial Evidence': evidIdx>=0 ? r[evidIdx] : '',
       };
     });
@@ -357,7 +362,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
                   // heat-stress-log.html's own ?log=<Log ID> deep-link
                   // handler opens straight to that exact entry.
                   ? '<a href="heat-stress-log.html?log='+encodeURIComponent(r['Source Heat Stress Log ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Heat Stress Log ID'])+'</a>'
-                  : (r.Source ? escHtml(r.Source) : '<span class="action-dim">—</span>')))));
+                  : (r['Source Scaffold Inspection ID']
+                    // Rev.08 (Issam, 2026-10-14) — a Scaffold-Inspection-
+                    // escalated Action now shows its Source Scaffold
+                    // Inspection ID as a clickable reference, same
+                    // pattern as the Heat Stress link above.
+                    // scaffold-inspection.html's own
+                    // ?inspection=<Inspection ID> deep-link handler
+                    // opens straight to that exact record.
+                    ? '<a href="scaffold-inspection.html?inspection='+encodeURIComponent(r['Source Scaffold Inspection ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Scaffold Inspection ID'])+'</a>'
+                    : (r.Source ? escHtml(r.Source) : '<span class="action-dim">—</span>'))))));
         // Point (Issam, 2026-10-08): "Initial Evidence" is one or more
         // links, newline-joined by uploadInitialEvidence() in
         // capa-wizard.js. Render one 📎 per link rather than one big

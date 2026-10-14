@@ -1,146 +1,1047 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SAGCO IMS — Scaffold Inspection Register</title>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Scaffold Inspection</title>
 <link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
-</head><body>
-<div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--g100);
-  border-radius:var(--radius);border-left:3px solid var(--gold);margin:10px 0;color:var(--text-lt)}
-.alert-red{background:#FFEBEE;border:1px solid #EF9A9A;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#B71C1C;margin-bottom:10px}
-.alert-amb{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:10px}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-</style><div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"><div class="kpi-card kc-blue"><div class="kpi-lbl">Active Scaffolds</div><div class="kpi-val">—</div><div class="kpi-sub">Enter current count</div></div><div class="kpi-card kc-grn"><div class="kpi-lbl">GREEN Tag</div><div class="kpi-val">Safe to use</div><div class="kpi-sub">Inspected and approved</div></div><div class="kpi-card kc-red"><div class="kpi-lbl">RED Tag</div><div class="kpi-val">UNSAFE — do not use</div><div class="kpi-sub">Defect found — withdraw</div></div><div class="kpi-card kc-amb"><div class="kpi-lbl">Inspection Trigger</div><div class="kpi-val">Pre-use + after alteration + weather</div><div class="kpi-sub">Any of these triggers inspection</div></div><div class="kpi-card kc-nvy"><div class="kpi-lbl">Sheet</div><div class="kpi-val">64</div><div class="kpi-sub">L4-SHEE-PR-09-R-01</div></div></div><div class="req-text">ISO 45001 §8.1 / OC-01 §A.9 — All scaffolds must be inspected before use, after any alteration, after adverse weather, and at weekly intervals during use. Green tag = SAFE TO USE. Red tag = UNSAFE — do not use. Only a competent scaffold inspector may change tag status. Handover certificate required before first use.</div><div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">📡 LIVE DATA — Google Sheets  |  Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
-<script>initPage("scaffold-inspection.html");document.getElementById("tb").innerHTML=renderTopbar("Scaffold Inspection Register","L4-SHEE-PR-09-R-01 · ISO 45001 §8.1 · Green/Red Tag System · OC-01 §A.9 · Workbook Sheet 64");</script>
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   SCAFFOLD INSPECTION — same dark navy/gold theme and card/table
+   shapes as loto-register.html / confined-space.html. Scoped entirely
+   to .si-dark-wrap so this page's own JS is independent, but every
+   class keeps the same naming convention (si- instead of lt-/cs-)
+   for anyone comparing the pages side by side. One register, one
+   combined form per inspection — HSE-FRM-09 Scaffold Inspection
+   Checklist bundles the job/tag information and the full 14-point
+   bilingual (EN/AR) checklist into a single document per visit, so
+   unlike Confined Space's two-register split this page holds one
+   live table: the Scaffold Inspection Register (L4-SHEE-PR-09-R-01,
+   Sheet 64). The Print Inspection Checklist button reproduces the
+   original HSE-FRM-09 form as closely as possible, bilingual text
+   and all, for physical sign-off and site posting (green/red tag).
+   ══════════════════════════════════════════════════════════════════ */
+.si-dark-wrap{
+  --siw-bg:#0D1B35; --siw-bg2:#142140; --siw-bg3:#1a2a50;
+  --siw-gold:#C9A84C; --siw-gold-lt:#E8C97A;
+  --siw-text:rgba(255,255,255,.92); --siw-text-muted:rgba(255,255,255,.55);
+  --siw-text-dim:rgba(255,255,255,.35); --siw-border:rgba(255,255,255,.08);
+  --siw-border-gold:rgba(201,168,76,.35);
+  --siw-blue:#5B9BD5; --siw-red:#F0685C; --siw-amb:#E8B339; --siw-grn:#4FCB9E;
+  background:var(--siw-bg); color:var(--siw-text); margin:0; padding:24px; min-height:100vh;
+}
+.si-dark-wrap *{box-sizing:border-box}
+.si-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.si-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--siw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--siw-bg2);
+  border-radius:8px;border:1px solid var(--siw-border-gold)}
+.si-dark-wrap .back-link:hover{background:var(--siw-bg3)}
+.si-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--siw-bg2);
+  border-radius:8px;border-left:3px solid var(--siw-gold);margin:10px 0;color:var(--siw-text-muted)}
+.si-dark-wrap .sec-banner{background:var(--siw-bg2);color:var(--siw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--siw-border-gold);border-bottom:none}
+.si-dark-wrap .kpi-grid{display:grid;gap:14px}
+.si-dark-wrap .kpi-card{background:var(--siw-bg2);border:1px solid var(--siw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.si-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.si-dark-wrap .kpi-card.kc-nvy::before{background:var(--siw-gold)}
+.si-dark-wrap .kpi-card.kc-blue::before{background:var(--siw-blue)}
+.si-dark-wrap .kpi-card.kc-amb::before{background:var(--siw-amb)}
+.si-dark-wrap .kpi-card.kc-red::before{background:var(--siw-red)}
+.si-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--siw-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.si-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--siw-text);line-height:1.1;margin-bottom:4px}
+.si-dark-wrap .kpi-sub{font-size:10px;color:var(--siw-text-muted)}
+.si-dark-wrap .kpi-card.si-clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.si-dark-wrap .kpi-card.si-clickable:hover{transform:translateY(-2px);border-color:var(--siw-gold)}
+.si-dark-wrap .chart-grid{display:grid;gap:14px}
+.si-dark-wrap .chart-card{background:var(--siw-bg2);border:1px solid var(--siw-border);
+  border-radius:14px;padding:16px 18px}
+.si-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--siw-text);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.si-dark-wrap .chart-sub{font-size:10px;color:var(--siw-text-muted);font-weight:400}
+.si-dark-wrap .chart-wrap{height:220px;position:relative}
+.si-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.si-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--siw-grn)}
+.si-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--siw-red)}
+.si-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--siw-amb)}
+.si-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--siw-blue)}
+</style>
+</head><body><div class="si-dark-wrap"><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div><div class="req-text">ISO 45001 §8.1 / OC-01 §A.9 — Every scaffold must be inspected before first use, after any alteration, after adverse weather, and at weekly intervals while in use, per L3-SHEE-PR-09-WI-01 and the bilingual HSE-FRM-09 Scaffold Inspection Checklist. Each inspection is logged below against the Scaffold Inspection Register (L4-SHEE-PR-09-R-01). GREEN tag = SAFE TO USE. RED tag = UNSAFE — do not use; withdraw from service until re-inspected. Only a competent scaffold inspector may change tag status.</div>
+
+<div class="sec-banner">SCAFFOLD QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy si-clickable" onclick="SI.cardClick('total')" title="Click to view the Scaffold Inspection Register"><div class="kpi-lbl">Total Inspections Logged</div><div class="kpi-val" id="si-kpi-total">—</div><div class="kpi-sub">Scaffold Inspection Register</div></div>
+  <div class="kpi-card kc-blue si-clickable" onclick="SI.cardClick('total')" title="Click to view this year's inspections"><div class="kpi-lbl">This Year's Inspections</div><div class="kpi-val" id="si-kpi-year">—</div><div class="kpi-sub" id="si-kpi-year-sub">Loading…</div></div>
+  <div class="kpi-card kc-red si-clickable" onclick="SI.cardClick('openentries')" title="Click to view inspections not yet closed"><div class="kpi-lbl">Open Inspections</div><div class="kpi-val" id="si-kpi-open">—</div><div class="kpi-sub">Inspections not yet Closed</div></div>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-grn si-clickable" onclick="SI.cardClick('green')" title="Click to view scaffolds currently tagged GREEN"><div class="kpi-lbl">GREEN Tag — Safe to Use</div><div class="kpi-val" id="si-kpi-green">—</div><div class="kpi-sub">Open inspections, Tag Status = Green</div></div>
+  <div class="kpi-card kc-red si-clickable" onclick="SI.cardClick('red')" title="Click to view scaffolds currently tagged RED"><div class="kpi-lbl">RED Tag — Unsafe, Do Not Use</div><div class="kpi-val" id="si-kpi-red">—</div><div class="kpi-sub">Open inspections, Tag Status = Red</div></div>
+  <div class="kpi-card kc-amb si-clickable" onclick="SI.cardClick('findings')" title="Click to view open corrective actions"><div class="kpi-lbl">Open Corrective Actions</div><div class="kpi-val" id="si-kpi-findings">—</div><div class="kpi-sub">Corrective action required, not yet closed</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+  <div class="chart-card">
+    <div class="chart-title">Inspections by Scaffold<span class="chart-sub">which scaffolds are inspected most often</span></div>
+    <div class="chart-wrap"><canvas id="siByScaffoldChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Inspections by Month<span class="chart-sub">inspection volume over time</span></div>
+    <div class="chart-wrap"><canvas id="siByMonthChart"></canvas></div>
+  </div>
+</div>
+
+<div class="sec-banner si-sec-toggle" id="si-hdr-inspection" onclick="SI.toggle('inspection')"><span class="si-chevron">▶</span> SCAFFOLD INSPECTION REGISTER &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(L4-SHEE-PR-09-R-01 · HSE-FRM-09 — one record per inspection visit)</span></div>
+<div id="live-table-inspection" class="si-collapsible" style="margin-top:0"></div>
+
+<div style="margin-top:16px;font-size:10px;color:var(--siw-text-dim);text-align:right" id="si-live-ts"></div>
+<div id="si-modal-root"></div>
+</div>
+<!-- No sidebar/topbar: this page is reached only from inside the Operations Hub, same pattern as loto-register.html / ptw-register.html / fire-extinguisher-log.html. -->
+
+<style>
+.si-dark-wrap .si-toolbar{display:flex;justify-content:flex-end;padding:6px 0}
+.si-dark-wrap .si-btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;
+  border:1px solid var(--siw-border);background:var(--siw-bg3);color:var(--siw-text);cursor:pointer;font-family:inherit}
+.si-dark-wrap .si-btn:hover{background:#223457;border-color:var(--siw-border-gold)}
+.si-dark-wrap .si-btn-add{background:var(--siw-gold);color:#1a1200;border-color:var(--siw-gold);font-weight:700}
+.si-dark-wrap .si-btn-add:hover{background:var(--siw-gold-lt)}
+.si-dark-wrap .si-btn:disabled{opacity:.35;cursor:not-allowed}
+.si-dark-wrap .si-btn:disabled:hover{background:var(--siw-bg3);border-color:var(--siw-border)}
+.si-dark-wrap .si-row-selectable{cursor:pointer}
+.si-dark-wrap .si-row-selected td,
+.si-dark-wrap .si-row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--siw-gold)}
+.si-dark-wrap .si-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
+  align-items:center;justify-content:center;z-index:9999}
+.si-dark-wrap .si-modal{background:var(--siw-bg2);border:1px solid var(--siw-border-gold);border-radius:14px;
+  padding:20px;width:460px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--siw-text)}
+.si-dark-wrap .si-modal h3{margin:0 0 12px;font-size:14px;color:var(--siw-gold-lt)}
+.si-dark-wrap .si-field{margin-bottom:10px}
+.si-dark-wrap .si-field label{display:block;font-size:10px;font-weight:600;color:var(--siw-text-muted);margin-bottom:3px}
+.si-dark-wrap .si-field input,.si-dark-wrap .si-field select,.si-dark-wrap .si-field textarea{width:100%;padding:6px 8px;font-size:12px;
+  border:1px solid var(--siw-border);border-radius:6px;font-family:inherit;box-sizing:border-box;
+  background:var(--siw-bg3);color:var(--siw-text)}
+.si-dark-wrap .si-field textarea{min-height:56px;resize:vertical}
+.si-dark-wrap .si-field .si-hint{font-size:9px;color:var(--siw-text-dim);margin-top:3px;display:block}
+.si-dark-wrap .si-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.si-dark-wrap .si-modal-actions .si-btn-cancel{background:var(--siw-bg3)}
+.si-dark-wrap .si-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
+  border:1px solid var(--siw-border-gold);background:var(--siw-bg2);cursor:pointer;font-family:inherit;color:var(--siw-gold-lt)}
+.si-dark-wrap .si-jump-btn:hover{background:var(--siw-bg3);border-color:var(--siw-gold)}
+.si-dark-wrap .si-jump-count{font-weight:400;color:var(--siw-text-muted);font-size:10px}
+.si-dark-wrap .si-sec-toggle{cursor:pointer;user-select:none}
+.si-dark-wrap .si-sec-toggle:hover{opacity:.9}
+.si-dark-wrap .si-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px;color:var(--siw-gold-lt)}
+.si-dark-wrap .si-collapsible{overflow:hidden;max-height:0;transition:none;
+  background:var(--siw-bg2);border:1px solid var(--siw-border-gold);border-top:none;border-radius:0 0 8px 8px}
+.si-dark-wrap .si-collapsible.si-open{max-height:none;padding:10px 14px}
+.si-dark-wrap .si-filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.si-dark-wrap .si-search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
+  border:1px solid var(--siw-border);border-radius:8px;font-family:inherit;background:var(--siw-bg3);color:var(--siw-text)}
+.si-dark-wrap .si-search-input::placeholder{color:var(--siw-text-dim)}
+.si-dark-wrap .si-filter-select{padding:6px 8px;font-size:12px;border:1px solid var(--siw-border);
+  border-radius:8px;font-family:inherit;max-width:220px;background:var(--siw-bg3);color:var(--siw-text)}
+.si-dark-wrap .si-filter-status{font-size:10px;color:var(--siw-text-muted);margin-left:auto}
+.si-dark-wrap .tbl-wrap{overflow-x:auto}
+.si-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
+.si-dark-wrap .tbl-stripe th{text-align:left;color:var(--siw-gold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--siw-border-gold);
+  background:var(--siw-bg3);white-space:nowrap}
+.si-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--siw-border);color:var(--siw-text)}
+.si-dark-wrap .tbl-stripe tbody tr:nth-child(odd) td{background:var(--siw-bg2)}
+.si-dark-wrap .tbl-stripe tbody tr:nth-child(even) td{background:#101d3a}
+.si-dark-wrap .tbl-stripe tbody tr:hover td{background:var(--siw-bg3)}
+.si-dark-wrap .si-expand-cell:hover{background:rgba(232,179,57,.18)!important}
+.si-dark-wrap .empty-state{text-align:center;padding:20px;color:var(--siw-text-muted)}
+.si-dark-wrap .empty-state strong{display:block;font-size:13px;color:var(--siw-gold-lt);margin-bottom:4px}
+.si-dark-wrap .nb{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid}
+.si-dark-wrap .nb-red{background:rgba(240,104,92,.15);color:var(--siw-red);border-color:rgba(240,104,92,.4)}
+.si-dark-wrap .nb-amb{background:rgba(232,179,57,.15);color:var(--siw-amb);border-color:rgba(232,179,57,.4)}
+.si-dark-wrap .nb-grn{background:rgba(79,203,158,.15);color:var(--siw-grn);border-color:rgba(79,203,158,.4)}
+.si-dark-wrap .si-detail-row td{background:rgba(255,255,255,.03);padding:10px 14px;border-top:1px dashed rgba(255,255,255,.12)}
+.si-dark-wrap .si-detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px}
+.si-dark-wrap .si-detail-item{font-size:11px;line-height:1.5}
+.si-dark-wrap .si-detail-lbl{display:block;font-weight:600;color:var(--siw-text-muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.3px}
+.si-dark-wrap .si-detail-val{display:block;color:var(--siw-text);word-break:break-word;white-space:pre-wrap}
+</style>
 
 <script>
-/* ── Auto-update summary cards from live Sheets data ── */
+/* ── Scaffold Inspection: one live table + Add/Edit/Remove, same
+   Add/Edit/Remove modal shell, soft-delete via Record Status, and
+   Escalate-to-Action mechanism as confined-space.html's Pre-Entry
+   log and loto-register.html's Station Audit table — only the field
+   set is specific to the Scaffold Inspection Register
+   (L4-SHEE-PR-09-R-01), the real HSE-FRM-09 form this digitises.
+   ────────────────────────────────────────────────────────────────── */
+(function(){
 
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
+  var YESNO = ['Yes','No'];
+  var OKNO = ['Ok','No'];
+  var OKNONA = ['Ok','No','N/A'];
+
+  var TABLES = {
+    inspection: {
+      label: 'Scaffold Inspection', tabKey: 'scaffold_inspection', containerId: 'live-table-inspection',
+      idCol: 'Inspection ID', idPrefix: 'SCI-', idPad: 3,
+      filterField: 'Status',
+      // A flagged inspection (Corrective Action Required = Yes)
+      // escalates to a single combined Action Register record, same
+      // one-record-one-Action design as Confined Space's Pre-Entry
+      // log and Heat Stress's WBGT Log. 'Action Reference' records
+      // the resulting ACT- ID once raised, set automatically by the
+      // escalation hand-off. The Action Register's own write-back,
+      // once that Action closes, auto-closes this inspection's own
+      // Status too — see notifyScaffoldInspectionActionCompleted()
+      // in capa-wizard.js.
+      hasEscalate: true,
+      // Prints a standalone inspection checklist reproducing the
+      // original bilingual (EN/AR) HSE-FRM-09 Scaffold Inspection
+      // Checklist as closely as possible — same pf- print convention
+      // as Confined Space's Print Pre-Entry Checklist.
+      hasPrintSI: true,
+      displayCols: ['Inspection ID','Date','Scaffold Number','Location of Scaffold','Type of Inspection','Tag Status','Status'],
+      fields: [
+        'Inspection ID','Date','Location of Scaffold','Scaffold Owner','Type of Inspection',
+        'Tag ID','Permit Number','Scaffold Number','Inspector',
+        // Section 1 — General Requirements
+        'Scaffold Below 12m (Ok/No)','Electrical Clearance Met (Ok/No)','Remarks — General Requirements',
+        // Section 2 — Scaffold Stability
+        'Severe Weather Provisions (Ok/No)','Scaffold Level (Ok/No)','Footing Rigid (Ok/No)',
+        'Site Hazards Evaluated (Ok/No)','Wheel Locks Provided (Ok/No/NA)','Remarks — Scaffold Stability',
+        // Section 3 — Work Platform
+        'Lumber Free of Defects (Ok/No)','Platform Complete No Gaps (Ok/No)','Remarks — Work Platform',
+        // Section 4 — Scaffold Components
+        'Guardrails and Toe-boards in Place (Ok/No)','Components Free of Defects (Ok/No)','Remarks — Scaffold Components',
+        // Section 5 — Fall Protection
+        'Front of Scaffold Within 35cm (Ok/No)','Safe Access Provided (Ok/No)','Personal Fall Protection Used (Ok/No)','Remarks — Fall Protection',
+        // Result and close-out
+        'Tag Status','Corrective Action Required (Y/N)','Proposed Corrective Action',
+        'Responsible Person','Target Close Date','Status','Remarks','Action Reference'
+      ],
+      selectFields: {
+        'Type of Inspection': ['First Time','Weekly Inspection'],
+        'Scaffold Below 12m (Ok/No)': OKNO,
+        'Electrical Clearance Met (Ok/No)': OKNO,
+        'Severe Weather Provisions (Ok/No)': OKNO,
+        'Scaffold Level (Ok/No)': OKNO,
+        'Footing Rigid (Ok/No)': OKNO,
+        'Site Hazards Evaluated (Ok/No)': OKNO,
+        'Wheel Locks Provided (Ok/No/NA)': OKNONA,
+        'Lumber Free of Defects (Ok/No)': OKNO,
+        'Platform Complete No Gaps (Ok/No)': OKNO,
+        'Guardrails and Toe-boards in Place (Ok/No)': OKNO,
+        'Components Free of Defects (Ok/No)': OKNO,
+        'Front of Scaffold Within 35cm (Ok/No)': OKNO,
+        'Safe Access Provided (Ok/No)': OKNO,
+        'Personal Fall Protection Used (Ok/No)': OKNO,
+        'Tag Status': ['Green — Safe to Use','Red — Unsafe, Do Not Use'],
+        'Corrective Action Required (Y/N)': YESNO,
+        'Status': ['Open','Closed']
+      },
+      textareaFields: [
+        'Remarks — General Requirements','Remarks — Scaffold Stability','Remarks — Work Platform',
+        'Remarks — Scaffold Components','Remarks — Fall Protection',
+        'Proposed Corrective Action','Remarks'
+      ],
+      // Suggest Scaffold Number from past inspections, so repeat
+      // weekly inspections of the same scaffold are easy to log
+      // consistently.
+      crossRef: { 'Scaffold Number': 'inspection' }
+    }
+  };
+  var _filters = {};
+  var _selected = {};
+  var _expandedRows = {};
+  var STATUS_COL = 'Record Status';
+  var _cache = {};
+  var _charts = { bySpace: null, byMonth: null };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUsername(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    return (s && s.username) || 'unknown';
   }
-  return '—';
-}
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function nextSequentialId(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return '';
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    if (idIdx < 0) return '';
+    var maxN = 0, prefixLower = cfg.idPrefix.toLowerCase();
+    data.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(prefixLower) !== 0) return;
+      var n = parseInt(v.slice(cfg.idPrefix.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    if (maxN === 0) return '';
+    var numStr = String(maxN + 1);
+    while (numStr.length < cfg.idPad) numStr = '0' + numStr;
+    return cfg.idPrefix + numStr;
+  }
+  function getFieldOfSelected(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    var idVal = _selected[tKeyName];
+    if (!data || idVal === undefined || idVal === null || idVal === '') return '';
+    var cfg = TABLES[tKeyName];
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var fIdx = colIdx(data.headers, fieldName);
+    if (idIdx < 0 || fIdx < 0) return '';
+    var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+    return row ? row[fIdx] : '';
+  }
+  function getOwnColumnValues(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return [];
+    var idx = colIdx(data.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}, out = [];
+    data.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    });
+    out.sort();
+    return out;
+  }
+  function getSuggestions(tKeyName, fieldName){
+    var cfg = TABLES[tKeyName];
+    var sourceTable = (cfg.crossRef && cfg.crossRef[fieldName]) ? cfg.crossRef[fieldName] : tKeyName;
+    return getOwnColumnValues(sourceTable, fieldName);
+  }
 
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
+  /* ── Print helpers (same pf- convention as loto-register.html's
+     buildLotoPrintHtml / buildAuditPrintHtml) ─────────────────────── */
+  function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function pfCb(label, checked){ return '<span class="pf-item"><span class="pf-box">'+(checked?'&#9746;':'&#9744;')+'</span><span class="pf-item-label">'+pfEsc(label)+'</span></span>'; }
+  function pfYes(val){ return String(val||'').trim().toLowerCase() === 'yes'; }
+  function pfField(label, value){ return '<div class="pf-field"><span class="pf-label">'+pfEsc(label)+'</span><span class="pf-value">'+pfEsc(value||'')+'</span></div>'; }
+  // Bilingual (EN/AR) checklist row for the Scaffold print form — each
+  // item carries its own Ok/No compliance mark and remarks cell, same
+  // column structure as the original HSE-FRM-09 Word form (Inspection
+  // Checklist | Ok | No | Remarks), with EN text over AR text in the
+  // item cell exactly as the source document lays it out.
+  function pfSiRow(enText, arText, okVal){
+    var v = String(okVal||'').trim().toLowerCase();
+    var isOk = v === 'ok' || v === 'yes';
+    var isNo = v === 'no';
+    return '<tr><td class="pf-item-cell"><div>'+pfEsc(enText)+'</div><div class="pf-ar" dir="rtl">'+pfEsc(arText)+'</div></td>'
+      + '<td class="pf-ok-cell">'+(isOk?'&#9746;':'&#9744;')+'</td>'
+      + '<td class="pf-ok-cell">'+(isNo?'&#9746;':'&#9744;')+'</td></tr>';
+  }
+  function pfSiSection(enTitle, arTitle){
+    return '<tr class="pf-sec-row"><td colspan="3"><span>'+pfEsc(enTitle)+'</span> <span class="pf-ar" dir="rtl">'+pfEsc(arTitle)+'</span></td></tr>';
+  }
+
+  // Standalone inspection checklist report for one Inspection ID —
+  // reproduces the original bilingual (EN/AR) HSE-FRM-09 Scaffold
+  // Inspection Checklist as closely as possible: same header field
+  // grid, same 5-category / 14-item Ok/No checklist, same footer
+  // code block. Same pf- CSS/layout convention as loto-register.html's
+  // buildLotoPrintHtml and confined-space.html's buildPreEntryPrintHtml.
+  function buildScaffoldPrintHtml(rec){
+    var printedAt = new Date().toLocaleString();
+    var inspectionId = rec['Inspection ID'] || '';
+    var carRequired = pfYes(rec['Corrective Action Required (Y/N)']);
+    var tagStatus = String(rec['Tag Status']||'').trim();
+    var tagIsRed = /red/i.test(tagStatus);
+    var typeIns = String(rec['Type of Inspection']||'').trim();
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>Scaffold Inspection Checklist '+pfEsc(inspectionId)+' — HSE-FRM-09</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#111;margin:0;padding:16px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:10px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:820px;margin:0 auto;border:1px solid #333;padding:14px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}'
+    + '.pf-head h1{font-size:15px;margin:0}'
+    + '.pf-head .pf-code{font-size:10px;text-align:right}'
+    + '.pf-info-tbl{width:100%;border-collapse:collapse;font-size:9.5px;margin-bottom:8px}'
+    + '.pf-info-tbl td{border:1px solid #999;padding:4px 6px;vertical-align:top}'
+    + '.pf-info-tbl .pf-lbl{font-weight:700;width:18%;background:#f7f7f7}'
+    + '.pf-chk-tbl{width:100%;border-collapse:collapse;font-size:9px;margin-top:2px}'
+    + '.pf-chk-tbl th,.pf-chk-tbl td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}'
+    + '.pf-chk-tbl th{background:#f0f0f0;font-size:9px;text-align:center}'
+    + '.pf-sec-row td{background:#dfe6ef;font-weight:700;font-size:9.5px;text-align:center}'
+    + '.pf-item-cell{width:70%}'
+    + '.pf-ok-cell{text-align:center;font-size:13px;width:7%}'
+    + '.pf-ar{direction:rtl;text-align:right;color:#333;font-size:9px;margin-top:1px}'
+    + '.pf-remarks-box{border:1px solid #999;padding:6px 8px;margin-top:6px;min-height:28px;font-size:9.5px}'
+    + '.pf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:2px 10px;margin-top:6px}'
+    + '.pf-field{margin-bottom:3px}'
+    + '.pf-label{font-weight:700;margin-right:5px}'
+    + '.pf-value{border-bottom:1px dotted #666;padding:0 4px}'
+    + '.pf-tag{display:inline-block;padding:3px 12px;border-radius:4px;font-weight:700;font-size:11px;margin-top:6px}'
+    + '.pf-tag.pf-tag-red{background:#F0685C;color:#fff}'
+    + '.pf-tag.pf-tag-grn{background:#4FCB9E;color:#083}'
+    + '.pf-footer{margin-top:8px;font-size:8px;color:#666;border-top:1px solid #999;padding-top:4px;display:flex;justify-content:space-between}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}@page{size:A4;margin:10mm}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>Scaffold Inspection Checklist <span class="pf-ar" dir="rtl" style="font-size:13px">قائمة فحص السقالة</span></h1>'
+      + '<div class="pf-code">HSE-FRM-09 · Rev.0<br>Inspection ID: <strong>'+pfEsc(inspectionId)+'</strong></div></div>'
+
+      + '<table class="pf-info-tbl"><tbody>'
+        + '<tr><td class="pf-lbl">Location of Scaffold<br><span class="pf-ar" dir="rtl">موقع السقالة</span></td><td colspan="2">'+pfEsc(rec['Location of Scaffold'])+'</td>'
+          + '<td class="pf-lbl">Tag ID<br><span class="pf-ar" dir="rtl">كارت الفحص</span></td><td>'+pfEsc(rec['Tag ID'])+'</td></tr>'
+        + '<tr><td class="pf-lbl">Date of Inspection<br><span class="pf-ar" dir="rtl">تاريخ الفحص</span></td><td colspan="2">'+pfEsc(rec['Date'])+'</td>'
+          + '<td class="pf-lbl">Permit #<br><span class="pf-ar" dir="rtl">رقم التصريح</span></td><td>'+pfEsc(rec['Permit Number'])+'</td></tr>'
+        + '<tr><td class="pf-lbl">Scaffold Owner<br><span class="pf-ar" dir="rtl">مالك السقالة</span></td><td colspan="2">'+pfEsc(rec['Scaffold Owner'])+'</td>'
+          + '<td class="pf-lbl">Scaffold #<br><span class="pf-ar" dir="rtl">رقم السقالة</span></td><td>'+pfEsc(rec['Scaffold Number'])+'</td></tr>'
+        + '<tr><td class="pf-lbl">Type of Inspection<br><span class="pf-ar" dir="rtl">نوع الفحص</span></td>'
+          + '<td>'+(typeIns==='First Time'?'&#9746;':'&#9744;')+' First time <span class="pf-ar" dir="rtl">أول مرة</span></td>'
+          + '<td>'+(typeIns==='Weekly Inspection'?'&#9746;':'&#9744;')+' Weekly Inspection <span class="pf-ar" dir="rtl">فحص أسبوعي</span></td>'
+          + '<td class="pf-lbl">Inspector<br><span class="pf-ar" dir="rtl">مفتش السقالة</span></td><td>'+pfEsc(rec['Inspector'])+'</td></tr>'
+      + '</tbody></table>'
+
+      + '<table class="pf-chk-tbl"><thead><tr><th style="width:70%">Inspection Checklist <span class="pf-ar" dir="rtl">قائمة الفحص</span></th><th>Ok</th><th>No</th></tr></thead><tbody>'
+        + pfSiSection('General Requirements','متطلبات عامة')
+        + pfSiRow('Is scaffold below 12 meters in height?','هل السقالة أقل من 12 متر؟', rec['Scaffold Below 12m (Ok/No)'])
+        + pfSiRow('Does the scaffold meet electrical safety clearance distances?','هل السقالة بعيدة بمسافة كافية من الخطوط الكهربائية؟', rec['Electrical Clearance Met (Ok/No)'])
+        + pfSiSection('Scaffold Stability','ثبات السقالة')
+        + pfSiRow('Are severe weather provisions in place i.e. during high winds, rain, or bad weather?','هل توجد أحوال جوية قاسية، مثل الرياح أو الأمطار أو سوء الأحوال الجوية الذي قد يوثر على السقالة؟', rec['Severe Weather Provisions (Ok/No)'])
+        + pfSiRow('Is the scaffold level?','هل السقالة مستوية؟', rec['Scaffold Level (Ok/No)'])
+        + pfSiRow('Is the footing rigid – not set on soft ground or resting on blocks?','هل قواعد السقالة متماسكة، وغير موضوعة على أرضية ناعمة أو على بلوكات؟', rec['Footing Rigid (Ok/No)'])
+        + pfSiRow('Has the working site been evaluated for hazards such as earth fills, ditches, debris, underground electric wires, and unguarded openings?','هل تم فحص بيئة عمل السقالة للتأكد من خلوها من الفتحات أو الأسلاك الكهربية أو المخلفات أو نواتج الحفر؟', rec['Site Hazards Evaluated (Ok/No)'])
+        + pfSiRow('Are wheels provided with locks at the base of mobile scaffold?','هل تم تزويد عجلات قاعدة السقالة بأقفال لمنع حركتها أثناء العمل؟', rec['Wheel Locks Provided (Ok/No/NA)'])
+        + pfSiSection('Work Platform','منصة العمل')
+        + pfSiRow('Is the lumber free of cracks, splits, knots, or damage?','هل الخشب خالي من الشقوق أو العقد أو التلف؟', rec['Lumber Free of Defects (Ok/No)'])
+        + pfSiRow('Is the platform complete with no gaps greater than 2.5 cm and properly secured?','هل المنصة كاملة مع عدم وجود فجوات أكبر من 2.5 سم ومؤمنة بشكل صحيح؟', rec['Platform Complete No Gaps (Ok/No)'])
+        + pfSiSection('Scaffold Components','مكونات السقالة')
+        + pfSiRow('Are guardrails and toe-boards in place on all open sides? Top rail 100–115 cm, Mid rail 55 cm, Toe-board 16 cm','هل الدرابزين وألواح القدم في مكانها من جميع الجوانب المفتوحة؟ الحاجز العلوي من 100 إلى 115 سم، الحاجز المتوسط 55 سم، حاجز القدم 16 سم', rec['Guardrails and Toe-boards in Place (Ok/No)'])
+        + pfSiRow('Have all components been inspected for defects such as broken welds, corroded members, and missing locks, bent or dented tubes?','هل تم فحص جميع المكونات لضمان خلوها من عيوب مثل اللحامات المكسورة والأجزاء المتآكلة والأقفال المفقودة أو الأنابيب المصدومة أو المنحنية؟', rec['Components Free of Defects (Ok/No)'])
+        + pfSiSection('Fall Protection','الحماية من السقوط')
+        + pfSiRow('Is the front of the scaffold within 35 cm of the work?','هل المسافة أمام السقالة جهة العمل أقل من 35 سم؟', rec['Front of Scaffold Within 35cm (Ok/No)'])
+        + pfSiRow('Is there a safe way to get on and off the scaffold, such as a ladder (without climbing on cross-braces)?','هل هناك طريقة آمنة للصعود والنزول من السقالة، مثل السلم (بدون التسلق على الدعامات المتقاطعة)؟', rec['Safe Access Provided (Ok/No)'])
+        + pfSiRow('Is personal fall protection available or being used by the employees?','هل وسائل منع السقوط متوفرة ومستخدمة؟', rec['Personal Fall Protection Used (Ok/No)'])
+      + '</tbody></table>'
+
+      + '<div class="pf-remarks-box"><span class="pf-label">Remarks:</span><br>'
+        + (['General Requirements','Scaffold Stability','Work Platform','Scaffold Components','Fall Protection'].map(function(s){
+            var v = rec['Remarks — '+s];
+            return v ? '<div><strong>'+pfEsc(s)+':</strong> '+pfEsc(v)+'</div>' : '';
+          }).join('') || '<em style="color:#888">None noted</em>')
+      + '</div>'
+
+      + '<div class="pf-grid3">'
+        + pfField('Result', tagStatus)
+        + pfField('Corrective Action Required', rec['Corrective Action Required (Y/N)'])
+        + pfField('Status', rec['Status'])
+      + '</div>'
+      + (tagStatus ? '<div class="pf-tag '+(tagIsRed?'pf-tag-red':'pf-tag-grn')+'">'+pfEsc(tagStatus)+'</div>' : '')
+
+      + (carRequired ?
+          '<div class="pf-field" style="margin-top:6px"><span class="pf-label">Proposed corrective action:</span><span class="pf-value">'+pfEsc(rec['Proposed Corrective Action'])+'</span></div>'
+          + '<div class="pf-grid3">'
+            + pfField('Responsible Person', rec['Responsible Person'])
+            + pfField('Target Close Date', rec['Target Close Date'])
+            + pfField('Action Reference', rec['Action Reference'])
+          + '</div>'
+        : '')
+      + '<div class="pf-field" style="margin-top:4px"><span class="pf-label">General Remarks:</span><span class="pf-value">'+pfEsc(rec['Remarks'])+'</span></div>'
+
+      + '<div class="pf-footer"><span>HSE-FRM-09 · Rev.0 · Effective date: 15 Apr 2020</span><span>Generated from the SAGCO IMS Portal on '+pfEsc(printedAt)+'. Not valid without original signatures.</span></div>'
+    + '</div></body></html>';
+  }
+
+  function renderShell(tKeyName, data){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    if (!data || !data.headers || !data.rows){
+      el.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      return;
+    }
+    _cache[tKeyName] = data;
+    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+    var f = _filters[tKeyName];
+    var sel = _selected[tKeyName];
+
+    var toolbarHtml = '';
+    if (can('add')) toolbarHtml += '<button class="si-btn si-btn-add" onclick="SI.openAdd(\''+tKeyName+'\')">+ Add Record</button>';
+    var disabledAttr = sel ? '' : ' disabled';
+    if (cfg.hasPrintSI){
+      toolbarHtml += '<button class="si-btn" id="si-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="SI.printInspection(SI.getSelected(\''+tKeyName+'\'))">🖨️ Print Inspection Checklist</button>';
+    }
+    if (cfg.hasEscalate){
+      var carVal = String(getFieldOfSelected(tKeyName, 'Corrective Action Required (Y/N)')||'').trim().toLowerCase();
+      var existingRef = String(getFieldOfSelected(tKeyName, 'Action Reference')||'').trim();
+      if (existingRef){
+        toolbarHtml += '<button class="si-btn" disabled title="Already escalated — see the Action Register">✓ Escalated → '+existingRef+'</button>';
+      } else {
+        var canEscalate = sel && carVal === 'yes';
+        toolbarHtml += '<button class="si-btn si-btn-add" id="si-tb-escalate-'+tKeyName+'"'+(canEscalate?'':' disabled')+' onclick="SI.escalateToAction(\''+tKeyName+'\', SI.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
+      }
+    }
+    if (can('edit')) toolbarHtml += '<button class="si-btn" id="si-tb-edit-'+tKeyName+'"'+disabledAttr+' onclick="SI.openEdit(\''+tKeyName+'\', SI.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
+    if (can('delete')) toolbarHtml += '<button class="si-btn" id="si-tb-remove-'+tKeyName+'"'+disabledAttr+' onclick="SI.remove(\''+tKeyName+'\', SI.getSelected(\''+tKeyName+'\'))">🗑️ Remove</button>';
+
+    var categoryHtml = '';
+    if (cfg.filterField){
+      var opts = getOwnColumnValues(tKeyName, cfg.filterField);
+      categoryHtml = '<select class="si-filter-select" onchange="SI.onCategoryChange(\''+tKeyName+'\', this.value)">' +
+        '<option value="">All ' + cfg.filterField + '</option>' +
+        opts.map(function(o){
+          var selA = (o === f.category) ? ' selected' : '';
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+selA+'>'+o+'</option>';
+        }).join('') + '</select>';
+    }
+
+    var specialLabels = { openentries: 'Open Entries', notsafe: 'Flagged Not Safe to Enter', findings: 'Open Corrective Actions' };
+    var specialPillHtml = '';
+    if (f.special && specialLabels[f.special]){
+      specialPillHtml = '<span class="nb nb-amb" style="margin:6px 0;display:inline-block">Showing: ' + specialLabels[f.special] +
+        ' <span style="cursor:pointer" onclick="SI.clearFilters(\''+tKeyName+'\')">✕</span></span>';
+    }
+
+    el.innerHTML =
+      '<div class="si-toolbar">' + toolbarHtml + '</div>' +
+      specialPillHtml +
+      '<div class="si-filterbar">' +
+        '<input type="text" class="si-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="SI.onSearchInput(\''+tKeyName+'\', this.value)">' +
+        categoryHtml +
+        '<button class="si-btn" onclick="SI.clearFilters(\''+tKeyName+'\')">Clear</button>' +
+        '<span class="si-filter-status" id="si-filter-status-'+tKeyName+'"></span>' +
+      '</div>' +
+      '<div class="si-table-area" id="si-table-area-'+tKeyName+'"></div>';
+    renderTableArea(tKeyName);
+  }
+
+  // An inspection is "open" when Status isn't Closed — same
+  // undercounting-is-worse-than-overcounting reasoning as LOTO's
+  // hasOpenIsolation.
+  function hasOpenEntry(row, headers){
+    var statusIdx = colIdx(headers, 'Status');
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return st !== 'closed';
+  }
+  // An inspection is currently showing a given tag colour when its
+  // Tag Status starts with that colour AND it's still Open — a
+  // scaffold's live tag is whatever its most recent open inspection
+  // says, same reasoning as a Closed Pre-Entry no longer being "not
+  // safe" in Confined Space.
+  function hasOpenTag(row, headers, colour){
+    var tagIdx = colIdx(headers, 'Tag Status');
+    var statusIdx = colIdx(headers, 'Status');
+    var tag = tagIdx >= 0 ? String(row[tagIdx]||'').trim().toLowerCase() : '';
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return tag.indexOf(colour) === 0 && st !== 'closed';
+  }
+  // A corrective action finding is "open" when it was required and the
+  // record itself hasn't been closed out yet — same pattern as LOTO's
+  // hasOpenFinding.
+  function hasOpenFinding(row, headers){
+    var carIdx = colIdx(headers, 'Corrective Action Required (Y/N)');
+    var statusIdx = colIdx(headers, 'Status');
+    var car = carIdx >= 0 ? String(row[carIdx]||'').trim().toLowerCase() : '';
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return car === 'yes' && st !== 'closed';
+  }
+
+  function renderTableArea(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    var areaEl = document.getElementById('si-table-area-' + tKeyName);
+    var statusEl = document.getElementById('si-filter-status-' + tKeyName);
+    if (!data || !areaEl) return;
+
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
+    var f = _filters[tKeyName] || {search:'', category:'', special:null};
+    var searchLower = f.search.trim().toLowerCase();
+
+    var visibleRows = data.rows.filter(function(r){
+      return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+    var totalVisible = visibleRows.length;
+    if (f.category && filterFieldIdx > -1){
+      visibleRows = visibleRows.filter(function(r){ return String(r[filterFieldIdx]||'').trim() === f.category; });
+    }
+    if (searchLower){
+      visibleRows = visibleRows.filter(function(r){
+        return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
+      });
+    }
+    if (f.special === 'openentries'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenEntry(r, data.headers); });
+    }
+    if (f.special === 'green'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenTag(r, data.headers, 'green'); });
+    }
+    if (f.special === 'red'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenTag(r, data.headers, 'red'); });
+    }
+    if (f.special === 'findings'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenFinding(r, data.headers); });
+    }
+    if (statusEl){
+      var isFiltered = !!(f.search.trim() || f.category || f.special);
+      statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
+    }
+
+    var displayCols = cfg.displayCols || cfg.fields.slice(0, 5);
+    var colIdxs = displayCols.map(function(c){ return colIdx(data.headers, c); }).filter(function(i){ return i >= 0; });
+    var colNames = colIdxs.map(function(i){ return data.headers[i]; });
+    var shownSet = {};
+    colNames.forEach(function(n){ shownSet[n] = true; });
+    var detailFields = (cfg.fields||[]).filter(function(f){ return !shownSet[f] && f !== STATUS_COL; });
+
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe">';
+    html += '<thead><tr><th style="width:40px"></th>'; colNames.forEach(function(h){ html += '<th>'+h+'</th>'; }); html += '</tr></thead><tbody>';
+
+    if (!visibleRows.length){
+      html += '<tr><td colspan="'+(colNames.length+1)+'"><div class="empty-state"><strong>No records</strong>Add data in Google Sheets or use + Add Record above.</div></td></tr>';
+    } else {
+      var selId = _selected[tKeyName];
+      var expandedSet = _expandedRows[tKeyName] || {};
+      visibleRows.forEach(function(row){
+        var idVal = idIdx>-1 ? row[idIdx] : '';
+        var idValEsc = String(idVal).replace(/'/g,"\\'");
+        var isSel = selId !== undefined && selId !== null && String(selId) === String(idVal);
+        var isExpanded = !!expandedSet[String(idVal)];
+        html += '<tr class="si-row-selectable'+(isSel?' si-row-selected':'')+'" onclick="SI.selectRow(\''+tKeyName+'\',\''+idValEsc+'\')">';
+        html += '<td class="si-expand-cell" style="text-align:center;cursor:pointer;padding:10px 6px" title="Click to show all fields" onclick="event.stopPropagation();SI.toggleRowDetail(\''+tKeyName+'\',\''+idValEsc+'\')">'+
+          '<span class="si-chevron" style="display:inline-block;font-size:13px;transition:transform .15s'+(isExpanded?';transform:rotate(90deg)':'')+'">▶</span></td>';
+        colIdxs.forEach(function(ci){
+          var cell = row[ci];
+          if (data.headers[ci] === 'Status'){
+            var stv = String(cell||'').trim();
+            var cls = stv.toLowerCase()==='closed' ? 'nb-grn' : 'nb-amb';
+            html += '<td>'+(stv?'<span class="nb '+cls+'">'+stv+'</span>':formatCell(cell))+'</td>';
+          } else {
+            html += '<td>' + formatCell(cell) + '</td>';
+          }
+        });
+        html += '</tr>';
+        if (isExpanded){
+          html += '<tr class="si-detail-row"><td></td><td colspan="'+colNames.length+'">'+
+            '<div class="si-detail-grid">' + detailFields.map(function(f){
+              var fi = colIdx(data.headers, f);
+              var val = fi>=0 ? row[fi] : '';
+              return '<div class="si-detail-item"><span class="si-detail-lbl">'+f+'</span><span class="si-detail-val">'+formatCell(val)+'</span></div>';
+            }).join('') +
+            '</div></td></tr>';
+        }
+      });
+    }
+    html += '</tbody></table></div>';
+    areaEl.innerHTML = html;
+  }
+
+  function loadTab(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--siw-text-muted);font-size:11px">⏳ Loading live data…</div>';
+    return fetch(SHEETS_URL + '?tab=' + cfg.tabKey + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        renderShell(tKeyName, data);
+        var countEl = document.getElementById('si-count-' + tKeyName);
+        if (countEl && data && data.rows){
+          var statusIdx = colIdx(data.headers, STATUS_COL);
+          var visibleCount = statusIdx < 0 ? data.rows.length :
+            data.rows.filter(function(r){ return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; }).length;
+          countEl.textContent = '(' + visibleCount + ')';
+        }
+        return data;
+      })
+      .catch(function(){
+        el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
+        return null;
+      });
+  }
+
+  function loadAll(){
+    var keys = Object.keys(TABLES);
+    return Promise.all(keys.map(loadTab)).then(function(){
+      renderDashboard();
+    });
+  }
+  function reloadAll(){ return loadAll(); }
+
+  function visibleRowsOf(tKeyName){
+    var data = _cache[tKeyName];
+    if (!data || !data.rows) return [];
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    return data.rows.filter(function(r){ return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+  }
+
+  function monthLabel(ym){
+    var parts = ym.split('-');
+    var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mi = parseInt(parts[1],10) - 1;
+    return (names[mi] || parts[1]) + ' ' + parts[0];
+  }
+
+  function renderDashboard(){
+    var ins = _cache['inspection'];
+    if (!ins) return;
+    var visibleRows = visibleRowsOf('inspection');
+
+    document.getElementById('si-kpi-total').textContent = visibleRows.length;
+
+    var dateIdx = colIdx(ins.headers, 'Date');
+    var thisYear = new Date().getFullYear();
+    var yearCount = 0;
+    visibleRows.forEach(function(r){
+      var s = dateIdx>=0 ? String(r[dateIdx]||'').trim() : '';
+      if (/^\d{4}/.test(s) && parseInt(s.slice(0,4),10) === thisYear) yearCount++;
+    });
+    document.getElementById('si-kpi-year').textContent = yearCount;
+    document.getElementById('si-kpi-year-sub').textContent = 'Year to date';
+
+    var openCount = visibleRows.filter(function(r){ return hasOpenEntry(r, ins.headers); }).length;
+    document.getElementById('si-kpi-open').textContent = openCount;
+
+    var greenCount = visibleRows.filter(function(r){ return hasOpenTag(r, ins.headers, 'green'); }).length;
+    var kpiGreen = document.getElementById('si-kpi-green');
+    if (kpiGreen) kpiGreen.textContent = greenCount;
+
+    var redCount = visibleRows.filter(function(r){ return hasOpenTag(r, ins.headers, 'red'); }).length;
+    var kpiRed = document.getElementById('si-kpi-red');
+    if (kpiRed) kpiRed.textContent = redCount;
+
+    var findingsCount = visibleRows.filter(function(r){ return hasOpenFinding(r, ins.headers); }).length;
+    var kpiFindings = document.getElementById('si-kpi-findings');
+    if (kpiFindings) kpiFindings.textContent = findingsCount;
+
+    var BLUE = '#5B9BD5', GOLD = '#C9A84C';
+    var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
+    if (_charts.bySpace) { _charts.bySpace.destroy(); _charts.bySpace = null; }
+    if (_charts.byMonth) { _charts.byMonth.destroy(); _charts.byMonth = null; }
+
+    // Chart 1: Inspections by Scaffold (horizontal bar) — counts each
+    // inspection record against the Scaffold Number it was logged for.
+    var scaffIdx = colIdx(ins.headers, 'Scaffold Number');
+    var spaceCounts = {};
+    if (scaffIdx >= 0){
+      visibleRows.forEach(function(r){
+        var v = String(r[scaffIdx]||'').trim();
+        if (v) spaceCounts[v] = (spaceCounts[v]||0) + 1;
+      });
+    }
+    var usedSpaces = Object.keys(spaceCounts).sort();
+    if (window.Chart && usedSpaces.length){
+      var maxSpaceCount = Math.max.apply(null, usedSpaces.map(function(s){ return spaceCounts[s]||0; }).concat([0]));
+      _charts.bySpace = new Chart(document.getElementById('siByScaffoldChart'), {
+        type:'bar', data:{ labels: usedSpaces, datasets:[{ label:'Inspections', data: usedSpaces.map(function(s){ return spaceCounts[s]||0; }), backgroundColor:BLUE, borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
+          interaction:{ mode:'nearest', axis:'y', intersect:false },
+          layout:{ padding:{ right: 28 } },
+          scales:{ x:{ beginAtZero:true, max: Math.ceil(maxSpaceCount*1.18)||undefined, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } }, y:{ ticks:{ color:TICK }, grid:{ color:GRID } } },
+          plugins:{
+            legend:{ display:false },
+            tooltip:{ callbacks:{ label:function(ctx){ return ctx.parsed.x + ' inspection' + (ctx.parsed.x===1?'':'s'); } } },
+            datalabels:{ anchor:'end', align:'end', clamp:true, color:'#E8C97A', font:{ size:10, weight:'600' }, formatter:function(v){ return v; } }
+          }
+        },
+        plugins: (window.ChartDataLabels ? [window.ChartDataLabels] : [])
+      });
+    }
+
+    // Chart 2: Entries by Month (vertical bar) — same monthLabel
+    // bucketing approach as LOTO's Certificate Expiry chart, grouped
+    // here by the entry's own Date instead of an expiry date.
+    var monthCounts = {};
+    if (dateIdx >= 0){
+      visibleRows.forEach(function(r){
+        var raw = r[dateIdx];
+        if (!raw) return;
+        var s = String(raw).trim();
+        if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return;
+        var year = parseInt(s.slice(0,4), 10);
+        if (year < 2020) return;
+        var ym = s.slice(0,7);
+        monthCounts[ym] = (monthCounts[ym] || 0) + 1;
+      });
+    }
+    var sortedMonths = Object.keys(monthCounts).sort();
+    if (window.Chart && sortedMonths.length){
+      _charts.byMonth = new Chart(document.getElementById('siByMonthChart'), {
+        type: 'bar',
+        data: { labels: sortedMonths.map(monthLabel), datasets: [{
+          label: 'Inspections', data: sortedMonths.map(function(m){ return monthCounts[m]; }),
+          backgroundColor: GOLD, borderRadius: 4
+        }]},
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: {
+            y: { beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } },
+            x: { ticks:{ color:TICK }, grid:{ color:GRID } }
+          },
+          plugins: { legend: { display:false } } }
+      });
     }
   }
-}
-(function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows && d.rows.length > 0){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('Active Scaffolds', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("Status","GREEN") + countContains("Status","Active"); })(d.rows||[],d.headers||[]));
+
+  function setExpanded(tKeyName, expanded){
+    var containerId = TABLES[tKeyName].containerId;
+    var el = document.getElementById(containerId);
+    var hdr = document.getElementById('si-hdr-' + tKeyName);
+    var chev = hdr ? hdr.querySelector('.si-chevron') : null;
+    if (expanded){ el.classList.add('si-open'); if (chev) chev.style.transform='rotate(90deg)'; }
+    else { el.classList.remove('si-open'); if (chev) chev.style.transform='rotate(0deg)'; }
+  }
+
+  /* ── Modal (shared by Add + Edit) — same shell as loto-register.html,
+     extended with <select> rendering for selectFields and <textarea>
+     for textareaFields. ─────────────────────────────────────────── */
+  function showModal(tKeyName, title, fields, initialValues, onSubmit){
+    var root = document.getElementById('si-modal-root');
+    var cfg = TABLES[tKeyName];
+    var selFields = cfg.selectFields || {};
+    var taFields = cfg.textareaFields || [];
+    var fieldsHtml = fields.map(function(f, fi){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEsc = String(v).replace(/"/g,'&quot;');
+      if (selFields[f]){
+        var optsHtml = '<option value=""></option>' + selFields[f].map(function(o){
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="si-field"><label>'+f+'</label><select data-field="'+f+'">'+optsHtml+'</select></div>';
       }
+      if (taFields.indexOf(f) > -1){
+        return '<div class="si-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+      }
+      var fLower = f.trim().toLowerCase();
+      var hasDate = fLower.indexOf('date') > -1;
+      var hasTime = fLower.indexOf('time') > -1;
+      var inputType = (hasDate && hasTime) ? 'datetime-local' : (hasDate ? 'date' : (hasTime ? 'time' : 'text'));
+      var suggestions = (hasDate || hasTime) ? [] : getSuggestions(tKeyName, f);
+      var dlId = 'si-dl-' + tKeyName + '-' + fi;
+      var dlHtml = '';
+      if (suggestions.length){
+        dlHtml = '<datalist id="'+dlId+'">' + suggestions.map(function(s){
+          return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
+        }).join('') + '</datalist>';
+      }
+      return '<div class="si-field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"'+(suggestions.length?' list="'+dlId+'"':'')+'>'+dlHtml+'</div>';
+    }).join('');
+
+    root.innerHTML = '<div class="si-modal-bg" id="si-modal-bg"><div class="si-modal">' +
+      '<h3>'+title+'</h3>' + fieldsHtml +
+      '<div id="si-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
+      '<div class="si-modal-actions"><button class="si-btn si-btn-cancel" id="si-modal-cancel">Cancel</button>' +
+      '<button class="si-btn si-btn-add" id="si-modal-save">Save</button></div></div></div>';
+
+    document.getElementById('si-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('si-modal-bg').onclick = function(e){ if(e.target.id==='si-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('si-modal-save').onclick = function(){
+      var values = {};
+      root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      var saveBtn = document.getElementById('si-modal-save');
+      saveBtn.disabled = true;
+      window._siReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
+      onSubmit(values, function(){ root.innerHTML = ''; });
     };
   }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  /* ── Public API used by inline onclick handlers ─────────────────────── */
+  window.SI = {
+    toggle: function(tKeyName){
+      var containerId = TABLES[tKeyName].containerId;
+      var el = document.getElementById(containerId);
+      setExpanded(tKeyName, !el.classList.contains('si-open'));
+    },
+    jumpTo: function(tKeyName){
+      setExpanded(tKeyName, true);
+      var hdr = document.getElementById('si-hdr-' + tKeyName);
+      if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
+    },
+    onSearchInput: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].search = val; renderTableArea(tKeyName);
+    },
+    onCategoryChange: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].category = val; renderTableArea(tKeyName);
+    },
+    clearFilters: function(tKeyName){
+      _filters[tKeyName] = {search:'', category:'', special:null};
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    cardClick: function(cardName){
+      var special = (cardName === 'total') ? null : cardName === 'openentries' ? 'openentries'
+        : cardName === 'green' ? 'green' : cardName === 'red' ? 'red' : cardName === 'findings' ? 'findings' : null;
+      _filters['inspection'] = {search:'', category:'', special: special};
+      renderShell('inspection', _cache['inspection']);
+      this.jumpTo('inspection');
+    },
+    selectRow: function(tKeyName, idVal){
+      var cur = _selected[tKeyName];
+      _selected[tKeyName] = (cur !== undefined && cur !== null && String(cur) === String(idVal)) ? null : idVal;
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    getSelected: function(tKeyName){ return _selected[tKeyName]; },
+    toggleRowDetail: function(tKeyName, idVal){
+      var set = _expandedRows[tKeyName] || (_expandedRows[tKeyName] = {});
+      var key = String(idVal);
+      set[key] = !set[key];
+      renderTableArea(tKeyName);
+    },
+    openAdd: function(tKeyName){
+      var cfg = TABLES[tKeyName];
+      if (!can('add')) return;
+      var initial = {};
+      var suggestedId = nextSequentialId(tKeyName);
+      if (suggestedId) initial[cfg.idCol] = suggestedId;
+      showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._siReenableModalSave) window._siReenableModalSave(); });
+      });
+    },
+    // Opens the printable Scaffold Inspection Checklist for one
+    // Inspection ID in a new tab, reproducing the bilingual HSE-FRM-09
+    // form, to print or save as PDF and post at the scaffold access
+    // point. Mirrors CS.printPreEntry in confined-space.html.
+    printInspection: function(idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache['inspection'];
+      var idIdx = colIdx(data.headers, 'Inspection ID');
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var rec = {};
+      data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print the checklist.'); return; }
+      w.document.open(); w.document.write(buildScaffoldPrintHtml(rec)); w.document.close();
+    },
+    // Escalates a flagged inspection to a single combined record in
+    // the Action Register — same sessionStorage + URL hand-off
+    // mechanism already used for Confined Space/Heat Stress/LOTO
+    // Station Audit/Mock Drill/Observation/Incident, so
+    // action-register.html/capa-wizard.js open the lightweight Action
+    // lane pre-filled, no separate wiring needed on that side beyond
+    // the matching 'fromScaffold' handler.
+    escalateToAction: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select an inspection record first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var carIdx = colIdx(data.headers, 'Corrective Action Required (Y/N)');
+      if (carIdx < 0 || String(row[carIdx]||'').trim().toLowerCase() !== 'yes'){
+        return alert('This inspection is not flagged as requiring corrective action.');
+      }
+      var refIdx = colIdx(data.headers, 'Action Reference');
+      if (refIdx >= 0 && String(row[refIdx]||'').trim()){
+        return alert('This inspection was already escalated — see Action Register record ' + row[refIdx] + '.');
+      }
+      var scaffIdx = colIdx(data.headers, 'Scaffold Number');
+      var tagIdx = colIdx(data.headers, 'Tag Status');
+      var pcaIdx = colIdx(data.headers, 'Proposed Corrective Action');
+      // Bundle the scaffold reference, tag result, and proposed
+      // corrective action from this one inspection into a single
+      // action-plan description, per the one-inspection-one-Action
+      // design — nothing here should need a second escalation later.
+      var descParts = [];
+      descParts.push('Scaffold Inspection: ' + idVal);
+      if (scaffIdx >= 0 && row[scaffIdx]) descParts.push('Scaffold #: ' + row[scaffIdx]);
+      if (tagIdx >= 0 && row[tagIdx]) descParts.push('Tag Status: ' + row[tagIdx]);
+      if (pcaIdx >= 0 && row[pcaIdx]) descParts.push('Proposed corrective action: ' + row[pcaIdx]);
+      var ctx = {
+        inspectionId: idVal,
+        description: descParts.join('\n') || ('Corrective action required — Scaffold Inspection ' + idVal),
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingScaffoldContext', JSON.stringify(ctx)); } catch(e){ /* not fatal — the destination still opens, just without pre-fill */ }
+      window.open('action-register.html?fromScaffold=' + encodeURIComponent(idVal) + '&lane=ACT', '_blank');
+    },
+    openEdit: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('edit')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+            if (window._siReenableModalSave) window._siReenableModalSave();
+            return;
+          }
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._siReenableModalSave) window._siReenableModalSave(); });
+      });
+    },
+    remove: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('delete')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message || 'unknown error')); return; }
+        _selected[tKeyName] = null;
+        reloadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    }
+  };
+
+  // Deep link from the Action Register's "Source" column — once an
+  // escalated inspection's Action is resolved, clicking its Scaffold
+  // Inspection ID reference lands here as ?inspection=<Inspection ID>,
+  // jumps to the Scaffold Inspection Register section, and opens that
+  // exact record's full details (not just a highlighted row), same as
+  // the Confined Space / Heat Stress hand-off.
+  function handleScaffoldDeepLink(){
+    var inspectionId = new URLSearchParams(window.location.search).get('inspection');
+    if (!inspectionId) return;
+    SI.jumpTo('inspection');
+    SI.openEdit('inspection', inspectionId);
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadAll().then(handleScaffoldDeepLink); }, 100);
+  });
 })();
 </script>
 
 <script>
-(function() {
-  function colIdx(headers, name) {
-    var n = name.toLowerCase();
-    for (var i=0;i<headers.length;i++) {
-      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
-    }
-    return -1;
+/* ── Access gate: identical rule to loto-register.html / ptw-register.html ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
   }
-  function countVal(rows, col, val) {
-    if (col < 0) return 0;
-    var v = val ? val.toLowerCase() : null;
-    return rows.filter(function(r){
-      var cell = String(r[col]||'').toLowerCase().trim();
-      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
-    }).length;
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The detailed Scaffold Inspection register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
   }
-  function sumCol(rows, col) {
-    if (col < 0) return 0;
-    return rows.reduce(function(s,r){
-      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
-      return s + (isNaN(v) ? 0 : v);
-    }, 0);
-  }
-  function setCard(idx, val) {
-    var cards = document.querySelectorAll('.kpi-val');
-    if (cards[idx]) cards[idx].textContent = val;
-  }
-
-  var origRender = window.renderTable;
-  window.renderTable = function(data, container) {
-    if (origRender) origRender(data, container);
-    if (!data || !data.rows || !data.headers) return;
-    var rows = data.rows, h = data.headers;
-    try { setCard(0, countVal(rows, colIdx(h,"status"), "active") + countVal(rows, colIdx(h,"tag"), "green")); } catch(e) {}
-  };
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
 })();
 </script>
+
 </body></html>
