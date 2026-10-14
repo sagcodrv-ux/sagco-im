@@ -97,7 +97,7 @@ var TREE = [
         { id:'oc1-fxl',  label:'Fire Extinguisher Log',      file:'fire-extinguisher-log.html', level:'L4', tag:'Sh.40' },
         { id:'oc1-fpl',  label:'Fire Pump Test Log',          file:'fire-pump-log.html',         level:'L4', tag:'Sh.41' },
         { id:'oc1-ohs',  label:'OH Surveillance Register',   file:'oh-surveillance.html',       level:'L4', tag:'Sh.42' },
-        { id:'oc1-sca',  label:'Scaffold Inspection',         file:'scaffold-inspection.html',   level:'L4', tag:'Sh.64' },
+        { id:'oc1-sca',  label:'Scaffold Inspection',         file:'scaffold-inspection.html',   level:'L4', tag:'L4-SHEE-PR-09-R-01' },
         { id:'oc1-ndt',  label:'NDT / Radiography Log',       file:'ndt-permit-log.html',               level:'L4', tag:'Sh.43' },
         { id:'oc1-ghs',  label:'Chemical Inventory (GHS)',    file:'chemical-inventory.html',    level:'L4', tag:'Sh.44' },
         { id:'oc1-crl',  label:'Crane & Lifting Register',    file:'crane-lifting.html',         level:'L4', tag:'Sh.45' },
