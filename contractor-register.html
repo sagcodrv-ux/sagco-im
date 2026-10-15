@@ -1,166 +1,692 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SAGCO IMS — Contractor Register</title>
 <link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
-</head>
-<body>
-<div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;
-  font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--g100);
-  border-radius:var(--radius);border-left:3px solid var(--gold);margin:10px 0;color:var(--text-lt)}
-.alert-red{background:#FFEBEE;border:1px solid #EF9A9A;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#B71C1C;margin-bottom:10px}
-.alert-amber{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:10px}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-.back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--navy);font-size:11px;
-  font-weight:600;text-decoration:none;padding:5px 10px;background:var(--g100);
-  border-radius:var(--radius);border:1px solid #e0e0e0}
-.back-link:hover{background:#e3f0fa}
-</style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety & Emergency</a></div>
-<div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
-  <div class="kpi-card kc-blue"><div class="kpi-lbl">On-Site Contractors</div><div class="kpi-val">~152</div><div class="kpi-sub">Active — IMS scope</div></div>
-  <div class="kpi-card kc-amb"><div class="kpi-lbl">Pre-qualified</div><div class="kpi-val">—</div><div class="kpi-sub">Enter actual count</div></div>
-  <div class="kpi-card kc-amb"><div class="kpi-lbl">SCoC Signed</div><div class="kpi-val">—</div><div class="kpi-sub">See Sheet 31</div></div>
-  <div class="kpi-card kc-amb"><div class="kpi-lbl">TPDD Screened</div><div class="kpi-val">—</div><div class="kpi-sub">See Sheet 29</div></div>
-  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Governed By</div><div class="kpi-val">L2-P-05 §7</div><div class="kpi-sub">OC-01 §A.15</div></div>
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   CONTRACTOR REGISTER — same dark navy/gold theme and card/table
+   shapes as crane-lifting.html / first-aid-kit.html. Scoped entirely
+   to .ctr-dark-wrap, class prefix ctw-. Two live tables: 'contractor'
+   (master list — the pre-existing "35 – Contractor Register" sheet,
+   now extended with contract/supervisor/workforce fields rather than
+   replaced, so the 11 real contractors already entered are kept) and
+   'contractor_compliance' (new — one row per compliance review event,
+   tracking CR / Civil Defense license / insurance / HSE induction
+   expiry against three independently-set reminder thresholds, same
+   DATE_RULES mechanism already watching Crane/First Aid Kit/Scaffold).
+   ══════════════════════════════════════════════════════════════════ */
+.ctr-dark-wrap{
+  --ctw-bg:#0D1B35; --ctw-bg2:#142140; --ctw-bg3:#1a2a50;
+  --ctw-gold:#C9A84C; --ctw-gold-lt:#E8C97A;
+  --ctw-text:rgba(255,255,255,.92); --ctw-text-muted:rgba(255,255,255,.55);
+  --ctw-text-dim:rgba(255,255,255,.35); --ctw-border:rgba(255,255,255,.08);
+  --ctw-border-gold:rgba(201,168,76,.35);
+  --ctw-blue:#5B9BD5; --ctw-red:#F0685C; --ctw-amb:#E8B339; --ctw-grn:#4FCB9E;
+  background:var(--ctw-bg); color:var(--ctw-text); margin:0; padding:24px; min-height:100vh;
+}
+.ctr-dark-wrap *{box-sizing:border-box}
+.ctr-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.ctr-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--ctw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--ctw-bg2);
+  border-radius:8px;border:1px solid var(--ctw-border-gold)}
+.ctr-dark-wrap .back-link:hover{background:var(--ctw-bg3)}
+.ctr-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--ctw-bg2);
+  border-radius:8px;border-left:3px solid var(--ctw-gold);margin:10px 0;color:var(--ctw-text-muted)}
+.ctr-dark-wrap .flag-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.08);
+  border-radius:8px;border-left:3px solid var(--ctw-amb);margin:10px 0;color:var(--ctw-text-muted)}
+.ctr-dark-wrap .sec-banner{background:var(--ctw-bg2);color:var(--ctw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--ctw-border-gold);border-bottom:none}
+.ctr-dark-wrap .kpi-grid{display:grid;gap:14px}
+.ctr-dark-wrap .kpi-card{background:var(--ctw-bg2);border:1px solid var(--ctw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.ctr-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.ctr-dark-wrap .kpi-card.kc-nvy::before{background:var(--ctw-gold)}
+.ctr-dark-wrap .kpi-card.kc-blue::before{background:var(--ctw-blue)}
+.ctr-dark-wrap .kpi-card.kc-amb::before{background:var(--ctw-amb)}
+.ctr-dark-wrap .kpi-card.kc-red::before{background:var(--ctw-red)}
+.ctr-dark-wrap .kpi-card.kc-grn::before{background:var(--ctw-grn)}
+.ctr-dark-wrap .kpi-lbl{font-size:10px;font-weight:700;color:var(--ctw-text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.ctr-dark-wrap .kpi-val{font-size:22px;font-weight:800;color:var(--ctw-text)}
+.ctr-dark-wrap .kpi-sub{font-size:10px;color:var(--ctw-text-dim);margin-top:2px}
+.ctr-dark-wrap .ctw-clickable{cursor:pointer}
+.ctr-dark-wrap .ctw-clickable:hover{background:var(--ctw-bg3)}
+.ctr-dark-wrap .chart-grid{display:grid;gap:14px}
+.ctr-dark-wrap .chart-card{background:var(--ctw-bg2);border:1px solid var(--ctw-border);border-radius:14px;padding:14px 16px}
+.ctr-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--ctw-text);
+  display:flex;justify-content:space-between;margin-bottom:8px}
+.ctr-dark-wrap .chart-sub{font-size:10px;color:var(--ctw-text-muted);font-weight:400}
+.ctr-dark-wrap .chart-wrap{height:220px;position:relative}
+.ctr-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.ctr-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--ctw-grn)}
+.ctr-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--ctw-red)}
+.ctr-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--ctw-amb)}
+.ctr-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--ctw-blue)}
+.ctr-dark-wrap .filter-row{display:flex;gap:8px;flex-wrap:wrap;background:var(--ctw-bg2);
+  border:1px solid var(--ctw-border-gold);border-top:none;border-bottom:none;padding:10px 14px;margin:0}
+.ctr-dark-wrap .filter-btn{font-size:11px;font-weight:700;padding:9px 14px;border-radius:9px;
+  border:1px solid var(--ctw-border-gold);background:var(--ctw-bg2);color:var(--ctw-text-muted);cursor:pointer}
+.ctr-dark-wrap .filter-btn.active{background:rgba(201,168,76,.18);color:var(--ctw-gold-lt);border-color:var(--ctw-gold)}
+.ctr-dark-wrap .ctw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--ctw-bg2);border:1px solid var(--ctw-border-gold);border-top:none}
+.ctr-dark-wrap .ctw-toolbar input[type=text]{background:var(--ctw-bg3);border:1px solid var(--ctw-border);
+  color:var(--ctw-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:170px}
+.ctr-dark-wrap .ctw-toolbar select{background:var(--ctw-bg3);border:1px solid var(--ctw-border);
+  color:var(--ctw-text);border-radius:7px;padding:7px 10px;font-size:11px}
+.ctr-dark-wrap .ctw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--ctw-border-gold);
+  background:var(--ctw-bg3);color:var(--ctw-gold-lt);cursor:pointer}
+.ctr-dark-wrap .ctw-btn:hover{background:rgba(201,168,76,.15)}
+.ctr-dark-wrap .ctw-btn:disabled{opacity:.4;cursor:not-allowed}
+.ctr-dark-wrap .ctw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--ctw-grn)}
+.ctr-dark-wrap .ctw-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--ctw-amb)}
+.ctr-dark-wrap .ctw-table-wrap{border:1px solid var(--ctw-border-gold);border-top:none;max-height:420px;overflow:auto}
+.ctr-dark-wrap table.ctw-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.ctr-dark-wrap table.ctw-tbl th{position:sticky;top:0;background:var(--ctw-bg3);color:var(--ctw-gold-lt);
+  text-align:left;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--ctw-border-gold);white-space:nowrap}
+.ctr-dark-wrap table.ctw-tbl td{padding:7px 10px;border-bottom:1px solid var(--ctw-border);color:var(--ctw-text)}
+.ctr-dark-wrap table.ctw-tbl tr.ctw-row{cursor:pointer}
+.ctr-dark-wrap table.ctw-tbl tr.ctw-row:hover{background:var(--ctw-bg3)}
+.ctr-dark-wrap table.ctw-tbl tr.ctw-row.ctw-sel{background:rgba(201,168,76,.12)}
+.ctr-dark-wrap .empty-state{padding:30px;text-align:center;color:var(--ctw-text-dim);font-size:11px}
+.ctr-dark-wrap .empty-state strong{display:block;color:var(--ctw-text-muted);margin-bottom:4px;font-size:12px}
+/* Modal */
+.ctw-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;
+  justify-content:center;z-index:999;padding:30px 14px;overflow:auto}
+.ctw-modal{background:var(--ctw-bg2);border:1px solid var(--ctw-border-gold);border-radius:14px;
+  padding:20px 22px;max-width:1000px;width:100%;color:var(--ctw-text)}
+.ctw-modal h3{margin:0 0 12px;font-size:14px;color:var(--ctw-gold-lt)}
+.ctw-modal-hdr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.ctw-modal-hdr-grid label, .ctw-field label{display:block;font-size:10px;font-weight:600;color:var(--ctw-text-muted);
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.ctw-modal-hdr-grid input, .ctw-modal-hdr-grid select, .ctw-modal-hdr-grid textarea{width:100%;background:var(--ctw-bg3);
+  border:1px solid var(--ctw-border);color:var(--ctw-text);border-radius:7px;padding:7px 9px;font-size:12px}
+.ctw-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.ctw-note{font-size:10.5px;color:var(--ctw-amb);background:rgba(232,179,57,.1);border-left:3px solid var(--ctw-amb);
+  padding:8px 10px;border-radius:6px;margin-bottom:12px;line-height:1.5}
+</style>
+</head><body><div class="ctr-dark-wrap">
+<div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div>
+<div class="req-text">L4-800-R-03 · ISO 45001 §8.1.4 / ISO 9001 §8.4 — Contractor Master Register (who's on site, scope of work, contract window) plus the Contractor Compliance Log (CR, Civil Defense/municipal license, insurance and HSE induction, each tracked to its own expiry and reminder window). TPDD screening (Sheet 29) and SCoC acknowledgement (Sheet 31) are tracked separately and not duplicated here — see those registers for that evidence.</div>
+<div class="flag-text">⚠ Reminder thresholds (Issam, 2026-10-15): CR &amp; Civil Defense/Municipal License expiry warns at 30 days, Insurance expiry warns at 30 days, HSE Induction expiry warns at 7 days — three independent DATE_RULES entries on the same Contractor Compliance Log tab, not one shared threshold. The master register below was extended with Contract/Supervisor/Workforce fields rather than rebuilt, so the 11 contractors already in the live sheet are kept; add the new columns to the existing "35 – Contractor Register" tab (see the reference workbook) before the extra fields will save.</div>
+
+<div class="sec-banner">CONTRACTOR QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy ctw-clickable" onclick="CTR.conCardClick('total')" title="Click to view the contractor register"><div class="kpi-lbl">Active Contractors</div><div class="kpi-val" id="ct-kpi-con-total">—</div><div class="kpi-sub">Contractor Master Register</div></div>
+  <div class="kpi-card kc-amb ctw-clickable" onclick="CTR.conCardClick('ending')" title="Click to view contracts ending within 30 days"><div class="kpi-lbl">Contracts Ending ≤30 Days</div><div class="kpi-val" id="ct-kpi-ending">—</div><div class="kpi-sub">Contract End Date approaching</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">On-Site Contractors</div><div class="kpi-val">~152</div><div class="kpi-sub">Active — IMS scope (gap estimate)</div></div>
 </div>
-<div class="req-text">ISO 45001 §8.1.4 / ISO 9001 §8.4 — All contractors must complete pre-qualification before mobilisation. SAGCO applies 7 pre-mobilisation requirements (L2-IMS-800-P-05 §7). Contractor performance is monitored on-site through OC-01 §A.15. Any contractor safety violation may result in immediate site suspension. TPDD screening (Sheet 29) and SCoC acknowledgement (Sheet 31) required before engagement.</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-grn ctw-clickable" onclick="CTR.compCardClick('compliant')" title="Click to view compliant reviews"><div class="kpi-lbl">Compliant</div><div class="kpi-val" id="ct-kpi-compliant">—</div><div class="kpi-sub">Latest review per contractor</div></div>
+  <div class="kpi-card kc-amb ctw-clickable" onclick="CTR.compCardClick('expiring')" title="Click to view reviews expiring soon"><div class="kpi-lbl">Expiring Soon</div><div class="kpi-val" id="ct-kpi-expiring">—</div><div class="kpi-sub">Within warning window</div></div>
+  <div class="kpi-card kc-red ctw-clickable" onclick="CTR.compCardClick('noncompliant')" title="Click to view non-compliant reviews"><div class="kpi-lbl">Non-Compliant</div><div class="kpi-val" id="ct-kpi-noncompliant">—</div><div class="kpi-sub">At least one item overdue</div></div>
+</div>
 
-<div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
-<script>initPage("contractor-register.html");document.getElementById("tb").innerHTML=renderTopbar("Contractor Register","L4-800-R-03 · ISO 45001 §8.1.4 / ISO 9001 §8.4 · ~152 On-site Contractors · 7 Pre-qualification Requirements");</script>
+<div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:18px">
+  <div class="chart-card"><div class="chart-title">Compliance Review Outcomes<span class="chart-sub">all-time, by overall status</span></div><div class="chart-wrap"><canvas id="ctResultChart"></canvas></div></div>
+</div>
+
+<div class="sec-banner">CONTRACTOR MASTER REGISTER</div>
+<div class="ctw-toolbar">
+  <input type="text" id="ct-con-search" placeholder="Search name / supplier no…" oninput="CTR.onConSearch(this.value)">
+  <button class="ctw-btn ctw-btn-add" id="ct-con-btn-new" onclick="CTR.openConAdd()">+ Add Contractor</button>
+  <button class="ctw-btn" id="ct-con-btn-edit" disabled onclick="CTR.openConEditSelected()">Open / Edit</button>
+  <button class="ctw-btn" id="ct-con-btn-remove" disabled onclick="CTR.removeConSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--ctw-text-dim)" id="ct-con-count-sub"></span>
+</div>
+<div class="ctw-table-wrap"><div id="live-table-con"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div class="sec-banner">CONTRACTOR COMPLIANCE LOG</div>
+<div class="filter-row">
+  <button class="filter-btn active" id="ct-comp-f-all" onclick="CTR.setCompFilter('all')">All</button>
+  <button class="filter-btn" id="ct-comp-f-open" onclick="CTR.setCompFilter('open')">Open</button>
+  <button class="filter-btn" id="ct-comp-f-closed" onclick="CTR.setCompFilter('closed')">Closed</button>
+</div>
+<div class="ctw-toolbar">
+  <input type="text" id="ct-comp-search" placeholder="Search contractor ID / name…" oninput="CTR.onCompSearch(this.value)">
+  <button class="ctw-btn ctw-btn-add" id="ct-comp-btn-new" onclick="CTR.openCompAdd()">+ New Review</button>
+  <button class="ctw-btn" id="ct-comp-btn-edit" disabled onclick="CTR.openCompEditSelected()">Open / Edit</button>
+  <button class="ctw-btn ctw-btn-esc" id="ct-comp-btn-esc" disabled onclick="CTR.escalateCompSelected()">⚡ Escalate to Action</button>
+  <button class="ctw-btn" id="ct-comp-btn-remove" disabled onclick="CTR.removeCompSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--ctw-text-dim)" id="ct-comp-count-sub"></span>
+</div>
+<div class="ctw-table-wrap"><div id="live-table-comp"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div id="ct-modal-root"></div>
 
 <script>
-/* ── Auto-update summary cards from live Sheets data ── */
-
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
-  }
-  return '—';
-}
-
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
-    }
-  }
-}
 (function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('On-Site Contractors', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
-  updateCard('Pre-qualified', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("HSE Pre-qual","YES"); })(d.rows||[],d.headers||[]));
-  updateCard('SCoC Signed', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("SCoC Signed","YES"); })(d.rows||[],d.headers||[]));
-  updateCard('TPDD Screened', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("TPDD","YES") + countContains("TPDD Screened","YES"); })(d.rows||[],d.headers||[]));
-      }
-    };
+
+  var CON = { tabKey:'contractor', containerId:'live-table-con', idCol:'Supplier No.' };
+  var COMP = { tabKey:'contractor_compliance', containerId:'live-table-comp', idCol:'Entry ID', idPrefix:'CTC-', idPad:3 };
+  var STATUS_COL = 'Record Status';
+
+  /* ── Reminder thresholds (Issam, 2026-10-15) — independent per
+     document type, matching the three separate DATE_RULES entries
+     added to google-apps-script.js for this tab. Kept here too so
+     the on-page Expiring-Soon badges agree with the reminder engine
+     without waiting for a server round trip. */
+  var WARN_DAYS = { cr: 30, license: 30, insurance: 30, induction: 7 };
+
+  var _conCache = null, _compCache = null;
+  var _conSelected = null, _compSelected = null;
+  var _conFilters = { search:'', special:null };
+  var _compFilters = { search:'', status:'all', special:null };
+  var _charts = { result:null };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
   }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function ctEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+  function nextId(table, cache){
+    if (!cache || !cache.headers || !cache.rows) return table.idPrefix + '001';
+    var idIdx = colIdx(cache.headers, table.idCol);
+    if (idIdx < 0) return table.idPrefix + '001';
+    var maxN = 0;
+    cache.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(table.idPrefix.toLowerCase()) !== 0) return;
+      var n = parseInt(v.slice(table.idPrefix.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    var numStr = String(maxN + 1);
+    while (numStr.length < table.idPad) numStr = '0' + numStr;
+    return table.idPrefix + numStr;
+  }
+  function nextSrNo(cache){
+    if (!cache || !cache.headers || !cache.rows) return 1;
+    var idx = colIdx(cache.headers, 'Sr.no.');
+    if (idx < 0) return cache.rows.length + 1;
+    var maxN = 0;
+    cache.rows.forEach(function(r){ var n = parseInt(r[idx],10); if(!isNaN(n) && n>maxN) maxN = n; });
+    return maxN + 1;
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){
+    return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
+  }
+
+  function daysUntil(dateStr){
+    if (!dateStr) return null;
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    var today = new Date(); today.setHours(0,0,0,0); d.setHours(0,0,0,0);
+    return Math.round((d - today) / 86400000);
+  }
+
+  /* ── Compliance evaluation — four independently-thresholded items.
+     Non-Compliant beats Expiring Soon beats Compliant; a blank date
+     is treated as "not yet tracked", not as overdue. ───────────── */
+  var COMP_ITEMS = [
+    { field:'CR Expiry Date',        label:'Commercial Registration', warn:WARN_DAYS.cr },
+    { field:'License Expiry Date',   label:'Civil Defense/Municipal License', warn:WARN_DAYS.license },
+    { field:'Insurance Expiry Date', label:'Insurance Policy', warn:WARN_DAYS.insurance },
+    { field:'Induction Valid Until', label:'HSE Induction', warn:WARN_DAYS.induction }
+  ];
+  function evaluateCompliance(rc){
+    var overdue = [], expiring = [];
+    COMP_ITEMS.forEach(function(it){
+      var d = daysUntil(rc[it.field]);
+      if (d === null) return;
+      if (d < 0) overdue.push(it.label + ' expired ' + Math.abs(d) + 'd ago');
+      else if (d <= it.warn) expiring.push(it.label + ' due in ' + d + 'd');
+    });
+    var overall = overdue.length ? 'Non-Compliant' : (expiring.length ? 'Expiring Soon' : 'Compliant');
+    var summary = overdue.concat(expiring).join('; ');
+    return { overall: overall, summary: summary, overdueCount: overdue.length };
+  }
+
+  /* ── Load both tabs ───────────────────────────────────────────── */
+  function loadAll(){
+    return Promise.all([
+      loadTab(CON.tabKey).then(function(data){
+        if (data && data.headers && data.rows){
+          var si = colIdx(data.headers, STATUS_COL);
+          if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+        }
+        _conCache = data;
+      }).catch(function(){ _conCache = null; }),
+      loadTab(COMP.tabKey).then(function(data){
+        if (data && data.headers && data.rows){
+          var si = colIdx(data.headers, STATUS_COL);
+          if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+        }
+        _compCache = data;
+      }).catch(function(){ _compCache = null; })
+    ]).then(render);
+  }
+
+  function getConRecs(){
+    if (!_conCache || !_conCache.headers || !_conCache.rows) return [];
+    return _conCache.rows.map(function(r){ return recFromRow(_conCache.headers, r); });
+  }
+  function getCompRecs(){
+    if (!_compCache || !_compCache.headers || !_compCache.rows) return [];
+    return _compCache.rows.map(function(r){ return recFromRow(_compCache.headers, r); });
+  }
+
+  /* ── KPIs + chart ─────────────────────────────────────────────── */
+  function render(){
+    var conRecs = getConRecs(), compRecs = getCompRecs();
+
+    var endingSoon = conRecs.filter(function(rc){ var d = daysUntil(rc['Contract End Date']); return d !== null && d >= 0 && d <= 30; }).length;
+    setTxt('ct-kpi-con-total', conRecs.length);
+    setTxt('ct-kpi-ending', endingSoon);
+
+    /* Latest compliance review per contractor drives the summary
+       cards, so a contractor who fixed an expired document and was
+       re-reviewed isn't still counted as Non-Compliant from an older
+       entry. */
+    // Entry ID ordering (CTC-### is assigned sequentially) is used to
+    // find each contractor's most recent review, rather than parsing
+    // dates that may be typed inconsistently.
+    var latestByContractor = {};
+    compRecs.forEach(function(rc){
+      var cid = rc['Contractor ID'];
+      if (!cid) return;
+      var prevId = latestByContractor[cid] ? latestByContractor[cid]['Entry ID'] : null;
+      if (!prevId || String(rc['Entry ID']) > String(prevId)) latestByContractor[cid] = rc;
+    });
+    var latestList = Object.keys(latestByContractor).map(function(k){ return latestByContractor[k]; });
+    var compliantN = latestList.filter(function(rc){ return rc['Overall Compliance Status']==='Compliant'; }).length;
+    var expiringN  = latestList.filter(function(rc){ return rc['Overall Compliance Status']==='Expiring Soon'; }).length;
+    var noncompN   = latestList.filter(function(rc){ return rc['Overall Compliance Status']==='Non-Compliant'; }).length;
+    setTxt('ct-kpi-compliant', compliantN);
+    setTxt('ct-kpi-expiring', expiringN);
+    setTxt('ct-kpi-noncompliant', noncompN);
+
+    renderChart(compliantN, expiringN, noncompN);
+    renderConTable(conRecs);
+    renderCompTable(compRecs);
+  }
+
+  function renderChart(compliantN, expiringN, noncompN){
+    if (typeof Chart === 'undefined') return;
+    if (_charts.result) _charts.result.destroy();
+    var ctx = document.getElementById('ctResultChart');
+    if (ctx) _charts.result = new Chart(ctx, {
+      type:'bar',
+      data:{ labels:['Compliant','Expiring Soon','Non-Compliant'], datasets:[{ label:'Contractors', data:[compliantN, expiringN, noncompN], backgroundColor:['#4FCB9E','#E8B339','#F0685C'] }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#fff', font:{size:9}}}, y:{ticks:{color:'#fff'}} } }
+    });
+  }
+
+  /* ── Contractor master table ──────────────────────────────────── */
+  function filteredCon(recs){
+    var f = _conFilters;
+    return recs.filter(function(rc){
+      if (f.search){
+        var hay = ((rc['Name']||'')+' '+(rc['Supplier No.']||rc['Supplier no.']||'')).toLowerCase();
+        if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+      }
+      if (f.special === 'ending'){ var d = daysUntil(rc['Contract End Date']); if (!(d !== null && d >= 0 && d <= 30)) return false; }
+      return true;
+    });
+  }
+  function conField(rc, name){
+    // Header spelling in the live sheet is "Supplier no." (lowercase
+    // "no."); accept either case so the existing 11 rows still read
+    // correctly without renaming that column.
+    if (name === 'Supplier No.') return rc['Supplier No.'] != null ? rc['Supplier No.'] : rc['Supplier no.'];
+    return rc[name];
+  }
+  function renderConTable(recs){
+    var list = filteredCon(recs);
+    var el = document.getElementById(CON.containerId);
+    setTxt('ct-con-count-sub', list.length + ' of ' + recs.length + ' contractors shown');
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No contractors found</strong>Add the first contractor to get started.</div>';
+      updateConButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(conField(a,'Supplier No.')||'').localeCompare(String(conField(b,'Supplier No.')||'')); });
+    var rows = list.map(function(rc){
+      var sid = conField(rc,'Supplier No.');
+      var sel = _conSelected === sid;
+      var d = daysUntil(rc['Contract End Date']);
+      var endBadge = d === null ? '—' : (d < 0 ? '<span class="badge kc-red">Ended ' + Math.abs(d) + 'd ago</span>'
+        : (d <= 30 ? '<span class="badge kc-amb">Ends in ' + d + 'd</span>' : '<span class="badge kc-grn">OK</span>'));
+      var statusBadge = (rc['Status']||'Active') === 'Active' ? '<span class="badge kc-grn">Active</span>'
+        : (rc['Status'] === 'Inactive' ? '<span class="badge kc-amb">Inactive</span>' : '<span class="badge kc-red">Blacklisted</span>');
+      return '<tr class="ctw-row' + (sel?' ctw-sel':'') + '" onclick="CTR.selectCon(\'' + ctEsc(sid) + '\')">'
+        + '<td>' + ctEsc(sid) + '</td>'
+        + '<td>' + ctEsc(rc['Name']) + '</td>'
+        + '<td>' + ctEsc(rc['Designation']) + '</td>'
+        + '<td>' + ctEsc(rc['Contract End Date']) + ' ' + endBadge + '</td>'
+        + '<td>' + ctEsc(rc['Supervisor Name']) + '</td>'
+        + '<td>' + statusBadge + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="ctw-tbl"><thead><tr><th>Supplier No.</th><th>Name</th><th>Designation</th><th>Contract End Date</th><th>Supervisor</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateConButtons();
+  }
+  function updateConButtons(){
+    var rc = getSelectedCon();
+    document.getElementById('ct-con-btn-edit').disabled = !rc;
+    document.getElementById('ct-con-btn-remove').disabled = !rc || !can('delete');
+  }
+  function getSelectedCon(){
+    if (!_conCache || !_conSelected) return null;
+    var idIdx = colIdx(_conCache.headers, 'Supplier No.');
+    var row = _conCache.rows.find(function(r){ return String(r[idIdx]) === String(_conSelected); });
+    return row ? recFromRow(_conCache.headers, row) : null;
+  }
+  function getConOptions(){
+    return getConRecs().map(function(rc){ return { id: conField(rc,'Supplier No.'), name: rc['Name'] }; }).filter(function(o){ return o.id; });
+  }
+
+  /* ── Contractor Add/Edit modal ───────────────────────────────── */
+  var CON_STATUSES = ['Active','Inactive','Blacklisted'];
+  function buildConModal(existingRec){
+    var root = document.getElementById('ct-modal-root');
+    var isEdit = !!existingRec;
+    var statusOpts = CON_STATUSES.map(function(s){ return '<option value="'+s+'"'+((existingRec&&existingRec['Status']===s)?' selected':(!existingRec&&s==='Active'?' selected':''))+'>'+s+'</option>'; }).join('');
+    root.innerHTML = '<div class="ctw-modal-bg" id="ctm-bg"><div class="ctw-modal">'
+      + '<h3>' + (isEdit?'Edit':'Add') + ' Contractor' + (isEdit?' — '+ctEsc(conField(existingRec,'Supplier No.')):'') + '</h3>'
+      + (isEdit ? '' : '<div class="ctw-note">Supplier No. is assigned by Procurement (e.g. C1587) — enter it as issued, it is not auto-generated here.</div>')
+      + '<div class="ctw-modal-hdr-grid">'
+        + '<div><label>Supplier No.</label><input type="text" id="ctm-con-supplier" value="' + ctEsc(isEdit?conField(existingRec,'Supplier No.'):'') + '"' + (isEdit?' readonly':'') + '></div>'
+        + '<div><label>Name</label><input type="text" id="ctm-con-name" value="' + ctEsc(existingRec?existingRec['Name']:'') + '"></div>'
+        + '<div><label>Department</label><input type="text" id="ctm-con-dept" value="' + ctEsc(existingRec?(existingRec['Department']||'Contractor'):'Contractor') + '"></div>'
+        + '<div><label>Designation / Scope</label><input type="text" id="ctm-con-desig" value="' + ctEsc(existingRec?existingRec['Designation']:'') + '"></div>'
+        + '<div><label>Contract Start Date</label><input type="date" id="ctm-con-start" value="' + ctEsc(existingRec?existingRec['Contract Start Date']:'') + '"></div>'
+        + '<div><label>Contract End Date</label><input type="date" id="ctm-con-end" value="' + ctEsc(existingRec?existingRec['Contract End Date']:'') + '"></div>'
+        + '<div><label>Supervisor Name</label><input type="text" id="ctm-con-sup-name" value="' + ctEsc(existingRec?existingRec['Supervisor Name']:'') + '"></div>'
+        + '<div><label>Supervisor Phone</label><input type="text" id="ctm-con-sup-phone" value="' + ctEsc(existingRec?existingRec['Supervisor Phone']:'') + '"></div>'
+        + '<div><label>No. of Workers</label><input type="number" min="0" id="ctm-con-workers" value="' + ctEsc(existingRec?existingRec['No. of Workers']:'') + '"></div>'
+        + '<div><label>Status</label><select id="ctm-con-status">' + statusOpts + '</select></div>'
+      + '</div>'
+      + '<div class="ctw-field" style="margin-bottom:14px"><label>Remarks</label><textarea id="ctm-con-remarks" rows="2" style="width:100%;background:var(--ctw-bg3);border:1px solid var(--ctw-border);color:var(--ctw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + ctEsc(existingRec?existingRec['Remarks']:'') + '</textarea></div>'
+      + '<div id="ctm-con-status-msg" style="font-size:10px;min-height:14px"></div>'
+      + '<div class="ctw-modal-actions"><button class="ctw-btn" id="ctm-con-cancel">Cancel</button><button class="ctw-btn ctw-btn-add" id="ctm-con-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('ctm-con-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('ctm-bg').onclick = function(e){ if (e.target.id==='ctm-bg') root.innerHTML=''; };
+    document.getElementById('ctm-con-save').onclick = function(){ saveCon(isEdit); };
+  }
+  function saveCon(isEdit){
+    var root = document.getElementById('ct-modal-root');
+    var btn = document.getElementById('ctm-con-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    var supplierNo = document.getElementById('ctm-con-supplier').value.trim();
+    if (!supplierNo){ alert('Supplier No. is required.'); reenable(); return; }
+    var values = {
+      'Sr.no.': isEdit ? undefined : nextSrNo(_conCache),
+      'Supplier No.': supplierNo,
+      'Name': document.getElementById('ctm-con-name').value.trim(),
+      'Department': document.getElementById('ctm-con-dept').value.trim() || 'Contractor',
+      'Designation': document.getElementById('ctm-con-desig').value.trim(),
+      'Contract Start Date': document.getElementById('ctm-con-start').value,
+      'Contract End Date': document.getElementById('ctm-con-end').value,
+      'Supervisor Name': document.getElementById('ctm-con-sup-name').value.trim(),
+      'Supervisor Phone': document.getElementById('ctm-con-sup-phone').value.trim(),
+      'No. of Workers': document.getElementById('ctm-con-workers').value,
+      'Status': document.getElementById('ctm-con-status').value,
+      'Remarks': document.getElementById('ctm-con-remarks').value.trim()
+    };
+    if (values['Sr.no.'] === undefined) delete values['Sr.no.'];
+    if (isEdit){
+      postJSON('update', {tab: CON.tabKey, idCol: 'Supplier No.', id: supplierNo}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: CON.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ── Compliance log table ───────────────────────────────────── */
+  function filteredComp(recs){
+    var f = _compFilters;
+    return recs.filter(function(rc){
+      if (f.status === 'open' && rc['Status'] !== 'Open') return false;
+      if (f.status === 'closed' && rc['Status'] !== 'Closed') return false;
+      if (f.search){
+        var hay = ((rc['Contractor ID']||'')+' '+(rc['Contractor Name']||'')).toLowerCase();
+        if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+      }
+      if (f.special === 'compliant' && rc['Overall Compliance Status'] !== 'Compliant') return false;
+      if (f.special === 'expiring' && rc['Overall Compliance Status'] !== 'Expiring Soon') return false;
+      if (f.special === 'noncompliant' && rc['Overall Compliance Status'] !== 'Non-Compliant') return false;
+      return true;
+    });
+  }
+  function renderCompTable(recs){
+    var list = filteredComp(recs);
+    var el = document.getElementById(COMP.containerId);
+    setTxt('ct-comp-count-sub', list.length + ' of ' + recs.length + ' reviews shown');
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No compliance reviews found</strong>Add the first review to get started.</div>';
+      updateCompButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Entry ID']||'').localeCompare(String(a['Entry ID']||'')); });
+    var rows = list.map(function(rc){
+      var sel = _compSelected === rc['Entry ID'];
+      var overall = rc['Overall Compliance Status'] || '—';
+      var obadge = overall==='Compliant' ? '<span class="badge kc-grn">Compliant</span>'
+        : (overall==='Expiring Soon' ? '<span class="badge kc-amb">Expiring Soon</span>'
+          : (overall==='Non-Compliant' ? '<span class="badge kc-red">Non-Compliant</span>' : '—'));
+      return '<tr class="ctw-row' + (sel?' ctw-sel':'') + '" onclick="CTR.selectComp(\'' + ctEsc(rc['Entry ID']) + '\')">'
+        + '<td>' + ctEsc(rc['Entry ID']) + '</td>'
+        + '<td>' + ctEsc(rc['Contractor ID']) + '</td>'
+        + '<td>' + ctEsc(rc['Contractor Name']) + '</td>'
+        + '<td>' + ctEsc(rc['Insurance Expiry Date']) + '</td>'
+        + '<td>' + ctEsc(rc['Induction Valid Until']) + '</td>'
+        + '<td>' + obadge + '</td>'
+        + '<td>' + (rc['Action Reference'] ? '✓ ' + ctEsc(rc['Action Reference']) : '—') + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="ctw-tbl"><thead><tr><th>Entry ID</th><th>Contractor ID</th><th>Contractor Name</th><th>Insurance Expiry</th><th>Induction Valid Until</th><th>Overall</th><th>Action Ref.</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateCompButtons();
+  }
+  function updateCompButtons(){
+    var rc = getSelectedComp();
+    document.getElementById('ct-comp-btn-edit').disabled = !rc;
+    document.getElementById('ct-comp-btn-remove').disabled = !rc || !can('delete');
+    document.getElementById('ct-comp-btn-esc').disabled = !rc || rc['Overall Compliance Status'] !== 'Non-Compliant' || !!rc['Action Reference'];
+  }
+  function getSelectedComp(){
+    if (!_compCache || !_compSelected) return null;
+    var idIdx = colIdx(_compCache.headers, COMP.idCol);
+    var row = _compCache.rows.find(function(r){ return String(r[idIdx]) === String(_compSelected); });
+    return row ? recFromRow(_compCache.headers, row) : null;
+  }
+
+  /* ── Compliance Add/Edit modal ───────────────────────────────── */
+  var YN = ['', 'Yes', 'No'];
+  function buildCompModal(existingRec){
+    var root = document.getElementById('ct-modal-root');
+    var isEdit = !!existingRec;
+    var entryId = isEdit ? existingRec['Entry ID'] : nextId(COMP, _compCache);
+    var conOpts = getConOptions();
+    var selectedCid = existingRec ? existingRec['Contractor ID'] : '';
+    var conSelectOpts = '<option value="">-- select contractor --</option>' + conOpts.map(function(o){
+      return '<option value="'+ctEsc(o.id)+'" data-name="'+ctEsc(o.name)+'"'+(o.id===selectedCid?' selected':'')+'>'+ctEsc(o.id)+' — '+ctEsc(o.name)+'</option>';
+    }).join('');
+    var ynOpts = function(val, fieldName){ return YN.map(function(y){ return '<option value="'+y+'"'+(y===(existingRec?existingRec[fieldName]:'')?' selected':'')+'>'+(y||'-- select --')+'</option>'; }).join(''); };
+    root.innerHTML = '<div class="ctw-modal-bg" id="ctm-bg"><div class="ctw-modal">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' Compliance Review — ' + ctEsc(entryId) + '</h3>'
+      + '<div class="ctw-modal-hdr-grid">'
+        + '<div><label>Contractor</label><select id="ctm-comp-con">' + conSelectOpts + '</select></div>'
+        + '<div><label>CR Expiry Date</label><input type="date" id="ctm-comp-cr" value="' + ctEsc(existingRec?existingRec['CR Expiry Date']:'') + '"></div>'
+        + '<div><label>License Expiry Date</label><input type="date" id="ctm-comp-lic" value="' + ctEsc(existingRec?existingRec['License Expiry Date']:'') + '"></div>'
+        + '<div><label>Insurance Expiry Date</label><input type="date" id="ctm-comp-ins" value="' + ctEsc(existingRec?existingRec['Insurance Expiry Date']:'') + '"></div>'
+        + '<div><label>Last Orientation Date</label><input type="date" id="ctm-comp-orient" value="' + ctEsc(existingRec?existingRec['Last Orientation Date']:'') + '"></div>'
+        + '<div><label>Induction Valid Until</label><input type="date" id="ctm-comp-ind" value="' + ctEsc(existingRec?existingRec['Induction Valid Until']:'') + '"></div>'
+        + '<div><label>HIRA Submitted</label><select id="ctm-comp-hira">' + ynOpts(null,'HIRA Submitted') + '</select></div>'
+        + '<div><label>PTW Required</label><select id="ctm-comp-ptw">' + ynOpts(null,'PTW Required') + '</select></div>'
+        + '<div><label>Reviewed By</label><input type="text" id="ctm-comp-reviewer" value="' + ctEsc(existingRec?existingRec['Reviewed By']:'') + '"></div>'
+      + '</div>'
+      + '<div class="ctw-note">Overall Compliance Status and Status (Open/Closed) are computed automatically from the four expiry dates against the 30/30/30/7-day thresholds — no need to set them by hand.</div>'
+      + '<div id="ctm-comp-status-msg" style="font-size:10px;min-height:14px"></div>'
+      + '<div class="ctw-modal-actions"><button class="ctw-btn" id="ctm-comp-cancel">Cancel</button><button class="ctw-btn ctw-btn-add" id="ctm-comp-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('ctm-comp-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('ctm-bg').onclick = function(e){ if (e.target.id==='ctm-bg') root.innerHTML=''; };
+    document.getElementById('ctm-comp-save').onclick = function(){ saveComp(entryId, isEdit, existingRec); };
+  }
+  function saveComp(entryId, isEdit, existingRec){
+    var root = document.getElementById('ct-modal-root');
+    var btn = document.getElementById('ctm-comp-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    var conSel = document.getElementById('ctm-comp-con');
+    var cid = conSel.value;
+    if (!cid){ alert('Select a contractor.'); reenable(); return; }
+    var cname = conSel.options[conSel.selectedIndex].getAttribute('data-name') || '';
+    var draft = {
+      'CR Expiry Date': document.getElementById('ctm-comp-cr').value,
+      'License Expiry Date': document.getElementById('ctm-comp-lic').value,
+      'Insurance Expiry Date': document.getElementById('ctm-comp-ins').value,
+      'Induction Valid Until': document.getElementById('ctm-comp-ind').value
+    };
+    var evalResult = evaluateCompliance(draft);
+    var values = {
+      'Entry ID': entryId,
+      'Contractor ID': cid,
+      'Contractor Name': cname,
+      'CR Expiry Date': draft['CR Expiry Date'],
+      'License Expiry Date': draft['License Expiry Date'],
+      'Insurance Expiry Date': draft['Insurance Expiry Date'],
+      'Last Orientation Date': document.getElementById('ctm-comp-orient').value,
+      'Induction Valid Until': draft['Induction Valid Until'],
+      'HIRA Submitted': document.getElementById('ctm-comp-hira').value,
+      'PTW Required': document.getElementById('ctm-comp-ptw').value,
+      'Overall Compliance Status': evalResult.overall,
+      'Reviewed By': document.getElementById('ctm-comp-reviewer').value.trim(),
+      'Status': evalResult.overall === 'Non-Compliant' ? 'Open' : 'Closed'
+    };
+    if (isEdit){
+      postJSON('update', {tab: COMP.tabKey, idCol: COMP.idCol, id: entryId}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: COMP.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.CTR = {
+    onConSearch: function(v){ _conFilters.search = v; render(); },
+    onCompSearch: function(v){ _compFilters.search = v; render(); },
+    setCompFilter: function(status){
+      _compFilters.status = status; _compFilters.special = null;
+      ['all','open','closed'].forEach(function(s){ var btn=document.getElementById('ct-comp-f-'+s); if(btn) btn.classList.toggle('active', s===status); });
+      render();
+    },
+    conCardClick: function(name){
+      _conFilters.special = (name==='total') ? null : name;
+      render();
+    },
+    compCardClick: function(name){
+      _compFilters.status = 'all'; _compFilters.special = name;
+      ['all','open','closed'].forEach(function(s){ var btn=document.getElementById('ct-comp-f-'+s); if(btn) btn.classList.toggle('active', s==='all'); });
+      render();
+    },
+    selectCon: function(id){ _conSelected = (_conSelected!==null && String(_conSelected)===String(id)) ? null : id; render(); },
+    selectComp: function(id){ _compSelected = (_compSelected!==null && String(_compSelected)===String(id)) ? null : id; render(); },
+    openConAdd: function(){ if (can('add')) buildConModal(null); },
+    openConEditSelected: function(){ var rc=getSelectedCon(); if(!rc) return alert('Select a row first.'); buildConModal(rc); },
+    removeConSelected: function(){
+      if (!can('delete')) return;
+      var rc = getSelectedCon(); if(!rc) return alert('Select a row first.');
+      var sid = conField(rc,'Supplier No.');
+      if (!confirm('Remove contractor ' + sid + '? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: CON.tabKey, idCol: 'Supplier No.', id: sid}, {'Record Status':'Removed'}).then(function(r){
+        if (r && r.status==='error'){ alert('Remove failed: '+(r.message||'unknown error')); return; }
+        _conSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+    openCompAdd: function(){ if (can('add')) buildCompModal(null); },
+    openCompEditSelected: function(){ var rc=getSelectedComp(); if(!rc) return alert('Select a row first.'); buildCompModal(rc); },
+    removeCompSelected: function(){
+      if (!can('delete')) return;
+      var rc = getSelectedComp(); if(!rc) return alert('Select a row first.');
+      if (!confirm('Remove review ' + rc['Entry ID'] + '? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: COMP.tabKey, idCol: COMP.idCol, id: rc['Entry ID']}, {'Record Status':'Removed'}).then(function(r){
+        if (r && r.status==='error'){ alert('Remove failed: '+(r.message||'unknown error')); return; }
+        _compSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+    // Escalates a Non-Compliant, not-yet-escalated review to a single
+    // combined Action Register record, same sessionStorage + URL
+    // hand-off mechanism as Fire Pump / Crane / First Aid Kit.
+    escalateCompSelected: function(){
+      var rc = getSelectedComp(); if(!rc) return alert('Select a row first.');
+      if (rc['Overall Compliance Status'] !== 'Non-Compliant') return alert('This review is not Non-Compliant — nothing to escalate.');
+      if (rc['Action Reference']) return alert('This review was already escalated — see Action Register record ' + rc['Action Reference'] + '.');
+      var evalResult = evaluateCompliance(rc);
+      var ctx = {
+        entryId: rc['Entry ID'],
+        description: 'Contractor Compliance ' + rc['Entry ID'] + ' (' + rc['Contractor ID'] + ' — ' + rc['Contractor Name'] + ') — Non-Compliant: ' + (evalResult.summary || rc['Overall Compliance Status']),
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingContractorComplianceContext', JSON.stringify(ctx)); } catch(e){}
+      window.open('action-register.html?fromContractorCompliance=' + encodeURIComponent(rc['Entry ID']) + '&lane=ACT', '_blank');
+    }
+  };
+
+  // Deep link from the Action Register's Source column —
+  // ?entry=<Entry ID> jumps straight to and opens that record.
+  function handleDeepLink(){
+    var entryId = new URLSearchParams(window.location.search).get('entry');
+    if (!entryId) return;
+    _compSelected = entryId;
+    render();
+    CTR.openCompEditSelected();
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadAll().then(handleDeepLink); }, 100);
+  });
 })();
 </script>
 
 <script>
-(function() {
-  function colIdx(headers, name) {
-    var n = name.toLowerCase();
-    for (var i=0;i<headers.length;i++) {
-      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
-    }
-    return -1;
+/* ── Access gate: identical rule to crane-lifting.html / first-aid-kit.html ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
   }
-  function countVal(rows, col, val) {
-    if (col < 0) return 0;
-    var v = val ? val.toLowerCase() : null;
-    return rows.filter(function(r){
-      var cell = String(r[col]||'').toLowerCase().trim();
-      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
-    }).length;
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The Contractor Register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
   }
-  function sumCol(rows, col) {
-    if (col < 0) return 0;
-    return rows.reduce(function(s,r){
-      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
-      return s + (isNaN(v) ? 0 : v);
-    }, 0);
-  }
-  function setCard(idx, val) {
-    var cards = document.querySelectorAll('.kpi-val');
-    if (cards[idx]) cards[idx].textContent = val;
-  }
-
-  var origRender = window.renderTable;
-  window.renderTable = function(data, container) {
-    if (origRender) origRender(data, container);
-    if (!data || !data.rows || !data.headers) return;
-    var rows = data.rows, h = data.headers;
-    try { setCard(0, rows.length); } catch(e) {}
-  };
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
 })();
 </script>
-</body></html>
+
+</div></body></html>

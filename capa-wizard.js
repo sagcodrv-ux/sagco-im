@@ -175,6 +175,7 @@
       sourceFirePumpLogId: '', /* Rev.09 — set when this ACT record was forwarded from the Fire Pump Test Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceCraneLiftingId: '', /* Rev.10 — set when this ACT record was forwarded from the Crane & Lifting Pre-Use Inspection Checklist's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceFirstAidKitId: '', /* Rev.11 — set when this ACT record was forwarded from the First Aid Kit Monthly Inspection's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
+      sourceContractorComplianceId: '', /* Rev.12 (Issam, 2026-10-15) — set when this ACT record was forwarded from the Contractor Compliance Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -377,7 +378,9 @@
                     ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Crane &amp; Lifting Inspection <strong>' + esc(state.sourceCraneLiftingId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection entry too.</div>'
                     : (state.sourceFirstAidKitId
                       ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from First Aid Kit Inspection <strong>' + esc(state.sourceFirstAidKitId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection entry too.</div>'
-                      : ''))))))));
+                      : (state.sourceContractorComplianceId
+                        ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Contractor Compliance Review <strong>' + esc(state.sourceContractorComplianceId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that review entry too.</div>'
+                        : '')))))))));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -576,6 +579,7 @@
               notifyFirePumpActionCompleted();
               notifyCraneLiftingActionCompleted();
               notifyFirstAidKitActionCompleted();
+              notifyContractorComplianceActionCompleted();
               alert(state.capaId + ' marked Closed.'); closeWizard(); if (global.reloadLive) reloadLive();
             })
             .catch(function (err) { restoreButtons(); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
@@ -1005,6 +1009,7 @@
       'Source Fire Pump Log ID': state.sourceFirePumpLogId || '',
       'Source Crane Lifting ID': state.sourceCraneLiftingId || '',
       'Source First Aid Kit ID': state.sourceFirstAidKitId || '',
+      'Source Contractor Compliance ID': state.sourceContractorComplianceId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
@@ -1361,6 +1366,18 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.12 (Issam, 2026-10-15) — mirrors notifySourceFirstAidKit()
+     exactly, for the Contractor Compliance Log: writes the durable
+     "Action Reference" back to the one review entry that escalated
+     it. Only fires on first save. */
+  function notifySourceContractorCompliance() {
+    if (!state.sourceContractorComplianceId) return;
+    fetch(SHEETS_URL + '?action=update&tab=contractor_compliance&idCol=' + encodeURIComponent('Entry ID') + '&id=' + encodeURIComponent(state.sourceContractorComplianceId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* Rev.09 (Issam, 2026-10-14) — mirrors notifyScaffoldInspectionActionCompleted()
      exactly, for the Fire Pump Test Log: once this ACT-lane record
      reaches Closed, the one log sheet that escalated it has its own
@@ -1398,6 +1415,18 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.12 (Issam, 2026-10-15) — mirrors notifyFirstAidKitActionCompleted()
+     exactly, for the Contractor Compliance Log: once this ACT-lane
+     record reaches Closed, the one review entry that escalated it has
+     its own Status set to Closed too. */
+  function notifyContractorComplianceActionCompleted() {
+    if (!state.sourceContractorComplianceId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=contractor_compliance&idCol=' + encodeURIComponent('Entry ID') + '&id=' + encodeURIComponent(state.sourceContractorComplianceId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Status': 'Closed' }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* ── Save for the lightweight Action lane — one write, no steps ── */
   function persistAction() {
     if (saving) return;
@@ -1429,6 +1458,7 @@
             notifySourceFirePump();
             notifySourceCraneLifting();
             notifySourceFirstAidKit();
+            notifySourceContractorCompliance();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
@@ -1438,6 +1468,7 @@
             notifyFirePumpActionCompleted();
             notifyCraneLiftingActionCompleted();
             notifyFirstAidKitActionCompleted();
+            notifyContractorComplianceActionCompleted();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
@@ -1473,6 +1504,7 @@
             notifyFirePumpActionCompleted();
             notifyCraneLiftingActionCompleted();
             notifyFirstAidKitActionCompleted();
+            notifyContractorComplianceActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1748,6 +1780,7 @@
     state.sourceFirePumpLogId = col('Source Fire Pump Log ID');
     state.sourceCraneLiftingId = col('Source Crane Lifting ID');
     state.sourceFirstAidKitId = col('Source First Aid Kit ID');
+    state.sourceContractorComplianceId = col('Source Contractor Compliance ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2645,6 +2678,23 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.12 (Issam, 2026-10-15) — Contractor Compliance Log hand-off —
+     action-register.html?fromContractorCompliance=CTC-2026-0XX&lane=ACT,
+     opened by contractor-register.html's "⚡ Escalate to Action" button.
+     Same sessionStorage-plus-URL-verification pattern as every other
+     hand-off above. */
+  function openFromContractorCompliance(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceContractorComplianceId = ctx.entryId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Contractor Compliance Review';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -2859,6 +2909,23 @@
         loadUserDirectory(function () { openFromFirstAidKit(fakCtx); });
       } else {
         loadUserDirectory(function () { openFromFirstAidKit({ entryId: fromFirstAidKit }); });
+      }
+    }
+
+    /* Rev.12 (Issam, 2026-10-15) — Contractor Compliance Log hand-off —
+       action-register.html?fromContractorCompliance=CTC-2026-0XX&lane=ACT,
+       opened by contractor-register.html's "⚡ Escalate to Action"
+       button. Same sessionStorage-plus-URL-verification pattern as
+       every other hand-off above. */
+    var fromContractorCompliance = params.get('fromContractorCompliance');
+    if (fromContractorCompliance) {
+      showLoadingWizard();
+      var ccCtx = null;
+      try { ccCtx = JSON.parse(sessionStorage.getItem('incomingContractorComplianceContext') || 'null'); } catch (e) { ccCtx = null; }
+      if (ccCtx && String(ccCtx.entryId) === String(fromContractorCompliance)) {
+        loadUserDirectory(function () { openFromContractorCompliance(ccCtx); });
+      } else {
+        loadUserDirectory(function () { openFromContractorCompliance({ entryId: fromContractorCompliance }); });
       }
     }
   }

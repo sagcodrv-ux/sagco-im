@@ -119,6 +119,14 @@ var TABS = {
   'location_zones':  'Locations - Zones (Tier 1)',
   'emergency':       '34b – Emergency Response',
   'contractor':      '35 – Contractor Register',
+  /* Rev.12 (Issam, 2026-10-15) — new tab, sub-numbered off the
+     existing Contractor Register (same "34b" convention as
+     'emergency' above). One row per contractor compliance review:
+     CR / Civil Defense-municipal license / insurance / HSE induction
+     expiry, each watched by its own DATE_RULES entry below with its
+     own independent warning threshold (30/30/30/7 days) rather than
+     one shared threshold for all four. */
+  'contractor_compliance': '35b – Contractor Compliance Log',
   'loto_register':   '37 – LOTO Register',
   'loto_auth':       '70 – LOTO Authorised Persons',
   'loto_devices':    '71 – LOTO Device Register',
@@ -171,6 +179,15 @@ var TABS = {
      'scaffold_inspection' / 'fire_pump_log' / 'crane_checklist'. */
   'fak_register':    'First Aid Kit Register',
   'fak_inspection':  'First Aid Kit Inspection Log',
+  /* Rev.12 (Issam, 2026-10-15) — the 14 supply items' minimum required
+     quantities were originally hardcoded in first-aid-kit.html from
+     HSE-FRM-14's printed column, with no way to adjust them without a
+     code change. Per Issam's request, this tab makes the minimum a
+     single global, user-editable standard (same minimum for every
+     kit — not per-kit) via the page's own "Edit Minimum Standards"
+     control; the hardcoded form values remain as the fallback default
+     whenever this tab is empty or missing a given item's row. */
+  'fak_standards':   'First Aid Kit Item Standards',
   'waste_mgmt':      '45b – Waste Management',
   'chemical_store':  '46 – Chemical Storage',
   'furnace_monitor': '47 – Furnace Monitoring Logs',
@@ -1094,6 +1111,19 @@ function scanAlerts() {
     { tab: 'fak_register',   dateField: 'Next Inspection Due', warnDays:  7, label: 'First Aid Kit',    page: 'first-aid-kit.html'         },
     { tab: 'loto_register',  dateField: 'Last Verified',       warnDays: 90, label: 'LOTO',             page: 'loto-register.html'         },
     { tab: 'cs_entry',       dateField: 'Instrument Calibration Due Date', warnDays: 14, label: 'Confined Space Gas Detector Calib', page: 'confined-space.html' },
+    /* Rev.12 (Issam, 2026-10-15) — Contractor Compliance Log: four
+       independent entries on the same tab, one per document type,
+       each with its own warning window as Issam specified (CR and
+       License both 30 days, Insurance 30 days, Induction 7 days) —
+       not one shared threshold for all four. Column names are chosen
+       so no two headers on this tab share a keyword substring (see
+       contractor-register.html's own comments on this), since the
+       matcher below finds the first header containing the rule's
+       first word. */
+    { tab: 'contractor_compliance', dateField: 'CR Expiry Date',        warnDays: 30, label: 'Contractor CR',         page: 'contractor-register.html' },
+    { tab: 'contractor_compliance', dateField: 'License Expiry Date',   warnDays: 30, label: 'Contractor License',    page: 'contractor-register.html' },
+    { tab: 'contractor_compliance', dateField: 'Insurance Expiry Date', warnDays: 30, label: 'Contractor Insurance',  page: 'contractor-register.html' },
+    { tab: 'contractor_compliance', dateField: 'Induction Valid Until', warnDays:  7, label: 'Contractor Induction',  page: 'contractor-register.html' },
   ];
 
   DATE_RULES.forEach(function(rule) {
