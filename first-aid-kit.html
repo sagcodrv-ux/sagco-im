@@ -140,6 +140,11 @@ table.fkw-entry-grid input.fkw-qty{width:64px;background:var(--fkw-bg);border:1p
   <div class="chart-card"><div class="chart-title">Inspections by Month<span class="chart-sub">based on inspection date</span></div><div class="chart-wrap"><canvas id="fkMonthChart"></canvas></div></div>
 </div>
 
+<div class="fkw-toolbar" style="border-radius:8px;border:1px solid var(--fkw-border-gold)">
+  <span style="font-size:11px;color:var(--fkw-text-muted)">Minimum required quantity — one standard, same for every kit:</span>
+  <button class="fkw-btn" id="fk-std-btn" onclick="FAK.openStandardsEditor()" style="margin-left:auto">⚙ Edit Minimum Standards</button>
+</div>
+
 <div class="sec-banner">FIRST AID KIT REGISTER</div>
 <div class="fkw-toolbar">
   <input type="text" id="fk-kit-search" placeholder="Search kit ID / location…" oninput="FAK.onKitSearch(this.value)">
@@ -196,6 +201,13 @@ table.fkw-entry-grid input.fkw-qty{width:64px;background:var(--fkw-bg);border:1p
 
   var KIT = { tabKey:'fak_register', containerId:'live-table-kit', idCol:'Kit ID', idPrefix:'FAK-', idPad:3 };
   var CHK = { tabKey:'fak_inspection', containerId:'live-table-chk', idCol:'Entry ID', idPrefix:'FAI-', idPad:3 };
+  /* Rev.12 — one global, editable minimum-quantity standard (same for
+     every kit, per Issam's choice), kept in its own small tab rather
+     than per-kit. Loaded once at startup and merged onto
+     CHECKLIST_ITEMS[i].minNum; any item missing from the tab keeps its
+     HSE-FRM-14 default from the array above, so a never-edited or
+     not-yet-created tab degrades gracefully to the printed form. */
+  var STANDARDS = { tabKey:'fak_standards', idCol:'Item ID' };
   var STATUS_COL = 'Record Status';
 
   var _kitCache = null, _chkCache = null;
@@ -263,8 +275,24 @@ table.fkw-entry-grid input.fkw-qty{width:64px;background:var(--fkw-bg);border:1p
   }
 
   /* ── Load both tabs ───────────────────────────────────────────── */
+  function loadStandards(){
+    return loadTab(STANDARDS.tabKey).then(function(data){
+      if (!data || !data.headers || !data.rows || !data.rows.length) return;
+      var idIdx = colIdx(data.headers, 'Item ID');
+      var qtyIdx = colIdx(data.headers, 'Min Required Qty');
+      if (idIdx < 0 || qtyIdx < 0) return;
+      data.rows.forEach(function(r){
+        var id = r[idIdx], qty = Number(r[qtyIdx]);
+        if (!id || isNaN(qty)) return;
+        var def = CHECKLIST_ITEMS.find(function(d){ return d.id === id; });
+        if (def) def.minNum = qty;
+      });
+    }).catch(function(){ /* tab not created yet — keep HSE-FRM-14 defaults */ });
+  }
+
   function loadAll(){
     return Promise.all([
+      loadStandards(),
       loadTab(KIT.tabKey).then(function(data){
         if (data && data.headers && data.rows){
           var si = colIdx(data.headers, STATUS_COL);
@@ -545,7 +573,7 @@ table.fkw-entry-grid input.fkw-qty{width:64px;background:var(--fkw-bg);border:1p
       var qty = existing.qty !== undefined ? existing.qty : '';
       return '<tr>'
         + '<td class="fkw-item-cell">#' + fkEsc(def.id) + ' — ' + fkEsc(def.name) + (def.form?(' ('+fkEsc(def.form)+')'):'') + '</td>'
-        + '<td>' + fkEsc(def.minQty) + '</td>'
+        + '<td>' + fkEsc(def.minNum) + '</td>'
         + '<td><input type="number" min="0" class="fkw-qty" data-item="' + def.id + '" value="' + fkEsc(qty) + '" placeholder="qty"></td>'
       + '</tr>';
     }).join('');
@@ -613,6 +641,52 @@ table.fkw-entry-grid input.fkw-qty{width:64px;background:var(--fkw-bg);border:1p
     }
   }
 
+  /* ── Minimum Standards editor (one global value per item) ─────── */
+  function buildStandardsModal(){
+    var root = document.getElementById('fk-modal-root');
+    var rows = CHECKLIST_ITEMS.map(function(def){
+      return '<tr>'
+        + '<td class="fkw-item-cell">#' + fkEsc(def.id) + ' — ' + fkEsc(def.name) + (def.form?(' ('+fkEsc(def.form)+')'):'') + '</td>'
+        + '<td><input type="number" min="0" class="fkw-qty" data-std="' + def.id + '" value="' + fkEsc(def.minNum) + '"></td>'
+      + '</tr>';
+    }).join('');
+    root.innerHTML = '<div class="fkw-modal-bg" id="fkm-bg"><div class="fkw-modal">'
+      + '<h3>Edit Minimum Required Quantity — applies to every kit</h3>'
+      + '<div class="fkw-note">This sets one standard used across the whole plant, not per kit. HSE-FRM-14\'s printed values are the defaults shown until changed here.</div>'
+      + '<div class="fkw-grid-wrap"><table class="fkw-entry-grid"><thead><tr><th>Supply Item</th><th>Min. Req. Qty.</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      + '<div id="fkm-std-msg" style="font-size:10px;min-height:14px;color:var(--fkw-amb)"></div>'
+      + '<div class="fkw-modal-actions"><button class="fkw-btn" id="fkm-std-cancel">Cancel</button><button class="fkw-btn fkw-btn-add" id="fkm-std-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('fkm-std-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('fkm-bg').onclick = function(e){ if (e.target.id==='fkm-bg') root.innerHTML=''; };
+    document.getElementById('fkm-std-save').onclick = saveStandards;
+  }
+  function saveStandards(){
+    var root = document.getElementById('fk-modal-root');
+    var btn = document.getElementById('fkm-std-save'); btn.disabled = true;
+    var msg = document.getElementById('fkm-std-msg'); msg.textContent = 'Saving…';
+    var inputs = root.querySelectorAll('input.fkw-qty[data-std]');
+    var writes = Array.prototype.map.call(inputs, function(inp){
+      var def = CHECKLIST_ITEMS.find(function(d){ return d.id === inp.dataset.std; });
+      var qty = Number(inp.value);
+      return { id: def.id, def: def, qty: isNaN(qty) ? def.minNum : qty };
+    });
+    // Each item is an upsert (create-or-update) against its own Item ID —
+    // the standards tab may not have any rows yet the first time this is used.
+    var promises = writes.map(function(w){
+      return postJSON('update', {tab: STANDARDS.tabKey, idCol: STANDARDS.idCol, id: w.id, upsert: '1'}, {
+        'Item ID': w.id, 'Item Name': w.def.name, 'Form': w.def.form, 'Min Required Qty': w.qty
+      });
+    });
+    Promise.all(promises).then(function(results){
+      var failed = results.filter(function(r){ return r && r.status === 'error'; });
+      if (failed.length){ msg.textContent = 'Some items failed to save — try again.'; btn.disabled = false; return; }
+      writes.forEach(function(w){ w.def.minNum = w.qty; });
+      root.innerHTML = '';
+      render();
+    }).catch(function(){ msg.textContent = 'Could not save — check your connection.'; btn.disabled = false; });
+  }
+
   /* ── Print form — reconstructs HSE-FRM-14's layout for one kit ── */
   function buildPrintHtml(rec){
     var items = [];
@@ -622,7 +696,7 @@ table.fkw-entry-grid input.fkw-qty{width:64px;background:var(--fkw-bg);border:1p
       var it = items.find(function(x){ return x.id === def.id; }) || {};
       var qty = it.qty !== undefined && it.qty !== '' ? it.qty : '—';
       var short = (it.qty === '' || it.qty == null || Number(it.qty) < def.minNum);
-      return '<tr' + (short?' style="background:#FFEBEE"':'') + '><td style="text-align:left">' + fkEsc(def.name) + (def.form?(' ('+fkEsc(def.form)+')'):'') + '</td><td>' + fkEsc(def.minQty) + '</td><td>' + fkEsc(qty) + '</td></tr>';
+      return '<tr' + (short?' style="background:#FFEBEE"':'') + '><td style="text-align:left">' + fkEsc(def.name) + (def.form?(' ('+fkEsc(def.form)+')'):'') + '</td><td>' + fkEsc(def.minNum) + '</td><td>' + fkEsc(qty) + '</td></tr>';
     }).join('');
     return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
     + '<title>First Aid Kit Inspection — ' + fkEsc(rec['Entry ID']) + '</title>'
@@ -662,6 +736,7 @@ table.fkw-entry-grid input.fkw-qty{width:64px;background:var(--fkw-bg);border:1p
 
   /* ── Public API ───────────────────────────────────────────────── */
   window.FAK = {
+    openStandardsEditor: function(){ if (can('add')) buildStandardsModal(); },
     onKitSearch: function(v){ _kitFilters.search = v; render(); },
     onChkSearch: function(v){ _chkFilters.search = v; render(); },
     setChkFilter: function(status){
@@ -717,7 +792,12 @@ table.fkw-entry-grid input.fkw-qty{width:64px;background:var(--fkw-bg);border:1p
       if (rc['Action Reference']) return alert('This inspection was already escalated — see Action Register record ' + rc['Action Reference'] + '.');
       var ctx = {
         entryId: rc['Entry ID'],
-        description: 'First Aid Kit Inspection (' + rc['Kit ID'] + ') — ' + rc['Date'] + '. Shortage found: ' + rc['Deficiency Summary'],
+        // Rev.12 (Issam, 2026-10-15) — the entry's own ID is embedded
+        // directly in the description text (not just the hand-off
+        // banner shown while raising the Action), so it stays visible
+        // and searchable whenever this Action is looked at later —
+        // from the Action Register list, a search, or a report.
+        description: 'First Aid Kit Inspection ' + rc['Entry ID'] + ' (' + rc['Kit ID'] + ') — ' + rc['Date'] + '. Shortage found: ' + rc['Deficiency Summary'],
         date: new Date().toISOString().slice(0,10)
       };
       try { sessionStorage.setItem('incomingFirstAidKitContext', JSON.stringify(ctx)); } catch(e){}
