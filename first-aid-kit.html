@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — First Aid Kit Register &amp; Monthly Inspection</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   FIRST AID KIT REGISTER & MONTHLY INSPECTION — same dark navy/gold
+   theme, two-tab master+log architecture as crane-lifting.html.
+   Class prefix fak-. Two live tables: 'fak_register' (kit master —
+   one row per physical first aid kit/box location) and
+   'fak_inspection' (digitised HSE-FRM-14 monthly supply check — one
+   row per kit per monthly round, 14-item checklist stored as one
+   JSON blob + flat fields, same approach as crane_checklist).
+   CHECKLIST_ITEMS below mirrors HSE-FRM-14's 14 supply items exactly.
+   ══════════════════════════════════════════════════════════════════ */
+.fak-dark-wrap{
+  --fkw-bg:#0D1B35; --fkw-bg2:#142140; --fkw-bg3:#1a2a50;
+  --fkw-gold:#C9A84C; --fkw-gold-lt:#E8C97A;
+  --fkw-text:rgba(255,255,255,.92); --fkw-text-muted:rgba(255,255,255,.55);
+  --fkw-text-dim:rgba(255,255,255,.35); --fkw-border:rgba(255,255,255,.08);
+  --fkw-border-gold:rgba(201,168,76,.35);
+  --fkw-blue:#5B9BD5; --fkw-red:#F0685C; --fkw-amb:#E8B339; --fkw-grn:#4FCB9E;
+  background:var(--fkw-bg); color:var(--fkw-text); margin:0; padding:24px; min-height:100vh;
+}
+.fak-dark-wrap *{box-sizing:border-box}
+.fak-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.fak-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--fkw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--fkw-bg2);
+  border-radius:8px;border:1px solid var(--fkw-border-gold)}
+.fak-dark-wrap .back-link:hover{background:var(--fkw-bg3)}
+.fak-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--fkw-bg2);
+  border-radius:8px;border-left:3px solid var(--fkw-gold);margin:10px 0;color:var(--fkw-text-muted)}
+.fak-dark-wrap .flag-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.08);
+  border-radius:8px;border-left:3px solid var(--fkw-amb);margin:10px 0;color:var(--fkw-text-muted)}
+.fak-dark-wrap .sec-banner{background:var(--fkw-bg2);color:var(--fkw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--fkw-border-gold);border-bottom:none}
+.fak-dark-wrap .kpi-grid{display:grid;gap:14px}
+.fak-dark-wrap .kpi-card{background:var(--fkw-bg2);border:1px solid var(--fkw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.fak-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.fak-dark-wrap .kpi-card.kc-nvy::before{background:var(--fkw-gold)}
+.fak-dark-wrap .kpi-card.kc-blue::before{background:var(--fkw-blue)}
+.fak-dark-wrap .kpi-card.kc-amb::before{background:var(--fkw-amb)}
+.fak-dark-wrap .kpi-card.kc-red::before{background:var(--fkw-red)}
+.fak-dark-wrap .kpi-card.kc-grn::before{background:var(--fkw-grn)}
+.fak-dark-wrap .kpi-lbl{font-size:10px;font-weight:700;color:var(--fkw-text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.fak-dark-wrap .kpi-val{font-size:22px;font-weight:800;color:var(--fkw-text)}
+.fak-dark-wrap .kpi-sub{font-size:10px;color:var(--fkw-text-dim);margin-top:2px}
+.fak-dark-wrap .fkw-clickable{cursor:pointer}
+.fak-dark-wrap .fkw-clickable:hover{background:var(--fkw-bg3)}
+.fak-dark-wrap .chart-grid{display:grid;gap:14px}
+.fak-dark-wrap .chart-card{background:var(--fkw-bg2);border:1px solid var(--fkw-border);border-radius:14px;padding:14px 16px}
+.fak-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--fkw-text);
+  display:flex;justify-content:space-between;margin-bottom:8px}
+.fak-dark-wrap .chart-sub{font-size:10px;color:var(--fkw-text-muted);font-weight:400}
+.fak-dark-wrap .chart-wrap{height:220px;position:relative}
+.fak-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.fak-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--fkw-grn)}
+.fak-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--fkw-red)}
+.fak-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--fkw-amb)}
+.fak-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--fkw-blue)}
+.fak-dark-wrap .filter-row{display:flex;gap:8px;flex-wrap:wrap;background:var(--fkw-bg2);
+  border:1px solid var(--fkw-border-gold);border-top:none;border-bottom:none;padding:10px 14px;margin:0}
+.fak-dark-wrap .filter-btn{font-size:11px;font-weight:700;padding:9px 14px;border-radius:9px;
+  border:1px solid var(--fkw-border-gold);background:var(--fkw-bg2);color:var(--fkw-text-muted);cursor:pointer}
+.fak-dark-wrap .filter-btn.active{background:rgba(201,168,76,.18);color:var(--fkw-gold-lt);border-color:var(--fkw-gold)}
+.fak-dark-wrap .fkw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--fkw-bg2);border:1px solid var(--fkw-border-gold);border-top:none}
+.fak-dark-wrap .fkw-toolbar input[type=text]{background:var(--fkw-bg3);border:1px solid var(--fkw-border);
+  color:var(--fkw-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:170px}
+.fak-dark-wrap .fkw-toolbar select{background:var(--fkw-bg3);border:1px solid var(--fkw-border);
+  color:var(--fkw-text);border-radius:7px;padding:7px 10px;font-size:11px}
+.fak-dark-wrap .fkw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--fkw-border-gold);
+  background:var(--fkw-bg3);color:var(--fkw-gold-lt);cursor:pointer}
+.fak-dark-wrap .fkw-btn:hover{background:rgba(201,168,76,.15)}
+.fak-dark-wrap .fkw-btn:disabled{opacity:.4;cursor:not-allowed}
+.fak-dark-wrap .fkw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--fkw-grn)}
+.fak-dark-wrap .fkw-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--fkw-amb)}
+.fak-dark-wrap .fkw-table-wrap{border:1px solid var(--fkw-border-gold);border-top:none;max-height:420px;overflow:auto}
+.fak-dark-wrap table.fkw-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.fak-dark-wrap table.fkw-tbl th{position:sticky;top:0;background:var(--fkw-bg3);color:var(--fkw-gold-lt);
+  text-align:left;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--fkw-border-gold);white-space:nowrap}
+.fak-dark-wrap table.fkw-tbl td{padding:7px 10px;border-bottom:1px solid var(--fkw-border);color:var(--fkw-text)}
+.fak-dark-wrap table.fkw-tbl tr.fkw-row{cursor:pointer}
+.fak-dark-wrap table.fkw-tbl tr.fkw-row:hover{background:var(--fkw-bg3)}
+.fak-dark-wrap table.fkw-tbl tr.fkw-row.fkw-sel{background:rgba(201,168,76,.12)}
+.fak-dark-wrap .empty-state{padding:30px;text-align:center;color:var(--fkw-text-dim);font-size:11px}
+.fak-dark-wrap .empty-state strong{display:block;color:var(--fkw-text-muted);margin-bottom:4px;font-size:12px}
+/* Modal */
+.fkw-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;
+  justify-content:center;z-index:999;padding:30px 14px;overflow:auto}
+.fkw-modal{background:var(--fkw-bg2);border:1px solid var(--fkw-border-gold);border-radius:14px;
+  padding:20px 22px;max-width:1000px;width:100%;color:var(--fkw-text)}
+.fkw-modal h3{margin:0 0 12px;font-size:14px;color:var(--fkw-gold-lt)}
+.fkw-modal-hdr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.fkw-modal-hdr-grid label, .fkw-field label{display:block;font-size:10px;font-weight:600;color:var(--fkw-text-muted);
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.fkw-modal-hdr-grid input, .fkw-modal-hdr-grid select, .fkw-modal-hdr-grid textarea{width:100%;background:var(--fkw-bg3);
+  border:1px solid var(--fkw-border);color:var(--fkw-text);border-radius:7px;padding:7px 9px;font-size:12px}
+.fkw-grid-wrap{overflow-x:auto;border:1px solid var(--fkw-border);border-radius:8px;margin-bottom:14px}
+table.fkw-entry-grid{width:100%;border-collapse:collapse;font-size:11px;min-width:600px}
+table.fkw-entry-grid th{background:var(--fkw-bg3);color:var(--fkw-gold-lt);padding:6px 8px;
+  border:1px solid var(--fkw-border);text-align:center;white-space:nowrap}
+table.fkw-entry-grid td{padding:5px 7px;border:1px solid var(--fkw-border);text-align:center}
+table.fkw-entry-grid td.fkw-item-cell{text-align:left;white-space:normal;min-width:220px}
+table.fkw-entry-grid input.fkw-qty{width:64px;background:var(--fkw-bg);border:1px solid var(--fkw-border);
+  color:var(--fkw-text);border-radius:5px;padding:3px 4px;font-size:10.5px;text-align:center}
+.fkw-result-bar{display:flex;gap:16px;align-items:center;padding:10px 14px;background:var(--fkw-bg3);
+  border-radius:8px;margin-bottom:14px;font-size:12px;font-weight:700}
+.fkw-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.fkw-note{font-size:10.5px;color:var(--fkw-amb);background:rgba(232,179,57,.1);border-left:3px solid var(--fkw-amb);
+  padding:8px 10px;border-radius:6px;margin-bottom:12px;line-height:1.5}
+</style>
+</head><body><div class="fak-dark-wrap">
+<div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a><a href="first-aid-records.html" class="back-link">↔ First Aid Treatment Log</a></div>
+<div class="req-text">HSE-FRM-14 · ISO 45001 §8.2 / MHRSD First Aid Regulations — First Aid Kit Register (physical kit/box locations across the plant) and the digitised Monthly Inspection & Supply Check: every kit's 14-item supply list verified against its minimum required quantity, with shortages flagged and restocked. Separate from the First Aid Treatment Log (which records injuries treated and first-aider certifications, not kit contents). Governed by OC-01 §A.17.</div>
+<div class="flag-text">⚠ Doc code for this specific register has not been assigned/confirmed — shown below as "L4-SHEE-PR-TBD" pending confirmation; no prior placeholder page existed to recover a number from, unlike Scaffold/Fire Pump/Crane. ⚠ The source form's kit-ID numbering skips "...010, 011, 013, 014..." — #012 is missing from the printed form itself; reproduced as-is rather than silently renumbered. ⚠ The form's own "Total Required" column (a per-item total across all kits) is a form-level summary, not kit-specific data, and isn't modeled as a separate field here — it's derivable from the register at any time if needed.</div>
+
+<div class="sec-banner">FIRST AID KIT QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy fkw-clickable" onclick="FAK.kitCardClick('total')" title="Click to view the kit register"><div class="kpi-lbl">Total Kits</div><div class="kpi-val" id="fk-kpi-kit-total">—</div><div class="kpi-sub">First Aid Kit Register</div></div>
+  <div class="kpi-card kc-amb fkw-clickable" onclick="FAK.kitCardClick('due')" title="Click to view kits due for inspection"><div class="kpi-lbl">Inspections Due ≤7 Days</div><div class="kpi-val" id="fk-kpi-due">—</div><div class="kpi-sub">Next Inspection Due approaching</div></div>
+  <div class="kpi-card kc-red fkw-clickable" onclick="FAK.kitCardClick('overdue')" title="Click to view overdue kits"><div class="kpi-lbl">Inspections Overdue</div><div class="kpi-val" id="fk-kpi-overdue">—</div><div class="kpi-sub">Past monthly due date</div></div>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-blue fkw-clickable" onclick="FAK.chkCardClick('month')" title="Click to view this month's inspections"><div class="kpi-lbl">Inspections This Month</div><div class="kpi-val" id="fk-kpi-month">—</div><div class="kpi-sub" id="fk-kpi-month-sub">Loading…</div></div>
+  <div class="kpi-card kc-red fkw-clickable" onclick="FAK.chkCardClick('open')" title="Click to view open shortages"><div class="kpi-lbl">Open Shortages</div><div class="kpi-val" id="fk-kpi-open">—</div><div class="kpi-sub">Items below minimum, not yet restocked</div></div>
+  <div class="kpi-card kc-grn fkw-clickable" onclick="FAK.chkCardClick('compliant')" title="Click to view compliant inspections"><div class="kpi-lbl">Compliant / Non-Compliant</div><div class="kpi-val" id="fk-kpi-comp-noncomp">—</div><div class="kpi-sub">All-time checklist results</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+  <div class="chart-card"><div class="chart-title">Inspection Results<span class="chart-sub">compliant vs non-compliant</span></div><div class="chart-wrap"><canvas id="fkResultChart"></canvas></div></div>
+  <div class="chart-card"><div class="chart-title">Inspections by Month<span class="chart-sub">based on inspection date</span></div><div class="chart-wrap"><canvas id="fkMonthChart"></canvas></div></div>
+</div>
+
+<div class="sec-banner">FIRST AID KIT REGISTER</div>
+<div class="fkw-toolbar">
+  <input type="text" id="fk-kit-search" placeholder="Search kit ID / location…" oninput="FAK.onKitSearch(this.value)">
+  <button class="fkw-btn fkw-btn-add" id="fk-kit-btn-new" onclick="FAK.openKitAdd()">+ Add Kit</button>
+  <button class="fkw-btn" id="fk-kit-btn-edit" disabled onclick="FAK.openKitEditSelected()">Open / Edit</button>
+  <button class="fkw-btn" id="fk-kit-btn-remove" disabled onclick="FAK.removeKitSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--fkw-text-dim)" id="fk-kit-count-sub"></span>
+</div>
+<div class="fkw-table-wrap"><div id="live-table-kit"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div class="sec-banner">MONTHLY INSPECTION &amp; SUPPLY CHECK LOG — HSE-FRM-14</div>
+<div class="filter-row">
+  <button class="filter-btn active" id="fk-chk-f-all" onclick="FAK.setChkFilter('all')">All</button>
+  <button class="filter-btn" id="fk-chk-f-open" onclick="FAK.setChkFilter('open')">Open</button>
+  <button class="filter-btn" id="fk-chk-f-closed" onclick="FAK.setChkFilter('closed')">Closed</button>
+</div>
+<div class="fkw-toolbar">
+  <input type="text" id="fk-chk-search" placeholder="Search kit ID…" oninput="FAK.onChkSearch(this.value)">
+  <button class="fkw-btn fkw-btn-add" id="fk-chk-btn-new" onclick="FAK.openChkAdd()">+ New Inspection</button>
+  <button class="fkw-btn" id="fk-chk-btn-edit" disabled onclick="FAK.openChkEditSelected()">Open / Edit</button>
+  <button class="fkw-btn" id="fk-chk-btn-print" disabled onclick="FAK.printChkSelected()">🖨️ Print</button>
+  <button class="fkw-btn fkw-btn-esc" id="fk-chk-btn-esc" disabled onclick="FAK.escalateChkSelected()">⚡ Escalate to Action</button>
+  <button class="fkw-btn" id="fk-chk-btn-remove" disabled onclick="FAK.removeChkSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--fkw-text-dim)" id="fk-chk-count-sub"></span>
+</div>
+<div class="fkw-table-wrap"><div id="live-table-chk"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div id="fk-modal-root"></div>
+
+<script>
+(function(){
+
+  /* ── CHECKLIST_ITEMS: single source of truth, mirrors HSE-FRM-14's
+     14-item supply list exactly. minNum is the numeric portion of
+     "Min. Req. Qty." used to auto-flag a shortage. ── */
+  var CHECKLIST_ITEMS = [
+    {id:'I1',  name:'Betadine',          form:'Solution', minQty:'1 pc',    minNum:1},
+    {id:'I2',  name:'Square Gauze',      form:'Gauze',     minQty:'1 pck',   minNum:1},
+    {id:'I3',  name:'Surgical Tape',     form:'Tape',      minQty:'1 pc',    minNum:1},
+    {id:'I4',  name:'Band-Aid',          form:'Tape',      minQty:'8 pcs',   minNum:8},
+    {id:'I5',  name:'Disposable gloves', form:'',          minQty:'2 pairs', minNum:2},
+    {id:'I6',  name:'Crepe bandage',     form:'Small',     minQty:'2 pcs',   minNum:2},
+    {id:'I7',  name:'Crepe bandage',     form:'Medium',    minQty:'2 pcs',   minNum:2},
+    {id:'I8',  name:'Gauze roll',        form:'Small',     minQty:'2 pcs',   minNum:2},
+    {id:'I9',  name:'Gauze roll',        form:'Medium',    minQty:'2 pcs',   minNum:2},
+    {id:'I10', name:'Eye patch',         form:'',          minQty:'2 pcs',   minNum:2},
+    {id:'I11', name:'Flamazine',         form:'Cream',     minQty:'1 pc',    minNum:1},
+    {id:'I12', name:'Elastic bandage',   form:'Small',     minQty:'1 pc',    minNum:1},
+    {id:'I13', name:'Elastic bandage',   form:'Medium',    minQty:'1 pc',    minNum:1},
+    {id:'I14', name:'Cotton',            form:'Small',     minQty:'1 pc',    minNum:1}
+  ];
+
+  var KIT_STATUSES = ['Active','Out of Service','Decommissioned'];
+
+  var KIT = { tabKey:'fak_register', containerId:'live-table-kit', idCol:'Kit ID', idPrefix:'FAK-', idPad:3 };
+  var CHK = { tabKey:'fak_inspection', containerId:'live-table-chk', idCol:'Entry ID', idPrefix:'FAI-', idPad:3 };
+  var STATUS_COL = 'Record Status';
+
+  var _kitCache = null, _chkCache = null;
+  var _kitSelected = null, _chkSelected = null;
+  var _kitFilters = { search:'', special:null };
+  var _chkFilters = { search:'', status:'all', special:null };
+  var _charts = { result:null, month:null };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function fkEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+  function nextId(table, cache){
+    if (!cache || !cache.headers || !cache.rows) return table.idPrefix + '001';
+    var idIdx = colIdx(cache.headers, table.idCol);
+    if (idIdx < 0) return table.idPrefix + '001';
+    var maxN = 0;
+    cache.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(table.idPrefix.toLowerCase()) !== 0) return;
+      var n = parseInt(v.slice(table.idPrefix.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    var numStr = String(maxN + 1);
+    while (numStr.length < table.idPad) numStr = '0' + numStr;
+    return table.idPrefix + numStr;
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){
+    return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
+  }
+
+  /* ── Deficiency logic ─────────────────────────────────────────── */
+  function computeResult(items){
+    var count = 0, parts = [];
+    CHECKLIST_ITEMS.forEach(function(def){
+      var it = (items||[]).find(function(x){ return x.id === def.id; });
+      var qty = it && it.qty !== '' && it.qty != null ? Number(it.qty) : null;
+      if (qty === null || isNaN(qty) || qty < def.minNum){
+        count++; parts.push(def.id + ' (' + def.name + (def.form?(' — '+def.form):'') + ')');
+      }
+    });
+    return {
+      count: count,
+      summary: parts.join('; '),
+      overall: count > 0 ? 'Non-Compliant' : 'Compliant',
+      status: count > 0 ? 'Open' : 'Closed'
+    };
+  }
+  function daysUntil(dateStr){
+    if (!dateStr) return null;
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    var today = new Date(); today.setHours(0,0,0,0); d.setHours(0,0,0,0);
+    return Math.round((d - today) / 86400000);
+  }
+
+  /* ── Load both tabs ───────────────────────────────────────────── */
+  function loadAll(){
+    return Promise.all([
+      loadTab(KIT.tabKey).then(function(data){
+        if (data && data.headers && data.rows){
+          var si = colIdx(data.headers, STATUS_COL);
+          if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+        }
+        _kitCache = data;
+      }).catch(function(){ _kitCache = null; }),
+      loadTab(CHK.tabKey).then(function(data){
+        if (data && data.headers && data.rows){
+          var si = colIdx(data.headers, STATUS_COL);
+          if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+        }
+        _chkCache = data;
+      }).catch(function(){ _chkCache = null; })
+    ]).then(render);
+  }
+
+  function getKitRecs(){
+    if (!_kitCache || !_kitCache.headers || !_kitCache.rows) return [];
+    return _kitCache.rows.map(function(r){ return recFromRow(_kitCache.headers, r); });
+  }
+  function getChkRecs(){
+    if (!_chkCache || !_chkCache.headers || !_chkCache.rows) return [];
+    return _chkCache.rows.map(function(r){ return recFromRow(_chkCache.headers, r); });
+  }
+
+  /* ── KPIs + charts ────────────────────────────────────────────── */
+  function render(){
+    var kitRecs = getKitRecs(), chkRecs = getChkRecs();
+
+    var dueSoon = kitRecs.filter(function(rc){ var d = daysUntil(rc['Next Inspection Due']); return d !== null && d >= 0 && d <= 7; }).length;
+    var overdue = kitRecs.filter(function(rc){ var d = daysUntil(rc['Next Inspection Due']); return d !== null && d < 0; }).length;
+    setTxt('fk-kpi-kit-total', kitRecs.length);
+    setTxt('fk-kpi-due', dueSoon);
+    setTxt('fk-kpi-overdue', overdue);
+
+    var now = new Date();
+    var thisMonth = chkRecs.filter(function(rc){
+      var d = new Date(rc['Date']);
+      return !isNaN(d.getTime()) && d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+    }).length;
+    var openCount = chkRecs.filter(function(rc){ return rc['Status']==='Open'; }).length;
+    var compliant = chkRecs.filter(function(rc){ return rc['Overall Result']==='Compliant'; }).length;
+    var nonCompliant = chkRecs.filter(function(rc){ return rc['Overall Result']==='Non-Compliant'; }).length;
+    setTxt('fk-kpi-month', thisMonth); setTxt('fk-kpi-month-sub', now.toLocaleString('en',{month:'long'}) + ' ' + now.getFullYear());
+    setTxt('fk-kpi-open', openCount);
+    setTxt('fk-kpi-comp-noncomp', compliant + ' / ' + nonCompliant);
+
+    renderCharts(chkRecs);
+    renderKitTable(kitRecs);
+    renderChkTable(chkRecs);
+  }
+
+  function renderCharts(chkRecs){
+    var compliant = chkRecs.filter(function(rc){ return rc['Overall Result']==='Compliant'; }).length;
+    var nonCompliant = chkRecs.filter(function(rc){ return rc['Overall Result']==='Non-Compliant'; }).length;
+    var byMonth = {};
+    chkRecs.forEach(function(rc){
+      var d = new Date(rc['Date']);
+      var mk = isNaN(d.getTime()) ? 'Unknown' : d.toLocaleString('en',{month:'short'}) + ' ' + d.getFullYear();
+      byMonth[mk] = (byMonth[mk]||0) + 1;
+    });
+    var monthLabels = Object.keys(byMonth);
+    var monthData = monthLabels.map(function(k){ return byMonth[k]; });
+
+    if (typeof Chart === 'undefined') return;
+    if (_charts.result) _charts.result.destroy();
+    if (_charts.month) _charts.month.destroy();
+    var ctx1 = document.getElementById('fkResultChart');
+    if (ctx1) _charts.result = new Chart(ctx1, {
+      type:'bar',
+      data:{ labels:['Compliant','Non-Compliant'], datasets:[{ label:'Entries', data:[compliant, nonCompliant], backgroundColor:['#4FCB9E','#F0685C'] }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#fff', font:{size:9}}}, y:{ticks:{color:'#fff'}} } }
+    });
+    var ctx2 = document.getElementById('fkMonthChart');
+    if (ctx2) _charts.month = new Chart(ctx2, {
+      type:'line',
+      data:{ labels: monthLabels, datasets:[{ label:'Inspections', data: monthData, borderColor:'#5B9BD5', backgroundColor:'rgba(91,155,213,.2)', fill:true, tension:.3 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#fff', font:{size:9}}}, y:{ticks:{color:'#fff'}} } }
+    });
+  }
+
+  /* ── Kit master table ─────────────────────────────────────────── */
+  function filteredKit(recs){
+    var f = _kitFilters;
+    return recs.filter(function(rc){
+      if (f.search){
+        var hay = ((rc['Kit ID']||'')+' '+(rc['Location']||'')).toLowerCase();
+        if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+      }
+      if (f.special === 'due'){ var d = daysUntil(rc['Next Inspection Due']); if (!(d !== null && d >= 0 && d <= 7)) return false; }
+      if (f.special === 'overdue'){ var d2 = daysUntil(rc['Next Inspection Due']); if (!(d2 !== null && d2 < 0)) return false; }
+      return true;
+    });
+  }
+  function renderKitTable(recs){
+    var list = filteredKit(recs);
+    var el = document.getElementById(KIT.containerId);
+    setTxt('fk-kit-count-sub', list.length + ' of ' + recs.length + ' kits shown');
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No kits found</strong>Add the plant\'s first aid kit locations to get started — see HSE-FRM-14 for the standard set of 22.</div>';
+      updateKitButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(a['Kit ID']||'').localeCompare(String(b['Kit ID']||'')); });
+    var rows = list.map(function(rc){
+      var sel = _kitSelected === rc['Kit ID'];
+      var d = daysUntil(rc['Next Inspection Due']);
+      var dueBadge = d === null ? '—' : (d < 0 ? '<span class="badge kc-red">Overdue ' + Math.abs(d) + 'd</span>'
+        : (d <= 7 ? '<span class="badge kc-amb">Due in ' + d + 'd</span>' : '<span class="badge kc-grn">OK</span>'));
+      var statusBadge = rc['Status'] === 'Active' ? '<span class="badge kc-grn">Active</span>'
+        : (rc['Status'] === 'Out of Service' ? '<span class="badge kc-amb">Out of Service</span>' : '<span class="badge kc-red">Decommissioned</span>');
+      return '<tr class="fkw-row' + (sel?' fkw-sel':'') + '" onclick="FAK.selectKit(\'' + fkEsc(rc['Kit ID']) + '\')">'
+        + '<td>' + fkEsc(rc['Kit ID']) + '</td>'
+        + '<td>' + fkEsc(rc['Location']) + '</td>'
+        + '<td>' + fkEsc(rc['Next Inspection Due']) + ' ' + dueBadge + '</td>'
+        + '<td>' + statusBadge + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="fkw-tbl"><thead><tr><th>Kit ID</th><th>Location</th><th>Next Inspection Due</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateKitButtons();
+  }
+  function updateKitButtons(){
+    var rc = getSelectedKit();
+    document.getElementById('fk-kit-btn-edit').disabled = !rc;
+    document.getElementById('fk-kit-btn-remove').disabled = !rc || !can('delete');
+  }
+  function getSelectedKit(){
+    if (!_kitCache || !_kitSelected) return null;
+    var idIdx = colIdx(_kitCache.headers, KIT.idCol);
+    var row = _kitCache.rows.find(function(r){ return String(r[idIdx]) === String(_kitSelected); });
+    return row ? recFromRow(_kitCache.headers, row) : null;
+  }
+  function getKitOptions(){
+    return getKitRecs().map(function(rc){ return rc['Kit ID']; }).filter(Boolean).sort();
+  }
+
+  /* ── Kit Add/Edit modal (plain field form) ───────────────────── */
+  function buildKitModal(existingRec){
+    var root = document.getElementById('fk-modal-root');
+    var isEdit = !!existingRec;
+    var kitId = isEdit ? existingRec['Kit ID'] : nextId(KIT, _kitCache);
+    var statusOpts = KIT_STATUSES.map(function(s){ return '<option value="'+s+'"'+((existingRec&&existingRec['Status']===s)?' selected':(!existingRec&&s==='Active'?' selected':''))+'>'+s+'</option>'; }).join('');
+    root.innerHTML = '<div class="fkw-modal-bg" id="fkm-bg"><div class="fkw-modal">'
+      + '<h3>' + (isEdit?'Edit':'Add') + ' Kit — ' + fkEsc(kitId) + '</h3>'
+      + '<div class="fkw-modal-hdr-grid">'
+        + '<div><label>Kit ID (as on the kit label)</label><input type="text" id="fkm-kit-code" value="' + fkEsc(existingRec?existingRec['Kit ID']:'') + '" placeholder="e.g. FAK-ADM-REC-001"></div>'
+        + '<div><label>Location</label><input type="text" id="fkm-kit-location" value="' + fkEsc(existingRec?existingRec['Location']:'') + '" placeholder="e.g. Admin Reception"></div>'
+        + '<div><label>Status</label><select id="fkm-kit-status">' + statusOpts + '</select></div>'
+        + '<div><label>Last Inspection Date</label><input type="date" id="fkm-kit-last" value="' + fkEsc(existingRec?existingRec['Last Inspection Date']:'') + '"></div>'
+        + '<div><label>Next Inspection Due</label><input type="date" id="fkm-kit-next" value="' + fkEsc(existingRec?existingRec['Next Inspection Due']:'') + '"></div>'
+      + '</div>'
+      + '<div class="fkw-field" style="margin-bottom:14px"><label>Remarks</label><textarea id="fkm-kit-remarks" rows="2" style="width:100%;background:var(--fkw-bg3);border:1px solid var(--fkw-border);color:var(--fkw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + fkEsc(existingRec?existingRec['Remarks']:'') + '</textarea></div>'
+      + '<div class="fkw-modal-actions"><button class="fkw-btn" id="fkm-kit-cancel">Cancel</button><button class="fkw-btn fkw-btn-add" id="fkm-kit-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('fkm-kit-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('fkm-bg').onclick = function(e){ if (e.target.id==='fkm-bg') root.innerHTML=''; };
+    document.getElementById('fkm-kit-save').onclick = function(){ saveKit(kitId, isEdit); };
+  }
+  function saveKit(autoKitId, isEdit){
+    var root = document.getElementById('fk-modal-root');
+    var btn = document.getElementById('fkm-kit-save'); btn.disabled = true;
+    var typedId = document.getElementById('fkm-kit-code').value.trim();
+    var kitId = isEdit ? autoKitId : (typedId || autoKitId);
+    var values = {
+      'Kit ID': kitId,
+      'Location': document.getElementById('fkm-kit-location').value.trim(),
+      'Last Inspection Date': document.getElementById('fkm-kit-last').value,
+      'Next Inspection Due': document.getElementById('fkm-kit-next').value,
+      'Status': document.getElementById('fkm-kit-status').value,
+      'Remarks': document.getElementById('fkm-kit-remarks').value.trim()
+    };
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    if (isEdit){
+      postJSON('update', {tab: KIT.tabKey, idCol: KIT.idCol, id: kitId}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: KIT.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ── Checklist log table ─────────────────────────────────────── */
+  function filteredChk(recs){
+    var f = _chkFilters;
+    return recs.filter(function(rc){
+      if (f.status === 'open' && rc['Status'] !== 'Open') return false;
+      if (f.status === 'closed' && rc['Status'] !== 'Closed') return false;
+      if (f.search && (rc['Kit ID']||'').toLowerCase().indexOf(f.search.toLowerCase()) < 0) return false;
+      if (f.special === 'month'){
+        var now = new Date(); var d = new Date(rc['Date']);
+        if (isNaN(d.getTime()) || d.getMonth()!==now.getMonth() || d.getFullYear()!==now.getFullYear()) return false;
+      }
+      if (f.special === 'open' && rc['Status'] !== 'Open') return false;
+      if (f.special === 'compliant' && rc['Overall Result'] !== 'Compliant') return false;
+      return true;
+    });
+  }
+  function renderChkTable(recs){
+    var list = filteredChk(recs);
+    var el = document.getElementById(CHK.containerId);
+    setTxt('fk-chk-count-sub', list.length + ' of ' + recs.length + ' entries shown');
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No inspections match</strong>Try a different filter or clear the search.</div>';
+      updateChkButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Entry ID']||'').localeCompare(String(a['Entry ID']||'')); });
+    var rows = list.map(function(rc){
+      var sel = _chkSelected === rc['Entry ID'];
+      var resultBadge = rc['Overall Result']==='Compliant' ? '<span class="badge kc-grn">Compliant</span>' : '<span class="badge kc-red">Non-Compliant</span>';
+      var statusBadge = rc['Status']==='Open' ? '<span class="badge kc-amb">Open</span>' : '<span class="badge kc-blue">Closed</span>';
+      var actionCell = rc['Action Reference']
+        ? '<a href="action-register.html?capa=' + encodeURIComponent(rc['Action Reference']) + '" style="color:var(--fkw-gold-lt)">' + fkEsc(rc['Action Reference']) + '</a>'
+        : '—';
+      return '<tr class="fkw-row' + (sel?' fkw-sel':'') + '" onclick="FAK.selectChk(\'' + fkEsc(rc['Entry ID']) + '\')">'
+        + '<td>' + fkEsc(rc['Entry ID']) + '</td>'
+        + '<td>' + fkEsc(rc['Date']) + '</td>'
+        + '<td>' + fkEsc(rc['Kit ID']) + '</td>'
+        + '<td>' + fkEsc(rc['Deficiency Count']||0) + '</td>'
+        + '<td>' + resultBadge + '</td>'
+        + '<td>' + statusBadge + '</td>'
+        + '<td>' + fkEsc(rc['Inspected By']) + '</td>'
+        + '<td>' + actionCell + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="fkw-tbl"><thead><tr><th>Entry ID</th><th>Date</th><th>Kit ID</th><th>Shortages</th><th>Result</th><th>Status</th><th>Inspected By</th><th>Action Ref.</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateChkButtons();
+  }
+  function updateChkButtons(){
+    var rc = getSelectedChk();
+    document.getElementById('fk-chk-btn-edit').disabled = !rc;
+    document.getElementById('fk-chk-btn-print').disabled = !rc;
+    document.getElementById('fk-chk-btn-remove').disabled = !rc || !can('delete');
+    var escBtn = document.getElementById('fk-chk-btn-esc');
+    escBtn.disabled = !rc || (rc['Deficiency Count']|0) <= 0 || !!(rc['Action Reference']);
+    escBtn.title = rc && rc['Action Reference'] ? 'Already escalated — see ' + rc['Action Reference'] : '';
+  }
+  function getSelectedChk(){
+    if (!_chkCache || !_chkSelected) return null;
+    var idIdx = colIdx(_chkCache.headers, CHK.idCol);
+    var row = _chkCache.rows.find(function(r){ return String(r[idIdx]) === String(_chkSelected); });
+    return row ? recFromRow(_chkCache.headers, row) : null;
+  }
+
+  /* ── Checklist entry modal (custom grid, all 14 items) ───────── */
+  function buildChkModal(existingRec){
+    var root = document.getElementById('fk-modal-root');
+    var isEdit = !!existingRec;
+    var entryId = isEdit ? existingRec['Entry ID'] : nextId(CHK, _chkCache);
+    var items = [];
+    if (isEdit && existingRec['Items Data (JSON)']){
+      try { items = JSON.parse(existingRec['Items Data (JSON)']).items || []; } catch(e){ items = []; }
+    }
+    var kitOpts = getKitOptions();
+    var curKit = existingRec ? existingRec['Kit ID'] : '';
+
+    var hdrHtml = '<div class="fkw-modal-hdr-grid">'
+      + '<div><label>Date</label><input type="date" id="fkm-chk-date" value="' + fkEsc(existingRec ? existingRec['Date'] : new Date().toISOString().slice(0,10)) + '"></div>'
+      + '<div><label>Kit ID</label><select id="fkm-chk-kit">'
+        + '<option value="">— select —</option>'
+        + kitOpts.map(function(k){ return '<option value="'+fkEsc(k)+'"'+(k===curKit?' selected':'')+'>'+fkEsc(k)+'</option>'; }).join('')
+      + '</select></div>'
+      + '<div><label>Inspected By (Male Nurse)</label><input type="text" id="fkm-chk-inspector" value="' + fkEsc(existingRec?existingRec['Inspected By']:'') + '"></div>'
+      + '<div><label>Approved By (HSE Dept.)</label><input type="text" id="fkm-chk-approver" value="' + fkEsc(existingRec?existingRec['Approved By']:'') + '"></div>'
+    + '</div>';
+    if (!kitOpts.length){
+      hdrHtml = '<div class="fkw-note">⚠ No kits are on file yet. Add a first aid kit location to the Kit Register above before logging an inspection.</div>' + hdrHtml;
+    }
+
+    var gridRows = CHECKLIST_ITEMS.map(function(def){
+      var existing = items.find(function(x){ return x.id === def.id; }) || {};
+      var qty = existing.qty !== undefined ? existing.qty : '';
+      return '<tr>'
+        + '<td class="fkw-item-cell">#' + fkEsc(def.id) + ' — ' + fkEsc(def.name) + (def.form?(' ('+fkEsc(def.form)+')'):'') + '</td>'
+        + '<td>' + fkEsc(def.minQty) + '</td>'
+        + '<td><input type="number" min="0" class="fkw-qty" data-item="' + def.id + '" value="' + fkEsc(qty) + '" placeholder="qty"></td>'
+      + '</tr>';
+    }).join('');
+    var gridHtml = '<div class="fkw-grid-wrap"><table class="fkw-entry-grid"><thead><tr><th>Supply Item</th><th>Min. Req. Qty.</th><th>Qty Found</th></tr></thead><tbody>' + gridRows + '</tbody></table></div>';
+
+    root.innerHTML = '<div class="fkw-modal-bg" id="fkm-bg"><div class="fkw-modal">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' Inspection — ' + fkEsc(entryId) + ' · HSE-FRM-14</h3>'
+      + hdrHtml + gridHtml
+      + '<div class="fkw-result-bar" id="fkm-chk-resultbar">Result: — &nbsp;|&nbsp; Status: —</div>'
+      + '<div class="fkw-modal-actions"><button class="fkw-btn" id="fkm-chk-cancel">Cancel</button><button class="fkw-btn fkw-btn-add" id="fkm-chk-save">Save</button></div>'
+    + '</div></div>';
+
+    function refreshResultBar(){
+      var curItems = readGridItems(root);
+      var res = computeResult(curItems);
+      var bar = document.getElementById('fkm-chk-resultbar');
+      bar.innerHTML = 'Result: <span style="color:' + (res.overall==='Compliant'?'var(--fkw-grn)':'var(--fkw-red)') + '">' + res.overall + '</span>'
+        + ' &nbsp;|&nbsp; Status: <span style="color:' + (res.status==='Open'?'var(--fkw-amb)':'var(--fkw-blue)') + '">' + res.status + '</span>'
+        + (res.count>0 ? ' &nbsp;|&nbsp; ' + res.count + ' item(s) below minimum' : '');
+    }
+    root.querySelectorAll('input.fkw-qty').forEach(function(inp){ inp.addEventListener('input', refreshResultBar); });
+    refreshResultBar();
+
+    document.getElementById('fkm-chk-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('fkm-bg').onclick = function(e){ if (e.target.id==='fkm-bg') root.innerHTML=''; };
+    document.getElementById('fkm-chk-save').onclick = function(){ saveChk(entryId, isEdit); };
+  }
+  function readGridItems(root){
+    return CHECKLIST_ITEMS.map(function(def){
+      var inp = root.querySelector('input.fkw-qty[data-item="'+def.id+'"]');
+      return { id: def.id, qty: inp ? inp.value : '' };
+    });
+  }
+  function saveChk(entryId, isEdit){
+    var root = document.getElementById('fk-modal-root');
+    var btn = document.getElementById('fkm-chk-save'); btn.disabled = true;
+    var kitId = document.getElementById('fkm-chk-kit').value;
+    if (!kitId){ alert('Select the kit this inspection is for.'); btn.disabled = false; return; }
+    var items = readGridItems(root);
+    var res = computeResult(items);
+    var values = {
+      'Entry ID': entryId,
+      'Date': document.getElementById('fkm-chk-date').value,
+      'Kit ID': kitId,
+      'Items Data (JSON)': JSON.stringify({ items: items }),
+      'Deficiency Count': res.count,
+      'Deficiency Summary': res.summary,
+      'Overall Result': res.overall,
+      'Inspected By': document.getElementById('fkm-chk-inspector').value.trim(),
+      'Approved By': document.getElementById('fkm-chk-approver').value.trim(),
+      'Status': res.status
+    };
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    if (isEdit){
+      postJSON('update', {tab: CHK.tabKey, idCol: CHK.idCol, id: entryId}, values).then(function(r){
+        if (r && r.status==='error'){ alert('Save failed: '+(r.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: CHK.tabKey}, [values]).then(function(r){
+        if (r && r.status==='error'){ alert('Save failed: '+(r.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ── Print form — reconstructs HSE-FRM-14's layout for one kit ── */
+  function buildPrintHtml(rec){
+    var items = [];
+    try { items = JSON.parse(rec['Items Data (JSON)']||'{}').items || []; } catch(e){}
+    var printedAt = new Date().toLocaleString();
+    var itemRows = CHECKLIST_ITEMS.map(function(def){
+      var it = items.find(function(x){ return x.id === def.id; }) || {};
+      var qty = it.qty !== undefined && it.qty !== '' ? it.qty : '—';
+      var short = (it.qty === '' || it.qty == null || Number(it.qty) < def.minNum);
+      return '<tr' + (short?' style="background:#FFEBEE"':'') + '><td style="text-align:left">' + fkEsc(def.name) + (def.form?(' ('+fkEsc(def.form)+')'):'') + '</td><td>' + fkEsc(def.minQty) + '</td><td>' + fkEsc(qty) + '</td></tr>';
+    }).join('');
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>First Aid Kit Inspection — ' + fkEsc(rec['Entry ID']) + '</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#111;margin:0;padding:16px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:10px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:700px;margin:0 auto;border:1px solid #333;padding:14px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}'
+    + '.pf-head h1{font-size:15px;margin:0}'
+    + '.pf-head .pf-code{font-size:10px;text-align:right}'
+    + '.pf-infobar{display:flex;gap:18px;flex-wrap:wrap;border:1px solid #999;padding:6px 8px;margin-bottom:8px;background:#f7f7f7}'
+    + '.pf-field{font-size:9.5px}.pf-label{font-weight:700;margin-right:4px}'
+    + 'table.pf-grid{width:100%;border-collapse:collapse;font-size:9px;margin-bottom:8px}'
+    + 'table.pf-grid th,table.pf-grid td{border:1px solid #999;padding:4px 6px;text-align:center}'
+    + 'table.pf-grid th{background:#222;color:#fff}'
+    + '.pf-result{font-size:12px;font-weight:700;margin:8px 0;padding:6px 10px;border:1px solid #333}'
+    + '.pf-footer{margin-top:6px;font-size:8px;color:#666;border-top:1px solid #999;padding-top:4px}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}@page{size:A4;margin:10mm}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>Saudi Arabian Glass Co. Ltd. — HSE Department<br>Monthly Inspection &amp; Supply for First Aid Kits</h1>'
+      + '<div class="pf-code">HSE-FRM-14<br>Entry ID: <strong>' + fkEsc(rec['Entry ID']) + '</strong></div></div>'
+      + '<div class="pf-infobar">'
+        + '<div class="pf-field"><span class="pf-label">Date:</span><span>' + fkEsc(rec['Date']) + '</span></div>'
+        + '<div class="pf-field"><span class="pf-label">Kit ID:</span><span>' + fkEsc(rec['Kit ID']) + '</span></div>'
+      + '</div>'
+      + '<table class="pf-grid"><thead><tr><th>Description</th><th>Min. Req. Qty.</th><th>Qty Found</th></tr></thead><tbody>' + itemRows + '</tbody></table>'
+      + '<div class="pf-result" style="color:' + (rec['Overall Result']==='Compliant'?'#1B5E20':'#B71C1C') + '">Inspection Result: ' + fkEsc(rec['Overall Result']) + '</div>'
+      + '<div class="pf-field"><span class="pf-label">Prepared by (Male Nurse):</span><span>' + fkEsc(rec['Inspected By']) + '</span></div>'
+      + '<div class="pf-field"><span class="pf-label">Approved by (HSE Dept.):</span><span>' + fkEsc(rec['Approved By']) + '</span></div>'
+      + (rec['Deficiency Count']>0 ? '<div class="pf-footer" style="color:#9C0006;font-weight:700">Shortage found: ' + fkEsc(rec['Deficiency Summary']) + (rec['Action Reference']?(' — escalated as '+fkEsc(rec['Action Reference'])):' — not yet escalated') + '</div>' : '')
+      + '<div class="pf-footer">Generated from the SAGCO IMS Portal on ' + fkEsc(printedAt) + '. Not valid without original signatures.</div>'
+    + '</div></body></html>';
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.FAK = {
+    onKitSearch: function(v){ _kitFilters.search = v; render(); },
+    onChkSearch: function(v){ _chkFilters.search = v; render(); },
+    setChkFilter: function(status){
+      _chkFilters.status = status; _chkFilters.special = null;
+      ['all','open','closed'].forEach(function(s){ var btn=document.getElementById('fk-chk-f-'+s); if(btn) btn.classList.toggle('active', s===status); });
+      render();
+    },
+    kitCardClick: function(name){
+      _kitFilters.special = (name==='total') ? null : name;
+      render();
+    },
+    chkCardClick: function(name){
+      _chkFilters.status = 'all'; _chkFilters.special = name;
+      ['all','open','closed'].forEach(function(s){ var btn=document.getElementById('fk-chk-f-'+s); if(btn) btn.classList.toggle('active', s==='all'); });
+      render();
+    },
+    selectKit: function(id){ _kitSelected = (_kitSelected!==null && String(_kitSelected)===String(id)) ? null : id; render(); },
+    selectChk: function(id){ _chkSelected = (_chkSelected!==null && String(_chkSelected)===String(id)) ? null : id; render(); },
+    openKitAdd: function(){ if (can('add')) buildKitModal(null); },
+    openKitEditSelected: function(){ var rc=getSelectedKit(); if(!rc) return alert('Select a row first.'); buildKitModal(rc); },
+    removeKitSelected: function(){
+      if (!can('delete')) return;
+      var rc = getSelectedKit(); if(!rc) return alert('Select a row first.');
+      if (!confirm('Remove kit ' + rc['Kit ID'] + '? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: KIT.tabKey, idCol: KIT.idCol, id: rc['Kit ID']}, {'Record Status':'Removed'}).then(function(r){
+        if (r && r.status==='error'){ alert('Remove failed: '+(r.message||'unknown error')); return; }
+        _kitSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+    openChkAdd: function(){ if (can('add')) buildChkModal(null); },
+    openChkEditSelected: function(){ var rc=getSelectedChk(); if(!rc) return alert('Select a row first.'); buildChkModal(rc); },
+    printChkSelected: function(){
+      var rc = getSelectedChk(); if(!rc) return alert('Select a row first.');
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked — please allow pop-ups to print.'); return; }
+      w.document.open(); w.document.write(buildPrintHtml(rc)); w.document.close();
+    },
+    removeChkSelected: function(){
+      if (!can('delete')) return;
+      var rc = getSelectedChk(); if(!rc) return alert('Select a row first.');
+      if (!confirm('Remove inspection ' + rc['Entry ID'] + '? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: CHK.tabKey, idCol: CHK.idCol, id: rc['Entry ID']}, {'Record Status':'Removed'}).then(function(r){
+        if (r && r.status==='error'){ alert('Remove failed: '+(r.message||'unknown error')); return; }
+        _chkSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+    // Escalates a non-compliant, not-yet-escalated checklist entry to
+    // a single combined Action Register record, same sessionStorage +
+    // URL hand-off mechanism as Crane Lifting / Fire Pump / Scaffold.
+    escalateChkSelected: function(){
+      var rc = getSelectedChk(); if(!rc) return alert('Select a row first.');
+      if ((rc['Deficiency Count']|0) <= 0) return alert('This inspection has no shortage to escalate.');
+      if (rc['Action Reference']) return alert('This inspection was already escalated — see Action Register record ' + rc['Action Reference'] + '.');
+      var ctx = {
+        entryId: rc['Entry ID'],
+        description: 'First Aid Kit Inspection (' + rc['Kit ID'] + ') — ' + rc['Date'] + '. Shortage found: ' + rc['Deficiency Summary'],
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingFirstAidKitContext', JSON.stringify(ctx)); } catch(e){}
+      window.open('action-register.html?fromFirstAidKit=' + encodeURIComponent(rc['Entry ID']) + '&lane=ACT', '_blank');
+    }
+  };
+
+  // Deep link from the Action Register's Source column —
+  // ?entry=<Entry ID> jumps straight to and opens that record.
+  function handleDeepLink(){
+    var entryId = new URLSearchParams(window.location.search).get('entry');
+    if (!entryId) return;
+    _chkSelected = entryId;
+    render();
+    FAK.openChkEditSelected();
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadAll().then(handleDeepLink); }, 100);
+  });
+})();
+</script>
+
+<script>
+/* ── Access gate: identical rule to crane-lifting.html / confined-space.html ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The First Aid Kit Register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+
+</div></body></html>

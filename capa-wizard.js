@@ -174,6 +174,7 @@
       sourceScaffoldInspectionId: '', /* Rev.08 — set when this ACT record was forwarded from the Scaffold Inspection Register's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceFirePumpLogId: '', /* Rev.09 — set when this ACT record was forwarded from the Fire Pump Test Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceCraneLiftingId: '', /* Rev.10 — set when this ACT record was forwarded from the Crane & Lifting Pre-Use Inspection Checklist's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
+      sourceFirstAidKitId: '', /* Rev.11 — set when this ACT record was forwarded from the First Aid Kit Monthly Inspection's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -374,7 +375,9 @@
                   ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Fire Pump Test Log <strong>' + esc(state.sourceFirePumpLogId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that log sheet too.</div>'
                   : (state.sourceCraneLiftingId
                     ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Crane &amp; Lifting Inspection <strong>' + esc(state.sourceCraneLiftingId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection entry too.</div>'
-                    : '')))))));
+                    : (state.sourceFirstAidKitId
+                      ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from First Aid Kit Inspection <strong>' + esc(state.sourceFirstAidKitId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection entry too.</div>'
+                      : ''))))))));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -572,6 +575,7 @@
               notifyScaffoldInspectionActionCompleted();
               notifyFirePumpActionCompleted();
               notifyCraneLiftingActionCompleted();
+              notifyFirstAidKitActionCompleted();
               alert(state.capaId + ' marked Closed.'); closeWizard(); if (global.reloadLive) reloadLive();
             })
             .catch(function (err) { restoreButtons(); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
@@ -1000,6 +1004,7 @@
       'Source Scaffold Inspection ID': state.sourceScaffoldInspectionId || '',
       'Source Fire Pump Log ID': state.sourceFirePumpLogId || '',
       'Source Crane Lifting ID': state.sourceCraneLiftingId || '',
+      'Source First Aid Kit ID': state.sourceFirstAidKitId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
@@ -1344,6 +1349,18 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.11 (Issam, 2026-10-14) — mirrors notifySourceCraneLifting()
+     exactly, for the First Aid Kit Monthly Inspection: writes the
+     durable "Action Reference" back to the one inspection entry that
+     escalated it. Only fires on first save. */
+  function notifySourceFirstAidKit() {
+    if (!state.sourceFirstAidKitId) return;
+    fetch(SHEETS_URL + '?action=update&tab=fak_inspection&idCol=' + encodeURIComponent('Entry ID') + '&id=' + encodeURIComponent(state.sourceFirstAidKitId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* Rev.09 (Issam, 2026-10-14) — mirrors notifyScaffoldInspectionActionCompleted()
      exactly, for the Fire Pump Test Log: once this ACT-lane record
      reaches Closed, the one log sheet that escalated it has its own
@@ -1364,6 +1381,18 @@
   function notifyCraneLiftingActionCompleted() {
     if (!state.sourceCraneLiftingId || state.lane !== 'ACT' || state.status !== 'Closed') return;
     fetch(SHEETS_URL + '?action=update&tab=crane_checklist&idCol=' + encodeURIComponent('Entry ID') + '&id=' + encodeURIComponent(state.sourceCraneLiftingId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Status': 'Closed' }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
+  /* Rev.11 (Issam, 2026-10-14) — mirrors notifyCraneLiftingActionCompleted()
+     exactly, for the First Aid Kit Monthly Inspection: once this
+     ACT-lane record reaches Closed, the one inspection entry that
+     escalated it has its own Status set to Closed too. */
+  function notifyFirstAidKitActionCompleted() {
+    if (!state.sourceFirstAidKitId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=fak_inspection&idCol=' + encodeURIComponent('Entry ID') + '&id=' + encodeURIComponent(state.sourceFirstAidKitId), {
       method: 'POST',
       body: JSON.stringify({ 'Status': 'Closed' }),
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
@@ -1399,6 +1428,7 @@
             notifySourceScaffoldInspection();
             notifySourceFirePump();
             notifySourceCraneLifting();
+            notifySourceFirstAidKit();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
@@ -1407,6 +1437,7 @@
             notifyScaffoldInspectionActionCompleted();
             notifyFirePumpActionCompleted();
             notifyCraneLiftingActionCompleted();
+            notifyFirstAidKitActionCompleted();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
@@ -1441,6 +1472,7 @@
             notifyScaffoldInspectionActionCompleted();
             notifyFirePumpActionCompleted();
             notifyCraneLiftingActionCompleted();
+            notifyFirstAidKitActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1715,6 +1747,7 @@
     state.sourceScaffoldInspectionId = col('Source Scaffold Inspection ID');
     state.sourceFirePumpLogId = col('Source Fire Pump Log ID');
     state.sourceCraneLiftingId = col('Source Crane Lifting ID');
+    state.sourceFirstAidKitId = col('Source First Aid Kit ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2595,6 +2628,23 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.11 (Issam, 2026-10-14) — First Aid Kit Inspection hand-off —
+     action-register.html?fromFirstAidKit=FAI-2026-0XX&lane=ACT, opened
+     by first-aid-kit.html's "⚡ Escalate to Action" button. Same
+     sessionStorage-plus-URL-verification pattern as every other
+     hand-off above. */
+  function openFromFirstAidKit(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceFirstAidKitId = ctx.entryId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'First Aid Kit Inspection';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -2792,6 +2842,23 @@
         loadUserDirectory(function () { openFromCraneLifting(clCtx); });
       } else {
         loadUserDirectory(function () { openFromCraneLifting({ entryId: fromCraneLifting }); });
+      }
+    }
+
+    /* Rev.11 (Issam, 2026-10-14) — First Aid Kit Inspection hand-off —
+       action-register.html?fromFirstAidKit=FAI-2026-0XX&lane=ACT, opened
+       by first-aid-kit.html's "⚡ Escalate to Action" button. Same
+       sessionStorage-plus-URL-verification pattern as every other
+       hand-off above. */
+    var fromFirstAidKit = params.get('fromFirstAidKit');
+    if (fromFirstAidKit) {
+      showLoadingWizard();
+      var fakCtx = null;
+      try { fakCtx = JSON.parse(sessionStorage.getItem('incomingFirstAidKitContext') || 'null'); } catch (e) { fakCtx = null; }
+      if (fakCtx && String(fakCtx.entryId) === String(fromFirstAidKit)) {
+        loadUserDirectory(function () { openFromFirstAidKit(fakCtx); });
+      } else {
+        loadUserDirectory(function () { openFromFirstAidKit({ entryId: fromFirstAidKit }); });
       }
     }
   }

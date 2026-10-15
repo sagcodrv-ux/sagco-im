@@ -155,6 +155,22 @@ var TABS = {
   'ndt_permits':     '☢ NDT Permits',
   'chemical_inv':    '⚗ Chemical Inv',
   'crane_lifting':   ' Crane Lifting',
+  /* Rev.10 (Issam, 2026-10-14) — 'crane_lifting' above is now the
+     EQUIPMENT MASTER list for crane-lifting.html (one row per crane/
+     lifting item, carrying the 3rd-party certificate's "Next
+     Inspection Due" that DATE_RULES below already watches).
+     'crane_checklist' is new: one row per HSE-FRM-18 pre-use
+     inspection event, dropping numbered-sheet naming for the same
+     reason as 'scaffold_inspection' / 'fire_pump_log'. */
+  'crane_checklist': 'Crane Inspection Checklist',
+  /* Rev.11 (Issam, 2026-10-14) — First Aid Kit Register (master list
+     of physical kit/box locations, one row per kit, carrying "Next
+     Inspection Due" for the monthly reminder below) + First Aid Kit
+     Inspection Log (one row per kit per monthly round, digitising
+     HSE-FRM-14). Dropping numbered-sheet naming, same reason as
+     'scaffold_inspection' / 'fire_pump_log' / 'crane_checklist'. */
+  'fak_register':    'First Aid Kit Register',
+  'fak_inspection':  'First Aid Kit Inspection Log',
   'waste_mgmt':      '45b – Waste Management',
   'chemical_store':  '46 – Chemical Storage',
   'furnace_monitor': '47 – Furnace Monitoring Logs',
@@ -1075,6 +1091,7 @@ function scanAlerts() {
     { tab: 'oh_surveillance',dateField: 'Next Due',            warnDays: 30, label: 'OH Surveillance',  page: 'oh-surveillance.html'       },
     { tab: 'scaffold',       dateField: 'Next Inspection Date',warnDays:  7, label: 'Scaffold',         page: 'scaffold-inspection.html'   },
     { tab: 'crane_lifting',  dateField: 'Next Inspection Due', warnDays: 14, label: 'Crane & Lifting',  page: 'crane-lifting.html'         },
+    { tab: 'fak_register',   dateField: 'Next Inspection Due', warnDays:  7, label: 'First Aid Kit',    page: 'first-aid-kit.html'         },
     { tab: 'loto_register',  dateField: 'Last Verified',       warnDays: 90, label: 'LOTO',             page: 'loto-register.html'         },
     { tab: 'cs_entry',       dateField: 'Instrument Calibration Due Date', warnDays: 14, label: 'Confined Space Gas Detector Calib', page: 'confined-space.html' },
   ];

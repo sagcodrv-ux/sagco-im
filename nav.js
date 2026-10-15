@@ -107,6 +107,7 @@ var TREE = [
         { id:'oc1-els',  label:'Electrical Safety & Isolation Log',file:'electrical-safety-log.html', level:'L4', tag:'Sh.57' },
         { id:'oc1-fll',  label:'Furnace Leakage Emergency Log',    file:'furnace-leakage-log.html',   level:'L4', tag:'Sh.58' },
         { id:'oc1-fad',  label:'First Aid Records Register',       file:'first-aid-records.html',     level:'L4', tag:'Sh.59' },
+        { id:'oc1-fak',  label:'First Aid Kit Register',           file:'first-aid-kit.html',         level:'L4', tag:'HSE-FRM-14' },
         { id:'oc1-fkl',  label:'Forklift & Mobile Equipment Log',  file:'forklift-log.html',          level:'L4', tag:'Sh.60' },
         { id:'oc1-vis',  label:'Visitor Register & Induction Log', file:'visitor-register.html',      level:'L4', tag:'Sh.61' },
       ]},
