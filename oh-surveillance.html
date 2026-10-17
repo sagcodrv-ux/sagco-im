@@ -164,7 +164,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 </div>
 <div class="ohw-table-wrap"><div id="live-table-log"><div class="empty-state"><strong>Loading…</strong></div></div></div>
 
-<div class="sec-banner">3. DASHBOARD — calculated summary, by programme line (for TÜV / EcoVadis / SMETA / Management Review)</div>
+<div class="sec-banner" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <span>3. DASHBOARD — calculated summary, by programme line (for TÜV / EcoVadis / SMETA / Management Review)</span>
+  <button class="ohw-btn" id="oh-dash-btn-print" onclick="OHS.printDashboard()">🖨 Print Report</button>
+</div>
 <div class="flag-text" style="margin-top:14px">If any count below is under 5, Issam's own workbook flags showing it externally as "&lt;5" rather than the exact figure, to avoid identifying individuals indirectly in a small group. This page shows exact counts for internal use — apply that "&lt;5" substitution yourself before sharing outside SAGCO.</div>
 <div class="ohw-table-wrap" style="border-top:1px solid var(--ohw-border-gold)"><div id="oh-dashboard-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
 
@@ -644,8 +647,49 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     el.innerHTML = '<table class="ohw-tbl"><thead><tr><th>Prog Ref</th><th>Work Area</th><th>Surveillance Type</th><th>Rounds Completed</th><th>Rounds Overdue</th><th>Workers Required</th><th>Workers Examined</th><th>Completion %</th><th>Fit</th><th>Fit w/ Restr.</th><th>Temp. Unfit</th><th>Referred</th><th>Last Completed</th><th>Next Due</th><th>Due Status</th><th>Evidence Coverage</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
+  // Opens a clean, print-ready copy of the Dashboard table only (not
+  // the Programme/Log toolbars or buttons) in a new window and
+  // triggers the browser's print dialog. The same "<5 substitution"
+  // reminder from the on-page banner is repeated on the printout
+  // itself, since a printed report is the most likely thing to leave
+  // the building — but the exact counts are left as-is, matching the
+  // page's own "this page shows exact counts for internal use" rule;
+  // applying the <5 substitution before external sharing is still
+  // Issam's manual step, same as on-screen.
+  function printDashboard(){
+    var tableHtml = document.getElementById('oh-dashboard-table').innerHTML;
+    if (!tableHtml || /empty-state/.test(tableHtml)){ alert('Nothing to print yet — the dashboard has no programme lines.'); return; }
+    var now = new Date();
+    var stamp = now.toISOString().slice(0,10) + ' ' + now.toTimeString().slice(0,5);
+    var w = window.open('', '_blank', 'width=1100,height=800');
+    if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print.'); return; }
+    w.document.write(
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>OH Surveillance Dashboard — ' + stamp + '</title>' +
+      '<style>' +
+      'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px}' +
+      'h1{font-size:18px;margin:0 0 2px}' +
+      '.sub{font-size:11px;color:#555;margin:0 0 14px}' +
+      '.priv{font-size:10px;color:#7a5b00;border:1px solid #d8b24a;background:#fff8e6;padding:8px 10px;margin-bottom:14px;border-radius:4px}' +
+      'table{border-collapse:collapse;width:100%;font-size:10px}' +
+      'th,td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}' +
+      'th{background:#eee;font-weight:bold}' +
+      '.badge{padding:1px 6px;border-radius:3px;font-size:9px;font-weight:bold;display:inline-block;border:1px solid #999}' +
+      '@media print{.noprint{display:none}}' +
+      '</style></head><body>' +
+      '<h1>SAGCO — OH Surveillance Register — Dashboard Summary</h1>' +
+      '<p class="sub">Generated ' + stamp + ' &middot; by programme line &middot; for TÜV / EcoVadis / SMETA / Management Review</p>' +
+      '<div class="priv">PRIVACY BY DESIGN: these are counts and dates only — no worker names, employee IDs, or individual medical results. If any count is under 5, substitute "&lt;5" for the exact figure before sharing this report outside SAGCO, to avoid identifying individuals indirectly in a small group.</div>' +
+      tableHtml +
+      '<div class="noprint" style="margin-top:16px"><button onclick="window.print()">Print</button></div>' +
+      '</body></html>'
+    );
+    w.document.close();
+    w.onload = function(){ w.focus(); w.print(); };
+  }
+
   /* ── Public API ───────────────────────────────────────────────── */
   window.OHS = {
+    printDashboard: printDashboard,
     onProgSearch: function(v){ _progFilters.search = v; render(); },
     onLogSearch: function(v){ _logFilters.search = v; render(); },
     progCardClick: function(name){ _progFilters.special = (name==='total') ? null : name; render(); },
