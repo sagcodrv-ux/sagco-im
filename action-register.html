@@ -211,6 +211,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         // Rev.12 (Issam, 2026-10-15) — Contractor Compliance Log
         // hand-off, same provenance pattern as above.
         srcCcIdx = colIdx(h,'Source Contractor Compliance ID'),
+        // Rev.13 (Issam, 2026-10-15) — OH Surveillance Log hand-off,
+        // same provenance pattern as above.
+        srcOhsIdx = colIdx(h,'Source OH Surveillance ID'),
         // Point (Issam, 2026-10-08): evidence attached via Step 1's
         // "Add Evidence" button is saved to this column (newline-
         // joined links — see uploadInitialEvidence() in capa-wizard.js)
@@ -254,6 +257,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         'Source Crane Lifting ID': srcClIdx>=0 ? r[srcClIdx] : '',
         'Source First Aid Kit ID': srcFakIdx>=0 ? r[srcFakIdx] : '',
         'Source Contractor Compliance ID': srcCcIdx>=0 ? r[srcCcIdx] : '',
+        'Source OH Surveillance ID': srcOhsIdx>=0 ? r[srcOhsIdx] : '',
         'Initial Evidence': evidIdx>=0 ? r[evidIdx] : '',
       };
     });
@@ -418,7 +422,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
                             // ?entry=<Entry ID> deep-link handler opens
                             // straight to that exact review entry.
                             ? '<a href="contractor-register.html?entry='+encodeURIComponent(r['Source Contractor Compliance ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Contractor Compliance ID'])+'</a>'
-                            : (r.Source ? escHtml(r.Source) : '<span class="action-dim">—</span>'))))))))));
+                            : (r['Source OH Surveillance ID']
+                              // Rev.13 (Issam, 2026-10-15) — an OH-
+                              // Surveillance-escalated Action now
+                              // shows its Source OH Surveillance ID
+                              // (a Round ID — never a worker name or
+                              // ID) as a clickable reference, same
+                              // pattern as the Contractor Compliance
+                              // link above. oh-surveillance.html's own
+                              // ?entry=<Round ID> deep-link handler
+                              // opens straight to that exact round.
+                              ? '<a href="oh-surveillance.html?entry='+encodeURIComponent(r['Source OH Surveillance ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source OH Surveillance ID'])+'</a>'
+                              : (r.Source ? escHtml(r.Source) : '<span class="action-dim">—</span>')))))))))));
         // Point (Issam, 2026-10-08): "Initial Evidence" is one or more
         // links, newline-joined by uploadInitialEvidence() in
         // capa-wizard.js. Render one 📎 per link rather than one big

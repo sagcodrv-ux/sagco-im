@@ -158,7 +158,20 @@ var TABS = {
   'fe_inspection_log': 'FE Monthly Inspection Log',
   'fe_service_log':    'FE Annual Service Log',
   'fire_pump':       '41 – Fire Pump Test Log',
+  /* Rev.13 (Issam, 2026-10-15) — 'oh_surveillance' below is now the
+     round-by-round SURVEILLANCE LOG for oh-surveillance.html (one row
+     per round per programme line, carrying the "Next Due" field the
+     DATE_RULES entry below already watches — unchanged, since that
+     reminder was already correctly pointed at this exact tab before
+     this register existed). 'oh_programme' is new: the hazard-to-test
+     matrix (one row per OHS-0x line — who's tested for what, how
+     often), dropping numbered-sheet naming for the same reason as
+     'crane_checklist' / 'fak_inspection' / 'contractor_compliance'.
+     Both tabs hold COUNTS and DATES only — no names, employee IDs, or
+     individual medical results (Saudi PDPL — health data is
+     sensitive); see oh-surveillance.html's own privacy banner. */
   'oh_surveillance': '42 – OH Surveillance Register',
+  'oh_programme':    '42b – OH Surveillance Programme',
   'scaffold':        ' Scaffold',
   'ndt_permits':     '☢ NDT Permits',
   'chemical_inv':    '⚗ Chemical Inv',

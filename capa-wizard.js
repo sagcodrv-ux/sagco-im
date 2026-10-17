@@ -176,6 +176,7 @@
       sourceCraneLiftingId: '', /* Rev.10 — set when this ACT record was forwarded from the Crane & Lifting Pre-Use Inspection Checklist's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceFirstAidKitId: '', /* Rev.11 — set when this ACT record was forwarded from the First Aid Kit Monthly Inspection's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceContractorComplianceId: '', /* Rev.12 (Issam, 2026-10-15) — set when this ACT record was forwarded from the Contractor Compliance Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
+      sourceOhSurveillanceId: '', /* Rev.13 (Issam, 2026-10-15) — set when this ACT record was forwarded from the OH Surveillance Log's "Escalate to Action" button. Carries only the Round ID — never a worker name or ID, matching that register's privacy-by-design. Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -380,7 +381,9 @@
                       ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from First Aid Kit Inspection <strong>' + esc(state.sourceFirstAidKitId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection entry too.</div>'
                       : (state.sourceContractorComplianceId
                         ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Contractor Compliance Review <strong>' + esc(state.sourceContractorComplianceId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that review entry too.</div>'
-                        : '')))))))));
+                        : (state.sourceOhSurveillanceId
+                          ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from OH Surveillance Round <strong>' + esc(state.sourceOhSurveillanceId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that round too.</div>'
+                          : ''))))))))));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -580,6 +583,7 @@
               notifyCraneLiftingActionCompleted();
               notifyFirstAidKitActionCompleted();
               notifyContractorComplianceActionCompleted();
+              notifyOhSurveillanceActionCompleted();
               alert(state.capaId + ' marked Closed.'); closeWizard(); if (global.reloadLive) reloadLive();
             })
             .catch(function (err) { restoreButtons(); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
@@ -1010,6 +1014,7 @@
       'Source Crane Lifting ID': state.sourceCraneLiftingId || '',
       'Source First Aid Kit ID': state.sourceFirstAidKitId || '',
       'Source Contractor Compliance ID': state.sourceContractorComplianceId || '',
+      'Source OH Surveillance ID': state.sourceOhSurveillanceId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
@@ -1378,6 +1383,20 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.13 (Issam, 2026-10-15) — mirrors notifySourceContractorCompliance()
+     exactly, for the OH Surveillance Log: writes the durable
+     "Action Reference" back to the one round that escalated it. Tab
+     key is 'oh_surveillance' — the pre-existing "42 – OH Surveillance
+     Register" sheet, repurposed as the round-by-round log. Only fires
+     on first save. */
+  function notifySourceOhSurveillance() {
+    if (!state.sourceOhSurveillanceId) return;
+    fetch(SHEETS_URL + '?action=update&tab=oh_surveillance&idCol=' + encodeURIComponent('Round ID') + '&id=' + encodeURIComponent(state.sourceOhSurveillanceId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* Rev.09 (Issam, 2026-10-14) — mirrors notifyScaffoldInspectionActionCompleted()
      exactly, for the Fire Pump Test Log: once this ACT-lane record
      reaches Closed, the one log sheet that escalated it has its own
@@ -1427,6 +1446,20 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.13 (Issam, 2026-10-15) — mirrors notifyContractorComplianceActionCompleted()
+     exactly, for the OH Surveillance Log: once this ACT-lane record
+     reaches Closed, the one round that escalated it has its own
+     Status overwritten to 'Closed' too — a terminal, non-computed
+     value distinct from the Planned/Overdue/Completed states
+     evaluateRound() would otherwise derive on the page itself. */
+  function notifyOhSurveillanceActionCompleted() {
+    if (!state.sourceOhSurveillanceId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=oh_surveillance&idCol=' + encodeURIComponent('Round ID') + '&id=' + encodeURIComponent(state.sourceOhSurveillanceId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Status': 'Closed' }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* ── Save for the lightweight Action lane — one write, no steps ── */
   function persistAction() {
     if (saving) return;
@@ -1459,6 +1492,7 @@
             notifySourceCraneLifting();
             notifySourceFirstAidKit();
             notifySourceContractorCompliance();
+            notifySourceOhSurveillance();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
@@ -1469,6 +1503,7 @@
             notifyCraneLiftingActionCompleted();
             notifyFirstAidKitActionCompleted();
             notifyContractorComplianceActionCompleted();
+            notifyOhSurveillanceActionCompleted();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
@@ -1505,6 +1540,7 @@
             notifyCraneLiftingActionCompleted();
             notifyFirstAidKitActionCompleted();
             notifyContractorComplianceActionCompleted();
+            notifyOhSurveillanceActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1781,6 +1817,7 @@
     state.sourceCraneLiftingId = col('Source Crane Lifting ID');
     state.sourceFirstAidKitId = col('Source First Aid Kit ID');
     state.sourceContractorComplianceId = col('Source Contractor Compliance ID');
+    state.sourceOhSurveillanceId = col('Source OH Surveillance ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2695,6 +2732,25 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.13 (Issam, 2026-10-15) — OH Surveillance Log hand-off —
+     action-register.html?fromOhSurveillance=RND-2026-0X&lane=ACT,
+     opened by oh-surveillance.html's "⚡ Escalate to Action" button.
+     Same sessionStorage-plus-URL-verification pattern as every other
+     hand-off above. ctx.description carries only the Round ID and the
+     programme line's work area/surveillance type — never a worker
+     name or ID, matching that register's privacy-by-design. */
+  function openFromOhSurveillance(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceOhSurveillanceId = ctx.entryId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'OH Surveillance Round';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -2926,6 +2982,23 @@
         loadUserDirectory(function () { openFromContractorCompliance(ccCtx); });
       } else {
         loadUserDirectory(function () { openFromContractorCompliance({ entryId: fromContractorCompliance }); });
+      }
+    }
+
+    /* Rev.13 (Issam, 2026-10-15) — OH Surveillance Log hand-off —
+       action-register.html?fromOhSurveillance=RND-2026-0X&lane=ACT,
+       opened by oh-surveillance.html's "⚡ Escalate to Action" button.
+       Same sessionStorage-plus-URL-verification pattern as every
+       other hand-off above. */
+    var fromOhSurveillance = params.get('fromOhSurveillance');
+    if (fromOhSurveillance) {
+      showLoadingWizard();
+      var ohsCtx = null;
+      try { ohsCtx = JSON.parse(sessionStorage.getItem('incomingOhSurveillanceContext') || 'null'); } catch (e) { ohsCtx = null; }
+      if (ohsCtx && String(ohsCtx.entryId) === String(fromOhSurveillance)) {
+        loadUserDirectory(function () { openFromOhSurveillance(ohsCtx); });
+      } else {
+        loadUserDirectory(function () { openFromOhSurveillance({ entryId: fromOhSurveillance }); });
       }
     }
   }

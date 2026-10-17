@@ -1,150 +1,737 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SAGCO IMS — Occupational Health Surveillance Register</title>
+<title>SAGCO IMS — OH Surveillance Register</title>
 <link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
-</head><body>
-<div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--g100);
-  border-radius:var(--radius);border-left:3px solid var(--gold);margin:10px 0;color:var(--text-lt)}
-.alert-red{background:#FFEBEE;border:1px solid #EF9A9A;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#B71C1C;margin-bottom:10px}
-.alert-amb{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:10px}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-.back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--navy);font-size:11px;
-  font-weight:600;text-decoration:none;padding:5px 10px;background:var(--g100);
-  border-radius:var(--radius);border:1px solid #e0e0e0}
-.back-link:hover{background:#e3f0fa}
-</style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety</a></div><div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"><div class="kpi-card kc-blue"><div class="kpi-lbl">Surveillance Types</div><div class="kpi-val">5</div><div class="kpi-sub">Audiometry · Spirometry · Heat Stress · Cardiovascular · Fitness</div></div><div class="kpi-card kc-blue"><div class="kpi-lbl">Workers Covered</div><div class="kpi-val">—</div><div class="kpi-sub">Enter count by type</div></div><div class="kpi-card kc-red"><div class="kpi-lbl">Priority</div><div class="kpi-val">Silica + Noise</div><div class="kpi-sub">Batch house + furnace workers</div></div><div class="kpi-card kc-grn"><div class="kpi-lbl">Frequency</div><div class="kpi-val">Annual</div><div class="kpi-sub">Pre-employment + annual surveillance</div></div><div class="kpi-card kc-nvy"><div class="kpi-lbl">Document Code</div><div class="kpi-val">L4-SHEE-PR-XX-RC-01</div><div class="kpi-sub">OC-01 §A.14</div></div></div><div class="req-text">ISO 45001 §8.1 / Saudi Labour Law M/51 — Occupational health surveillance mandatory for all workers exposed to noise, silica dust, heat, physical demand, or confined space work. Results confidential. Workers found unfit for specific task must be redeployed — not dismissed. Pre-employment baseline required before starting in hazardous roles.</div><div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
-<script>initPage("oh-surveillance.html");document.getElementById("tb").innerHTML=renderTopbar("Occupational Health Surveillance Register","L4-SHEE-PR-XX-RC-01 · ISO 45001 §8.1 · 5 Surveillance Types · Annual + Pre-employment · OC-01 §A.14");</script>
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   OH SURVEILLANCE REGISTER — same dark navy/gold theme as crane-
+   lifting.html / first-aid-kit.html / contractor-register.html.
+   Scoped to .ohs-dark-wrap, class prefix ohw-. Two live tables:
+   'oh_programme' (NEW — the hazard-to-test matrix, one row per
+   OHS-0x line: who's tested for what, how often) and
+   'oh_surveillance' (the PRE-EXISTING "42 – OH Surveillance
+   Register" tab, repurposed as the round-by-round Surveillance Log
+   so the "Next Due" DATE_RULES reminder already watching it keeps
+   working with no Apps Script DATE_RULES change needed). A third,
+   computed-only Dashboard view summarises the Log by Programme line
+   — same shape as the "5. OH Surveillance Summary" sheet Issam
+   supplied, but calculated client-side rather than stored.
+
+   PRIVACY BY DESIGN — carried over verbatim from Issam's own
+   reference workbook (Rev 01, Oct 2026): this register holds COUNTS,
+   DATES and FITNESS-OUTCOME TOTALS per work area only. No names,
+   employee IDs, Iqama numbers, or individual medical results exist
+   anywhere on this page or its two Sheets tabs — neither table has a
+   field capable of holding one. Individual medical files stay with
+   the occupational physician/OH clinic provider (Saudi PDPL — health
+   data is sensitive). This is what makes the register shareable with
+   TÜV, EcoVadis and SMETA auditors without a redaction step.
+   ══════════════════════════════════════════════════════════════════ */
+.ohs-dark-wrap{
+  --ohw-bg:#0D1B35; --ohw-bg2:#142140; --ohw-bg3:#1a2a50;
+  --ohw-gold:#C9A84C; --ohw-gold-lt:#E8C97A;
+  --ohw-text:rgba(255,255,255,.92); --ohw-text-muted:rgba(255,255,255,.55);
+  --ohw-text-dim:rgba(255,255,255,.35); --ohw-border:rgba(255,255,255,.08);
+  --ohw-border-gold:rgba(201,168,76,.35);
+  --ohw-blue:#5B9BD5; --ohw-red:#F0685C; --ohw-amb:#E8B339; --ohw-grn:#4FCB9E; --ohw-purple:#9B7FE0;
+  background:var(--ohw-bg); color:var(--ohw-text); margin:0; padding:24px; min-height:100vh;
+}
+.ohs-dark-wrap *{box-sizing:border-box}
+.ohs-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.ohs-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--ohw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--ohw-bg2);
+  border-radius:8px;border:1px solid var(--ohw-border-gold)}
+.ohs-dark-wrap .back-link:hover{background:var(--ohw-bg3)}
+.ohs-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--ohw-bg2);
+  border-radius:8px;border-left:3px solid var(--ohw-gold);margin:10px 0;color:var(--ohw-text-muted)}
+.ohs-dark-wrap .priv-text{font-size:11px;line-height:1.6;padding:12px 14px;background:rgba(155,127,224,.1);
+  border-radius:8px;border-left:3px solid var(--ohw-purple);margin:10px 0;color:var(--ohw-text-muted)}
+.ohs-dark-wrap .priv-text strong{color:var(--ohw-purple)}
+.ohs-dark-wrap .flag-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.08);
+  border-radius:8px;border-left:3px solid var(--ohw-amb);margin:10px 0;color:var(--ohw-text-muted)}
+.ohs-dark-wrap .sec-banner{background:var(--ohw-bg2);color:var(--ohw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--ohw-border-gold);border-bottom:none}
+.ohs-dark-wrap .kpi-grid{display:grid;gap:14px}
+.ohs-dark-wrap .kpi-card{background:var(--ohw-bg2);border:1px solid var(--ohw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.ohs-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.ohs-dark-wrap .kpi-card.kc-nvy::before{background:var(--ohw-gold)}
+.ohs-dark-wrap .kpi-card.kc-blue::before{background:var(--ohw-blue)}
+.ohs-dark-wrap .kpi-card.kc-amb::before{background:var(--ohw-amb)}
+.ohs-dark-wrap .kpi-card.kc-red::before{background:var(--ohw-red)}
+.ohs-dark-wrap .kpi-card.kc-grn::before{background:var(--ohw-grn)}
+.ohs-dark-wrap .kpi-card.kc-purple::before{background:var(--ohw-purple)}
+.ohs-dark-wrap .kpi-lbl{font-size:10px;font-weight:700;color:var(--ohw-text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.ohs-dark-wrap .kpi-val{font-size:22px;font-weight:800;color:var(--ohw-text)}
+.ohs-dark-wrap .kpi-sub{font-size:10px;color:var(--ohw-text-dim);margin-top:2px}
+.ohs-dark-wrap .ohw-clickable{cursor:pointer}
+.ohs-dark-wrap .ohw-clickable:hover{background:var(--ohw-bg3)}
+.ohs-dark-wrap .chart-grid{display:grid;gap:14px}
+.ohs-dark-wrap .chart-card{background:var(--ohw-bg2);border:1px solid var(--ohw-border);border-radius:14px;padding:14px 16px}
+.ohs-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--ohw-text);
+  display:flex;justify-content:space-between;margin-bottom:8px}
+.ohs-dark-wrap .chart-sub{font-size:10px;color:var(--ohw-text-muted);font-weight:400}
+.ohs-dark-wrap .chart-wrap{height:220px;position:relative}
+.ohs-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.ohs-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--ohw-grn)}
+.ohs-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--ohw-red)}
+.ohs-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--ohw-amb)}
+.ohs-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--ohw-blue)}
+.ohs-dark-wrap .badge.kc-purple{background:rgba(155,127,224,.15);color:var(--ohw-purple)}
+.ohs-dark-wrap .ohw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--ohw-bg2);border:1px solid var(--ohw-border-gold);border-top:none}
+.ohs-dark-wrap .ohw-toolbar input[type=text]{background:var(--ohw-bg3);border:1px solid var(--ohw-border);
+  color:var(--ohw-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:170px}
+.ohs-dark-wrap .ohw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--ohw-border-gold);
+  background:var(--ohw-bg3);color:var(--ohw-gold-lt);cursor:pointer}
+.ohs-dark-wrap .ohw-btn:hover{background:rgba(201,168,76,.15)}
+.ohs-dark-wrap .ohw-btn:disabled{opacity:.4;cursor:not-allowed}
+.ohs-dark-wrap .ohw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--ohw-grn)}
+.ohs-dark-wrap .ohw-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--ohw-amb)}
+.ohs-dark-wrap .ohw-table-wrap{border:1px solid var(--ohw-border-gold);border-top:none;max-height:420px;overflow:auto}
+.ohs-dark-wrap table.ohw-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.ohs-dark-wrap table.ohw-tbl th{position:sticky;top:0;background:var(--ohw-bg3);color:var(--ohw-gold-lt);
+  text-align:left;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--ohw-border-gold);white-space:nowrap}
+.ohs-dark-wrap table.ohw-tbl td{padding:7px 10px;border-bottom:1px solid var(--ohw-border);color:var(--ohw-text)}
+.ohs-dark-wrap table.ohw-tbl tr.ohw-row{cursor:pointer}
+.ohs-dark-wrap table.ohw-tbl tr.ohw-row:hover{background:var(--ohw-bg3)}
+.ohs-dark-wrap table.ohw-tbl tr.ohw-row.ohw-sel{background:rgba(201,168,76,.12)}
+.ohs-dark-wrap .empty-state{padding:30px;text-align:center;color:var(--ohw-text-dim);font-size:11px}
+.ohs-dark-wrap .empty-state strong{display:block;color:var(--ohw-text-muted);margin-bottom:4px;font-size:12px}
+/* Modal */
+.ohw-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;
+  justify-content:center;z-index:999;padding:30px 14px;overflow:auto}
+.ohw-modal{background:var(--ohw-bg2);border:1px solid var(--ohw-border-gold);border-radius:14px;
+  padding:20px 22px;max-width:1000px;width:100%;color:var(--ohw-text)}
+.ohw-modal h3{margin:0 0 12px;font-size:14px;color:var(--ohw-gold-lt)}
+.ohw-modal-hdr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.ohw-modal-hdr-grid label, .ohw-field label{display:block;font-size:10px;font-weight:600;color:var(--ohw-text-muted);
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.ohw-modal-hdr-grid input, .ohw-modal-hdr-grid select, .ohw-modal-hdr-grid textarea{width:100%;background:var(--ohw-bg3);
+  border:1px solid var(--ohw-border);color:var(--ohw-text);border-radius:7px;padding:7px 9px;font-size:12px}
+.ohw-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.ohw-note{font-size:10.5px;color:var(--ohw-amb);background:rgba(232,179,57,.1);border-left:3px solid var(--ohw-amb);
+  padding:8px 10px;border-radius:6px;margin-bottom:12px;line-height:1.5}
+</style>
+</head><body><div class="ohs-dark-wrap">
+<div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div>
+<div class="req-text">L4-SHEE-PR-XX-RC-01 · ISO 45001 §8.1/§9.1 · Saudi Labour Law M/51 · SMETA (ETI 3) · EcoVadis Labour &amp; Human Rights — plans and evidences occupational health surveillance for exposed workers, and provides the durable record that closes CAPA-2026-003. OH Surveillance Programme defines who is tested for what and how often; Surveillance Log is one row per round per programme line.</div>
+<div class="priv-text"><strong>PRIVACY BY DESIGN</strong> — this register holds COUNTS, DATES and FITNESS-OUTCOME TOTALS per work area only. It has no field for names, employee IDs, Iqama numbers, or individual medical results — neither table below is capable of holding one. Individual medical files stay confidential with the occupational physician/OH clinic provider (Saudi PDPL — health data is sensitive). This is what makes both tabs shareable directly with TÜV, EcoVadis and SMETA auditors with no redaction step.</div>
+<div class="flag-text">⚠ Source: Issam's own Rev 01 reference workbook (Oct 2026), built from one worker's Ibn Sina College Hospital file (Feb &amp; Jul 2025). The 8 Programme lines and 3 draft Log rounds below are seeded from that file exactly as supplied — frequencies are proposals pending occupational-physician sign-off, and the 3 draft rounds still need real Workers Required/Examined counts from HR (currently blank, same gap the source file flagged). Document code L4-SHEE-PR-XX-RC-01 is also still a placeholder pending Issam's assignment.</div>
+
+<div class="sec-banner">OH SURVEILLANCE QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy ohw-clickable" onclick="OHS.progCardClick('total')" title="Click to view the programme matrix"><div class="kpi-lbl">Programme Lines</div><div class="kpi-val" id="oh-kpi-prog-total">—</div><div class="kpi-sub">OHS-01 … hazard-to-test matrix</div></div>
+  <div class="kpi-card kc-grn ohw-clickable" onclick="OHS.progCardClick('covered')" title="Click to view fully covered lines"><div class="kpi-lbl">Covered</div><div class="kpi-val" id="oh-kpi-covered">—</div><div class="kpi-sub">Evidence on file, no gap</div></div>
+  <div class="kpi-card kc-amb ohw-clickable" onclick="OHS.progCardClick('partial')" title="Click to view partially covered lines"><div class="kpi-lbl">Partial</div><div class="kpi-val" id="oh-kpi-partial">—</div><div class="kpi-sub">Some evidence, gaps remain</div></div>
+  <div class="kpi-card kc-red ohw-clickable" onclick="OHS.progCardClick('notcovered')" title="Click to view lines with no evidence"><div class="kpi-lbl">Not Covered</div><div class="kpi-val" id="oh-kpi-notcovered">—</div><div class="kpi-sub">No evidence seen</div></div>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-blue ohw-clickable" onclick="OHS.logCardClick('all')" title="Click to view all rounds"><div class="kpi-lbl">Rounds Logged</div><div class="kpi-val" id="oh-kpi-rounds">—</div><div class="kpi-sub">All-time, every programme line</div></div>
+  <div class="kpi-card kc-red ohw-clickable" onclick="OHS.logCardClick('overdue')" title="Click to view overdue rounds"><div class="kpi-lbl">Overdue Rounds</div><div class="kpi-val" id="oh-kpi-overdue">—</div><div class="kpi-sub">Planned/Next Due has passed</div></div>
+  <div class="kpi-card kc-purple"><div class="kpi-lbl">Workers Examined (logged)</div><div class="kpi-val" id="oh-kpi-examined">—</div><div class="kpi-sub">Sum of Workers Examined, all rounds</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:18px">
+  <div class="chart-card"><div class="chart-title">Programme Coverage Status<span class="chart-sub">8 hazard-to-test lines, by evidence on file</span></div><div class="chart-wrap"><canvas id="ohCoverageChart"></canvas></div></div>
+</div>
+
+<div class="sec-banner">1. OH SURVEILLANCE PROGRAMME — hazard-to-test matrix</div>
+<div class="ohw-toolbar">
+  <input type="text" id="oh-prog-search" placeholder="Search work area / surveillance type…" oninput="OHS.onProgSearch(this.value)">
+  <button class="ohw-btn ohw-btn-add" id="oh-prog-btn-new" onclick="OHS.openProgAdd()">+ Add Programme Line</button>
+  <button class="ohw-btn" id="oh-prog-btn-edit" disabled onclick="OHS.openProgEditSelected()">Open / Edit</button>
+  <button class="ohw-btn" id="oh-prog-btn-remove" disabled onclick="OHS.removeProgSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--ohw-text-dim)" id="oh-prog-count-sub"></span>
+</div>
+<div class="ohw-table-wrap"><div id="live-table-prog"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div class="sec-banner">2. SURVEILLANCE LOG — one row per round per programme line</div>
+<div class="ohw-toolbar">
+  <input type="text" id="oh-log-search" placeholder="Search Round ID / Prog Ref…" oninput="OHS.onLogSearch(this.value)">
+  <button class="ohw-btn ohw-btn-add" id="oh-log-btn-new" onclick="OHS.openLogAdd()">+ New Round</button>
+  <button class="ohw-btn" id="oh-log-btn-edit" disabled onclick="OHS.openLogEditSelected()">Open / Edit</button>
+  <button class="ohw-btn ohw-btn-esc" id="oh-log-btn-esc" disabled onclick="OHS.escalateLogSelected()">⚡ Escalate to Action</button>
+  <button class="ohw-btn" id="oh-log-btn-remove" disabled onclick="OHS.removeLogSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--ohw-text-dim)" id="oh-log-count-sub"></span>
+</div>
+<div class="ohw-table-wrap"><div id="live-table-log"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div class="sec-banner">3. DASHBOARD — calculated summary, by programme line (for TÜV / EcoVadis / SMETA / Management Review)</div>
+<div class="flag-text" style="margin-top:14px">If any count below is under 5, Issam's own workbook flags showing it externally as "&lt;5" rather than the exact figure, to avoid identifying individuals indirectly in a small group. This page shows exact counts for internal use — apply that "&lt;5" substitution yourself before sharing outside SAGCO.</div>
+<div class="ohw-table-wrap" style="border-top:1px solid var(--ohw-border-gold)"><div id="oh-dashboard-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div id="oh-modal-root"></div>
 
 <script>
-/* ── Auto-update summary cards from live Sheets data ── */
-
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
-  }
-  return '—';
-}
-
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
-    }
-  }
-}
 (function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows && d.rows.length > 0){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('Surveillance Types', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
-      }
-    };
+
+  var PROG = { tabKey:'oh_programme', containerId:'live-table-prog', idCol:'Prog Ref' };
+  var LOG  = { tabKey:'oh_surveillance', containerId:'live-table-log', idCol:'Round ID', idPrefix:'RND-', idPad:0 };
+  var STATUS_COL = 'Record Status';
+
+  var _progCache = null, _logCache = null;
+  var _progSelected = null, _logSelected = null;
+  var _progFilters = { search:'', special:null };
+  var _logFilters = { search:'', special:null };
+  var _charts = { coverage:null };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
   }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function ohEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+
+  // Round IDs follow the source workbook's own convention — RND-<year>-<seq>,
+  // not a flat numeric pad — so nextId here looks at the current year's
+  // highest sequence number specifically, rather than a global counter.
+  function nextRoundId(cache){
+    var year = new Date().getFullYear();
+    if (!cache || !cache.headers || !cache.rows) return 'RND-' + year + '-01';
+    var idIdx = colIdx(cache.headers, LOG.idCol);
+    if (idIdx < 0) return 'RND-' + year + '-01';
+    var maxN = 0;
+    cache.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      var m = v.match(/^RND-(\d{4})-(\d+)$/);
+      if (m && parseInt(m[1],10) === year){ var n = parseInt(m[2],10); if (n > maxN) maxN = n; }
+    });
+    var numStr = String(maxN + 1); while (numStr.length < 2) numStr = '0' + numStr;
+    return 'RND-' + year + '-' + numStr;
+  }
+  function nextProgRef(cache){
+    if (!cache || !cache.headers || !cache.rows) return 'OHS-01';
+    var idIdx = colIdx(cache.headers, PROG.idCol);
+    if (idIdx < 0) return 'OHS-01';
+    var maxN = 0;
+    cache.rows.forEach(function(r){
+      var m = String(r[idIdx]||'').trim().match(/^OHS-(\d+)$/);
+      if (m){ var n = parseInt(m[1],10); if (n > maxN) maxN = n; }
+    });
+    var numStr = String(maxN + 1); while (numStr.length < 2) numStr = '0' + numStr;
+    return 'OHS-' + numStr;
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){
+    return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
+  }
+
+  function daysUntil(dateStr){
+    if (!dateStr) return null;
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    var today = new Date(); today.setHours(0,0,0,0); d.setHours(0,0,0,0);
+    return Math.round((d - today) / 86400000);
+  }
+  function addMonths(dateStr, months){
+    if (!dateStr || !months) return '';
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    d.setMonth(d.getMonth() + Number(months));
+    return d.toISOString().slice(0,10);
+  }
+
+  /* ── Load both tabs ───────────────────────────────────────────── */
+  function loadAll(){
+    return Promise.all([
+      loadTab(PROG.tabKey).then(function(data){
+        if (data && data.headers && data.rows){
+          var si = colIdx(data.headers, STATUS_COL);
+          if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+        }
+        _progCache = data;
+      }).catch(function(){ _progCache = null; }),
+      loadTab(LOG.tabKey).then(function(data){
+        if (data && data.headers && data.rows){
+          var si = colIdx(data.headers, STATUS_COL);
+          if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+        }
+        _logCache = data;
+      }).catch(function(){ _logCache = null; })
+    ]).then(render);
+  }
+
+  function getProgRecs(){
+    if (!_progCache || !_progCache.headers || !_progCache.rows) return [];
+    return _progCache.rows.map(function(r){ return recFromRow(_progCache.headers, r); });
+  }
+  function getLogRecs(){
+    if (!_logCache || !_logCache.headers || !_logCache.rows) return [];
+    return _logCache.rows.map(function(r){ return recFromRow(_logCache.headers, r); });
+  }
+  function progByRef(ref){
+    var found = getProgRecs().filter(function(p){ return p['Prog Ref'] === ref; });
+    return found.length ? found[0] : null;
+  }
+
+  /* ── Log round evaluation — mirrors the source workbook's own
+     formulas exactly: Completion % = examined/required; Next Due =
+     Date Completed + Programme's Frequency (months); Status follows
+     the same Planned/Overdue/Completed/Completed-next-due-passed
+     branches. Frequency 0 = pre-employment only, never recurs. ──── */
+  function evaluateRound(draft, prog){
+    var required = parseFloat(draft['Workers Required']) || 0;
+    var examined = parseFloat(draft['Workers Examined']) || 0;
+    var completion = required > 0 ? Math.round((examined/required)*1000)/10 : null;
+
+    var outcomeSum = ['Fit','Fit with Restrictions','Temporarily Unfit','Referred to Specialist']
+      .reduce(function(s,f){ return s + (parseFloat(draft[f]) || 0); }, 0);
+    var outcomeCheck = examined === 0 ? '' : (outcomeSum > examined ? 'CHECK: exceeds examined' : (outcomeSum < examined ? 'Outcomes pending' : 'OK'));
+
+    var freq = prog ? parseFloat(prog['Frequency (Months)']) : null;
+    var nextDue = (draft['Date Completed'] && freq) ? addMonths(draft['Date Completed'], freq) : '';
+
+    var status;
+    if (draft['Date Completed']){
+      var dNext = daysUntil(nextDue);
+      status = (nextDue && dNext !== null && dNext < 0) ? 'Completed – next due passed' : 'Completed';
+    } else {
+      var dPlan = daysUntil(draft['Planned Date']);
+      status = (draft['Planned Date'] && dPlan !== null && dPlan < 0) ? 'Overdue' : 'Planned';
+    }
+    return { completion:completion, outcomeCheck:outcomeCheck, nextDue:nextDue, status:status };
+  }
+
+  /* ── KPIs + chart ─────────────────────────────────────────────── */
+  function render(){
+    var progRecs = getProgRecs(), logRecs = getLogRecs();
+
+    setTxt('oh-kpi-prog-total', progRecs.length);
+    var coveredN = progRecs.filter(function(p){ return p['Coverage Status']==='Covered'; }).length;
+    var partialN = progRecs.filter(function(p){ return p['Coverage Status']==='Partial'; }).length;
+    var notcovN  = progRecs.filter(function(p){ return p['Coverage Status']==='Not Covered'; }).length;
+    setTxt('oh-kpi-covered', coveredN);
+    setTxt('oh-kpi-partial', partialN);
+    setTxt('oh-kpi-notcovered', notcovN);
+
+    setTxt('oh-kpi-rounds', logRecs.length);
+    var overdueN = logRecs.filter(function(r){ return r['Status']==='Overdue' || r['Status']==='Completed – next due passed'; }).length;
+    setTxt('oh-kpi-overdue', overdueN);
+    var examinedTotal = logRecs.reduce(function(s,r){ return s + (parseFloat(r['Workers Examined'])||0); }, 0);
+    setTxt('oh-kpi-examined', examinedTotal);
+
+    renderChart(coveredN, partialN, notcovN);
+    renderProgTable(progRecs);
+    renderLogTable(logRecs, progRecs);
+    renderDashboard(progRecs, logRecs);
+  }
+
+  function renderChart(coveredN, partialN, notcovN){
+    if (typeof Chart === 'undefined') return;
+    if (_charts.coverage) _charts.coverage.destroy();
+    var ctx = document.getElementById('ohCoverageChart');
+    if (ctx) _charts.coverage = new Chart(ctx, {
+      type:'bar',
+      data:{ labels:['Covered','Partial','Not Covered'], datasets:[{ label:'Programme Lines', data:[coveredN, partialN, notcovN], backgroundColor:['#4FCB9E','#E8B339','#F0685C'] }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#fff', font:{size:9}}}, y:{ticks:{color:'#fff'}} } }
+    });
+  }
+
+  /* ── Programme table ─────────────────────────────────────────── */
+  function filteredProg(recs){
+    var f = _progFilters;
+    return recs.filter(function(p){
+      if (f.search){
+        var hay = ((p['Work Area / Exposure Group']||'')+' '+(p['Surveillance Type']||'')).toLowerCase();
+        if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+      }
+      if (f.special === 'covered' && p['Coverage Status'] !== 'Covered') return false;
+      if (f.special === 'partial' && p['Coverage Status'] !== 'Partial') return false;
+      if (f.special === 'notcovered' && p['Coverage Status'] !== 'Not Covered') return false;
+      return true;
+    });
+  }
+  function renderProgTable(recs){
+    var list = filteredProg(recs);
+    var el = document.getElementById(PROG.containerId);
+    setTxt('oh-prog-count-sub', list.length + ' of ' + recs.length + ' lines shown');
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No programme lines found</strong>Add the first hazard-to-test line to get started.</div>';
+      updateProgButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(a['Prog Ref']||'').localeCompare(String(b['Prog Ref']||'')); });
+    var rows = list.map(function(p){
+      var sel = _progSelected === p['Prog Ref'];
+      var cov = p['Coverage Status'] || '—';
+      var covBadge = cov==='Covered' ? '<span class="badge kc-grn">Covered</span>'
+        : (cov==='Partial' ? '<span class="badge kc-amb">Partial</span>'
+          : (cov==='Not Covered' ? '<span class="badge kc-red">Not Covered</span>' : '—'));
+      return '<tr class="ohw-row' + (sel?' ohw-sel':'') + '" onclick="OHS.selectProg(\'' + ohEsc(p['Prog Ref']) + '\')">'
+        + '<td>' + ohEsc(p['Prog Ref']) + '</td>'
+        + '<td>' + ohEsc(p['Work Area / Exposure Group']) + '</td>'
+        + '<td>' + ohEsc(p['Surveillance Type']) + '</td>'
+        + '<td>' + (p['Frequency (Months)']==='0'||p['Frequency (Months)']===0 ? 'Pre-employment only' : ohEsc(p['Frequency (Months)']) + ' mo') + '</td>'
+        + '<td>' + covBadge + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="ohw-tbl"><thead><tr><th>Prog Ref</th><th>Work Area / Exposure Group</th><th>Surveillance Type</th><th>Frequency</th><th>Coverage</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateProgButtons();
+  }
+  function updateProgButtons(){
+    var p = getSelectedProg();
+    document.getElementById('oh-prog-btn-edit').disabled = !p;
+    document.getElementById('oh-prog-btn-remove').disabled = !p || !can('delete');
+  }
+  function getSelectedProg(){
+    if (!_progCache || !_progSelected) return null;
+    var idIdx = colIdx(_progCache.headers, PROG.idCol);
+    var row = _progCache.rows.find(function(r){ return String(r[idIdx]) === String(_progSelected); });
+    return row ? recFromRow(_progCache.headers, row) : null;
+  }
+  function getProgOptions(){
+    return getProgRecs().map(function(p){ return { ref: p['Prog Ref'], label: p['Prog Ref'] + ' — ' + p['Work Area / Exposure Group'] + ' / ' + p['Surveillance Type'] }; }).filter(function(o){ return o.ref; });
+  }
+
+  var COVERAGE_OPTS = ['Covered','Partial','Not Covered'];
+  function buildProgModal(existingRec){
+    var root = document.getElementById('oh-modal-root');
+    var isEdit = !!existingRec;
+    var ref = isEdit ? existingRec['Prog Ref'] : nextProgRef(_progCache);
+    var covOpts = COVERAGE_OPTS.map(function(c){ return '<option value="'+c+'"'+((existingRec&&existingRec['Coverage Status']===c)?' selected':(!existingRec&&c==='Not Covered'?' selected':''))+'>'+c+'</option>'; }).join('');
+    var ynOpts = function(val){ return ['Yes','No'].map(function(y){ return '<option value="'+y+'"'+(y===val?' selected':'')+'>'+y+'</option>'; }).join(''); };
+    root.innerHTML = '<div class="ohw-modal-bg" id="ohm-bg"><div class="ohw-modal">'
+      + '<h3>' + (isEdit?'Edit':'Add') + ' Programme Line — ' + ohEsc(ref) + '</h3>'
+      + '<div class="ohw-modal-hdr-grid">'
+        + '<div><label>Work Area / Exposure Group</label><input type="text" id="ohm-prog-area" value="' + ohEsc(existingRec?existingRec['Work Area / Exposure Group']:'') + '"></div>'
+        + '<div><label>Hazard / Exposure</label><input type="text" id="ohm-prog-hazard" value="' + ohEsc(existingRec?existingRec['Hazard / Exposure']:'') + '"></div>'
+        + '<div><label>Surveillance Type</label><input type="text" id="ohm-prog-type" value="' + ohEsc(existingRec?existingRec['Surveillance Type']:'') + '"></div>'
+        + '<div><label>Frequency (Months, 0=pre-employment only)</label><input type="number" min="0" id="ohm-prog-freq" value="' + ohEsc(existingRec?existingRec['Frequency (Months)']:'12') + '"></div>'
+        + '<div><label>Pre-Employment</label><select id="ohm-prog-preemp">' + ynOpts(existingRec?existingRec['Pre-Employment']:'Yes') + '</select></div>'
+        + '<div><label>Exit Exam</label><select id="ohm-prog-exit">' + ynOpts(existingRec?existingRec['Exit Exam']:'No') + '</select></div>'
+        + '<div><label>Legal / Standard Basis</label><input type="text" id="ohm-prog-legal" value="' + ohEsc(existingRec?existingRec['Legal / Standard Basis']:'ISO 45001 §8.1; M/51; HIRA') + '"></div>'
+        + '<div><label>Responsible</label><input type="text" id="ohm-prog-resp" value="' + ohEsc(existingRec?existingRec['Responsible']:'HSSE Manager') + '"></div>'
+        + '<div><label>Coverage Status</label><select id="ohm-prog-cov">' + covOpts + '</select></div>'
+      + '</div>'
+      + '<div class="ohw-field" style="margin-bottom:14px"><label>Evidence on File</label><textarea id="ohm-prog-evid" rows="2" style="width:100%;background:var(--ohw-bg3);border:1px solid var(--ohw-border);color:var(--ohw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + ohEsc(existingRec?existingRec['Evidence on File']:'') + '</textarea></div>'
+      + '<div class="ohw-note">Counts and documents only — never type a worker\'s name, ID, or individual medical result into this field.</div>'
+      + '<div class="ohw-modal-actions"><button class="ohw-btn" id="ohm-prog-cancel">Cancel</button><button class="ohw-btn ohw-btn-add" id="ohm-prog-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('ohm-prog-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('ohm-bg').onclick = function(e){ if (e.target.id==='ohm-bg') root.innerHTML=''; };
+    document.getElementById('ohm-prog-save').onclick = function(){ saveProg(ref, isEdit); };
+  }
+  function saveProg(ref, isEdit){
+    var root = document.getElementById('oh-modal-root');
+    var btn = document.getElementById('ohm-prog-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    var values = {
+      'Prog Ref': ref,
+      'Work Area / Exposure Group': document.getElementById('ohm-prog-area').value.trim(),
+      'Hazard / Exposure': document.getElementById('ohm-prog-hazard').value.trim(),
+      'Surveillance Type': document.getElementById('ohm-prog-type').value.trim(),
+      'Frequency (Months)': document.getElementById('ohm-prog-freq').value,
+      'Pre-Employment': document.getElementById('ohm-prog-preemp').value,
+      'Exit Exam': document.getElementById('ohm-prog-exit').value,
+      'Legal / Standard Basis': document.getElementById('ohm-prog-legal').value.trim(),
+      'Responsible': document.getElementById('ohm-prog-resp').value.trim(),
+      'Evidence on File': document.getElementById('ohm-prog-evid').value.trim(),
+      'Coverage Status': document.getElementById('ohm-prog-cov').value
+    };
+    if (isEdit){
+      postJSON('update', {tab: PROG.tabKey, idCol: PROG.idCol, id: ref}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: PROG.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ── Surveillance Log table ──────────────────────────────────── */
+  function filteredLog(recs){
+    var f = _logFilters;
+    return recs.filter(function(r){
+      if (f.search){
+        var hay = ((r['Round ID']||'')+' '+(r['Prog Ref']||'')).toLowerCase();
+        if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+      }
+      if (f.special === 'overdue' && !(r['Status']==='Overdue' || r['Status']==='Completed – next due passed')) return false;
+      return true;
+    });
+  }
+  function renderLogTable(recs, progRecs){
+    var list = filteredLog(recs);
+    var el = document.getElementById(LOG.containerId);
+    setTxt('oh-log-count-sub', list.length + ' of ' + recs.length + ' rounds shown');
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No rounds found</strong>Add the first surveillance round to get started.</div>';
+      updateLogButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Round ID']||'').localeCompare(String(a['Round ID']||'')); });
+    var rows = list.map(function(r){
+      var sel = _logSelected === r['Round ID'];
+      var prog = progByRef(r['Prog Ref']);
+      var statusBadge = r['Status']==='Overdue' ? '<span class="badge kc-red">Overdue</span>'
+        : (r['Status']==='Completed – next due passed' ? '<span class="badge kc-amb">Completed — next due passed</span>'
+          : (r['Status']==='Completed' ? '<span class="badge kc-grn">Completed</span>'
+            : (r['Status']==='Closed' ? '<span class="badge kc-purple">Closed (Action verified)</span>' : '<span class="badge kc-blue">Planned</span>')));
+      return '<tr class="ohw-row' + (sel?' ohw-sel':'') + '" onclick="OHS.selectLog(\'' + ohEsc(r['Round ID']) + '\')">'
+        + '<td>' + ohEsc(r['Round ID']) + '</td>'
+        + '<td>' + ohEsc(r['Prog Ref']) + (prog ? ' <span style="color:var(--ohw-text-dim)">(' + ohEsc(prog['Work Area / Exposure Group']) + ')</span>' : '') + '</td>'
+        + '<td>' + ohEsc(r['Date Completed'] || r['Planned Date']) + '</td>'
+        + '<td>' + ohEsc(r['Workers Required']) + '</td>'
+        + '<td>' + ohEsc(r['Workers Examined']) + '</td>'
+        + '<td>' + ohEsc(r['Next Due']) + '</td>'
+        + '<td>' + statusBadge + '</td>'
+        + '<td>' + (r['Action Reference'] ? '✓ ' + ohEsc(r['Action Reference']) : '—') + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="ohw-tbl"><thead><tr><th>Round ID</th><th>Prog Ref</th><th>Planned/Completed</th><th>Required</th><th>Examined</th><th>Next Due</th><th>Status</th><th>Action Ref.</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateLogButtons();
+  }
+  function updateLogButtons(){
+    var r = getSelectedLog();
+    document.getElementById('oh-log-btn-edit').disabled = !r;
+    document.getElementById('oh-log-btn-remove').disabled = !r || !can('delete');
+    document.getElementById('oh-log-btn-esc').disabled = !r || !(r['Status']==='Overdue' || r['Status']==='Completed – next due passed') || !!r['Action Reference'];
+  }
+  function getSelectedLog(){
+    if (!_logCache || !_logSelected) return null;
+    var idIdx = colIdx(_logCache.headers, LOG.idCol);
+    var row = _logCache.rows.find(function(r){ return String(r[idIdx]) === String(_logSelected); });
+    return row ? recFromRow(_logCache.headers, row) : null;
+  }
+
+  function buildLogModal(existingRec){
+    var root = document.getElementById('oh-modal-root');
+    var isEdit = !!existingRec;
+    var roundId = isEdit ? existingRec['Round ID'] : nextRoundId(_logCache);
+    var progOpts = getProgOptions();
+    var selectedRef = existingRec ? existingRec['Prog Ref'] : '';
+    var progSelectOpts = '<option value="">-- select programme line --</option>' + progOpts.map(function(o){
+      return '<option value="'+ohEsc(o.ref)+'"'+(o.ref===selectedRef?' selected':'')+'>'+ohEsc(o.label)+'</option>';
+    }).join('');
+    root.innerHTML = '<div class="ohw-modal-bg" id="ohm-bg"><div class="ohw-modal">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' Surveillance Round — ' + ohEsc(roundId) + '</h3>'
+      + '<div class="ohw-modal-hdr-grid">'
+        + '<div><label>Programme Line</label><select id="ohm-log-prog">' + progSelectOpts + '</select></div>'
+        + '<div><label>Planned Date</label><input type="date" id="ohm-log-planned" value="' + ohEsc(existingRec?existingRec['Planned Date']:'') + '"></div>'
+        + '<div><label>Date Completed</label><input type="date" id="ohm-log-completed" value="' + ohEsc(existingRec?existingRec['Date Completed']:'') + '"></div>'
+        + '<div><label>Workers Required (count)</label><input type="number" min="0" id="ohm-log-required" value="' + ohEsc(existingRec?existingRec['Workers Required']:'') + '"></div>'
+        + '<div><label>Workers Examined (count)</label><input type="number" min="0" id="ohm-log-examined" value="' + ohEsc(existingRec?existingRec['Workers Examined']:'') + '"></div>'
+        + '<div><label>Fit (count)</label><input type="number" min="0" id="ohm-log-fit" value="' + ohEsc(existingRec?existingRec['Fit']:'') + '"></div>'
+        + '<div><label>Fit with Restrictions (count)</label><input type="number" min="0" id="ohm-log-fitr" value="' + ohEsc(existingRec?existingRec['Fit with Restrictions']:'') + '"></div>'
+        + '<div><label>Temporarily Unfit (count)</label><input type="number" min="0" id="ohm-log-tempunfit" value="' + ohEsc(existingRec?existingRec['Temporarily Unfit']:'') + '"></div>'
+        + '<div><label>Referred to Specialist (count)</label><input type="number" min="0" id="ohm-log-referred" value="' + ohEsc(existingRec?existingRec['Referred to Specialist']:'') + '"></div>'
+        + '<div><label>Provider</label><input type="text" id="ohm-log-provider" value="' + ohEsc(existingRec?existingRec['Provider']:'') + '"></div>'
+        + '<div><label>Provider Report Ref.</label><input type="text" id="ohm-log-reportref" value="' + ohEsc(existingRec?existingRec['Provider Report Ref']:'') + '"></div>'
+      + '</div>'
+      + '<div class="ohw-field" style="margin-bottom:14px"><label>Follow-up Action / CAPA Ref.</label><input type="text" id="ohm-log-followup" style="width:100%;background:var(--ohw-bg3);border:1px solid var(--ohw-border);color:var(--ohw-text);border-radius:7px;padding:7px 9px;font-size:12px" value="' + ohEsc(existingRec?existingRec['Follow-up Action / CAPA Ref']:'') + '"></div>'
+      + '<div class="ohw-note">Enter COUNTS only — never a worker\'s name, ID, or individual result. Completion %, Next Due and Status are computed automatically from Workers Required/Examined, Date Completed, and the programme line\'s Frequency.</div>'
+      + '<div class="ohw-modal-actions"><button class="ohw-btn" id="ohm-log-cancel">Cancel</button><button class="ohw-btn ohw-btn-add" id="ohm-log-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('ohm-log-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('ohm-bg').onclick = function(e){ if (e.target.id==='ohm-bg') root.innerHTML=''; };
+    document.getElementById('ohm-log-save').onclick = function(){ saveLog(roundId, isEdit); };
+  }
+  function saveLog(roundId, isEdit){
+    var root = document.getElementById('oh-modal-root');
+    var btn = document.getElementById('ohm-log-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    var progSel = document.getElementById('ohm-log-prog');
+    var ref = progSel.value;
+    if (!ref){ alert('Select a programme line.'); reenable(); return; }
+    var prog = progByRef(ref);
+    var draft = {
+      'Planned Date': document.getElementById('ohm-log-planned').value,
+      'Date Completed': document.getElementById('ohm-log-completed').value,
+      'Workers Required': document.getElementById('ohm-log-required').value,
+      'Workers Examined': document.getElementById('ohm-log-examined').value,
+      'Fit': document.getElementById('ohm-log-fit').value,
+      'Fit with Restrictions': document.getElementById('ohm-log-fitr').value,
+      'Temporarily Unfit': document.getElementById('ohm-log-tempunfit').value,
+      'Referred to Specialist': document.getElementById('ohm-log-referred').value
+    };
+    var evalResult = evaluateRound(draft, prog);
+    var values = {
+      'Round ID': roundId,
+      'Prog Ref': ref,
+      'Planned Date': draft['Planned Date'],
+      'Date Completed': draft['Date Completed'],
+      'Workers Required': draft['Workers Required'],
+      'Workers Examined': draft['Workers Examined'],
+      'Fit': draft['Fit'],
+      'Fit with Restrictions': draft['Fit with Restrictions'],
+      'Temporarily Unfit': draft['Temporarily Unfit'],
+      'Referred to Specialist': draft['Referred to Specialist'],
+      'Provider': document.getElementById('ohm-log-provider').value.trim(),
+      'Provider Report Ref': document.getElementById('ohm-log-reportref').value.trim(),
+      'Next Due': evalResult.nextDue,
+      'Follow-up Action / CAPA Ref': document.getElementById('ohm-log-followup').value.trim(),
+      'Status': evalResult.status
+    };
+    if (isEdit){
+      postJSON('update', {tab: LOG.tabKey, idCol: LOG.idCol, id: roundId}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: LOG.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ── Dashboard — computed only, grouped by Programme line.
+     Same shape as Issam's own "5. OH Surveillance Summary" sheet,
+     calculated fresh from Programme + Log each render rather than
+     stored, so it can never drift out of sync with either tab. ─── */
+  function renderDashboard(progRecs, logRecs){
+    var el = document.getElementById('oh-dashboard-table');
+    if (!progRecs.length){
+      el.innerHTML = '<div class="empty-state"><strong>No programme lines yet</strong>Add programme lines above to see the summary.</div>';
+      return;
+    }
+    var rows = progRecs.map(function(p){
+      var ref = p['Prog Ref'];
+      var rounds = logRecs.filter(function(r){ return r['Prog Ref'] === ref; });
+      var completed = rounds.filter(function(r){ return r['Date Completed']; });
+      var overdue = rounds.filter(function(r){ return r['Status']==='Overdue' || r['Status']==='Completed – next due passed'; }).length;
+      var required = rounds.reduce(function(s,r){ return s+(parseFloat(r['Workers Required'])||0); },0);
+      var examined = rounds.reduce(function(s,r){ return s+(parseFloat(r['Workers Examined'])||0); },0);
+      var fit = rounds.reduce(function(s,r){ return s+(parseFloat(r['Fit'])||0); },0);
+      var fitr = rounds.reduce(function(s,r){ return s+(parseFloat(r['Fit with Restrictions'])||0); },0);
+      var tempu = rounds.reduce(function(s,r){ return s+(parseFloat(r['Temporarily Unfit'])||0); },0);
+      var ref_ = rounds.reduce(function(s,r){ return s+(parseFloat(r['Referred to Specialist'])||0); },0);
+      var completion = required>0 ? Math.round((examined/required)*1000)/10 + '%' : '—';
+      var sorted = completed.slice().sort(function(a,b){ return String(a['Date Completed']).localeCompare(String(b['Date Completed'])); });
+      var last = sorted.length ? sorted[sorted.length-1]['Date Completed'] : '—';
+      var lastNext = sorted.length ? sorted[sorted.length-1]['Next Due'] : '';
+      var dueStatus = overdue>0 ? '<span class="badge kc-red">Overdue</span>' : (rounds.length ? '<span class="badge kc-grn">OK</span>' : '<span class="badge kc-amb">No rounds logged</span>');
+      var cov = p['Coverage Status']==='Covered' ? '<span class="badge kc-grn">Covered</span>' : (p['Coverage Status']==='Partial' ? '<span class="badge kc-amb">Partial</span>' : '<span class="badge kc-red">Not Covered</span>');
+      return '<tr>'
+        + '<td>' + ohEsc(ref) + '</td>'
+        + '<td>' + ohEsc(p['Work Area / Exposure Group']) + '</td>'
+        + '<td>' + ohEsc(p['Surveillance Type']) + '</td>'
+        + '<td>' + completed.length + '</td>'
+        + '<td>' + overdue + '</td>'
+        + '<td>' + required + '</td>'
+        + '<td>' + examined + '</td>'
+        + '<td>' + completion + '</td>'
+        + '<td>' + fit + '</td>'
+        + '<td>' + fitr + '</td>'
+        + '<td>' + tempu + '</td>'
+        + '<td>' + ref_ + '</td>'
+        + '<td>' + ohEsc(last) + '</td>'
+        + '<td>' + ohEsc(lastNext) + '</td>'
+        + '<td>' + dueStatus + '</td>'
+        + '<td>' + cov + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="ohw-tbl"><thead><tr><th>Prog Ref</th><th>Work Area</th><th>Surveillance Type</th><th>Rounds Completed</th><th>Rounds Overdue</th><th>Workers Required</th><th>Workers Examined</th><th>Completion %</th><th>Fit</th><th>Fit w/ Restr.</th><th>Temp. Unfit</th><th>Referred</th><th>Last Completed</th><th>Next Due</th><th>Due Status</th><th>Evidence Coverage</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.OHS = {
+    onProgSearch: function(v){ _progFilters.search = v; render(); },
+    onLogSearch: function(v){ _logFilters.search = v; render(); },
+    progCardClick: function(name){ _progFilters.special = (name==='total') ? null : name; render(); },
+    logCardClick: function(name){ _logFilters.special = (name==='all') ? null : name; render(); },
+    selectProg: function(id){ _progSelected = (_progSelected!==null && String(_progSelected)===String(id)) ? null : id; render(); },
+    selectLog: function(id){ _logSelected = (_logSelected!==null && String(_logSelected)===String(id)) ? null : id; render(); },
+    openProgAdd: function(){ if (can('add')) buildProgModal(null); },
+    openProgEditSelected: function(){ var p=getSelectedProg(); if(!p) return alert('Select a row first.'); buildProgModal(p); },
+    removeProgSelected: function(){
+      if (!can('delete')) return;
+      var p = getSelectedProg(); if(!p) return alert('Select a row first.');
+      if (!confirm('Remove programme line ' + p['Prog Ref'] + '? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: PROG.tabKey, idCol: PROG.idCol, id: p['Prog Ref']}, {'Record Status':'Removed'}).then(function(r){
+        if (r && r.status==='error'){ alert('Remove failed: '+(r.message||'unknown error')); return; }
+        _progSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+    openLogAdd: function(){ if (can('add')) buildLogModal(null); },
+    openLogEditSelected: function(){ var r=getSelectedLog(); if(!r) return alert('Select a row first.'); buildLogModal(r); },
+    removeLogSelected: function(){
+      if (!can('delete')) return;
+      var r = getSelectedLog(); if(!r) return alert('Select a row first.');
+      if (!confirm('Remove round ' + r['Round ID'] + '? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: LOG.tabKey, idCol: LOG.idCol, id: r['Round ID']}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status==='error'){ alert('Remove failed: '+(res.message||'unknown error')); return; }
+        _logSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+    // Escalates an overdue round (or one whose next-due date has
+    // passed) to the Action Register, same sessionStorage + URL
+    // hand-off as every other source on this portal. Never carries a
+    // worker name or ID — the description references only the
+    // Round ID and the programme line's work area.
+    escalateLogSelected: function(){
+      var r = getSelectedLog(); if(!r) return alert('Select a row first.');
+      if (!(r['Status']==='Overdue' || r['Status']==='Completed – next due passed')) return alert('This round is not overdue — nothing to escalate.');
+      if (r['Action Reference']) return alert('This round was already escalated — see Action Register record ' + r['Action Reference'] + '.');
+      var prog = progByRef(r['Prog Ref']);
+      var ctx = {
+        entryId: r['Round ID'],
+        description: 'OH Surveillance Round ' + r['Round ID'] + ' (' + r['Prog Ref'] + (prog ? ' — ' + prog['Work Area / Exposure Group'] + ' / ' + prog['Surveillance Type'] : '') + ') — ' + r['Status'] + (r['Next Due'] ? ', next due ' + r['Next Due'] : ''),
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingOhSurveillanceContext', JSON.stringify(ctx)); } catch(e){}
+      window.open('action-register.html?fromOhSurveillance=' + encodeURIComponent(r['Round ID']) + '&lane=ACT', '_blank');
+    }
+  };
+
+  // Deep link from the Action Register's Source column —
+  // ?entry=<Round ID> jumps straight to and opens that round.
+  function handleDeepLink(){
+    var entryId = new URLSearchParams(window.location.search).get('entry');
+    if (!entryId) return;
+    _logSelected = entryId;
+    render();
+    OHS.openLogEditSelected();
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadAll().then(handleDeepLink); }, 100);
+  });
 })();
 </script>
 
 <script>
-(function() {
-  function colIdx(headers, name) {
-    var n = name.toLowerCase();
-    for (var i=0;i<headers.length;i++) {
-      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
-    }
-    return -1;
+/* ── Access gate: identical rule to crane-lifting.html / first-aid-kit.html / contractor-register.html ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
   }
-  function countVal(rows, col, val) {
-    if (col < 0) return 0;
-    var v = val ? val.toLowerCase() : null;
-    return rows.filter(function(r){
-      var cell = String(r[col]||'').toLowerCase().trim();
-      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
-    }).length;
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The OH Surveillance Register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts — it carries aggregate occupational health data.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
   }
-  function sumCol(rows, col) {
-    if (col < 0) return 0;
-    return rows.reduce(function(s,r){
-      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
-      return s + (isNaN(v) ? 0 : v);
-    }, 0);
-  }
-  function setCard(idx, val) {
-    var cards = document.querySelectorAll('.kpi-val');
-    if (cards[idx]) cards[idx].textContent = val;
-  }
-
-  var origRender = window.renderTable;
-  window.renderTable = function(data, container) {
-    if (origRender) origRender(data, container);
-    if (!data || !data.rows || !data.headers) return;
-    var rows = data.rows, h = data.headers;
-    try { setCard(0, rows.length); } catch(e) {}
-  };
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
 })();
 </script>
-</body></html>
+
+</div></body></html>
