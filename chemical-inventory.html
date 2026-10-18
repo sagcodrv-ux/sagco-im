@@ -179,6 +179,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 <div class="flag-text" style="margin-top:14px" id="chm-dash-hint">Use this view to decide where GHS hazard signage and PPE postings are most urgently needed — any location showing a "Danger" worst-case signal word, or any "SDS Pending" items, should be prioritised for supplier SDS follow-up.</div>
 <div class="chw-table-wrap" style="border-top:1px solid var(--chw-border-gold)"><div id="chm-dashboard-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
 
+<div class="sec-banner">4. MONTHLY STOCK COUNT — one snapshot record per month, full item list</div>
+<div class="flag-text" style="margin-top:14px">Each month's record is a point-in-time snapshot of every item's stock quantity. Browse previous months from the dropdown below. Starting a new month pre-fills the current Chemical Inventory item list automatically, so any item added since the last count is included going forward — past months are never rewritten.</div>
+<div class="chw-toolbar" style="border-top:1px solid var(--chw-border-gold)">
+  <select id="chm-stock-month-select" onchange="CHM.onStockMonthChange(this.value)"><option value="">No records yet</option></select>
+  <button class="chw-btn chw-btn-add" id="chm-stock-btn-new" onclick="CHM.openStockAdd()">+ New Month</button>
+  <button class="chw-btn" id="chm-stock-btn-edit" disabled onclick="CHM.openStockEditSelected()">Open / Edit</button>
+  <button class="chw-btn" id="chm-stock-btn-remove" disabled onclick="CHM.removeStockSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--chw-text-dim)" id="chm-stock-count-sub"></span>
+</div>
+<div class="chw-table-wrap"><div id="chm-stock-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
 <div id="chm-modal-root"></div>
 
 <script>
@@ -186,10 +197,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   var MASTER = { tabKey:'chemical_inv', containerId:'live-table-master', idCol:'Item Code' };
   var LOG     = { tabKey:'chemical_sds_log', containerId:'live-table-log', idCol:'Review Ref' };
+  var STOCK   = { tabKey:'chemical_stock_monthly', containerId:'chm-stock-table', idCol:'Month' };
   var STATUS_COL = 'Record Status';
 
-  var _masterCache = null, _logCache = null;
-  var _masterSelected = null, _logSelected = null;
+  var _masterCache = null, _logCache = null, _stockCache = null;
+  var _masterSelected = null, _logSelected = null, _stockSelectedMonth = null;
   var _masterFilters = { search:'', special:null, status:'' };
   var _logFilters = { search:'', special:null };
   var _charts = { status:null };
@@ -245,7 +257,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
         }
         _logCache = data;
-      }).catch(function(){ _logCache = null; })
+      }).catch(function(){ _logCache = null; }),
+      loadTab(STOCK.tabKey).then(function(data){
+        if (data && data.headers && data.rows){
+          var si = colIdx(data.headers, STATUS_COL);
+          if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+        }
+        _stockCache = data;
+      }).catch(function(){ _stockCache = null; })
     ]).then(render);
   }
 
@@ -256,6 +275,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function getLogRecs(){
     if (!_logCache || !_logCache.headers || !_logCache.rows) return [];
     return _logCache.rows.map(function(r){ return recFromRow(_logCache.headers, r); });
+  }
+  function getStockRecs(){
+    if (!_stockCache || !_stockCache.headers || !_stockCache.rows) return [];
+    return _stockCache.rows.map(function(r){ return recFromRow(_stockCache.headers, r); });
   }
   function masterByCode(code){
     var found = getMasterRecs().filter(function(m){ return m['Item Code'] === code; });
@@ -283,6 +306,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     renderMasterTable(masterRecs);
     renderLogTable(logRecs);
     renderDashboard(masterRecs, logRecs);
+    renderStockSection(getStockRecs());
   }
 
   function renderChart(currentN, legacyN, pendingN){
@@ -334,18 +358,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     list.sort(function(a,b){ return String(a['Item Code']||'').localeCompare(String(b['Item Code']||'')); });
     var rows = list.map(function(m){
       var sel = _masterSelected === m['Item Code'];
+      var latest = latestStockQtyFor(m['Item Code']);
+      var qtyCell = latest
+        ? (chmEsc(latest.qty) + ' ' + chmEsc(m['UOM']) + '<div style="font-size:9px;color:var(--chw-text-dim);white-space:nowrap">as of ' + monthLabel(latest.month) + '</div>')
+        : (chmEsc(m['Stock Qty']) + ' ' + chmEsc(m['UOM']) + '<div style="font-size:9px;color:var(--chw-amb);white-space:nowrap">no monthly count yet</div>');
       return '<tr class="chw-row' + (sel?' chw-sel':'') + '" onclick="CHM.selectMaster(\'' + chmEsc(m['Item Code']) + '\')">'
         + '<td>' + chmEsc(m['Item Code']) + '</td>'
         + '<td>' + chmEsc(m['Description']) + '</td>'
         + '<td>' + chmEsc(m['Supplier']) + '</td>'
         + '<td>' + chmEsc(m['Location']) + '</td>'
-        + '<td>' + chmEsc(m['Stock Qty']) + ' ' + chmEsc(m['UOM']) + '</td>'
+        + '<td>' + qtyCell + '</td>'
         + '<td>' + chmEsc(m['CAS No.']) + '</td>'
         + '<td>' + signalBadge(m['Signal Word']) + '</td>'
         + '<td>' + sdsBadge(m['SDS Status']) + '</td>'
       + '</tr>';
     }).join('');
-    el.innerHTML = '<table class="chw-tbl"><thead><tr><th>Item Code</th><th>Description</th><th>Supplier</th><th>Location</th><th>Stock</th><th>CAS No.</th><th>Signal Word</th><th>SDS Status</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    el.innerHTML = '<table class="chw-tbl"><thead><tr><th>Item Code</th><th>Description</th><th>Supplier</th><th>Location</th><th>Stock (latest monthly count)</th><th>CAS No.</th><th>Signal Word</th><th>SDS Status</th></tr></thead><tbody>' + rows + '</tbody></table>';
     updateMasterButtons();
   }
   function updateMasterButtons(){
@@ -370,6 +398,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var root = document.getElementById('chm-modal-root');
     var isEdit = !!existingRec;
     var code = isEdit ? existingRec['Item Code'] : '';
+    // Once an item has at least one Monthly Stock Count record, the
+    // table's figure comes from there, not from this field — so the
+    // field is locked here to keep a single place to correct a
+    // quantity (the monthly record) and avoid the two drifting apart.
+    var lockedStock = isEdit && !!latestStockQtyFor(code);
     var statusOpts = SDS_STATUS_OPTS.map(function(s){ return '<option value="'+s+'"'+((existingRec&&existingRec['SDS Status']===s)?' selected':(!existingRec&&s==='SDS Pending'?' selected':''))+'>'+s+'</option>'; }).join('');
     var signalOpts = SIGNAL_OPTS.map(function(s){ return '<option value="'+s+'"'+((existingRec&&existingRec['Signal Word']===s)?' selected':'')+'>'+s+'</option>'; }).join('');
     root.innerHTML = '<div class="chw-modal-bg" id="chm-bg"><div class="chw-modal">'
@@ -380,7 +413,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         + '<div><label>Supplier</label><input type="text" id="chm-m-supplier" value="' + chmEsc(existingRec?existingRec['Supplier']:'') + '"></div>'
         + '<div><label>UOM</label><input type="text" id="chm-m-uom" value="' + chmEsc(existingRec?existingRec['UOM']:'') + '"></div>'
         + '<div><label>Location</label><input type="text" id="chm-m-location" value="' + chmEsc(existingRec?existingRec['Location']:'') + '"></div>'
-        + '<div><label>Stock Qty</label><input type="number" step="any" id="chm-m-stock" value="' + chmEsc(existingRec?existingRec['Stock Qty']:'') + '"></div>'
+        + '<div><label>' + (lockedStock ? 'Stock Qty (locked — see Monthly Stock Count)' : 'Stock Qty (starting value only)') + '</label><input type="number" step="any" id="chm-m-stock" value="' + chmEsc(existingRec?existingRec['Stock Qty']:'') + '"' + (lockedStock ? ' readonly style="opacity:.5;cursor:not-allowed" title="This item already has a Monthly Stock Count record — correct the quantity there, in section 4, so there is only one place to fix it."' : '') + '></div>'
         + '<div><label>CAS No.</label><input type="text" id="chm-m-cas" value="' + chmEsc(existingRec?existingRec['CAS No.']:'') + '" placeholder="or Mixture"></div>'
         + '<div><label>Physical State</label><input type="text" id="chm-m-state" value="' + chmEsc(existingRec?existingRec['Physical State']:'') + '"></div>'
         + '<div><label>Signal Word</label><select id="chm-m-signal">' + signalOpts + '</select></div>'
@@ -388,7 +421,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         + '<div><label>SDS Source / Date</label><input type="text" id="chm-m-sdssource" value="' + chmEsc(existingRec?existingRec['SDS Source / Date']:'') + '" placeholder="supplier, doc date"></div>'
       + '</div>'
       + '<div class="chw-field" style="margin-bottom:14px"><label>Hazard Classification / Statements</label><textarea id="chm-m-hazard" rows="2" style="width:100%;background:var(--chw-bg3);border:1px solid var(--chw-border);color:var(--chw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + chmEsc(existingRec?existingRec['Hazard Classification']:'') + '</textarea></div>'
-      + '<div class="chw-note">Leave Hazard Classification / Signal Word blank and SDS Status as "SDS Pending" until a supplier SDS has actually been received and reviewed — don\'t guess a classification. Use the "📄 SDS Document" button in the toolbar above (select this row first) to attach or view the actual SDS file.</div>'
+      + '<div class="chw-note">Leave Hazard Classification / Signal Word blank and SDS Status as "SDS Pending" until a supplier SDS has actually been received and reviewed — don\'t guess a classification. Use the "📄 SDS Document" button in the toolbar above (select this row first) to attach or view the actual SDS file.' + (lockedStock ? ' To correct this item\'s quantity, open section 4 (Monthly Stock Count), select the relevant month, and edit it there — that is now the only place a quantity should be changed, so the Stock figure shown above and the monthly record can never disagree.' : ' The Stock Qty field is only a starting value, used until this item gets its first Monthly Stock Count record (section 4) — after that, correct quantities there instead.') + '</div>'
       + '<div class="chw-modal-actions"><button class="chw-btn" id="chm-m-cancel">Cancel</button><button class="chw-btn chw-btn-add" id="chm-m-save">Save</button></div>'
     + '</div></div>';
     document.getElementById('chm-m-cancel').onclick = function(){ root.innerHTML=''; };
@@ -737,10 +770,205 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     w.onload = function(){ w.focus(); w.print(); };
   }
 
+  /* ── Monthly Stock Count — one record per month, holding a full
+     snapshot of every item's quantity as a JSON payload (not one
+     sheet row per item), so the item list can grow over time without
+     needing new sheet columns. Starting a new month always pre-fills
+     from the live Chemical Inventory list; past months keep exactly
+     the items/quantities they were saved with. ───────────────────── */
+  function monthLabel(m){
+    if (!m) return '—';
+    var parts = String(m).split('-');
+    if (parts.length !== 2) return chmEsc(m);
+    var names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var mi = parseInt(parts[1], 10) - 1;
+    return (names[mi] || parts[1]) + ' ' + parts[0];
+  }
+  function defaultNewMonth(){
+    var now = new Date();
+    var mm = String(now.getMonth() + 1); while (mm.length < 2) mm = '0' + mm;
+    return now.getFullYear() + '-' + mm;
+  }
+  function parseStockItems(rec){
+    try { var v = JSON.parse((rec && rec['Items JSON']) || '[]'); return Array.isArray(v) ? v : []; } catch(e){ return []; }
+  }
+  function sortedStockRecs(stockRecs){
+    return stockRecs.slice().sort(function(a,b){ return String(b['Month']||'').localeCompare(String(a['Month']||'')); });
+  }
+  // Looks backwards from the most recent Monthly Stock Count record
+  // for the first one that actually lists this item, so a brand-new
+  // item not yet included in the latest month still finds an older
+  // figure rather than showing nothing. Returns null only if the item
+  // has never appeared in any monthly record.
+  function latestStockQtyFor(code){
+    var sorted = sortedStockRecs(getStockRecs());
+    for (var i = 0; i < sorted.length; i++){
+      var items = parseStockItems(sorted[i]);
+      var hit = items.find(function(it){ return it['Item Code'] === code; });
+      if (hit) return { qty: hit['Qty'], month: sorted[i]['Month'] };
+    }
+    return null;
+  }
+  function renderStockSection(stockRecs){
+    var sel = document.getElementById('chm-stock-month-select');
+    var editBtn = document.getElementById('chm-stock-btn-edit'), remBtn = document.getElementById('chm-stock-btn-remove');
+    var sorted = sortedStockRecs(stockRecs);
+    if (!sorted.length){
+      sel.innerHTML = '<option value="">No records yet</option>';
+      document.getElementById('chm-stock-table').innerHTML = '<div class="empty-state"><strong>No monthly stock counts yet</strong>Click "+ New Month" to start the first one, pre-filled from the current Chemical Inventory.</div>';
+      setTxt('chm-stock-count-sub', '0 months recorded');
+      editBtn.disabled = true; remBtn.disabled = true;
+      return;
+    }
+    if (!_stockSelectedMonth || !sorted.some(function(r){ return r['Month']===_stockSelectedMonth; })) _stockSelectedMonth = sorted[0]['Month'];
+    sel.innerHTML = sorted.map(function(r){
+      return '<option value="' + chmEsc(r['Month']) + '"' + (r['Month']===_stockSelectedMonth?' selected':'') + '>' + monthLabel(r['Month']) + '</option>';
+    }).join('');
+    setTxt('chm-stock-count-sub', sorted.length + ' month' + (sorted.length===1?'':'s') + ' recorded');
+    var idx = sorted.findIndex(function(r){ return r['Month']===_stockSelectedMonth; });
+    editBtn.disabled = false;
+    remBtn.disabled = !can('delete');
+    renderStockTable(sorted[idx], sorted[idx+1]);
+  }
+  function renderStockTable(rec, prevRec){
+    var el = document.getElementById('chm-stock-table');
+    var items = parseStockItems(rec);
+    if (!items.length){
+      el.innerHTML = '<div class="empty-state"><strong>No items in this record</strong></div>';
+      return;
+    }
+    var prevItems = prevRec ? parseStockItems(prevRec) : [];
+    var prevByCode = {};
+    prevItems.forEach(function(it){ prevByCode[it['Item Code']] = it['Qty']; });
+    var list = items.slice().sort(function(a,b){ return String(a['Item Code']||'').localeCompare(String(b['Item Code']||'')); });
+    var rows = list.map(function(it){
+      var qty = it['Qty'];
+      var prevQty = prevByCode.hasOwnProperty(it['Item Code']) ? prevByCode[it['Item Code']] : null;
+      var delta = '<span style="color:var(--chw-text-dim)">—</span>';
+      var qn = parseFloat(qty), pn = parseFloat(prevQty);
+      if (prevQty !== null && prevQty !== '' && qty !== '' && qty != null && !isNaN(qn) && !isNaN(pn)){
+        var d = qn - pn;
+        if (d > 0) delta = '<span style="color:var(--chw-grn)">▲ +' + d + '</span>';
+        else if (d < 0) delta = '<span style="color:var(--chw-red)">▼ ' + d + '</span>';
+        else delta = '<span style="color:var(--chw-text-dim)">no change</span>';
+      } else if (prevQty === null) {
+        delta = '<span class="badge kc-amb">New since last month</span>';
+      }
+      return '<tr>'
+        + '<td>' + chmEsc(it['Item Code']) + '</td>'
+        + '<td>' + chmEsc(it['Description']) + '</td>'
+        + '<td>' + chmEsc(it['Location']) + '</td>'
+        + '<td>' + chmEsc(qty) + ' ' + chmEsc(it['UOM']) + '</td>'
+        + '<td>' + delta + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="chw-tbl"><thead><tr><th>Item Code</th><th>Description</th><th>Location</th><th>Quantity</th><th>vs Previous Month</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+  function buildStockModal(existingRec){
+    var root = document.getElementById('chm-modal-root');
+    var isEdit = !!existingRec;
+    var monthVal = isEdit ? existingRec['Month'] : defaultNewMonth();
+    var baseItems;
+    if (isEdit){
+      baseItems = parseStockItems(existingRec);
+      var haveCodes = {};
+      baseItems.forEach(function(it){ haveCodes[it['Item Code']] = true; });
+      getMasterRecs().forEach(function(m){
+        if (!haveCodes[m['Item Code']]){
+          baseItems.push({ 'Item Code': m['Item Code'], 'Description': m['Description'], 'Location': m['Location'], 'UOM': m['UOM'], 'Qty': '', _isNew: true });
+        }
+      });
+    } else {
+      baseItems = getMasterRecs().map(function(m){
+        var latest = latestStockQtyFor(m['Item Code']);
+        return { 'Item Code': m['Item Code'], 'Description': m['Description'], 'Location': m['Location'], 'UOM': m['UOM'], 'Qty': latest ? latest.qty : (m['Stock Qty']||'') };
+      });
+    }
+    baseItems.sort(function(a,b){ return String(a['Item Code']||'').localeCompare(String(b['Item Code']||'')); });
+    var itemRowsHtml = baseItems.map(function(it, i){
+      return '<tr' + (it._isNew ? ' style="background:rgba(232,179,57,.08)"' : '') + '>'
+        + '<td>' + chmEsc(it['Item Code']) + (it._isNew ? ' <span class="badge kc-amb">New — not yet counted</span>' : '') + '</td>'
+        + '<td>' + chmEsc(it['Description']) + '</td>'
+        + '<td>' + chmEsc(it['Location']) + '</td>'
+        + '<td><input type="number" step="any" id="chm-stock-qty-' + i + '" value="' + chmEsc(it['Qty']) + '" style="width:90px;background:var(--chw-bg3);border:1px solid var(--chw-border);color:var(--chw-text);border-radius:6px;padding:5px 7px;font-size:11px"> ' + chmEsc(it['UOM']) + '</td>'
+      + '</tr>';
+    }).join('');
+    root.innerHTML = '<div class="chw-modal-bg" id="chm-bg"><div class="chw-modal" style="max-width:720px">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' Monthly Stock Count' + (isEdit ? ' — ' + monthLabel(monthVal) : '') + '</h3>'
+      + '<div class="chw-modal-hdr-grid" style="grid-template-columns:repeat(2,1fr)">'
+        + '<div><label>Month</label><input type="month" id="chm-stock-month" value="' + chmEsc(monthVal) + '"' + (isEdit?' readonly':'') + '></div>'
+        + '<div><label>Recorded By</label><input type="text" id="chm-stock-by" value="' + chmEsc(isEdit?existingRec['Recorded By']:'') + '"></div>'
+      + '</div>'
+      + '<div class="chw-note">This is a point-in-time snapshot — every item currently in the Chemical Inventory is listed below, pre-filled with its last known quantity. Correct each quantity to this month\'s actual count, then Save. Saving does not change past months, and any item added to the Chemical Inventory after this record was created will appear (flagged "New") the next time you open it.</div>'
+      + '<div style="max-height:340px;overflow:auto;border:1px solid var(--chw-border);border-radius:8px;margin-bottom:14px">'
+        + '<table class="chw-tbl" style="width:100%"><thead><tr><th>Item Code</th><th>Description</th><th>Location</th><th>Quantity</th></tr></thead><tbody>' + itemRowsHtml + '</tbody></table>'
+      + '</div>'
+      + '<div class="chw-field" style="margin-bottom:14px"><label>Notes</label><textarea id="chm-stock-notes" rows="2" style="width:100%;background:var(--chw-bg3);border:1px solid var(--chw-border);color:var(--chw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + chmEsc(isEdit?existingRec['Notes']:'') + '</textarea></div>'
+      + '<div class="chw-modal-actions"><button class="chw-btn" id="chm-stock-cancel">Cancel</button><button class="chw-btn chw-btn-add" id="chm-stock-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('chm-stock-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('chm-bg').onclick = function(e){ if (e.target.id==='chm-bg') root.innerHTML=''; };
+    document.getElementById('chm-stock-save').onclick = function(){ saveStock(isEdit, baseItems); };
+  }
+  function saveStock(isEdit, baseItems){
+    var root = document.getElementById('chm-modal-root');
+    var btn = document.getElementById('chm-stock-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    var monthVal = document.getElementById('chm-stock-month').value;
+    if (!monthVal){ alert('Select a month.'); reenable(); return; }
+    if (!isEdit && _stockCache && _stockCache.headers && _stockCache.rows){
+      var idIdx = colIdx(_stockCache.headers, STOCK.idCol);
+      var exists = idIdx >= 0 && _stockCache.rows.some(function(r){ return String(r[idIdx]) === String(monthVal); });
+      if (exists){ alert('A record for ' + monthLabel(monthVal) + ' already exists — select it from the dropdown and use Open / Edit instead.'); reenable(); return; }
+    }
+    var finalItems = baseItems.map(function(it, i){
+      var qtyEl = document.getElementById('chm-stock-qty-' + i);
+      return { 'Item Code': it['Item Code'], 'Description': it['Description'], 'Location': it['Location'], 'UOM': it['UOM'], 'Qty': qtyEl ? qtyEl.value : it['Qty'] };
+    });
+    var values = {
+      'Month': monthVal,
+      'Record Date': new Date().toISOString().slice(0,10),
+      'Recorded By': document.getElementById('chm-stock-by').value.trim(),
+      'Items JSON': JSON.stringify(finalItems),
+      'Notes': document.getElementById('chm-stock-notes').value.trim()
+    };
+    if (isEdit){
+      postJSON('update', {tab: STOCK.tabKey, idCol: STOCK.idCol, id: monthVal}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; _stockSelectedMonth = monthVal; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: STOCK.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; _stockSelectedMonth = monthVal; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
   /* ── Public API ───────────────────────────────────────────────── */
   window.CHM = {
     printDashboard: printDashboard,
     setDashView: setDashView,
+    onStockMonthChange: function(v){ _stockSelectedMonth = v; render(); },
+    openStockAdd: function(){ if (can('add')) buildStockModal(null); },
+    openStockEditSelected: function(){
+      if (!_stockSelectedMonth) return alert('Select a month first.');
+      var rec = getStockRecs().find(function(r){ return r['Month']===_stockSelectedMonth; });
+      if (!rec) return alert('Select a month first.');
+      buildStockModal(rec);
+    },
+    removeStockSelected: function(){
+      if (!can('delete')) return;
+      if (!_stockSelectedMonth) return alert('Select a month first.');
+      var rec = getStockRecs().find(function(r){ return r['Month']===_stockSelectedMonth; });
+      if (!rec) return alert('Select a month first.');
+      if (!confirm('Remove the ' + monthLabel(rec['Month']) + ' stock count record? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: STOCK.tabKey, idCol: STOCK.idCol, id: rec['Month']}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status==='error'){ alert('Remove failed: '+(res.message||'unknown error')); return; }
+        _stockSelectedMonth = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
     onMasterSearch: function(v){ _masterFilters.search = v; render(); },
     onMasterStatusFilter: function(v){ _masterFilters.status = v; render(); },
     onLogSearch: function(v){ _logFilters.search = v; render(); },
