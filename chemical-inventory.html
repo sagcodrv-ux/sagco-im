@@ -161,6 +161,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <input type="text" id="chm-log-search" placeholder="Search Review Ref / Item Code…" oninput="CHM.onLogSearch(this.value)">
   <button class="chw-btn chw-btn-add" id="chm-log-btn-new" onclick="CHM.openLogAdd()">+ New Review</button>
   <button class="chw-btn" id="chm-log-btn-edit" disabled onclick="CHM.openLogEditSelected()">Open / Edit</button>
+  <button class="chw-btn" id="chm-log-btn-sds" disabled onclick="CHM.openLogSdsDocument()" title="Opens the same SDS document as the Chemical Inventory row for this item — attaching one here updates that row too">📄 SDS Document</button>
   <button class="chw-btn chw-btn-esc" id="chm-log-btn-esc" disabled onclick="CHM.escalateLogSelected()">⚡ Escalate to Action</button>
   <button class="chw-btn" id="chm-log-btn-remove" disabled onclick="CHM.removeLogSelected()">Remove</button>
   <span style="margin-left:auto;font-size:10px;color:var(--chw-text-dim)" id="chm-log-count-sub"></span>
@@ -545,6 +546,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function updateLogButtons(){
     var r = getSelectedLog();
     document.getElementById('chm-log-btn-edit').disabled = !r;
+    document.getElementById('chm-log-btn-sds').disabled = !r;
     document.getElementById('chm-log-btn-remove').disabled = !r || !can('delete');
     document.getElementById('chm-log-btn-esc').disabled = !r || !(r['Outcome']==='Needs Update' || r['Outcome']==='Pending – Not Supplied') || !!r['Action Reference'];
   }
@@ -760,6 +762,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     },
     openLogAdd: function(){ if (can('add')) buildLogModal(null); },
     openLogEditSelected: function(){ var r=getSelectedLog(); if(!r) return alert('Select a row first.'); buildLogModal(r); },
+    openLogSdsDocument: function(){
+      var r = getSelectedLog(); if(!r) return alert('Select a row first.');
+      var m = masterByCode(r['Item Code']);
+      if (!m) return alert('The item linked to this review (' + r['Item Code'] + ') was not found in the Chemical Inventory — it may have been removed.');
+      buildSdsDocModal(m);
+    },
     removeLogSelected: function(){
       if (!can('delete')) return;
       var r = getSelectedLog(); if(!r) return alert('Select a row first.');
