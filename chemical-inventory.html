@@ -168,10 +168,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 <div class="chw-table-wrap"><div id="live-table-log"><div class="empty-state"><strong>Loading…</strong></div></div></div>
 
 <div class="sec-banner" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-  <span>3. DASHBOARD — calculated summary, by store location (for TÜV / EcoVadis / Management Review)</span>
-  <button class="chw-btn" id="chm-dash-btn-print" onclick="CHM.printDashboard()">🖨 Print Report</button>
+  <span id="chm-dash-title">3. DASHBOARD — calculated summary, by store location (for TÜV / EcoVadis / Management Review)</span>
+  <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button class="chw-btn chw-btn-add" id="chm-dash-btn-loc" onclick="CHM.setDashView('location')">By Location</button>
+    <button class="chw-btn" id="chm-dash-btn-item" onclick="CHM.setDashView('item')">By Item</button>
+    <button class="chw-btn" id="chm-dash-btn-print" onclick="CHM.printDashboard()">🖨 Print Report</button>
+  </span>
 </div>
-<div class="flag-text" style="margin-top:14px">Use this view to decide where GHS hazard signage and PPE postings are most urgently needed — any location showing a "Danger" worst-case signal word, or any "SDS Pending" items, should be prioritised for supplier SDS follow-up.</div>
+<div class="flag-text" style="margin-top:14px" id="chm-dash-hint">Use this view to decide where GHS hazard signage and PPE postings are most urgently needed — any location showing a "Danger" worst-case signal word, or any "SDS Pending" items, should be prioritised for supplier SDS follow-up.</div>
 <div class="chw-table-wrap" style="border-top:1px solid var(--chw-border-gold)"><div id="chm-dashboard-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
 
 <div id="chm-modal-root"></div>
@@ -277,7 +281,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     renderChart(currentN, legacyN, pendingN);
     renderMasterTable(masterRecs);
     renderLogTable(logRecs);
-    renderDashboard(masterRecs);
+    renderDashboard(masterRecs, logRecs);
   }
 
   function renderChart(currentN, legacyN, pendingN){
@@ -612,7 +616,58 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
      present and how many items there still have no SDS, so GHS
      signage/PPE postings can be prioritised by location. ─────────── */
   var SEVERITY_RANK = { 'Danger':3, 'Warning':2, 'Not Classified':1, '—':0 };
-  function renderDashboard(masterRecs){
+  var _dashView = 'location'; // 'location' | 'item'
+  var _dashMasterRecs = [], _dashLogRecs = [];
+  function setDashView(v){
+    _dashView = v;
+    var locBtn = document.getElementById('chm-dash-btn-loc'), itemBtn = document.getElementById('chm-dash-btn-item');
+    if (locBtn) locBtn.className = 'chw-btn' + (v==='location' ? ' chw-btn-add' : '');
+    if (itemBtn) itemBtn.className = 'chw-btn' + (v==='item' ? ' chw-btn-add' : '');
+    var title = document.getElementById('chm-dash-title'), hint = document.getElementById('chm-dash-hint');
+    if (title) title.textContent = v==='item'
+      ? '3. DASHBOARD — calculated summary, by item (for TÜV / EcoVadis / Management Review)'
+      : '3. DASHBOARD — calculated summary, by store location (for TÜV / EcoVadis / Management Review)';
+    if (hint) hint.textContent = v==='item'
+      ? 'One row per chemical item, showing its own SDS status, signal word and most recent review — use this to check a single item\'s GHS status without opening the full inventory table above.'
+      : 'Use this view to decide where GHS hazard signage and PPE postings are most urgently needed — any location showing a "Danger" worst-case signal word, or any "SDS Pending" items, should be prioritised for supplier SDS follow-up.';
+    renderDashboard(_dashMasterRecs, _dashLogRecs);
+  }
+  function renderDashboard(masterRecs, logRecs){
+    _dashMasterRecs = masterRecs || _dashMasterRecs;
+    _dashLogRecs = logRecs || _dashLogRecs;
+    if (_dashView === 'item') return renderDashboardByItem(_dashMasterRecs, _dashLogRecs);
+    return renderDashboardByLocation(_dashMasterRecs);
+  }
+  function renderDashboardByItem(masterRecs, logRecs){
+    var el = document.getElementById('chm-dashboard-table');
+    if (!masterRecs.length){
+      el.innerHTML = '<div class="empty-state"><strong>No items yet</strong>Add inventory items above to see the summary.</div>';
+      return;
+    }
+    var list = masterRecs.slice().sort(function(a,b){ return String(a['Item Code']||'').localeCompare(String(b['Item Code']||'')); });
+    var rows = list.map(function(m){
+      var code = m['Item Code'];
+      var reviews = (logRecs||[]).filter(function(r){ return r['Item Code'] === code; });
+      reviews.sort(function(a,b){ return String(b['Review Date']||'').localeCompare(String(a['Review Date']||'')); });
+      var last = reviews.length ? reviews[0] : null;
+      var lastOutcome = last ? sdsBadge(last['Outcome']==='Current' ? 'Current GHS' : (last['Outcome']==='Needs Update' ? 'Legacy – Needs Update' : '')) : '<span class="badge kc-dim">No review logged</span>';
+      var lastDate = last ? chmEsc(last['Review Date']) : '—';
+      var flag = m['SDS Status']==='SDS Pending' ? '<span class="badge kc-red">SDS follow-up needed</span>'
+        : (m['SDS Status']==='Legacy – Needs Update' ? '<span class="badge kc-amb">Update needed</span>' : '<span class="badge kc-grn">OK</span>');
+      return '<tr>'
+        + '<td>' + chmEsc(code) + '</td>'
+        + '<td>' + chmEsc(m['Description']) + '</td>'
+        + '<td>' + chmEsc(m['Location']||'—') + '</td>'
+        + '<td>' + sdsBadge(m['SDS Status']) + '</td>'
+        + '<td>' + signalBadge(m['Signal Word']) + '</td>'
+        + '<td>' + lastOutcome + '</td>'
+        + '<td>' + lastDate + '</td>'
+        + '<td>' + flag + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="chw-tbl"><thead><tr><th>Item Code</th><th>Description</th><th>Location</th><th>SDS Status</th><th>Signal Word</th><th>Last Review Outcome</th><th>Last Review Date</th><th>Follow-up</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+  function renderDashboardByLocation(masterRecs){
     var el = document.getElementById('chm-dashboard-table');
     if (!masterRecs.length){
       el.innerHTML = '<div class="empty-state"><strong>No items yet</strong>Add inventory items above to see the summary.</div>';
@@ -670,7 +725,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       '@media print{.noprint{display:none}}' +
       '</style></head><body>' +
       '<h1>SAGCO — Chemical Inventory (GHS) — Dashboard Summary</h1>' +
-      '<p class="sub">Generated ' + stamp + ' &middot; by store location &middot; for TÜV / EcoVadis / Management Review</p>' +
+      '<p class="sub">Generated ' + stamp + ' &middot; by ' + (_dashView==='item' ? 'item' : 'store location') + ' &middot; for TÜV / EcoVadis / Management Review</p>' +
       '<div class="priv">SCOPE: covers exactly the 40 items on the OL_100126 Stores stock sheet. Any row flagged "SDS Pending" or "Legacy – Needs Update" should be chased with the supplier before this report is treated as a complete GHS compliance record.</div>' +
       tableHtml +
       '<div class="noprint" style="margin-top:16px"><button onclick="window.print()">Print</button></div>' +
@@ -683,6 +738,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   /* ── Public API ───────────────────────────────────────────────── */
   window.CHM = {
     printDashboard: printDashboard,
+    setDashView: setDashView,
     onMasterSearch: function(v){ _masterFilters.search = v; render(); },
     onMasterStatusFilter: function(v){ _masterFilters.status = v; render(); },
     onLogSearch: function(v){ _logFilters.search = v; render(); },
