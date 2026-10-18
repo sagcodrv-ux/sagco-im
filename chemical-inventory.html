@@ -784,7 +784,23 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var mi = parseInt(parts[1], 10) - 1;
     return (names[mi] || parts[1]) + ' ' + parts[0];
   }
+  // "+ New Month" should always default to the month right AFTER the
+  // most recently recorded one — never to today's calendar month,
+  // which could already have a record (or, if counts have fallen
+  // behind, could skip over months that still need entering). Falls
+  // back to the current calendar month only when no records exist yet.
   function defaultNewMonth(){
+    var sorted = sortedStockRecs(getStockRecs());
+    if (sorted.length && sorted[0]['Month']){
+      var parts = String(sorted[0]['Month']).split('-');
+      var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+      if (!isNaN(y) && !isNaN(m)){
+        m += 1;
+        if (m > 12){ m = 1; y += 1; }
+        var mm2 = String(m); while (mm2.length < 2) mm2 = '0' + mm2;
+        return y + '-' + mm2;
+      }
+    }
     var now = new Date();
     var mm = String(now.getMonth() + 1); while (mm.length < 2) mm = '0' + mm;
     return now.getFullYear() + '-' + mm;
@@ -854,10 +870,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       } else if (prevQty === null) {
         delta = '<span class="badge kc-amb">New since last month</span>';
       }
+      // Location is deliberately NOT read from the frozen snapshot —
+      // it's looked up live from the current Chemical Inventory, so
+      // if an item is physically moved, every month's record (past
+      // and future) reflects where it is NOW, not where it was when
+      // that month happened to be saved. Falls back to the snapshot's
+      // own value only if the item no longer exists in the inventory.
+      var liveM = masterByCode(it['Item Code']);
+      var liveLocation = liveM ? liveM['Location'] : it['Location'];
       return '<tr>'
         + '<td>' + chmEsc(it['Item Code']) + '</td>'
         + '<td>' + chmEsc(it['Description']) + '</td>'
-        + '<td>' + chmEsc(it['Location']) + '</td>'
+        + '<td>' + chmEsc(liveLocation) + (!liveM ? ' <span class="badge kc-dim" title="Item no longer in Chemical Inventory — showing its last known location">as last recorded</span>' : '') + '</td>'
         + '<td>' + chmEsc(qty) + ' ' + chmEsc(it['UOM']) + '</td>'
         + '<td>' + delta + '</td>'
       + '</tr>';
@@ -871,6 +895,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var baseItems;
     if (isEdit){
       baseItems = parseStockItems(existingRec);
+      // Location is refreshed to the item's CURRENT Chemical Inventory
+      // location even when opening an old month for editing — it is
+      // never treated as part of what that month is meant to preserve
+      // historically (Qty is the only thing frozen per month).
+      baseItems.forEach(function(it){
+        var liveM = masterByCode(it['Item Code']);
+        if (liveM) it['Location'] = liveM['Location'];
+      });
       var haveCodes = {};
       baseItems.forEach(function(it){ haveCodes[it['Item Code']] = true; });
       getMasterRecs().forEach(function(m){
