@@ -177,6 +177,7 @@
       sourceFirstAidKitId: '', /* Rev.11 — set when this ACT record was forwarded from the First Aid Kit Monthly Inspection's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceContractorComplianceId: '', /* Rev.12 (Issam, 2026-10-15) — set when this ACT record was forwarded from the Contractor Compliance Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceOhSurveillanceId: '', /* Rev.13 (Issam, 2026-10-15) — set when this ACT record was forwarded from the OH Surveillance Log's "Escalate to Action" button. Carries only the Round ID — never a worker name or ID, matching that register's privacy-by-design. Mutually exclusive with the other source-* fields in practice. */
+      sourceChemicalSdsId: '', /* Rev.14 (Issam, 2026-10-17) — set when this ACT record was forwarded from the Chemical Inventory (GHS) SDS Review Log's "Escalate to Action" button. Carries a Review Ref — this is a paperwork/compliance chase (requesting an updated or missing supplier SDS), never a physical-safety emergency. Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -383,7 +384,9 @@
                         ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Contractor Compliance Review <strong>' + esc(state.sourceContractorComplianceId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that review entry too.</div>'
                         : (state.sourceOhSurveillanceId
                           ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from OH Surveillance Round <strong>' + esc(state.sourceOhSurveillanceId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that round too.</div>'
-                          : ''))))))))));
+                          : (state.sourceChemicalSdsId
+                            ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Chemical Inventory SDS Review <strong>' + esc(state.sourceChemicalSdsId) + '</strong> — a plain Action chasing a supplier SDS, not a physical-safety emergency: no root cause analysis, no approval gate. Closing this Action automatically closes that review entry too.</div>'
+                            : '')))))))))));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -584,6 +587,7 @@
               notifyFirstAidKitActionCompleted();
               notifyContractorComplianceActionCompleted();
               notifyOhSurveillanceActionCompleted();
+              notifyChemicalSdsActionCompleted();
               alert(state.capaId + ' marked Closed.'); closeWizard(); if (global.reloadLive) reloadLive();
             })
             .catch(function (err) { restoreButtons(); alert('Log saved, but status update failed to reach the live sheet: ' + err); });
@@ -1015,6 +1019,7 @@
       'Source First Aid Kit ID': state.sourceFirstAidKitId || '',
       'Source Contractor Compliance ID': state.sourceContractorComplianceId || '',
       'Source OH Surveillance ID': state.sourceOhSurveillanceId || '',
+      'Source Chemical SDS ID': state.sourceChemicalSdsId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
@@ -1397,6 +1402,18 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.14 (Issam, 2026-10-17) — mirrors notifySourceOhSurveillance()
+     exactly, for the Chemical Inventory SDS Review Log: writes the
+     durable "Action Reference" back to the one review that escalated
+     it. Tab key is 'chemical_sds_log'. Only fires on first save. */
+  function notifySourceChemicalSds() {
+    if (!state.sourceChemicalSdsId) return;
+    fetch(SHEETS_URL + '?action=update&tab=chemical_sds_log&idCol=' + encodeURIComponent('Review Ref') + '&id=' + encodeURIComponent(state.sourceChemicalSdsId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* Rev.09 (Issam, 2026-10-14) — mirrors notifyScaffoldInspectionActionCompleted()
      exactly, for the Fire Pump Test Log: once this ACT-lane record
      reaches Closed, the one log sheet that escalated it has its own
@@ -1460,6 +1477,20 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.14 (Issam, 2026-10-17) — mirrors notifyOhSurveillanceActionCompleted()
+     exactly, for the Chemical Inventory SDS Review Log: once this
+     ACT-lane record reaches Closed, the one review that escalated it
+     has its own Outcome overwritten to 'Closed' too — a terminal
+     value, meaning the chased supplier SDS has now been received and
+     reviewed. */
+  function notifyChemicalSdsActionCompleted() {
+    if (!state.sourceChemicalSdsId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=chemical_sds_log&idCol=' + encodeURIComponent('Review Ref') + '&id=' + encodeURIComponent(state.sourceChemicalSdsId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Outcome': 'Closed' }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* ── Save for the lightweight Action lane — one write, no steps ── */
   function persistAction() {
     if (saving) return;
@@ -1493,6 +1524,7 @@
             notifySourceFirstAidKit();
             notifySourceContractorCompliance();
             notifySourceOhSurveillance();
+            notifySourceChemicalSds();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
@@ -1504,6 +1536,7 @@
             notifyFirstAidKitActionCompleted();
             notifyContractorComplianceActionCompleted();
             notifyOhSurveillanceActionCompleted();
+            notifyChemicalSdsActionCompleted();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
@@ -1541,6 +1574,7 @@
             notifyFirstAidKitActionCompleted();
             notifyContractorComplianceActionCompleted();
             notifyOhSurveillanceActionCompleted();
+            notifyChemicalSdsActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1818,6 +1852,7 @@
     state.sourceFirstAidKitId = col('Source First Aid Kit ID');
     state.sourceContractorComplianceId = col('Source Contractor Compliance ID');
     state.sourceOhSurveillanceId = col('Source OH Surveillance ID');
+    state.sourceChemicalSdsId = col('Source Chemical SDS ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2751,6 +2786,25 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.14 (Issam, 2026-10-17) — Chemical Inventory SDS Review Log
+     hand-off — action-register.html?fromChemicalSds=CHM-REV-2026-0X&lane=ACT,
+     opened by chemical-inventory.html's "⚡ Escalate to Action" button.
+     Same sessionStorage-plus-URL-verification pattern as every other
+     hand-off above. This chases a supplier for an updated or missing
+     SDS — a paperwork/compliance gap, never a physical-safety
+     emergency — so it carries a Review Ref, not a worker or incident. */
+  function openFromChemicalSds(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceChemicalSdsId = ctx.entryId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Chemical Inventory SDS Review';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -2999,6 +3053,23 @@
         loadUserDirectory(function () { openFromOhSurveillance(ohsCtx); });
       } else {
         loadUserDirectory(function () { openFromOhSurveillance({ entryId: fromOhSurveillance }); });
+      }
+    }
+
+    /* Rev.14 (Issam, 2026-10-17) — Chemical Inventory SDS Review Log
+       hand-off — action-register.html?fromChemicalSds=CHM-REV-2026-0X&lane=ACT,
+       opened by chemical-inventory.html's "⚡ Escalate to Action"
+       button. Same sessionStorage-plus-URL-verification pattern as
+       every other hand-off above. */
+    var fromChemicalSds = params.get('fromChemicalSds');
+    if (fromChemicalSds) {
+      showLoadingWizard();
+      var chmCtx = null;
+      try { chmCtx = JSON.parse(sessionStorage.getItem('incomingChemicalSdsContext') || 'null'); } catch (e) { chmCtx = null; }
+      if (chmCtx && String(chmCtx.entryId) === String(fromChemicalSds)) {
+        loadUserDirectory(function () { openFromChemicalSds(chmCtx); });
+      } else {
+        loadUserDirectory(function () { openFromChemicalSds({ entryId: fromChemicalSds }); });
       }
     }
   }
