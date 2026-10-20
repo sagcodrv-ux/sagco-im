@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — PPE Issuance &amp; Safety Shoes Stock</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   PPE ISSUANCE & SAFETY SHOES STOCK — same dark navy/gold theme and
+   live-table/modal pattern as chemical-inventory.html. Scoped to
+   .ppw-dark-wrap, class prefix ppw-. Three live tables:
+   'ppe_shoes_stock' (4 fixed shoe SKU rows — baseline qty + baseline
+   date, the only PPE line this portal tracks quantity for),
+   'ppe_issuance_dept' (bulk department distributions — general PPE,
+   log only, no quantity tracking) and 'ppe_issuance_indiv'
+   (per-employee issuance — Safety Shoes / Ear Muffs / Safety Glass).
+
+   SCOPE, per Issam's explicit decision (2026-10-19): general PPE
+   (gloves, ear plugs, hair nets, masks, etc.) already has its
+   quantity managed in the ERP — the portal does NOT duplicate that,
+   it only logs issuance events. Safety Shoes are the one exception:
+   the portal DOES track a running remaining balance, because shoes
+   move out to individual workers the way general PPE batches do not.
+   ══════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════
+   CHEMICAL INVENTORY (GHS) REGISTER — same dark navy/gold theme as
+   oh-surveillance.html / crane-lifting.html / first-aid-kit.html.
+   Scoped to .ppw-dark-wrap, class prefix chw-. Two live tables:
+   'chemical_inv' (the stores master list — one row per item/chemical
+   exactly as supplied in Issam's OL_100126 stock sheet, 40 items, no
+   additions) and 'chemical_sds_log' (NEW — one row per SDS review
+   event, logging when each item's safety data sheet was checked and
+   whether it's current/needs updating/was never supplied).
+
+   SCOPE, per Issam's explicit instruction (2026-10-17): this register
+   covers ONLY the 40 items in OL_100126.xlsx. Chemicals with an MSDS
+   on file but NOT in that stock sheet (10 batch-house raw materials
+   from the first MSDS archive, and 5 decorative-coating/solvent
+   products — RD-8071, RD-8202, Blast Off, Thinners, Carbon/Anthracite
+   — from the second) are deliberately excluded from both tables.
+   ══════════════════════════════════════════════════════════════════ */
+.ppw-dark-wrap{
+  --ppw-bg:#0D1B35; --ppw-bg2:#142140; --ppw-bg3:#1a2a50;
+  --ppw-gold:#C9A84C; --ppw-gold-lt:#E8C97A;
+  --ppw-text:rgba(255,255,255,.92); --ppw-text-muted:rgba(255,255,255,.55);
+  --ppw-text-dim:rgba(255,255,255,.35); --ppw-border:rgba(255,255,255,.08);
+  --ppw-border-gold:rgba(201,168,76,.35);
+  --ppw-blue:#5B9BD5; --ppw-red:#F0685C; --ppw-amb:#E8B339; --ppw-grn:#4FCB9E; --ppw-purple:#9B7FE0;
+  background:var(--ppw-bg); color:var(--ppw-text); margin:0; padding:24px; min-height:100vh;
+}
+.ppw-dark-wrap *{box-sizing:border-box}
+.ppw-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.ppw-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--ppw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--ppw-bg2);
+  border-radius:8px;border:1px solid var(--ppw-border-gold)}
+.ppw-dark-wrap .back-link:hover{background:var(--ppw-bg3)}
+.ppw-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--ppw-bg2);
+  border-radius:8px;border-left:3px solid var(--ppw-gold);margin:10px 0;color:var(--ppw-text-muted)}
+.ppw-dark-wrap .flag-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.08);
+  border-radius:8px;border-left:3px solid var(--ppw-amb);margin:10px 0;color:var(--ppw-text-muted)}
+.ppw-dark-wrap .scope-text{font-size:11px;line-height:1.6;padding:12px 14px;background:rgba(155,127,224,.1);
+  border-radius:8px;border-left:3px solid var(--ppw-purple);margin:10px 0;color:var(--ppw-text-muted)}
+.ppw-dark-wrap .scope-text strong{color:var(--ppw-purple)}
+.ppw-dark-wrap .sec-banner{background:var(--ppw-bg2);color:var(--ppw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--ppw-border-gold);border-bottom:none}
+.ppw-dark-wrap .kpi-grid{display:grid;gap:14px}
+.ppw-dark-wrap .kpi-card{background:var(--ppw-bg2);border:1px solid var(--ppw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.ppw-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.ppw-dark-wrap .kpi-card.kc-nvy::before{background:var(--ppw-gold)}
+.ppw-dark-wrap .kpi-card.kc-blue::before{background:var(--ppw-blue)}
+.ppw-dark-wrap .kpi-card.kc-amb::before{background:var(--ppw-amb)}
+.ppw-dark-wrap .kpi-card.kc-red::before{background:var(--ppw-red)}
+.ppw-dark-wrap .kpi-card.kc-grn::before{background:var(--ppw-grn)}
+.ppw-dark-wrap .kpi-card.kc-purple::before{background:var(--ppw-purple)}
+.ppw-dark-wrap .kpi-lbl{font-size:10px;font-weight:700;color:var(--ppw-text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.ppw-dark-wrap .kpi-val{font-size:22px;font-weight:800;color:var(--ppw-text)}
+.ppw-dark-wrap .kpi-sub{font-size:10px;color:var(--ppw-text-dim);margin-top:2px}
+.ppw-dark-wrap .ppw-clickable{cursor:pointer}
+.ppw-dark-wrap .ppw-clickable:hover{background:var(--ppw-bg3)}
+.ppw-dark-wrap .chart-grid{display:grid;gap:14px}
+.ppw-dark-wrap .chart-card{background:var(--ppw-bg2);border:1px solid var(--ppw-border);border-radius:14px;padding:14px 16px}
+.ppw-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--ppw-text);
+  display:flex;justify-content:space-between;margin-bottom:8px}
+.ppw-dark-wrap .chart-sub{font-size:10px;color:var(--ppw-text-muted);font-weight:400}
+.ppw-dark-wrap .chart-wrap{height:220px;position:relative}
+.ppw-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.ppw-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--ppw-grn)}
+.ppw-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--ppw-red)}
+.ppw-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--ppw-amb)}
+.ppw-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--ppw-blue)}
+.ppw-dark-wrap .badge.kc-purple{background:rgba(155,127,224,.15);color:var(--ppw-purple)}
+.ppw-dark-wrap .badge.kc-dim{background:rgba(255,255,255,.08);color:var(--ppw-text-dim)}
+.ppw-dark-wrap .ppw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--ppw-bg2);border:1px solid var(--ppw-border-gold);border-top:none}
+.ppw-dark-wrap .ppw-toolbar input[type=text]{background:var(--ppw-bg3);border:1px solid var(--ppw-border);
+  color:var(--ppw-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:170px}
+.ppw-dark-wrap .ppw-toolbar select{background:var(--ppw-bg3);border:1px solid var(--ppw-border);
+  color:var(--ppw-text);border-radius:7px;padding:7px 10px;font-size:11px}
+.ppw-dark-wrap .ppw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--ppw-border-gold);
+  background:var(--ppw-bg3);color:var(--ppw-gold-lt);cursor:pointer}
+.ppw-dark-wrap .ppw-btn:hover{background:rgba(201,168,76,.15)}
+.ppw-dark-wrap .ppw-btn:disabled{opacity:.4;cursor:not-allowed}
+.ppw-dark-wrap .ppw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--ppw-grn)}
+.ppw-dark-wrap .ppw-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--ppw-amb)}
+.ppw-dark-wrap .ppw-table-wrap{border:1px solid var(--ppw-border-gold);border-top:none;max-height:420px;overflow:auto}
+.ppw-dark-wrap table.ppw-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.ppw-dark-wrap table.ppw-tbl th{position:sticky;top:0;background:var(--ppw-bg3);color:var(--ppw-gold-lt);
+  text-align:left;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--ppw-border-gold);white-space:nowrap}
+.ppw-dark-wrap table.ppw-tbl td{padding:7px 10px;border-bottom:1px solid var(--ppw-border);color:var(--ppw-text)}
+.ppw-dark-wrap table.ppw-tbl tr.ppw-row{cursor:pointer}
+.ppw-dark-wrap table.ppw-tbl tr.ppw-row:hover{background:var(--ppw-bg3)}
+.ppw-dark-wrap table.ppw-tbl tr.ppw-row.ppw-sel{background:rgba(201,168,76,.12)}
+.ppw-dark-wrap .empty-state{padding:30px;text-align:center;color:var(--ppw-text-dim);font-size:11px}
+.ppw-dark-wrap .empty-state strong{display:block;color:var(--ppw-text-muted);margin-bottom:4px;font-size:12px}
+/* Modal */
+.ppw-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;
+  justify-content:center;z-index:999;padding:30px 14px;overflow:auto}
+.ppw-modal{background:var(--ppw-bg2);border:1px solid var(--ppw-border-gold);border-radius:14px;
+  padding:20px 22px;max-width:1000px;width:100%;color:var(--ppw-text)}
+.ppw-modal h3{margin:0 0 12px;font-size:14px;color:var(--ppw-gold-lt)}
+.ppw-modal-hdr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.ppw-modal-hdr-grid label, .ppw-field label{display:block;font-size:10px;font-weight:600;color:var(--ppw-text-muted);
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.ppw-modal-hdr-grid input, .ppw-modal-hdr-grid select, .ppw-modal-hdr-grid textarea{width:100%;background:var(--ppw-bg3);
+  border:1px solid var(--ppw-border);color:var(--ppw-text);border-radius:7px;padding:7px 9px;font-size:12px}
+.ppw-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.ppw-note{font-size:10.5px;color:var(--ppw-amb);background:rgba(232,179,57,.1);border-left:3px solid var(--ppw-amb);
+  padding:8px 10px;border-radius:6px;margin-bottom:12px;line-height:1.5}
+</style>
+</head><body><div class="ppw-dark-wrap">
+<div class="back-row"><a href="ppe-register.html" class="back-link">← PPE Compliance Register</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div>
+<div class="req-text">L4-SHEE-PR-03-R-01/02 · ISO 45001 §8.1 — PPE Programme (PR-03) · MHRSD Safety Regulations — tracks every PPE issuance event (who received what, when, how much) and keeps a running stock balance for Safety Shoes, the one PPE line whose quantity is not already managed in the ERP.</div>
+<div class="scope-text"><strong>SCOPE</strong> — general PPE (gloves, ear plugs, hair nets, masks, uniforms, etc.) already has its quantity managed in the ERP Stores system; this register does <strong>not</strong> duplicate that — it only logs each issuance event, as a durable record of who got what. <strong>Safety Shoes are the one exception</strong>: because shoes are issued individually and worn out over time, the portal tracks a real running balance here (baseline quantity, issued, remaining) the way general PPE does not need.</div>
+<div class="flag-text">⚠ Source: HSE_Department.xlsm (PPEsStoreCode / PPEs / ShoesSizes / MR tabs) and the "15. PPE Register" 2026 folder (PPE Issuance Log.xlsx — "Dept. Monthly distrub" and "PPEs" sheets), migrated Jan–Sep 2026. <strong>Open item for Issam:</strong> the Safety Shoes baseline quantities below are read from the ERP's "Count" column as of 18-Oct-2026 (the file's last-saved date) — <em>after</em> every 2026 shoe issuance already in this log. That means Issued/Remaining below only count issuances dated <em>after</em> 18-Oct-2026 going forward; the historical Jan–Sep rows are kept for reference but are not re-subtracted from the baseline. If the ERP Count is actually a start-of-year figure instead, tell me and the math flips. Also unresolved: the "Staff" shoe category in the issuance log has two candidate ERP SKUs (lace-type vs. slip-on) — see the Notes column in section 1.</div>
+
+<div class="sec-banner">PPE ISSUANCE — QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Safety Shoes Remaining</div><div class="kpi-val" id="ppw-kpi-shoes-remaining">—</div><div class="kpi-sub">Across all 4 SKUs</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">Shoe Pairs Issued (2026)</div><div class="kpi-val" id="ppw-kpi-shoes-issued">—</div><div class="kpi-sub">Individual issuance log</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Dept. Distribution Events</div><div class="kpi-val" id="ppw-kpi-dept-count">—</div><div class="kpi-sub">General PPE, bulk</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Individual Issuance Events</div><div class="kpi-val" id="ppw-kpi-indiv-count">—</div><div class="kpi-sub">Shoes / Ear Muffs / Glasses</div></div>
+</div>
+
+<div class="sec-banner">1. SAFETY SHOES STOCK — baseline + running remaining</div>
+<div class="flag-text" style="margin-top:14px">The only PPE line this portal tracks quantity for. Baseline Qty and Baseline Date come from the ERP; Issued counts only issuance dated after the baseline; Remaining = Baseline − Issued. Select a row and click "Correct Baseline" if the ERP figure or date needs adjusting — never edit this by editing individual issuance rows.</div>
+<div class="ppw-toolbar" style="border-top:1px solid var(--ppw-border-gold)">
+  <button class="ppw-btn" id="ppw-stock-btn-edit" disabled onclick="PPW.openStockEditSelected()">Correct Baseline</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--ppw-text-dim)" id="ppw-stock-count-sub"></span>
+</div>
+<div class="ppw-table-wrap"><div id="live-table-shoes-stock"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div class="sec-banner">2. PPE ISSUANCE LOG — DEPARTMENT / BULK DISTRIBUTION (general PPE)</div>
+<div class="ppw-toolbar" style="border-top:1px solid var(--ppw-border-gold)">
+  <input type="text" id="ppw-dept-search" placeholder="Search item / description / dept…" oninput="PPW.onDeptSearch(this.value)">
+  <button class="ppw-btn ppw-btn-add" id="ppw-dept-btn-new" onclick="PPW.openDeptAdd()">+ New Distribution</button>
+  <button class="ppw-btn" id="ppw-dept-btn-edit" disabled onclick="PPW.openDeptEditSelected()">Open / Edit</button>
+  <button class="ppw-btn" id="ppw-dept-btn-remove" disabled onclick="PPW.removeDeptSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--ppw-text-dim)" id="ppw-dept-count-sub"></span>
+</div>
+<div class="ppw-table-wrap"><div id="live-table-dept"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div class="sec-banner">3. PPE ISSUANCE LOG — INDIVIDUAL (Safety Shoes / Ear Muffs / Safety Glass)</div>
+<div class="ppw-toolbar" style="border-top:1px solid var(--ppw-border-gold)">
+  <input type="text" id="ppw-indiv-search" placeholder="Search employee / ID / dept…" oninput="PPW.onIndivSearch(this.value)">
+  <select id="ppw-indiv-type-filter" onchange="PPW.onIndivTypeFilter(this.value)">
+    <option value="">All PPE types</option>
+    <option value="Safety Shoes">Safety Shoes</option>
+    <option value="Ear Muffs">Ear Muffs</option>
+    <option value="Safety Glass">Safety Glass</option>
+  </select>
+  <button class="ppw-btn ppw-btn-add" id="ppw-indiv-btn-new" onclick="PPW.openIndivAdd()">+ New Issuance</button>
+  <button class="ppw-btn" id="ppw-indiv-btn-edit" disabled onclick="PPW.openIndivEditSelected()">Open / Edit</button>
+  <button class="ppw-btn" id="ppw-indiv-btn-remove" disabled onclick="PPW.removeIndivSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--ppw-text-dim)" id="ppw-indiv-count-sub"></span>
+</div>
+<div class="ppw-table-wrap"><div id="live-table-indiv"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div id="ppw-modal-root"></div>
+
+<script>
+(function(){
+
+  var STOCK = { tabKey:'ppe_shoes_stock',    containerId:'live-table-shoes-stock', idCol:'Item Code' };
+  var DEPT  = { tabKey:'ppe_issuance_dept',  containerId:'live-table-dept',        idCol:'Record ID' };
+  var INDIV = { tabKey:'ppe_issuance_indiv', containerId:'live-table-indiv',       idCol:'Record ID' };
+  var STATUS_COL = 'Record Status';
+
+  var _stockCache = null, _deptCache = null, _indivCache = null;
+  var _stockSelected = null, _deptSelected = null, _indivSelected = null;
+  var _deptFilters = { search:'' };
+  var _indivFilters = { search:'', type:'' };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function ppEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+
+  // Synthetic Record IDs for the two log tables, same <PREFIX>-<year>-<seq>
+  // convention as Chemical Inventory's Review Refs.
+  function nextRecordId(cache, prefix, idCol){
+    var year = new Date().getFullYear();
+    if (!cache || !cache.headers || !cache.rows) return prefix + '-' + year + '-0001';
+    var idIdx = colIdx(cache.headers, idCol);
+    if (idIdx < 0) return prefix + '-' + year + '-0001';
+    var maxN = 0;
+    cache.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      var m = v.match(new RegExp('^'+prefix+'-(\\d{4})-(\\d+)$'));
+      if (m){ var n = parseInt(m[2],10); if (n > maxN) maxN = n; }
+    });
+    var numStr = String(maxN + 1); while (numStr.length < 4) numStr = '0' + numStr;
+    return prefix + '-' + year + '-' + numStr;
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){
+    return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
+  }
+
+  function loadAll(){
+    return Promise.all([
+      loadTab(STOCK.tabKey).then(function(data){ _stockCache = filterActive(data); }).catch(function(){ _stockCache = null; }),
+      loadTab(DEPT.tabKey).then(function(data){ _deptCache = filterActive(data); }).catch(function(){ _deptCache = null; }),
+      loadTab(INDIV.tabKey).then(function(data){ _indivCache = filterActive(data); }).catch(function(){ _indivCache = null; })
+    ]).then(render);
+  }
+  function filterActive(data){
+    if (data && data.headers && data.rows){
+      var si = colIdx(data.headers, STATUS_COL);
+      if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+    }
+    return data;
+  }
+
+  function getStockRecs(){ if (!_stockCache || !_stockCache.headers || !_stockCache.rows) return []; return _stockCache.rows.map(function(r){ return recFromRow(_stockCache.headers, r); }); }
+  function getDeptRecs(){ if (!_deptCache || !_deptCache.headers || !_deptCache.rows) return []; return _deptCache.rows.map(function(r){ return recFromRow(_deptCache.headers, r); }); }
+  function getIndivRecs(){ if (!_indivCache || !_indivCache.headers || !_indivCache.rows) return []; return _indivCache.rows.map(function(r){ return recFromRow(_indivCache.headers, r); }); }
+
+  // Issued-after-baseline: counts individual-issuance rows for this
+  // Item Code dated strictly after the stock row's own Baseline Date —
+  // never the historical rows the baseline already accounts for.
+  function issuedAfterBaseline(code, baselineDate){
+    if (!code || !baselineDate) return 0;
+    var bd = new Date(baselineDate);
+    if (isNaN(bd.getTime())) return 0;
+    return getIndivRecs().filter(function(r){
+      if (r['Item Code'] !== code) return false;
+      var rd = new Date(r['Date']);
+      return !isNaN(rd.getTime()) && rd > bd;
+    }).length;
+  }
+
+  function render(){
+    var stockRecs = getStockRecs(), deptRecs = getDeptRecs(), indivRecs = getIndivRecs();
+
+    var totalRemaining = 0;
+    stockRecs.forEach(function(s){
+      var issued = issuedAfterBaseline(s['Item Code'], s['Baseline Date']);
+      var remaining = (parseFloat(s['Baseline Qty']) || 0) - issued;
+      totalRemaining += remaining;
+    });
+    var shoesIssued2026 = indivRecs.filter(function(r){ return r['PPE Type'] === 'Safety Shoes'; }).length;
+    setTxt('ppw-kpi-shoes-remaining', totalRemaining);
+    setTxt('ppw-kpi-shoes-issued', shoesIssued2026);
+    setTxt('ppw-kpi-dept-count', deptRecs.length);
+    setTxt('ppw-kpi-indiv-count', indivRecs.length);
+
+    renderStockTable(stockRecs);
+    renderDeptTable(deptRecs);
+    renderIndivTable(indivRecs);
+  }
+
+  /* ── Section 1: Safety Shoes Stock ───────────────────────────── */
+  function renderStockTable(recs){
+    var el = document.getElementById(STOCK.containerId);
+    setTxt('ppw-stock-count-sub', recs.length + ' SKUs tracked');
+    if (!recs.length){
+      el.innerHTML = '<div class="empty-state"><strong>No shoe SKUs on file</strong></div>';
+      updateStockButtons();
+      return;
+    }
+    var rows = recs.map(function(s){
+      var sel = _stockSelected === s['Item Code'];
+      var issued = issuedAfterBaseline(s['Item Code'], s['Baseline Date']);
+      var baseline = parseFloat(s['Baseline Qty']) || 0;
+      var remaining = baseline - issued;
+      var remBadge = remaining <= 15 ? '<span class="badge kc-red">' + remaining + ' — low</span>'
+        : (remaining <= 50 ? '<span class="badge kc-amb">' + remaining + '</span>' : '<span class="badge kc-grn">' + remaining + '</span>');
+      return '<tr class="ppw-row' + (sel?' ppw-sel':'') + '" onclick="PPW.selectStock(\'' + ppEsc(s['Item Code']) + '\')">'
+        + '<td>' + ppEsc(s['Item Code']) + '</td>'
+        + '<td>' + ppEsc(s['Description']) + '</td>'
+        + '<td>' + ppEsc(baseline) + '</td>'
+        + '<td>' + ppEsc(s['Baseline Date']) + '</td>'
+        + '<td>' + issued + '</td>'
+        + '<td>' + remBadge + '</td>'
+        + '<td style="font-size:10px;color:var(--ppw-text-dim);max-width:260px">' + ppEsc(s['Notes']) + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="ppw-tbl"><thead><tr><th>Item Code</th><th>Description</th><th>Baseline Qty</th><th>Baseline Date</th><th>Issued (since)</th><th>Remaining</th><th>Notes</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateStockButtons();
+  }
+  function updateStockButtons(){
+    var s = getSelectedStock();
+    document.getElementById('ppw-stock-btn-edit').disabled = !s || !can('edit');
+  }
+  function getSelectedStock(){
+    if (!_stockCache || !_stockSelected) return null;
+    var idIdx = colIdx(_stockCache.headers, STOCK.idCol);
+    var row = _stockCache.rows.find(function(r){ return String(r[idIdx]) === String(_stockSelected); });
+    return row ? recFromRow(_stockCache.headers, row) : null;
+  }
+  function getStockOptions(){
+    return getStockRecs().map(function(s){ return { code: s['Item Code'], label: s['Item Code'] + ' — ' + s['Description'] }; });
+  }
+  function buildStockModal(rec){
+    var root = document.getElementById('ppw-modal-root');
+    root.innerHTML = '<div class="ppw-modal-bg" id="ppw-bg"><div class="ppw-modal">'
+      + '<h3>Correct Baseline — ' + ppEsc(rec['Item Code']) + '</h3>'
+      + '<div class="ppw-modal-hdr-grid" style="grid-template-columns:repeat(2,1fr)">'
+        + '<div><label>Baseline Qty</label><input type="number" step="any" id="ppw-s-qty" value="' + ppEsc(rec['Baseline Qty']) + '"></div>'
+        + '<div><label>Baseline Date</label><input type="date" id="ppw-s-date" value="' + ppEsc(rec['Baseline Date']) + '"></div>'
+      + '</div>'
+      + '<div class="ppw-field" style="margin-bottom:14px"><label>Notes</label><textarea id="ppw-s-notes" rows="3" style="width:100%;background:var(--ppw-bg3);border:1px solid var(--ppw-border);color:var(--ppw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + ppEsc(rec['Notes']) + '</textarea></div>'
+      + '<div class="ppw-note">Changing the baseline date resets which individual issuance rows count toward "Issued since" — only issuance dated strictly after this date will be subtracted from the quantity above.</div>'
+      + '<div class="ppw-modal-actions"><button class="ppw-btn" id="ppw-s-cancel">Cancel</button><button class="ppw-btn ppw-btn-add" id="ppw-s-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('ppw-s-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('ppw-bg').onclick = function(e){ if (e.target.id==='ppw-bg') root.innerHTML=''; };
+    document.getElementById('ppw-s-save').onclick = function(){ saveStock(rec['Item Code']); };
+  }
+  function saveStock(code){
+    var root = document.getElementById('ppw-modal-root');
+    var btn = document.getElementById('ppw-s-save'); btn.disabled = true;
+    var values = {
+      'Baseline Qty': document.getElementById('ppw-s-qty').value,
+      'Baseline Date': document.getElementById('ppw-s-date').value,
+      'Notes': document.getElementById('ppw-s-notes').value.trim()
+    };
+    postJSON('update', {tab: STOCK.tabKey, idCol: STOCK.idCol, id: code}, values).then(function(res){
+      if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); btn.disabled=false; return; }
+      root.innerHTML=''; loadAll();
+    }).catch(function(){ alert('Could not save — check your connection.'); btn.disabled=false; });
+  }
+
+  /* ── Section 2: Dept / bulk distribution log ─────────────────── */
+  function filteredDept(recs){
+    var f = _deptFilters;
+    return recs.filter(function(r){
+      if (f.search){
+        var hay = ((r['Item Code']||'')+' '+(r['PPE Type']||'')+' '+(r['Dept.']||'')).toLowerCase();
+        if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+      }
+      return true;
+    });
+  }
+  function renderDeptTable(recs){
+    var list = filteredDept(recs);
+    var el = document.getElementById(DEPT.containerId);
+    setTxt('ppw-dept-count-sub', list.length + ' of ' + recs.length + ' events shown');
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No distributions logged yet</strong>Log the first bulk distribution to get started.</div>';
+      updateDeptButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Date']||'').localeCompare(String(a['Date']||'')); });
+    var rows = list.map(function(r){
+      var sel = _deptSelected === r['Record ID'];
+      return '<tr class="ppw-row' + (sel?' ppw-sel':'') + '" onclick="PPW.selectDept(\'' + ppEsc(r['Record ID']) + '\')">'
+        + '<td>' + ppEsc(r['Date']) + '</td>'
+        + '<td>' + ppEsc(r['MR#']) + '</td>'
+        + '<td>' + ppEsc(r['Item Code']) + '</td>'
+        + '<td>' + ppEsc(r['PPE Type']) + '</td>'
+        + '<td>' + ppEsc(r['Qty.']) + ' ' + ppEsc(r['UOM']) + '</td>'
+        + '<td>' + ppEsc(r['Dept.']) + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="ppw-tbl"><thead><tr><th>Date</th><th>MR#</th><th>Item Code</th><th>PPE Type</th><th>Qty.</th><th>Dept.</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateDeptButtons();
+  }
+  function updateDeptButtons(){
+    var r = getSelectedDept();
+    document.getElementById('ppw-dept-btn-edit').disabled = !r;
+    document.getElementById('ppw-dept-btn-remove').disabled = !r || !can('delete');
+  }
+  function getSelectedDept(){
+    if (!_deptCache || !_deptSelected) return null;
+    var idIdx = colIdx(_deptCache.headers, DEPT.idCol);
+    var row = _deptCache.rows.find(function(r){ return String(r[idIdx]) === String(_deptSelected); });
+    return row ? recFromRow(_deptCache.headers, row) : null;
+  }
+  function buildDeptModal(existingRec){
+    var root = document.getElementById('ppw-modal-root');
+    var isEdit = !!existingRec;
+    var rid = isEdit ? existingRec['Record ID'] : nextRecordId(_deptCache, 'PPD', DEPT.idCol);
+    root.innerHTML = '<div class="ppw-modal-bg" id="ppw-bg"><div class="ppw-modal">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' Department Distribution' + (isEdit?' — '+ppEsc(rid):'') + '</h3>'
+      + '<div class="ppw-modal-hdr-grid">'
+        + '<div><label>Date</label><input type="date" id="ppw-d-date" value="' + ppEsc(existingRec?existingRec['Date']:new Date().toISOString().slice(0,10)) + '"></div>'
+        + '<div><label>MR#</label><input type="text" id="ppw-d-mr" value="' + ppEsc(existingRec?existingRec['MR#']:'') + '"></div>'
+        + '<div><label>Item Code</label><input type="text" id="ppw-d-code" value="' + ppEsc(existingRec?existingRec['Item Code']:'') + '" placeholder="e.g. CN-319-02-0006"></div>'
+        + '<div><label>PPE Type / Description</label><input type="text" id="ppw-d-type" value="' + ppEsc(existingRec?existingRec['PPE Type']:'') + '"></div>'
+        + '<div><label>Qty.</label><input type="number" step="any" id="ppw-d-qty" value="' + ppEsc(existingRec?existingRec['Qty.']:'') + '"></div>'
+        + '<div><label>UOM</label><input type="text" id="ppw-d-uom" value="' + ppEsc(existingRec?existingRec['UOM']:'Pair') + '"></div>'
+        + '<div><label>Dept.</label><input type="text" id="ppw-d-dept" value="' + ppEsc(existingRec?existingRec['Dept.']:'') + '"></div>'
+      + '</div>'
+      + '<div class="ppw-note">General PPE distribution — this is a log entry only. It does not affect any stock quantity (that is managed in the ERP), except Safety Shoes, which are logged in section 3 instead, by individual.</div>'
+      + '<div class="ppw-modal-actions"><button class="ppw-btn" id="ppw-d-cancel">Cancel</button><button class="ppw-btn ppw-btn-add" id="ppw-d-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('ppw-d-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('ppw-bg').onclick = function(e){ if (e.target.id==='ppw-bg') root.innerHTML=''; };
+    document.getElementById('ppw-d-save').onclick = function(){ saveDept(isEdit, rid); };
+  }
+  function saveDept(isEdit, rid){
+    var root = document.getElementById('ppw-modal-root');
+    var btn = document.getElementById('ppw-d-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    var code = document.getElementById('ppw-d-code').value.trim();
+    if (!code){ alert('Item Code is required.'); reenable(); return; }
+    var values = {
+      'Record ID': rid,
+      'Date': document.getElementById('ppw-d-date').value,
+      'MR#': document.getElementById('ppw-d-mr').value.trim(),
+      'Item Code': code,
+      'PPE Type': document.getElementById('ppw-d-type').value.trim(),
+      'Qty.': document.getElementById('ppw-d-qty').value,
+      'UOM': document.getElementById('ppw-d-uom').value.trim(),
+      'Dept.': document.getElementById('ppw-d-dept').value.trim()
+    };
+    if (isEdit){
+      postJSON('update', {tab: DEPT.tabKey, idCol: DEPT.idCol, id: rid}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: DEPT.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ── Section 3: Individual issuance log ──────────────────────── */
+  function filteredIndiv(recs){
+    var f = _indivFilters;
+    return recs.filter(function(r){
+      if (f.type && r['PPE Type'] !== f.type) return false;
+      if (f.search){
+        var hay = ((r['Employee ID']||'')+' '+(r['Employee Name']||'')+' '+(r['Dept.']||'')).toLowerCase();
+        if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+      }
+      return true;
+    });
+  }
+  function renderIndivTable(recs){
+    var list = filteredIndiv(recs);
+    var el = document.getElementById(INDIV.containerId);
+    setTxt('ppw-indiv-count-sub', list.length + ' of ' + recs.length + ' events shown');
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No individual issuance logged yet</strong>Log the first issuance to get started.</div>';
+      updateIndivButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Date']||'').localeCompare(String(a['Date']||'')); });
+    var rows = list.map(function(r){
+      var sel = _indivSelected === r['Record ID'];
+      var sizeOrCode = r['PPE Type']==='Safety Shoes'
+        ? ('Size ' + ppEsc(r['Shoe Size']) + (r['Item Code'] ? ' <span style="color:var(--ppw-text-dim)">('+ppEsc(r['Item Code'])+')</span>' : ' <span class="badge kc-amb">SKU TBD</span>'))
+        : (r['Item Code'] ? ppEsc(r['Item Code']) : '—');
+      return '<tr class="ppw-row' + (sel?' ppw-sel':'') + '" onclick="PPW.selectIndiv(\'' + ppEsc(r['Record ID']) + '\')">'
+        + '<td>' + ppEsc(r['Date']) + '</td>'
+        + '<td>' + ppEsc(r['Employee ID']) + '</td>'
+        + '<td>' + ppEsc(r['Employee Name']) + '</td>'
+        + '<td>' + ppEsc(r['Dept.']) + '</td>'
+        + '<td>' + ppEsc(r['PPE Type']) + '</td>'
+        + '<td>' + ppEsc(r['Category']) + '</td>'
+        + '<td>' + sizeOrCode + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="ppw-tbl"><thead><tr><th>Date</th><th>Emp. ID</th><th>Name</th><th>Dept.</th><th>PPE Type</th><th>Category</th><th>Size / SKU</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateIndivButtons();
+  }
+  function updateIndivButtons(){
+    var r = getSelectedIndiv();
+    document.getElementById('ppw-indiv-btn-edit').disabled = !r;
+    document.getElementById('ppw-indiv-btn-remove').disabled = !r || !can('delete');
+  }
+  function getSelectedIndiv(){
+    if (!_indivCache || !_indivSelected) return null;
+    var idIdx = colIdx(_indivCache.headers, INDIV.idCol);
+    var row = _indivCache.rows.find(function(r){ return String(r[idIdx]) === String(_indivSelected); });
+    return row ? recFromRow(_indivCache.headers, row) : null;
+  }
+  var INDIV_TYPE_OPTS = ['Safety Shoes','Ear Muffs','Safety Glass'];
+  var INDIV_CAT_OPTS = ['Heavy Duty','Staff'];
+  function buildIndivModal(existingRec){
+    var root = document.getElementById('ppw-modal-root');
+    var isEdit = !!existingRec;
+    var rid = isEdit ? existingRec['Record ID'] : nextRecordId(_indivCache, 'PPI', INDIV.idCol);
+    var ppeType = existingRec ? existingRec['PPE Type'] : 'Safety Shoes';
+    var typeOpts = INDIV_TYPE_OPTS.map(function(t){ return '<option value="'+t+'"'+(t===ppeType?' selected':'')+'>'+t+'</option>'; }).join('');
+    var catOpts = '<option value="">—</option>' + INDIV_CAT_OPTS.map(function(c){ return '<option value="'+c+'"'+((existingRec&&existingRec['Category']===c)?' selected':'')+'>'+c+'</option>'; }).join('');
+    var shoeOpts = '<option value="">-- select SKU --</option>' + getStockOptions().map(function(o){
+      return '<option value="'+ppEsc(o.code)+'"'+((existingRec&&existingRec['Item Code']===o.code)?' selected':'')+'>'+ppEsc(o.label)+'</option>';
+    }).join('');
+    root.innerHTML = '<div class="ppw-modal-bg" id="ppw-bg"><div class="ppw-modal">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' Individual Issuance' + (isEdit?' — '+ppEsc(rid):'') + '</h3>'
+      + '<div class="ppw-modal-hdr-grid">'
+        + '<div><label>Date</label><input type="date" id="ppw-i-date" value="' + ppEsc(existingRec?existingRec['Date']:new Date().toISOString().slice(0,10)) + '"></div>'
+        + '<div><label>Employee ID</label><input type="text" id="ppw-i-empid" value="' + ppEsc(existingRec?existingRec['Employee ID']:'') + '"></div>'
+        + '<div><label>Employee Name</label><input type="text" id="ppw-i-empname" value="' + ppEsc(existingRec?existingRec['Employee Name']:'') + '"></div>'
+        + '<div><label>Dept.</label><input type="text" id="ppw-i-dept" value="' + ppEsc(existingRec?existingRec['Dept.']:'') + '"></div>'
+        + '<div><label>PPE Type</label><select id="ppw-i-type" onchange="PPW.onIndivTypeChange(this.value)">' + typeOpts + '</select></div>'
+        + '<div id="ppw-i-shoe-fields" style="display:' + (ppeType==='Safety Shoes'?'contents':'none') + '">'
+          + '<div><label>Category</label><select id="ppw-i-cat">' + catOpts + '</select></div>'
+          + '<div><label>Shoe Size</label><input type="number" id="ppw-i-size" value="' + ppEsc(existingRec?existingRec['Shoe Size']:'') + '"></div>'
+          + '<div><label>ERP SKU (Item Code)</label><select id="ppw-i-code">' + shoeOpts + '</select></div>'
+        + '</div>'
+        + '<div><label>MR# <span style="opacity:.6;text-transform:none">(optional)</span></label><input type="text" id="ppw-i-mr" value="' + ppEsc(existingRec?existingRec['MR#']:'') + '"></div>'
+      + '</div>'
+      + '<div class="ppw-note" id="ppw-i-note">For Safety Shoes, picking the exact ERP SKU lets this issuance count against that SKU\'s Remaining balance in section 1. If the SKU is left blank (e.g. the "Staff" model isn\'t confirmed yet), it will still appear in this log but won\'t be deducted from any stock line.</div>'
+      + '<div class="ppw-modal-actions"><button class="ppw-btn" id="ppw-i-cancel">Cancel</button><button class="ppw-btn ppw-btn-add" id="ppw-i-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('ppw-i-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('ppw-bg').onclick = function(e){ if (e.target.id==='ppw-bg') root.innerHTML=''; };
+    document.getElementById('ppw-i-save').onclick = function(){ saveIndiv(isEdit, rid); };
+  }
+  function saveIndiv(isEdit, rid){
+    var root = document.getElementById('ppw-modal-root');
+    var btn = document.getElementById('ppw-i-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    var ppeType = document.getElementById('ppw-i-type').value;
+    var isShoe = ppeType === 'Safety Shoes';
+    var values = {
+      'Record ID': rid,
+      'Employee ID': document.getElementById('ppw-i-empid').value.trim(),
+      'Employee Name': document.getElementById('ppw-i-empname').value.trim(),
+      'PPE Type': ppeType,
+      'Date': document.getElementById('ppw-i-date').value,
+      'Category': isShoe ? document.getElementById('ppw-i-cat').value : '',
+      'Shoe Size': isShoe ? document.getElementById('ppw-i-size').value : '',
+      'Item Code': isShoe ? document.getElementById('ppw-i-code').value : '',
+      'MR#': document.getElementById('ppw-i-mr').value.trim(),
+      'Dept.': document.getElementById('ppw-i-dept').value.trim()
+    };
+    if (!values['Employee Name']){ alert('Employee Name is required.'); reenable(); return; }
+    if (isEdit){
+      postJSON('update', {tab: INDIV.tabKey, idCol: INDIV.idCol, id: rid}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: INDIV.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.PPW = {
+    selectStock: function(id){ _stockSelected = (_stockSelected!==null && String(_stockSelected)===String(id)) ? null : id; render(); },
+    openStockEditSelected: function(){ var s=getSelectedStock(); if(!s) return alert('Select a row first.'); buildStockModal(s); },
+
+    onDeptSearch: function(v){ _deptFilters.search = v; render(); },
+    selectDept: function(id){ _deptSelected = (_deptSelected!==null && String(_deptSelected)===String(id)) ? null : id; render(); },
+    openDeptAdd: function(){ if (can('add')) buildDeptModal(null); },
+    openDeptEditSelected: function(){ var r=getSelectedDept(); if(!r) return alert('Select a row first.'); buildDeptModal(r); },
+    removeDeptSelected: function(){
+      if (!can('delete')) return;
+      var r = getSelectedDept(); if(!r) return alert('Select a row first.');
+      if (!confirm('Remove this distribution record (' + r['Record ID'] + ')? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: DEPT.tabKey, idCol: DEPT.idCol, id: r['Record ID']}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status==='error'){ alert('Remove failed: '+(res.message||'unknown error')); return; }
+        _deptSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+
+    onIndivSearch: function(v){ _indivFilters.search = v; render(); },
+    onIndivTypeFilter: function(v){ _indivFilters.type = v; render(); },
+    onIndivTypeChange: function(v){
+      var sf = document.getElementById('ppw-i-shoe-fields');
+      if (sf) sf.style.display = (v === 'Safety Shoes') ? 'contents' : 'none';
+    },
+    selectIndiv: function(id){ _indivSelected = (_indivSelected!==null && String(_indivSelected)===String(id)) ? null : id; render(); },
+    openIndivAdd: function(){ if (can('add')) buildIndivModal(null); },
+    openIndivEditSelected: function(){ var r=getSelectedIndiv(); if(!r) return alert('Select a row first.'); buildIndivModal(r); },
+    removeIndivSelected: function(){
+      if (!can('delete')) return;
+      var r = getSelectedIndiv(); if(!r) return alert('Select a row first.');
+      if (!confirm('Remove this issuance record (' + r['Record ID'] + ')? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: INDIV.tabKey, idCol: INDIV.idCol, id: r['Record ID']}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status==='error'){ alert('Remove failed: '+(res.message||'unknown error')); return; }
+        _indivSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadAll(); }, 100);
+  });
+})();
+</script>
+
+<script>
+/* ── Access gate: identical rule to chemical-inventory.html / oh-surveillance.html / crane-lifting.html ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The PPE Issuance &amp; Safety Shoes Stock register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+
+</div></body></html>
