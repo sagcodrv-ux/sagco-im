@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Shift Area Safety Inspection</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   SHIFT AREA SAFETY INSPECTION REGISTER — same dark navy/gold theme
+   and live-table/modal pattern as chemical-inventory.html /
+   ppe-issuance.html. Scoped to .aiw-dark-wrap, class prefix aiw-.
+   One live table: 'area_inspection' (one row per shift inspection
+   event, following the HSE-FRM-06 Shift Area Safety Inspection form:
+   3 checklist sections — Housekeeping & Storage, Machinery Safety,
+   Firefighting Equipment — plus free-text Accident/Incident, PPE
+   Violations and Other Observations fields).
+
+   Two reporting views are built on top of the same live data, no
+   extra server calls: a per-record printable "Area Inspection Slip"
+   (mirrors the original bilingual HSE-FRM-06 layout) and a date-range
+   "Summary Report" (aggregated counts/trends across the filtered set).
+   Both use window.print() + @media print, consistent with a portal
+   that otherwise has no PDF-export dependency.
+   ══════════════════════════════════════════════════════════════════ */
+.aiw-dark-wrap{
+  --aiw-bg:#0D1B35; --aiw-bg2:#142140; --aiw-bg3:#1a2a50;
+  --aiw-gold:#C9A84C; --aiw-gold-lt:#E8C97A;
+  --aiw-text:rgba(255,255,255,.92); --aiw-text-muted:rgba(255,255,255,.55);
+  --aiw-text-dim:rgba(255,255,255,.35); --aiw-border:rgba(255,255,255,.08);
+  --aiw-border-gold:rgba(201,168,76,.35);
+  --aiw-blue:#5B9BD5; --aiw-red:#F0685C; --aiw-amb:#E8B339; --aiw-grn:#4FCB9E; --aiw-purple:#9B7FE0;
+  background:var(--aiw-bg); color:var(--aiw-text); margin:0; padding:24px; min-height:100vh;
+}
+.aiw-dark-wrap *{box-sizing:border-box}
+.aiw-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.aiw-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--aiw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--aiw-bg2);
+  border-radius:8px;border:1px solid var(--aiw-border-gold)}
+.aiw-dark-wrap .back-link:hover{background:var(--aiw-bg3)}
+.aiw-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--aiw-bg2);
+  border-radius:8px;border-left:3px solid var(--aiw-gold);margin:10px 0;color:var(--aiw-text-muted)}
+.aiw-dark-wrap .flag-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.08);
+  border-radius:8px;border-left:3px solid var(--aiw-amb);margin:10px 0;color:var(--aiw-text-muted)}
+.aiw-dark-wrap .scope-text{font-size:11px;line-height:1.6;padding:12px 14px;background:rgba(155,127,224,.1);
+  border-radius:8px;border-left:3px solid var(--aiw-purple);margin:10px 0;color:var(--aiw-text-muted)}
+.aiw-dark-wrap .scope-text strong{color:var(--aiw-purple)}
+.aiw-dark-wrap .sec-banner{background:var(--aiw-bg2);color:var(--aiw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--aiw-border-gold);border-bottom:none}
+.aiw-dark-wrap .kpi-grid{display:grid;gap:14px}
+.aiw-dark-wrap .kpi-card{background:var(--aiw-bg2);border:1px solid var(--aiw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.aiw-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.aiw-dark-wrap .kpi-card.kc-nvy::before{background:var(--aiw-gold)}
+.aiw-dark-wrap .kpi-card.kc-blue::before{background:var(--aiw-blue)}
+.aiw-dark-wrap .kpi-card.kc-amb::before{background:var(--aiw-amb)}
+.aiw-dark-wrap .kpi-card.kc-red::before{background:var(--aiw-red)}
+.aiw-dark-wrap .kpi-card.kc-grn::before{background:var(--aiw-grn)}
+.aiw-dark-wrap .kpi-card.kc-purple::before{background:var(--aiw-purple)}
+.aiw-dark-wrap .kpi-lbl{font-size:10px;font-weight:700;color:var(--aiw-text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.aiw-dark-wrap .kpi-val{font-size:22px;font-weight:800;color:var(--aiw-text)}
+.aiw-dark-wrap .kpi-sub{font-size:10px;color:var(--aiw-text-dim);margin-top:2px}
+.aiw-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.aiw-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--aiw-grn)}
+.aiw-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--aiw-red)}
+.aiw-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--aiw-amb)}
+.aiw-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--aiw-blue)}
+.aiw-dark-wrap .badge.kc-dim{background:rgba(255,255,255,.08);color:var(--aiw-text-dim)}
+.aiw-dark-wrap .aiw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--aiw-bg2);border:1px solid var(--aiw-border-gold);border-top:none}
+.aiw-dark-wrap .aiw-toolbar input[type=text],.aiw-dark-wrap .aiw-toolbar input[type=date]{background:var(--aiw-bg3);border:1px solid var(--aiw-border);
+  color:var(--aiw-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:130px}
+.aiw-dark-wrap .aiw-toolbar select{background:var(--aiw-bg3);border:1px solid var(--aiw-border);
+  color:var(--aiw-text);border-radius:7px;padding:7px 10px;font-size:11px}
+.aiw-dark-wrap .aiw-toolbar label.chk{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--aiw-text-muted)}
+.aiw-dark-wrap .aiw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--aiw-border-gold);
+  background:var(--aiw-bg3);color:var(--aiw-gold-lt);cursor:pointer}
+.aiw-dark-wrap .aiw-btn:hover{background:rgba(201,168,76,.15)}
+.aiw-dark-wrap .aiw-btn:disabled{opacity:.4;cursor:not-allowed}
+.aiw-dark-wrap .aiw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--aiw-grn)}
+.aiw-dark-wrap .aiw-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--aiw-amb)}
+.aiw-dark-wrap .aiw-table-wrap{border:1px solid var(--aiw-border-gold);border-top:none;max-height:460px;overflow:auto}
+.aiw-dark-wrap table.aiw-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.aiw-dark-wrap table.aiw-tbl th{position:sticky;top:0;background:var(--aiw-bg3);color:var(--aiw-gold-lt);
+  text-align:left;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--aiw-border-gold);white-space:nowrap}
+.aiw-dark-wrap table.aiw-tbl td{padding:7px 10px;border-bottom:1px solid var(--aiw-border);color:var(--aiw-text)}
+.aiw-dark-wrap table.aiw-tbl tr.aiw-row{cursor:pointer}
+.aiw-dark-wrap table.aiw-tbl tr.aiw-row:hover{background:var(--aiw-bg3)}
+.aiw-dark-wrap table.aiw-tbl tr.aiw-row.aiw-sel{background:rgba(201,168,76,.12)}
+.aiw-dark-wrap .empty-state{padding:30px;text-align:center;color:var(--aiw-text-dim);font-size:11px}
+.aiw-dark-wrap .empty-state strong{display:block;color:var(--aiw-text-muted);margin-bottom:4px;font-size:12px}
+/* Modal */
+.aiw-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;
+  justify-content:center;z-index:999;padding:30px 14px;overflow:auto}
+.aiw-modal{background:var(--aiw-bg2);border:1px solid var(--aiw-border-gold);border-radius:14px;
+  padding:20px 22px;max-width:1040px;width:100%;color:var(--aiw-text)}
+.aiw-modal h3{margin:0 0 12px;font-size:14px;color:var(--aiw-gold-lt)}
+.aiw-modal-hdr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.aiw-modal-hdr-grid label, .aiw-field label{display:block;font-size:10px;font-weight:600;color:var(--aiw-text-muted);
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.aiw-modal-hdr-grid input, .aiw-modal-hdr-grid select, .aiw-modal-hdr-grid textarea{width:100%;background:var(--aiw-bg3);
+  border:1px solid var(--aiw-border);color:var(--aiw-text);border-radius:7px;padding:7px 9px;font-size:12px}
+.aiw-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.aiw-note{font-size:10.5px;color:var(--aiw-amb);background:rgba(232,179,57,.1);border-left:3px solid var(--aiw-amb);
+  padding:8px 10px;border-radius:6px;margin-bottom:12px;line-height:1.5}
+.aiw-check-sec{border:1px solid var(--aiw-border);border-radius:10px;padding:12px 14px;margin-bottom:12px;background:var(--aiw-bg3)}
+.aiw-check-sec h4{margin:0 0 10px;font-size:11.5px;color:var(--aiw-gold-lt);display:flex;justify-content:space-between}
+.aiw-check-sec h4 .ar{font-weight:400;color:var(--aiw-text-dim);direction:rtl;font-size:11px}
+.aiw-check-item{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;padding:7px 0;border-bottom:1px solid var(--aiw-border)}
+.aiw-check-item:last-of-type{border-bottom:none}
+.aiw-check-item .q{font-size:11.5px;line-height:1.5;color:var(--aiw-text)}
+.aiw-check-item .q .ar{display:block;color:var(--aiw-text-dim);direction:rtl;font-size:11px;margin-top:2px}
+.aiw-toggle2{display:flex;border:1px solid var(--aiw-border);border-radius:7px;overflow:hidden;flex-shrink:0}
+.aiw-toggle2 button{font-size:10.5px;font-weight:700;padding:6px 12px;border:none;background:var(--aiw-bg2);color:var(--aiw-text-dim);cursor:pointer}
+.aiw-toggle2 button.active-ok{background:rgba(79,203,158,.25);color:var(--aiw-grn)}
+.aiw-toggle2 button.active-no{background:rgba(240,104,92,.25);color:var(--aiw-red)}
+.aiw-field{margin-bottom:10px}
+.aiw-field textarea{width:100%;background:var(--aiw-bg2);border:1px solid var(--aiw-border);color:var(--aiw-text);
+  border-radius:7px;padding:8px 9px;font-size:11.5px;resize:vertical;min-height:42px}
+.aiw-field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.aiw-viol-tbl{width:100%;border-collapse:collapse;margin-bottom:8px}
+.aiw-viol-tbl th{font-size:9.5px;text-transform:uppercase;color:var(--aiw-text-muted);text-align:left;padding:4px 6px}
+.aiw-viol-tbl td{padding:3px 4px}
+.aiw-viol-tbl input{width:100%;background:var(--aiw-bg2);border:1px solid var(--aiw-border);color:var(--aiw-text);
+  border-radius:6px;padding:5px 7px;font-size:11px}
+.aiw-viol-rm{background:none;border:none;color:var(--aiw-red);cursor:pointer;font-size:14px;padding:0 6px}
+/* Print slip / summary */
+.aiw-print-wrap{display:none}
+@media print{
+  body *{visibility:hidden !important}
+  .aiw-print-wrap, .aiw-print-wrap *{visibility:visible !important}
+  .aiw-print-wrap{display:block !important;position:absolute;top:0;left:0;width:100%;background:#fff;color:#111;padding:20px}
+  .aiw-dark-wrap{background:#fff !important}
+}
+.aiw-slip{background:#fff;color:#111;border-radius:8px;padding:18px 20px;font-size:11.5px;max-width:900px;margin:0 auto}
+.aiw-slip table{width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:10px}
+.aiw-slip th,.aiw-slip td{border:1px solid #999;padding:5px 7px;text-align:left}
+.aiw-slip th{background:#1B2A4A;color:#fff}
+.aiw-slip .hdr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;font-size:11px}
+.aiw-slip .hdr-grid div{border:1px solid #999;padding:6px 8px;border-radius:4px}
+.aiw-slip .hdr-grid b{display:block;font-size:9px;text-transform:uppercase;color:#555}
+.aiw-slip .ar{direction:rtl;color:#555;font-size:9.5px;display:block}
+.aiw-slip h2{margin:0 0 4px;font-size:15px;color:#1B2A4A}
+.aiw-slip .sub{font-size:10px;color:#666;margin-bottom:14px}
+.aiw-slip .sec-title{background:#1B2A4A;color:#fff;padding:5px 9px;font-size:11px;font-weight:700;margin:10px 0 0}
+.aiw-slip .ok-cell{color:#1a8a5e;font-weight:700}
+.aiw-slip .no-cell{color:#c23b2f;font-weight:700}
+</style>
+</head><body><div class="aiw-dark-wrap">
+<div class="back-row"><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div>
+<div class="req-text">L3-SHEE-PR-XX-WI-01 · HSE-FRM-06 Shift Area Safety Inspection · ISO 45001 §8.1.1 Operational Control, §9.1.1 Monitoring — a per-shift walkaround covering Housekeeping &amp; Storage, Machinery Safety and Firefighting Equipment, plus narrative logging of any accident/near-miss, PPE violation or other observation.</div>
+<div class="flag-text">⚠ Source: <code>HSSE-_Shift_Area_Safety_Inspection.xlsm</code> ("Daily Inspection" tab), migrated 1,308 historical records (Jun 2025 – Oct 2026). 8 records had a malformed date in the original file (e.g. "26-20-2026") that could not be safely auto-corrected — these keep the original raw text in the Date column rather than a guessed value; see the reference workbook's READ ME tab for the full list. The programme code above (<code>L3-SHEE-PR-XX-WI-01</code>) is still unassigned in the IMS documentation — flagged in earlier sessions as needing Issam's call on which HSE programme family this inspection belongs to.</div>
+
+<div class="sec-banner">AREA INSPECTION — QUICK STATUS <span id="aiw-kpi-range-note" style="font-weight:400;color:var(--aiw-text-dim);text-transform:none;letter-spacing:0"></span></div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Inspections Logged</div><div class="kpi-val" id="aiw-kpi-total">—</div><div class="kpi-sub" id="aiw-kpi-total-sub">All time</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">Checklist Non-Compliance</div><div class="kpi-val" id="aiw-kpi-noncompliance">—</div><div class="kpi-sub">of checklist answers logged "No"</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Accidents / Near-Miss Noted</div><div class="kpi-val" id="aiw-kpi-accidents">—</div><div class="kpi-sub">Non-blank Accident field</div></div>
+  <div class="kpi-card kc-purple"><div class="kpi-lbl">PPE Violations Logged</div><div class="kpi-val" id="aiw-kpi-ppeviol">—</div><div class="kpi-sub">Non-blank PPE Violations field</div></div>
+</div>
+
+<div class="sec-banner">AREA INSPECTION REGISTER</div>
+<div class="aiw-toolbar" style="border-top:1px solid var(--aiw-border-gold)">
+  <input type="text" id="aiw-search" placeholder="Search attendant / location…" oninput="AIW.onSearch(this.value)">
+  <select id="aiw-loc-filter" onchange="AIW.onLocFilter(this.value)"><option value="">All locations</option></select>
+  <select id="aiw-shift-filter" onchange="AIW.onShiftFilter(this.value)"><option value="">All shifts</option><option value="A">Shift A</option><option value="B">Shift B</option><option value="C">Shift C</option></select>
+  <input type="date" id="aiw-date-from" onchange="AIW.onDateFrom(this.value)" title="From date">
+  <input type="date" id="aiw-date-to" onchange="AIW.onDateTo(this.value)" title="To date">
+  <label class="chk"><input type="checkbox" id="aiw-noncompliant-only" onchange="AIW.onNonCompliantOnly(this.checked)"> Non-compliant only</label>
+</div>
+<div class="aiw-toolbar" style="border-top:none">
+  <button class="aiw-btn aiw-btn-add" id="aiw-btn-new" onclick="AIW.openAdd()">+ New Inspection</button>
+  <button class="aiw-btn" id="aiw-btn-edit" disabled onclick="AIW.openEditSelected()">Open / Edit</button>
+  <button class="aiw-btn" id="aiw-btn-remove" disabled onclick="AIW.removeSelected()">Remove</button>
+  <button class="aiw-btn aiw-btn-esc" id="aiw-btn-slip" disabled onclick="AIW.printSlipSelected()">🖨 View / Print Slip</button>
+  <button class="aiw-btn" id="aiw-btn-summary" onclick="AIW.openSummaryReport()">📊 Summary Report</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--aiw-text-dim)" id="aiw-count-sub"></span>
+</div>
+<div class="aiw-table-wrap"><div id="live-table-register"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div id="aiw-modal-root"></div>
+<div id="aiw-print-root" class="aiw-print-wrap"></div>
+
+
+<script>
+(function(){
+
+  var AREA = { tabKey:'area_inspection', containerId:'live-table-register', idCol:'Record ID' };
+  var STATUS_COL = 'Record Status';
+
+  // Exact bilingual checklist questions, split EN/AR, grouped by section —
+  // must match the column headers used in the live sheet / reference workbook,
+  // migrated verbatim from HSSE-_Shift_Area_Safety_Inspection.xlsm.
+  var QUESTIONS = {"HK": [{"en": "Are all floors clear of tripping hazards (Pallets, boxes, wires, cartons, etc.)?", "ar": "هل الأرضيات خالية من مخاطر التعثر (الطبليات، الصناديق، الكراتين والأسلاك وغيرها)؟", "full": "Are all floors clear of tripping hazards (Pallets, boxes, wires, cartons, etc.)? هل الأرضيات خالية من مخاطر التعثر (الطبليات، الصناديق، الكراتين والأسلاك وغيرها)؟"}, {"en": "Are all floors clear of slipping hazards (oil, grease, etc.)?", "ar": "هل الأرضيات خالية من مخاطر التعثر التزحلق (الزيوت والشحوم)؟", "full": "Are all floors clear of slipping hazards (oil, grease, etc.)? هل الأرضيات خالية من مخاطر التعثر التزحلق (الزيوت والشحوم)؟"}, {"en": "Is storage orderly with enough space (allowing access in event of fire)?", "ar": "هل التخزين يسمح بوجود مسافات مناسبة للهروب في حالة الطوارئ؟", "full": "Is storage orderly with enough space (allowing access in event of fire)? هل التخزين يسمح بوجود مسافات مناسبة للهروب في حالة الطوارئ؟"}, {"en": "Is the basement clean, clear of hazards and oil leaks?", "ar": "هل الطابق السفلي في الوحدة نظيف و خالي من المخاطر و تسريبات الزيوت؟", "full": "Is the basement clean, clear of hazards and oil leaks? هل الطابق السفلي في الوحدة نظيف و خالي من المخاطر و تسريبات الزيوت؟"}, {"en": "Are combustible waste materials removed?", "ar": "هل تم إزالة المواد القابلة للاشتعال؟", "full": "Are combustible waste materials removed? هل تم إزالة المواد القابلة للاشتعال؟"}, {"en": "Are the LPG Tanks area and Fuel tanks area clean and clear of hazards?", "ar": "هل منطقة خزانات الوقود و خزانات الغاز نظيفة و خالية من المخاطر ؟", "full": "Are the LPG Tanks area and Fuel tanks area clean and clear of hazards? هل منطقة خزانات الوقود و خزانات الغاز نظيفة و خالية من المخاطر ؟"}], "MS": [{"en": "Are moving parts have been covered?", "ar": "هل الأجزاء متحركة تم تغطيتها؟", "full": "Are moving parts have been covered? هل الأجزاء متحركة تم تغطيتها؟"}, {"en": "Is the floor free of cords?", "ar": "هل الطريق خالي من الأسلاك؟", "full": "Is the floor free of cords? هل الطريق خالي من الأسلاك؟"}, {"en": "Are all electrical connections tight and safe?", "ar": "هل التوصيلات الكهربية سليمة وآمنة؟", "full": "Are all electrical connections tight and safe? هل التوصيلات الكهربية سليمة وآمنة؟"}], "FF": [{"en": "Are the hydrant outlets free from obstructions?", "ar": "هل خراطيم الحريق خالية من العوائق أمامها؟", "full": "Are the hydrant outlets free from obstructions? هل خراطيم الحريق خالية من العوائق أمامها؟"}, {"en": "Are hydrant valves not leaking?", "ar": "التأكد من عدم وجود أي تسريبات", "full": "Are hydrant valves not leaking? التأكد من عدم وجود أي تسريبات"}, {"en": "Are the hoses examined and found in good condition?", "ar": "هل خراطيم الحريق في حالة سليمة؟", "full": "Are the hoses examined and found in good condition? هل خراطيم الحريق في حالة سليمة؟"}, {"en": "Are the fire extinguishers in their designated places and not obscured from view?", "ar": "هل طفايات الحريق في مكانها ولا يوجد أي عوائق أمامها؟", "full": "Are the fire extinguishers in their designated places and not obscured from view? هل طفايات الحريق في مكانها ولا يوجد أي عوائق أمامها؟"}, {"en": "Are the fire extinguishers in good operating conditions and fully charged?", "ar": "هل طفايات الحريق في حالة سليمة ومملؤة؟", "full": "Are the fire extinguishers in good operating conditions and fully charged? هل طفايات الحريق في حالة سليمة ومملؤة؟"}]};
+
+  var _cache = null, _selected = null;
+  var _filters = { search:'', loc:'', shift:'', dateFrom:'', dateTo:'', nonCompliantOnly:false };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function aiEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+
+  function nextRecordId(cache, prefix, idCol){
+    var year = new Date().getFullYear();
+    if (!cache || !cache.headers || !cache.rows) return prefix + '-' + year + '-0001';
+    var idIdx = colIdx(cache.headers, idCol);
+    if (idIdx < 0) return prefix + '-' + year + '-0001';
+    var maxN = 0;
+    cache.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      var m = v.match(new RegExp('^'+prefix+'-'+year+'-(\\d+)$'));
+      if (m){ var n = parseInt(m[1],10); if (n > maxN) maxN = n; }
+    });
+    var numStr = String(maxN + 1); while (numStr.length < 4) numStr = '0' + numStr;
+    return prefix + '-' + year + '-' + numStr;
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){
+    return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
+  }
+  function loadAll(){
+    return loadTab(AREA.tabKey).then(function(data){ _cache = filterActive(data); }).catch(function(){ _cache = null; }).then(render);
+  }
+  function filterActive(data){
+    if (data && data.headers && data.rows){
+      var si = colIdx(data.headers, STATUS_COL);
+      if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+    }
+    return data;
+  }
+  function getRecs(){ if (!_cache || !_cache.headers || !_cache.rows) return []; return _cache.rows.map(function(r){ return recFromRow(_cache.headers, r); }); }
+
+  function parseBool(v){
+    if (v === true || v === 'TRUE' || v === 'true') return true;
+    if (v === false || v === 'FALSE' || v === 'false') return false;
+    return null;
+  }
+  function allQKeys(){ return QUESTIONS.HK.concat(QUESTIONS.MS).concat(QUESTIONS.FF).map(function(q){ return q.full; }); }
+
+  /* ── Filtering ────────────────────────────────────────────────── */
+  function matchesFilters(r){
+    var f = _filters;
+    if (f.loc && r['Location'] !== f.loc) return false;
+    if (f.shift && r['Shift'] !== f.shift) return false;
+    if (f.dateFrom && String(r['Date']) < f.dateFrom) return false;
+    if (f.dateTo && String(r['Date']) > f.dateTo) return false;
+    if (f.search){
+      var hay = ((r['Safety Attendant']||'')+' '+(r['Location']||'')).toLowerCase();
+      if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+    }
+    if (f.nonCompliantOnly){
+      var hasNo = allQKeys().some(function(k){ return parseBool(r[k]) === false; });
+      if (!hasNo) return false;
+    }
+    return true;
+  }
+  function filteredRecs(){ return getRecs().filter(matchesFilters); }
+
+  function uniqueLocations(){
+    var set = {};
+    getRecs().forEach(function(r){ if (r['Location']) set[r['Location']] = true; });
+    return Object.keys(set).sort();
+  }
+  function populateLocFilter(){
+    var sel = document.getElementById('aiw-loc-filter');
+    var cur = sel.value;
+    var locs = uniqueLocations();
+    sel.innerHTML = '<option value="">All locations</option>' + locs.map(function(l){
+      return '<option value="'+aiEsc(l)+'"'+(l===cur?' selected':'')+'>'+aiEsc(l)+'</option>';
+    }).join('');
+  }
+
+  /* ── KPIs ─────────────────────────────────────────────────────── */
+  function renderKPIs(){
+    var all = getRecs();
+    var total = all.length;
+    var qKeys = allQKeys();
+    var totalChecks = 0, falseChecks = 0;
+    var accidents = 0, ppeViol = 0;
+    all.forEach(function(r){
+      qKeys.forEach(function(k){
+        var v = parseBool(r[k]);
+        if (v !== null){ totalChecks++; if (v === false) falseChecks++; }
+      });
+      if (String(r['Accident - Fire - Glass Leak - Damage - Near Miss']||'').trim()) accidents++;
+      if (String(r['PPE Violations']||'').trim()) ppeViol++;
+    });
+    setTxt('aiw-kpi-total', total);
+    setTxt('aiw-kpi-total-sub', total ? ('Jun 2025 – present') : 'No records yet');
+    var pct = totalChecks ? ((falseChecks/totalChecks)*100).toFixed(1) : '0.0';
+    setTxt('aiw-kpi-noncompliance', pct + '%');
+    setTxt('aiw-kpi-accidents', accidents);
+    setTxt('aiw-kpi-ppeviol', ppeViol);
+  }
+
+  /* ── Register table ───────────────────────────────────────────── */
+  function sectionBadge(r, qs){
+    var keys = qs.map(function(q){ return q.full; });
+    var answered = keys.filter(function(k){ return parseBool(r[k]) !== null; });
+    if (!answered.length) return '<span class="badge kc-dim">—</span>';
+    var noCount = answered.filter(function(k){ return parseBool(r[k]) === false; }).length;
+    if (noCount === 0) return '<span class="badge kc-grn">OK</span>';
+    return '<span class="badge kc-red">'+noCount+' issue'+(noCount>1?'s':'')+'</span>';
+  }
+  function renderTable(){
+    var all = getRecs();
+    var list = filteredRecs();
+    var el = document.getElementById(AREA.containerId);
+    setTxt('aiw-count-sub', list.length + ' of ' + all.length + ' inspections shown');
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No inspections match these filters</strong>Try widening the date range or clearing filters.</div>';
+      updateButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Date']||'').localeCompare(String(a['Date']||'')); });
+    var rows = list.map(function(r){
+      var sel = _selected === r['Record ID'];
+      var accident = String(r['Accident - Fire - Glass Leak - Damage - Near Miss']||'').trim();
+      var ppe = String(r['PPE Violations']||'').trim();
+      return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="AIW.select(\'' + aiEsc(r['Record ID']) + '\')">'
+        + '<td>' + aiEsc(r['Date']) + '</td>'
+        + '<td>' + aiEsc(r['Shift']) + '</td>'
+        + '<td>' + aiEsc(r['Location']) + '</td>'
+        + '<td>' + aiEsc(r['Safety Attendant']) + '</td>'
+        + '<td>' + sectionBadge(r, QUESTIONS.HK) + '</td>'
+        + '<td>' + sectionBadge(r, QUESTIONS.MS) + '</td>'
+        + '<td>' + sectionBadge(r, QUESTIONS.FF) + '</td>'
+        + '<td>' + (accident ? '<span class="badge kc-amb">Yes</span>' : '<span class="badge kc-dim">No</span>') + '</td>'
+        + '<td>' + (ppe ? '<span class="badge kc-purple">Yes</span>' : '<span class="badge kc-dim">No</span>') + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="aiw-tbl"><thead><tr><th>Date</th><th>Shift</th><th>Location</th><th>Safety Attendant</th>'
+      + '<th>Housekeeping</th><th>Machinery</th><th>Firefighting</th><th>Accident?</th><th>PPE Viol.?</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateButtons();
+  }
+  function updateButtons(){
+    var r = getSelected();
+    document.getElementById('aiw-btn-edit').disabled = !r;
+    document.getElementById('aiw-btn-remove').disabled = !r || !can('delete');
+    document.getElementById('aiw-btn-slip').disabled = !r;
+  }
+  function getSelected(){
+    if (!_cache || !_selected) return null;
+    var idIdx = colIdx(_cache.headers, AREA.idCol);
+    var row = _cache.rows.find(function(r){ return String(r[idIdx]) === String(_selected); });
+    return row ? recFromRow(_cache.headers, row) : null;
+  }
+
+  function render(){
+    populateLocFilter();
+    renderKPIs();
+    renderTable();
+  }
+
+  /* ── Add/Edit modal ───────────────────────────────────────────── */
+  var _violRows = []; // working array of {id,name,violation,remarks} while modal open
+
+  function toggle2HTML(fieldKey, val){
+    var okActive = val === true ? ' active-ok' : '';
+    var noActive = val === false ? ' active-no' : '';
+    return '<div class="aiw-toggle2" data-qkey="' + aiEsc(fieldKey) + '">'
+      + '<button type="button" class="t2-ok' + okActive + '" onclick="AIW.setCheck(this,true)">OK</button>'
+      + '<button type="button" class="t2-no' + noActive + '" onclick="AIW.setCheck(this,false)">No</button>'
+      + '</div>';
+  }
+  function checklistSectionHTML(title, titleAr, qs, existingRec){
+    var items = qs.map(function(q){
+      var val = existingRec ? parseBool(existingRec[q.full]) : null;
+      return '<div class="aiw-check-item"><div class="q">' + aiEsc(q.en) + '<span class="ar">' + aiEsc(q.ar) + '</span></div>'
+        + toggle2HTML(q.full, val) + '</div>';
+    }).join('');
+    return '<div class="aiw-check-sec"><h4>' + title + '<span class="ar">' + titleAr + '</span></h4>' + items + '</div>';
+  }
+
+  function parseViolationsText(text){
+    // Best-effort parse of the "ID: .. | Name: .. | Violation: .. | Remarks: .." format
+    // this page writes; anything else (including old free-text historical rows)
+    // is shown as a single row in the Violation column so nothing is lost.
+    if (!text || !text.trim()) return [];
+    var lines = text.split('\n').filter(function(l){ return l.trim(); });
+    var looksStructured = lines.every(function(l){ return /^ID:/.test(l.trim()); });
+    if (!looksStructured) return [{ id:'', name:'', violation:text, remarks:'' }];
+    return lines.map(function(l){
+      var get = function(label, nextLabels){
+        var re = new RegExp(label + ':\\s*(.*?)(?=\\s*\\|\\s*(?:' + nextLabels.join('|') + '):|$)');
+        var m = l.match(re);
+        return m ? m[1].trim() : '';
+      };
+      return {
+        id: get('ID', ['Name','Violation','Remarks']),
+        name: get('Name', ['Violation','Remarks']),
+        violation: get('Violation', ['Remarks']),
+        remarks: get('Remarks', [])
+      };
+    });
+  }
+  function violationsToText(rows){
+    return rows.filter(function(r){ return r.id || r.name || r.violation || r.remarks; })
+      .map(function(r){ return 'ID: ' + (r.id||'') + ' | Name: ' + (r.name||'') + ' | Violation: ' + (r.violation||'') + ' | Remarks: ' + (r.remarks||''); })
+      .join('\n');
+  }
+  function renderViolRows(){
+    var tbody = document.getElementById('aiw-viol-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = _violRows.map(function(r, i){
+      return '<tr>'
+        + '<td><input type="text" value="' + aiEsc(r.id) + '" oninput="AIW.updateViolRow(' + i + ',\'id\',this.value)"></td>'
+        + '<td><input type="text" value="' + aiEsc(r.name) + '" oninput="AIW.updateViolRow(' + i + ',\'name\',this.value)"></td>'
+        + '<td><input type="text" value="' + aiEsc(r.violation) + '" oninput="AIW.updateViolRow(' + i + ',\'violation\',this.value)"></td>'
+        + '<td><input type="text" value="' + aiEsc(r.remarks) + '" oninput="AIW.updateViolRow(' + i + ',\'remarks\',this.value)"></td>'
+        + '<td><button type="button" class="aiw-viol-rm" onclick="AIW.removeViolRow(' + i + ')">✕</button></td>'
+      + '</tr>';
+    }).join('');
+  }
+
+  function buildModal(existingRec){
+    var root = document.getElementById('aiw-modal-root');
+    var isEdit = !!existingRec;
+    var rid = isEdit ? existingRec['Record ID'] : nextRecordId(_cache, 'ASI', AREA.idCol);
+    _violRows = parseViolationsText(existingRec ? existingRec['PPE Violations'] : '');
+
+    root.innerHTML = '<div class="aiw-modal-bg" id="aiw-bg"><div class="aiw-modal">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' Shift Area Safety Inspection' + (isEdit?' — '+aiEsc(rid):'') + '</h3>'
+      + '<div class="aiw-modal-hdr-grid">'
+        + '<div><label>Date</label><input type="date" id="aiw-m-date" value="' + aiEsc(existingRec?existingRec['Date']:new Date().toISOString().slice(0,10)) + '"></div>'
+        + '<div><label>Shift</label><select id="aiw-m-shift"><option value="A"' + (existingRec&&existingRec['Shift']==='A'?' selected':'') + '>A</option><option value="B"' + (!existingRec||existingRec['Shift']==='B'?' selected':'') + '>B</option><option value="C"' + (existingRec&&existingRec['Shift']==='C'?' selected':'') + '>C</option></select></div>'
+        + '<div><label>Location / Unit</label><input type="text" id="aiw-m-location" list="aiw-loc-list" value="' + aiEsc(existingRec?existingRec['Location']:'') + '"><datalist id="aiw-loc-list">' + uniqueLocations().map(function(l){ return '<option value="'+aiEsc(l)+'">'; }).join('') + '</datalist></div>'
+        + '<div><label>Safety Attendant</label><input type="text" id="aiw-m-attendant" value="' + aiEsc(existingRec?existingRec['Safety Attendant']:'') + '"></div>'
+      + '</div>'
+
+      + checklistSectionHTML('Housekeeping &amp; Storage Practice', 'الترتيب والتخزين', QUESTIONS.HK, existingRec)
+      + '<div class="aiw-field-row"><div class="aiw-field"><label>Housekeeping Remarks</label><textarea id="aiw-m-hk-remarks">' + aiEsc(existingRec?existingRec['Housekeeping Remarks']:'') + '</textarea></div>'
+      + '<div class="aiw-field"><label>Housekeeping Action Taken</label><textarea id="aiw-m-hk-action">' + aiEsc(existingRec?existingRec['Housekeeping Action Taken']:'') + '</textarea></div></div>'
+
+      + checklistSectionHTML('Machinery Safety', 'مخاطر الآلات', QUESTIONS.MS, existingRec)
+      + '<div class="aiw-field-row"><div class="aiw-field"><label>Machinery Remarks</label><textarea id="aiw-m-ms-remarks">' + aiEsc(existingRec?existingRec['Machinery Remarks']:'') + '</textarea></div>'
+      + '<div class="aiw-field"><label>Machinery Action Taken</label><textarea id="aiw-m-ms-action">' + aiEsc(existingRec?existingRec['Machinery Action Taken']:'') + '</textarea></div></div>'
+
+      + checklistSectionHTML('Firefighting Equipment', 'معدات مكافحة الحريق', QUESTIONS.FF, existingRec)
+      + '<div class="aiw-field-row"><div class="aiw-field"><label>Firefighting Remarks</label><textarea id="aiw-m-ff-remarks">' + aiEsc(existingRec?existingRec['Firefighting Remarks']:'') + '</textarea></div>'
+      + '<div class="aiw-field"><label>Firefighting Action Taken</label><textarea id="aiw-m-ff-action">' + aiEsc(existingRec?existingRec['Firefighting Action Taken']:'') + '</textarea></div></div>'
+
+      + '<div class="aiw-field"><label>Accidents – Fire – Glass Leak – Damages – Near Miss <span class="ar" style="display:inline;margin-left:6px">الحوادث والإصابات والتلفيات والحوادث الوشيكة</span></label>'
+      + '<textarea id="aiw-m-accident" style="min-height:56px">' + aiEsc(existingRec?existingRec['Accident - Fire - Glass Leak - Damage - Near Miss']:'') + '</textarea></div>'
+
+      + '<div class="aiw-field"><label>PPE Violations <span class="ar" style="display:inline;margin-left:6px">مخالفات الالتزام بأدوات الحماية الشخصية</span></label>'
+      + '<table class="aiw-viol-tbl"><thead><tr><th>ID</th><th>Name</th><th>Violation</th><th>Remarks</th><th></th></tr></thead><tbody id="aiw-viol-tbody"></tbody></table>'
+      + '<button type="button" class="aiw-btn" id="aiw-viol-add" style="font-size:10px;padding:5px 10px">+ Add violation line</button></div>'
+
+      + '<div class="aiw-field"><label>Other Observations <span class="ar" style="display:inline;margin-left:6px">ملاحظات أخرى</span></label>'
+      + '<textarea id="aiw-m-other" style="min-height:56px">' + aiEsc(existingRec?existingRec['Other Observations']:'') + '</textarea></div>'
+
+      + '<div class="aiw-modal-actions"><button class="aiw-btn" id="aiw-m-cancel">Cancel</button><button class="aiw-btn aiw-btn-add" id="aiw-m-save">Save</button></div>'
+    + '</div></div>';
+
+    renderViolRows();
+    document.getElementById('aiw-viol-add').onclick = function(){ _violRows.push({id:'',name:'',violation:'',remarks:''}); renderViolRows(); };
+    document.getElementById('aiw-m-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('aiw-bg').onclick = function(e){ if (e.target.id==='aiw-bg') root.innerHTML=''; };
+    document.getElementById('aiw-m-save').onclick = function(){ saveModal(isEdit, rid); };
+  }
+
+  function saveModal(isEdit, rid){
+    var root = document.getElementById('aiw-modal-root');
+    var btn = document.getElementById('aiw-m-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+
+    var values = {
+      'Record ID': rid,
+      'Date': document.getElementById('aiw-m-date').value,
+      'Shift': document.getElementById('aiw-m-shift').value,
+      'Location': document.getElementById('aiw-m-location').value.trim(),
+      'Safety Attendant': document.getElementById('aiw-m-attendant').value.trim(),
+      'Housekeeping Remarks': document.getElementById('aiw-m-hk-remarks').value.trim(),
+      'Housekeeping Action Taken': document.getElementById('aiw-m-hk-action').value.trim(),
+      'Machinery Remarks': document.getElementById('aiw-m-ms-remarks').value.trim(),
+      'Machinery Action Taken': document.getElementById('aiw-m-ms-action').value.trim(),
+      'Firefighting Remarks': document.getElementById('aiw-m-ff-remarks').value.trim(),
+      'Firefighting Action Taken': document.getElementById('aiw-m-ff-action').value.trim(),
+      'Accident - Fire - Glass Leak - Damage - Near Miss': document.getElementById('aiw-m-accident').value.trim(),
+      'PPE Violations': violationsToText(_violRows),
+      'Other Observations': document.getElementById('aiw-m-other').value.trim()
+    };
+    document.querySelectorAll('.aiw-toggle2').forEach(function(t2){
+      var key = t2.getAttribute('data-qkey');
+      var okBtn = t2.querySelector('.t2-ok'), noBtn = t2.querySelector('.t2-no');
+      if (okBtn.classList.contains('active-ok')) values[key] = true;
+      else if (noBtn.classList.contains('active-no')) values[key] = false;
+      else values[key] = '';
+    });
+    if (!values['Location']){ alert('Location / Unit is required.'); reenable(); return; }
+    if (!values['Safety Attendant']){ alert('Safety Attendant is required.'); reenable(); return; }
+
+    if (isEdit){
+      postJSON('update', {tab: AREA.tabKey, idCol: AREA.idCol, id: rid}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: AREA.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ── Area Inspection Slip (printable, per record) ────────────── */
+  function qRowHTML(q, val){
+    var cell = val === true ? '<td class="ok-cell">✓ OK</td><td></td>'
+             : val === false ? '<td></td><td class="no-cell">✗ No</td>'
+             : '<td></td><td></td>';
+    return '<tr><td>' + aiEsc(q.en) + '<span class="ar">' + aiEsc(q.ar) + '</span></td>' + cell + '</tr>';
+  }
+  function sectionTableHTML(title, titleAr, qs, rec, remarksKey, actionKey){
+    var rows = qs.map(function(q){ return qRowHTML(q, parseBool(rec[q.full])); }).join('');
+    var remarks = String(rec[remarksKey]||'').trim();
+    var action = String(rec[actionKey]||'').trim();
+    return '<div class="sec-title">' + title + ' <span class="ar" style="color:#ddd">' + titleAr + '</span></div>'
+      + '<table><thead><tr><th style="width:60%">Inspection Checklist</th><th style="width:20%">OK</th><th style="width:20%">No</th></tr></thead><tbody>' + rows + '</tbody></table>'
+      + (remarks ? '<div style="margin-bottom:6px"><b>Remarks:</b> ' + aiEsc(remarks) + '</div>' : '')
+      + (action ? '<div style="margin-bottom:10px"><b>Action Taken:</b> ' + aiEsc(action) + '</div>' : '');
+  }
+  function buildSlipHTML(rec){
+    var viol = parseViolationsText(rec['PPE Violations']);
+    var violRows = viol.length ? viol.map(function(v){
+      return '<tr><td>'+aiEsc(v.id)+'</td><td>'+aiEsc(v.name)+'</td><td>'+aiEsc(v.violation)+'</td><td>'+aiEsc(v.remarks)+'</td></tr>';
+    }).join('') : '<tr><td colspan="4" style="text-align:center;color:#888">None recorded</td></tr>';
+
+    return '<div class="aiw-slip">'
+      + '<h2>Area Inspection Slip <span style="font-weight:400;font-size:12px;color:#777">قائمة فحص المنطقة</span></h2>'
+      + '<div class="sub">HSE-FRM-06 Shift Area Safety Inspection &middot; Record ' + aiEsc(rec['Record ID']) + '</div>'
+      + '<div class="hdr-grid">'
+        + '<div><b>Safety Attendant</b>' + aiEsc(rec['Safety Attendant']) + '</div>'
+        + '<div><b>Location</b>' + aiEsc(rec['Location']) + '</div>'
+        + '<div><b>Date</b>' + aiEsc(rec['Date']) + '</div>'
+        + '<div><b>Shift</b>' + aiEsc(rec['Shift']) + '</div>'
+      + '</div>'
+      + sectionTableHTML('Housekeeping &amp; Storage Practice', 'الترتيب والتخزين', QUESTIONS.HK, rec, 'Housekeeping Remarks', 'Housekeeping Action Taken')
+      + sectionTableHTML('Machinery Safety', 'مخاطر الآلات', QUESTIONS.MS, rec, 'Machinery Remarks', 'Machinery Action Taken')
+      + sectionTableHTML('Firefighting Equipment', 'معدات مكافحة الحريق', QUESTIONS.FF, rec, 'Firefighting Remarks', 'Firefighting Action Taken')
+      + '<div class="sec-title">Accidents – Fire – Glass Leak – Damages – Near Miss <span class="ar" style="color:#ddd">الحوادث والإصابات والتلفيات والحوادث الوشيكة</span></div>'
+      + '<div style="margin-bottom:10px">' + (String(rec['Accident - Fire - Glass Leak - Damage - Near Miss']||'').trim() ? aiEsc(rec['Accident - Fire - Glass Leak - Damage - Near Miss']) : '<span style="color:#888">None recorded</span>') + '</div>'
+      + '<div class="sec-title">PPE Violations <span class="ar" style="color:#ddd">مخالفات الالتزام بأدوات الحماية الشخصية</span></div>'
+      + '<table><thead><tr><th>ID</th><th>Name</th><th>Violation</th><th>Remarks</th></tr></thead><tbody>' + violRows + '</tbody></table>'
+      + '<div class="sec-title">Other Observations <span class="ar" style="color:#ddd">ملاحظات أخرى</span></div>'
+      + '<div>' + (String(rec['Other Observations']||'').trim() ? aiEsc(rec['Other Observations']) : '<span style="color:#888">None recorded</span>') + '</div>'
+    + '</div>';
+  }
+  function printSlip(rec){
+    var root = document.getElementById('aiw-print-root');
+    root.innerHTML = buildSlipHTML(rec);
+    window.print();
+  }
+
+  /* ── Summary Report (printable, aggregated over current filters) ─ */
+  function buildSummaryHTML(){
+    var list = filteredRecs();
+    var byLoc = {}, byAttendant = {};
+    var qFailCounts = {};
+    var accidents = 0, ppeViol = 0;
+    list.forEach(function(r){
+      byLoc[r['Location']] = (byLoc[r['Location']]||0) + 1;
+      byAttendant[r['Safety Attendant']] = (byAttendant[r['Safety Attendant']]||0) + 1;
+      allQKeys().forEach(function(k){
+        if (parseBool(r[k]) === false) qFailCounts[k] = (qFailCounts[k]||0) + 1;
+      });
+      if (String(r['Accident - Fire - Glass Leak - Damage - Near Miss']||'').trim()) accidents++;
+      if (String(r['PPE Violations']||'').trim()) ppeViol++;
+    });
+    var topIssues = Object.keys(qFailCounts).map(function(k){ return {q:k, n:qFailCounts[k]}; })
+      .sort(function(a,b){ return b.n - a.n; }).slice(0,8);
+    var qLookup = {};
+    QUESTIONS.HK.concat(QUESTIONS.MS).concat(QUESTIONS.FF).forEach(function(q){ qLookup[q.full] = q.en; });
+
+    var dateRange = (_filters.dateFrom || _filters.dateTo)
+      ? (( _filters.dateFrom||'earliest') + ' to ' + (_filters.dateTo||'latest'))
+      : 'all dates on file';
+
+    var locRows = Object.keys(byLoc).sort(function(a,b){ return byLoc[b]-byLoc[a]; })
+      .map(function(l){ return '<tr><td>'+aiEsc(l)+'</td><td>'+byLoc[l]+'</td></tr>'; }).join('') || '<tr><td colspan="2" style="text-align:center;color:#888">No data</td></tr>';
+    var attRows = Object.keys(byAttendant).sort(function(a,b){ return byAttendant[b]-byAttendant[a]; })
+      .map(function(a){ return '<tr><td>'+aiEsc(a)+'</td><td>'+byAttendant[a]+'</td></tr>'; }).join('') || '<tr><td colspan="2" style="text-align:center;color:#888">No data</td></tr>';
+    var issueRows = topIssues.length ? topIssues.map(function(t){ return '<tr><td>'+aiEsc(qLookup[t.q]||t.q)+'</td><td>'+t.n+'</td></tr>'; }).join('')
+      : '<tr><td colspan="2" style="text-align:center;color:#888">No non-compliant checklist items in range</td></tr>';
+
+    return '<div class="aiw-slip">'
+      + '<h2>Area Inspection — Summary Report</h2>'
+      + '<div class="sub">Range: ' + aiEsc(dateRange) + (_filters.loc?(' &middot; Location: '+aiEsc(_filters.loc)):'') + (_filters.shift?(' &middot; Shift: '+aiEsc(_filters.shift)):'') + ' &middot; Generated ' + new Date().toISOString().slice(0,10) + '</div>'
+      + '<div class="hdr-grid" style="grid-template-columns:repeat(4,1fr)">'
+        + '<div><b>Inspections in Range</b>' + list.length + '</div>'
+        + '<div><b>Locations Covered</b>' + Object.keys(byLoc).length + '</div>'
+        + '<div><b>Accidents / Near-Miss</b>' + accidents + '</div>'
+        + '<div><b>PPE Violations Logged</b>' + ppeViol + '</div>'
+      + '</div>'
+      + '<div class="sec-title">Inspections by Location</div>'
+      + '<table><thead><tr><th>Location</th><th>Inspections</th></tr></thead><tbody>' + locRows + '</tbody></table>'
+      + '<div class="sec-title">Inspections by Safety Attendant</div>'
+      + '<table><thead><tr><th>Attendant</th><th>Inspections</th></tr></thead><tbody>' + attRows + '</tbody></table>'
+      + '<div class="sec-title">Most Frequent Non-Compliance Findings</div>'
+      + '<table><thead><tr><th>Checklist Item</th><th>Times Logged "No"</th></tr></thead><tbody>' + issueRows + '</tbody></table>'
+    + '</div>';
+  }
+  function printSummary(){
+    var root = document.getElementById('aiw-print-root');
+    root.innerHTML = buildSummaryHTML();
+    window.print();
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.AIW = {
+    onSearch: function(v){ _filters.search = v; render(); },
+    onLocFilter: function(v){ _filters.loc = v; render(); },
+    onShiftFilter: function(v){ _filters.shift = v; render(); },
+    onDateFrom: function(v){ _filters.dateFrom = v; render(); },
+    onDateTo: function(v){ _filters.dateTo = v; render(); },
+    onNonCompliantOnly: function(v){ _filters.nonCompliantOnly = v; render(); },
+
+    select: function(id){ _selected = (_selected!==null && String(_selected)===String(id)) ? null : id; render(); },
+    openAdd: function(){ if (can('add')) buildModal(null); },
+    openEditSelected: function(){ var r=getSelected(); if(!r) return alert('Select a row first.'); buildModal(r); },
+    removeSelected: function(){
+      if (!can('delete')) return;
+      var r = getSelected(); if(!r) return alert('Select a row first.');
+      if (!confirm('Remove this inspection record (' + r['Record ID'] + ')? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: AREA.tabKey, idCol: AREA.idCol, id: r['Record ID']}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status==='error'){ alert('Remove failed: '+(res.message||'unknown error')); return; }
+        _selected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+    printSlipSelected: function(){ var r=getSelected(); if(!r) return alert('Select a row first.'); printSlip(r); },
+    openSummaryReport: function(){ printSummary(); },
+
+    setCheck: function(btn, val){
+      var t2 = btn.parentElement;
+      var okBtn = t2.querySelector('.t2-ok'), noBtn = t2.querySelector('.t2-no');
+      okBtn.classList.remove('active-ok'); noBtn.classList.remove('active-no');
+      if (val === true) okBtn.classList.add('active-ok'); else noBtn.classList.add('active-no');
+    },
+    updateViolRow: function(i, field, val){ if (_violRows[i]) _violRows[i][field] = val; },
+    removeViolRow: function(i){ _violRows.splice(i,1); renderViolRows(); }
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadAll(); }, 100);
+  });
+})();
+</script>
+
+<script>
+/* ── Access gate: identical rule to chemical-inventory.html / ppe-issuance.html ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The Shift Area Safety Inspection register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+
+</div></body></html>

@@ -174,7 +174,24 @@ var TABS = {
   'oh_programme':    '42b – OH Surveillance Programme',
   'scaffold':        ' Scaffold',
   'ndt_permits':     '☢ NDT Permits',
-  'chemical_inv':    '⚗ Chemical Inv',
+  /* Rev.14 (Issam, 2026-10-17) — 'chemical_inv' below replaces the
+     unbuilt placeholder sheet name with the real one now that
+     chemical-inventory.html exists: the Stores master list, scoped to
+     EXACTLY the 40 items on Issam's OL_100126 stock sheet (no batch-
+     house raw materials or decorative coatings added). 'chemical_sds_log'
+     is new: one row per SDS review event, dropping numbered-sheet
+     naming for the same reason as 'oh_programme' / 'contractor_compliance'. */
+  'chemical_inv':    '44 – Chemical Inventory Register',
+  'chemical_sds_log':'44b – SDS Review Log',
+  /* Rev.17 (Issam, 2026-10-18) — 'chemical_stock_monthly' is new: one
+     row per CALENDAR MONTH (not per item), holding a full JSON snapshot
+     of every chemical item's quantity at that point in time in an
+     'Items JSON' column. This avoids needing a new sheet column every
+     time an item is added to chemical_inv — the item list inside each
+     month's JSON payload is whatever was current in Chemical Inventory
+     when that month's record was created or last edited. Past months
+     are never rewritten when new items are added later. */
+  'chemical_stock_monthly':'44c – Monthly Stock Count',
   'crane_lifting':   ' Crane Lifting',
   /* Rev.10 (Issam, 2026-10-14) — 'crane_lifting' above is now the
      EQUIPMENT MASTER list for crane-lifting.html (one row per crane/
@@ -234,6 +251,34 @@ var TABS = {
 
   /* New Safety & ESG Programmes — Rev.19 */
   'ppe_register':      '54 – PPE Register',
+  /* Rev.18 (Issam, 2026-10-19) — 'ppe_register' above is the PPE
+     Requirements per Work Area compliance log (unchanged). These three
+     are new, migrated from the real HSE_Department.xlsm / PPE
+     Issuance Log.xlsx: general PPE (gloves, ear plugs, etc.) is
+     already managed for quantity in the ERP, so the portal does NOT
+     duplicate a general-PPE stock count — it only logs issuance
+     events, matching the dropped 'inventory redundancy' Issam
+     specifically ruled out. Safety Shoes are the one exception: the
+     ERP store count is carried in here as a BASELINE the portal then
+     works forward from (baseline qty + baseline date, remaining =
+     baseline minus every issuance dated after it), the same
+     baseline-and-deduct pattern as 'chemical_stock_monthly' above,
+     because shoes need a running remaining balance the way general
+     PPE does not. */
+  'ppe_issuance_dept':   '54b – PPE Issuance (Dept)',
+  'ppe_issuance_indiv':  '54c – PPE Issuance (Individual)',
+  'ppe_shoes_stock':     '54d – Safety Shoes Stock',
+  /* Rev.19 (Issam, 2026-10-20) — Shift Area Safety Inspection
+     (HSE-FRM-06). Tab name deliberately has NO sheet number, per the
+     convention adopted after the Scaffold Inspection sheet-number
+     collision (see CP-107): descriptive tab names only for any new
+     register going forward, to avoid a repeat collision with an
+     existing numbered sheet. One flat table, one row per inspection
+     event (3 checklist sections + accident/PPE-violation/other-
+     observation free text) — see area-inspection.html for the full
+     29-column schema and the printable Area Inspection Slip / Summary
+     Report built on top of this same data, no extra tab needed. */
+  'area_inspection':   'Area Inspection',
   'wah_register':      '55 – WAH Register',
   'hot_work':          '56 – Hot Work Log',
   'electrical_safety': '57 – Electrical Safety Log',
