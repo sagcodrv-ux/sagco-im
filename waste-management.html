@@ -2,149 +2,405 @@
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SAGCO IMS — Waste Management Register</title>
-<link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
-</head><body>
-<div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--g100);
-  border-radius:var(--radius);border-left:3px solid var(--gold);margin:10px 0;color:var(--text-lt)}
-.alert-red{background:#FFEBEE;border:1px solid #EF9A9A;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#B71C1C;margin-bottom:10px}
-.alert-amb{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:10px}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
-.back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--navy);font-size:11px;
-  font-weight:600;text-decoration:none;padding:5px 10px;background:var(--g100);
-  border-radius:var(--radius);border:1px solid #e0e0e0}
-.back-link:hover{background:#e3f0fa}
-</style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc02-environment.html" class="back-link">← OC-02 Environment</a></div><div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"><div class="kpi-card kc-blue"><div class="kpi-lbl">Waste Streams</div><div class="kpi-val">4</div><div class="kpi-sub">Hazardous · Non-Haz · Cullet · Recyclable</div></div><div class="kpi-card kc-red"><div class="kpi-lbl">Hazardous Storage</div><div class="kpi-val">Max 90 days</div><div class="kpi-sub">MEWA regulation — mandatory disposal within 90 days</div></div><div class="kpi-card kc-grn"><div class="kpi-lbl">Cullet Target</div><div class="kpi-val">≥35% site</div><div class="kpi-sub">OBJ-07 / OBJ-13 — Q3 2026</div></div><div class="kpi-card kc-amb"><div class="kpi-lbl">Licensed Contractor</div><div class="kpi-val">Mandatory</div><div class="kpi-sub">All hazardous waste via MEWA-licensed contractor only</div></div><div class="kpi-card kc-nvy"><div class="kpi-lbl">Document Code</div><div class="kpi-val">L4-ENV-PR-03-RC-01</div><div class="kpi-sub">OC-02 §A.2</div></div></div><div class="req-text">ISO 14001 §8.1 / MEWA Hazardous Waste Regulations — Hazardous waste: segregated at source; stored in labelled bunded area; disposed within 90 days via MEWA-licensed contractor with manifest. Cullet recovery maximised and returned to batch. Monthly records entered in this register.</div><div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
-<script>initPage("waste-management.html");document.getElementById("tb").innerHTML=renderTopbar("Waste Management Register","L4-ENV-PR-03-RC-01 · ISO 14001 §8.1 · MEWA Regulations · 4-Colour Segregation · Cullet Recovery · OC-02 §A.2");</script>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+/* ══════════════════════════════════════════════════════════════════
+   WASTE MANAGEMENT REGISTER — dark navy/gold theme and live-table/
+   modal pattern consistent with ppe-issuance.html / area-inspection.html.
+   One live table: 'waste_management'. Covers two live waste streams
+   today — General Waste (HSE-FRM-07, by Unit) and Food Waste (canteen
+   contractor pickups) — plus a reference guide to 6 further proposed
+   streams not yet tracked. Class prefix wmw-.
+   ══════════════════════════════════════════════════════════════════ */
+.wmw-dark-wrap{
+  --wmw-bg:#0D1B35; --wmw-bg2:#142140; --wmw-bg3:#1a2a50;
+  --wmw-gold:#C9A84C; --wmw-gold-lt:#E8C97A;
+  --wmw-text:rgba(255,255,255,.92); --wmw-text-muted:rgba(255,255,255,.55);
+  --wmw-text-dim:rgba(255,255,255,.35); --wmw-border:rgba(255,255,255,.08);
+  --wmw-border-gold:rgba(201,168,76,.35);
+  --wmw-blue:#5B9BD5; --wmw-red:#F0685C; --wmw-amb:#E8B339; --wmw-grn:#4FCB9E; --wmw-purple:#9B7FE0;
+  background:var(--wmw-bg); color:var(--wmw-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.wmw-dark-wrap *{box-sizing:border-box}
+.wmw-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.wmw-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--wmw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--wmw-bg2);
+  border-radius:8px;border:1px solid var(--wmw-border-gold)}
+.wmw-dark-wrap .back-link:hover{background:var(--wmw-bg3)}
+.wmw-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--wmw-bg2);
+  border-radius:8px;border-left:3px solid var(--wmw-gold);margin:10px 0;color:var(--wmw-text-muted)}
+.wmw-dark-wrap .flag-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.08);
+  border-radius:8px;border-left:3px solid var(--wmw-amb);margin:10px 0;color:var(--wmw-text-muted)}
+.wmw-dark-wrap .flag-text code{color:var(--wmw-gold-lt)}
+.wmw-dark-wrap .sec-banner{background:var(--wmw-bg2);color:var(--wmw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--wmw-border-gold);border-bottom:none}
+.wmw-dark-wrap .kpi-grid{display:grid;gap:14px}
+.wmw-dark-wrap .kpi-card{background:var(--wmw-bg2);border:1px solid var(--wmw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.wmw-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.wmw-dark-wrap .kpi-card.kc-nvy::before{background:var(--wmw-gold)}
+.wmw-dark-wrap .kpi-card.kc-blue::before{background:var(--wmw-blue)}
+.wmw-dark-wrap .kpi-card.kc-amb::before{background:var(--wmw-amb)}
+.wmw-dark-wrap .kpi-card.kc-grn::before{background:var(--wmw-grn)}
+.wmw-dark-wrap .kpi-lbl{font-size:10px;font-weight:700;color:var(--wmw-text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.wmw-dark-wrap .kpi-val{font-size:22px;font-weight:800;color:var(--wmw-text)}
+.wmw-dark-wrap .kpi-sub{font-size:10px;color:var(--wmw-text-dim);margin-top:2px}
+.wmw-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.wmw-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--wmw-grn)}
+.wmw-dark-wrap .badge.kc-dim{background:rgba(255,255,255,.08);color:var(--wmw-text-dim)}
+.wmw-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--wmw-blue)}
+.wmw-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--wmw-amb)}
+.wmw-dark-wrap .stream-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px;
+  background:var(--wmw-bg2);border:1px solid var(--wmw-border-gold);border-top:none;border-radius:0 0 10px 10px}
+.wmw-dark-wrap .stream-card{background:var(--wmw-bg3);border:1px solid var(--wmw-border);border-radius:10px;padding:10px 12px}
+.wmw-dark-wrap .stream-name{font-size:11.5px;font-weight:700;color:var(--wmw-text);margin-bottom:4px}
+.wmw-dark-wrap .stream-note{font-size:10px;color:var(--wmw-text-dim);line-height:1.5}
+.wmw-dark-wrap .aiw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--wmw-bg2);border:1px solid var(--wmw-border-gold);border-top:none}
+.wmw-dark-wrap .aiw-toolbar input[type=text],.wmw-dark-wrap .aiw-toolbar input[type=date]{background:var(--wmw-bg3);border:1px solid var(--wmw-border);
+  color:var(--wmw-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:130px}
+.wmw-dark-wrap .aiw-toolbar select{background:var(--wmw-bg3);border:1px solid var(--wmw-border);
+  color:var(--wmw-text);border-radius:7px;padding:7px 10px;font-size:11px}
+.wmw-dark-wrap .aiw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--wmw-border-gold);
+  background:var(--wmw-bg3);color:var(--wmw-gold-lt);cursor:pointer}
+.wmw-dark-wrap .aiw-btn:hover{background:rgba(201,168,76,.15)}
+.wmw-dark-wrap .aiw-btn:disabled{opacity:.4;cursor:not-allowed}
+.wmw-dark-wrap .aiw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--wmw-grn)}
+.wmw-dark-wrap .wmw-table-wrap{background:var(--wmw-bg2);border:1px solid var(--wmw-border-gold);border-top:none;
+  border-radius:0 0 10px 10px;overflow-x:auto}
+.wmw-dark-wrap table{width:100%;border-collapse:collapse;font-size:11.5px}
+.wmw-dark-wrap thead th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.3px;color:var(--wmw-text-dim);border-bottom:1px solid var(--wmw-border-gold);white-space:nowrap}
+.wmw-dark-wrap tbody td{padding:8px 10px;border-bottom:1px solid var(--wmw-border);white-space:nowrap}
+.wmw-dark-wrap tbody tr.aiw-row{cursor:pointer}
+.wmw-dark-wrap tbody tr.aiw-row:hover{background:rgba(255,255,255,.02)}
+.wmw-dark-wrap tbody tr.aiw-sel{background:rgba(201,168,76,.08)}
+.wmw-dark-wrap .empty-state{padding:28px;text-align:center;color:var(--wmw-text-dim);font-size:12px}
+.wmw-dark-wrap .empty-state strong{display:block;color:var(--wmw-text-muted);margin-bottom:4px;font-size:13px}
+/* modal */
+.wmw-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;
+  justify-content:center;z-index:500;padding:30px 16px;overflow-y:auto}
+.wmw-modal{background:var(--wmw-bg2);border:1px solid var(--wmw-border-gold);border-radius:14px;
+  max-width:620px;width:100%;padding:0;color:var(--wmw-text)}
+.wmw-modal-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;
+  border-bottom:1px solid var(--wmw-border);font-size:14px;font-weight:700;color:var(--wmw-gold-lt)}
+.wmw-modal-hd button{background:none;border:none;color:var(--wmw-text-dim);font-size:18px;cursor:pointer}
+.wmw-modal-bd{padding:18px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.wmw-modal-bd .full{grid-column:1/-1}
+.wmw-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;
+  color:var(--wmw-text-dim);margin-bottom:4px}
+.wmw-field input,.wmw-field select,.wmw-field textarea{width:100%;background:var(--wmw-bg3);
+  border:1px solid var(--wmw-border);color:var(--wmw-text);border-radius:7px;padding:8px 10px;font-size:12px}
+.wmw-field textarea{min-height:56px;resize:vertical;font-family:inherit}
+.wmw-modal-ft{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--wmw-border)}
+@media print{
+  body *{visibility:hidden}
+  .wmw-table-wrap, .wmw-table-wrap *{visibility:visible}
+  .wmw-table-wrap{position:absolute;left:0;top:0;width:100%}
+}
+</style>
+</head><body><div class="wmw-dark-wrap">
+<div class="back-row"><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div>
+
+<div class="req-text">HSE-FRM-07 Monthly General Waste Tracking · ISO 14001 §8.1 Operational Control (waste) — monthly waste removal log, by stream and location/contractor, feeding the Waste Management Programme (cullet recycling ≥75% target, licensed-disposal manifests).</div>
+
+<div class="flag-text">⚠ <strong>Classification flag:</strong> the project's own IMS taxonomy (earlier session notes) places "Waste Management Register" under <strong>OC-02 Environment &amp; Energy</strong> (Sheet 45b), not OC-01 Safety &amp; Emergency — and two slightly different document codes have appeared in past notes: <code>L4-ENV-PR-03-RC-01</code> vs the <code>L3-ENV-PR-05</code> programme-register family. Built here under OC-01 per direct instruction; flagging so Issam can confirm the right home (an OC-02 scopes page doesn't exist yet in the live portal) and the final code before this goes live.</div>
+
+<div class="flag-text">⚠ <strong>Real data added (29 Oct 2026) — General Waste and Hazardous Waste:</strong> 5 months of filled HSE-FRM-07 scans (May–Sep 2026) and 3 real Hazardous Waste collection events (01-Feb, 13-Feb, 13-Jul 2026) were migrated — see the reference workbook for full detail. Flagged, not silently resolved: (1) General Waste's own tracking form names the on-site contractor <strong>"ATHEEB"</strong> while the invoicing vendor is Modern Riyada (same vendor as Food Waste) — kept as written; (2) the per-trip rate jumped from SAR 400 to SAR 600 in September with no explanation on the form; (3) August shows a 2–3× volume spike with handwritten "Project" notes, unexplained; (4) Hazardous Waste is billed per collection event, not monthly, by a <em>different</em> vendor (Environmental Horizons Co.); (5) one Hazardous Waste invoice (13-Feb) has no matching manifest in the supplied files, and where manifests do exist, their line-items don't cleanly reconcile 1:1 with the invoice's own line-items. All of this promotes Hazardous/Chemical Waste from <em>proposed</em> to <em>live</em> below — General Waste was already live but had zero records until now.</div>
+
+<div class="sec-banner">WASTE MANAGEMENT — QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Records Logged</div><div class="kpi-val" id="wmw-kpi-total">—</div><div class="kpi-sub" id="wmw-kpi-total-sub">All time</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">Food Waste Trips (YTD)</div><div class="kpi-val" id="wmw-kpi-trips">—</div><div class="kpi-sub">2 × 2-yard containers, Jan–Aug 2026</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Waste Disposal Cost (YTD)</div><div class="kpi-val" id="wmw-kpi-cost">—</div><div class="kpi-sub">SAR, incl. VAT</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Waste Streams Live</div><div class="kpi-val">3 <span style="font-size:12px;color:var(--wmw-text-dim)">of 8</span></div><div class="kpi-sub">General Waste · Food Waste · Hazardous/Chemical</div></div>
+</div>
+
+<div class="sec-banner">WASTE STREAMS AT SAGCO <span style="font-weight:400;color:var(--wmw-text-dim);text-transform:none;letter-spacing:0">— proposed taxonomy, for Issam's review</span></div>
+<div class="stream-grid">
+  <div class="stream-card"><div class="stream-name">🗑 General Waste <span class="badge kc-grn" style="margin-left:4px">LIVE</span></div><div class="stream-note">Domestic/office waste, HSE-FRM-07, by Unit (1/2, 3/4, 5)</div></div>
+  <div class="stream-card"><div class="stream-name">🍽 Food Waste <span class="badge kc-grn" style="margin-left:4px">LIVE</span></div><div class="stream-note">Canteen, Modern Riyada contractor, 16 records migrated</div></div>
+  <div class="stream-card"><div class="stream-name">🔷 Cullet / Glass Scrap <span class="badge kc-dim" style="margin-left:4px">PROPOSED</span></div><div class="stream-note">Internal recycling — SEA register tracks ≥75% target</div></div>
+  <div class="stream-card"><div class="stream-name">☣ Hazardous / Chemical <span class="badge kc-grn" style="margin-left:4px">LIVE</span></div><div class="stream-note">Environmental Horizons Co., per-event manifests + invoices — 11 lines migrated</div></div>
+  <div class="stream-card"><div class="stream-name">🔩 Scrap Metal <span class="badge kc-dim" style="margin-left:4px">PROPOSED</span></div><div class="stream-note">Maintenance/fabrication offcuts</div></div>
+  <div class="stream-card"><div class="stream-name">📦 Wood / Packaging <span class="badge kc-dim" style="margin-left:4px">PROPOSED</span></div><div class="stream-note">Pallets, cardboard, plastic wrap</div></div>
+  <div class="stream-card"><div class="stream-name">🛢 Used Oil / Oily Waste <span class="badge kc-dim" style="margin-left:4px">PROPOSED</span></div><div class="stream-note">Machinery/generators — links to Oil Leakage Inspection form</div></div>
+  <div class="stream-card"><div class="stream-name">💻 E-Waste <span class="badge kc-dim" style="margin-left:4px">PROPOSED</span></div><div class="stream-note">IT/control-system electronics</div></div>
+</div>
+
+<div class="sec-banner" style="margin-top:14px">WASTE MANAGEMENT REGISTER</div>
+<div class="aiw-toolbar" style="border-top:1px solid var(--wmw-border-gold)">
+  <input type="text" id="wmw-search" placeholder="Search contractor / location…" oninput="WMW.onSearch(this.value)">
+  <select id="wmw-stream-filter" onchange="WMW.onStreamFilter(this.value)">
+    <option value="">All streams</option>
+    <option value="General Waste">General Waste</option>
+    <option value="Food Waste">Food Waste</option>
+    <option value="Cullet / Glass Scrap">Cullet / Glass Scrap</option>
+    <option value="Hazardous / Chemical Waste">Hazardous / Chemical Waste</option>
+    <option value="Scrap Metal">Scrap Metal</option>
+    <option value="Wood / Pallet & Packaging">Wood / Pallet &amp; Packaging</option>
+    <option value="Used Oil / Oily Waste">Used Oil / Oily Waste</option>
+    <option value="E-Waste">E-Waste</option>
+  </select>
+  <input type="date" id="wmw-date-from" onchange="WMW.onDateFrom(this.value)" title="From date">
+  <input type="date" id="wmw-date-to" onchange="WMW.onDateTo(this.value)" title="To date">
+</div>
+<div class="aiw-toolbar" style="border-top:none">
+  <button class="aiw-btn aiw-btn-add" id="wmw-btn-new" onclick="WMW.openAdd()">+ New Record</button>
+  <button class="aiw-btn" id="wmw-btn-edit" disabled onclick="WMW.openEditSelected()">Open / Edit</button>
+  <button class="aiw-btn" id="wmw-btn-remove" disabled onclick="WMW.removeSelected()">Remove</button>
+  <button class="aiw-btn" onclick="window.print()">🖨 Print Register</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--wmw-text-dim)" id="wmw-count-sub"></span>
+</div>
+<div class="wmw-table-wrap">
+  <table>
+    <thead><tr>
+      <th>Date</th><th>Waste Stream</th><th>Location/Unit</th><th>Contractor</th>
+      <th>Invoice/Ref No.</th><th>Qty</th><th>Unit</th><th>Amount (SAR)</th><th>Received/Signed By</th><th>Remarks</th>
+    </tr></thead>
+    <tbody id="wmw-tbody"><tr><td colspan="10" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
+  </table>
+</div>
+
+<div id="wmw-modal-root"></div>
 
 <script>
-/* ── Auto-update summary cards from live Sheets data ── */
-
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
-  }
-  return '—';
-}
-
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
-    }
-  }
-}
 (function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('Waste Streams', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
+
+  var WASTE = { tabKey:'waste_management', idCol:'Record ID' };
+  var STATUS_COL = 'Record Status';
+  var STREAMS = ["General Waste","Food Waste","Cullet / Glass Scrap","Hazardous / Chemical Waste",
+                 "Scrap Metal","Wood / Pallet & Packaging","Used Oil / Oily Waste","E-Waste"];
+  var UNITS = ["Trips","EACH","kg","Tonnes","m³","Drums","Bags","Box","PCS","L"];
+
+  var _cache = null, _selected = null;
+  var _filters = { search:'', stream:'', dateFrom:'', dateTo:'' };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function wEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+
+  function nextRecordId(cache, prefix, idCol){
+    var year = new Date().getFullYear();
+    if (!cache || !cache.headers || !cache.rows) return prefix + '-' + year + '-0001';
+    var idIdx = colIdx(cache.headers, idCol);
+    if (idIdx < 0) return prefix + '-' + year + '-0001';
+    var maxN = 0;
+    cache.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      var m = v.match(new RegExp('^'+prefix+'-'+year+'-(\\d+)$'));
+      if (m){ var n = parseInt(m[1],10); if (n > maxN) maxN = n; }
+    });
+    var numStr = String(maxN + 1); while (numStr.length < 4) numStr = '0' + numStr;
+    return prefix + '-' + year + '-' + numStr;
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){
+    return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
+  }
+  function filterActive(data){
+    if (data && data.headers && data.rows){
+      var si = colIdx(data.headers, STATUS_COL);
+      if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+    }
+    return data;
+  }
+  function loadAll(){
+    return loadTab(WASTE.tabKey).then(function(data){ _cache = filterActive(data); }).catch(function(){ _cache = null; }).then(render);
+  }
+  function getRecs(){ if (!_cache || !_cache.headers || !_cache.rows) return []; return _cache.rows.map(function(r){ return recFromRow(_cache.headers, r); }); }
+
+  /* ── Filtering ────────────────────────────────────────────────── */
+  function matchesFilters(r){
+    var f = _filters;
+    if (f.stream && r['Waste Stream'] !== f.stream) return false;
+    if (f.dateFrom && String(r['Date']) < f.dateFrom) return false;
+    if (f.dateTo && String(r['Date']) > f.dateTo) return false;
+    if (f.search){
+      var hay = ((r['Contractor']||'')+' '+(r['Location/Unit']||'')).toLowerCase();
+      if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+    }
+    return true;
+  }
+  function filteredRecs(){ return getRecs().filter(matchesFilters); }
+
+  /* ── KPIs ─────────────────────────────────────────────────────── */
+  function renderKPIs(){
+    var all = getRecs();
+    setTxt('wmw-kpi-total', all.length);
+    setTxt('wmw-kpi-total-sub', all.length ? 'All time' : 'No records yet');
+    var trips = 0, cost = 0;
+    all.forEach(function(r){
+      if (r['Waste Stream'] === 'Food Waste'){
+        var q = parseFloat(r['Quantity']); if (!isNaN(q)) trips += q;
+        var a = parseFloat(r['Amount (SAR)']); if (!isNaN(a)) cost += a;
       }
+    });
+    setTxt('wmw-kpi-trips', trips || 0);
+    setTxt('wmw-kpi-cost', 'SAR ' + cost.toLocaleString(undefined,{minimumFractionDigits:0}));
+  }
+
+  /* ── Register table ───────────────────────────────────────────── */
+  function renderTable(){
+    var all = getRecs();
+    var list = filteredRecs();
+    var tbody = document.getElementById('wmw-tbody');
+    setTxt('wmw-count-sub', list.length + ' of ' + all.length + ' records shown');
+    if (!list.length){
+      tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><strong>No records match these filters</strong>Try widening the date range or clearing filters.</td></tr>';
+      updateButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Date']||'').localeCompare(String(a['Date']||'')); });
+    tbody.innerHTML = list.map(function(r){
+      var sel = _selected === r['Record ID'];
+      var streamBadgeClass = r['Waste Stream']==='Food Waste' ? 'kc-blue' : (r['Waste Stream']==='General Waste' ? 'kc-grn' : 'kc-amb');
+      return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="WMW.select(\'' + wEsc(r['Record ID']) + '\')">'
+        + '<td>' + wEsc(r['Date']) + '</td>'
+        + '<td><span class="badge ' + streamBadgeClass + '">' + wEsc(r['Waste Stream']) + '</span></td>'
+        + '<td>' + wEsc(r['Location/Unit']) + '</td>'
+        + '<td>' + wEsc(r['Contractor']) + '</td>'
+        + '<td>' + wEsc(r['Invoice/Ref No.']) + '</td>'
+        + '<td>' + wEsc(r['Quantity']) + '</td>'
+        + '<td>' + wEsc(r['Unit']) + '</td>'
+        + '<td>' + wEsc(r['Amount (SAR)']) + '</td>'
+        + '<td>' + wEsc(r['Received/Signed By']) + '</td>'
+        + '<td style="white-space:normal;max-width:220px">' + wEsc(r['Remarks']) + '</td>'
+        + '</tr>';
+    }).join('');
+    updateButtons();
+  }
+
+  function updateButtons(){
+    var hasSel = !!_selected;
+    document.getElementById('wmw-btn-edit').disabled = !hasSel;
+    document.getElementById('wmw-btn-remove').disabled = !hasSel || !can('safety.edit');
+  }
+
+  function render(){ renderKPIs(); renderTable(); }
+
+  /* ── Modal ────────────────────────────────────────────────────── */
+  function closeModal(){ document.getElementById('wmw-modal-root').innerHTML = ''; }
+
+  function openForm(existing){
+    var r = existing || {};
+    var isEdit = !!existing;
+    var opts = STREAMS.map(function(s){ return '<option value="'+wEsc(s)+'"'+(r['Waste Stream']===s?' selected':'')+'>'+wEsc(s)+'</option>'; }).join('');
+    var uopts = UNITS.map(function(u){ return '<option value="'+wEsc(u)+'"'+(r['Unit']===u?' selected':'')+'>'+wEsc(u)+'</option>'; }).join('');
+    var html = ''
+      + '<div class="wmw-overlay" onclick="if(event.target===this) WMW.closeModal()">'
+      + '<div class="wmw-modal">'
+      + '<div class="wmw-modal-hd"><span>' + (isEdit?'Edit':'New') + ' Waste Record</span><button onclick="WMW.closeModal()">✕</button></div>'
+      + '<div class="wmw-modal-bd">'
+      + '<div class="wmw-field"><label>Date</label><input type="date" id="wmw-f-date" value="' + wEsc(r['Date']||'') + '"></div>'
+      + '<div class="wmw-field"><label>Waste Stream</label><select id="wmw-f-stream">' + opts + '</select></div>'
+      + '<div class="wmw-field"><label>Location / Unit</label><input type="text" id="wmw-f-loc" value="' + wEsc(r['Location/Unit']||'') + '" placeholder="e.g. Unit 1/2, Canteen"></div>'
+      + '<div class="wmw-field"><label>Contractor</label><input type="text" id="wmw-f-contractor" value="' + wEsc(r['Contractor']||'') + '"></div>'
+      + '<div class="wmw-field"><label>Invoice / Ref No.</label><input type="text" id="wmw-f-invoice" value="' + wEsc(r['Invoice/Ref No.']||'') + '"></div>'
+      + '<div class="wmw-field"><label>Received / Signed By</label><input type="text" id="wmw-f-signedby" value="' + wEsc(r['Received/Signed By']||'') + '"></div>'
+      + '<div class="wmw-field"><label>Quantity</label><input type="number" step="any" id="wmw-f-qty" value="' + wEsc(r['Quantity']||'') + '"></div>'
+      + '<div class="wmw-field"><label>Unit</label><select id="wmw-f-unit">' + uopts + '</select></div>'
+      + '<div class="wmw-field full"><label>Amount (SAR)</label><input type="number" step="0.01" id="wmw-f-amount" value="' + wEsc(r['Amount (SAR)']||'') + '"></div>'
+      + '<div class="wmw-field full"><label>Remarks</label><textarea id="wmw-f-remarks">' + wEsc(r['Remarks']||'') + '</textarea></div>'
+      + '</div>'
+      + '<div class="wmw-modal-ft">'
+      + '<button class="aiw-btn" onclick="WMW.closeModal()">Cancel</button>'
+      + '<button class="aiw-btn aiw-btn-add" onclick="WMW.save(\'' + (isEdit ? wEsc(r['Record ID']) : '') + '\')">Save</button>'
+      + '</div></div></div>';
+    document.getElementById('wmw-modal-root').innerHTML = html;
+  }
+
+  function save(existingId){
+    var rec = {
+      'Date': document.getElementById('wmw-f-date').value,
+      'Waste Stream': document.getElementById('wmw-f-stream').value,
+      'Location/Unit': document.getElementById('wmw-f-loc').value,
+      'Contractor': document.getElementById('wmw-f-contractor').value,
+      'Invoice/Ref No.': document.getElementById('wmw-f-invoice').value,
+      'Received/Signed By': document.getElementById('wmw-f-signedby').value,
+      'Quantity': document.getElementById('wmw-f-qty').value,
+      'Unit': document.getElementById('wmw-f-unit').value,
+      'Amount (SAR)': document.getElementById('wmw-f-amount').value,
+      'Remarks': document.getElementById('wmw-f-remarks').value,
+      'Record Status': 'Active'
     };
+    if (existingId){
+      rec['Record ID'] = existingId;
+      postJSON('update', { tab: WASTE.tabKey, id: existingId }, rec).then(function(){ closeModal(); loadAll(); });
+    } else {
+      rec['Record ID'] = nextRecordId(_cache, 'WM', WASTE.idCol);
+      rec['Month'] = (rec['Date']||'').slice(0,7);
+      postJSON('create', { tab: WASTE.tabKey }, rec).then(function(){ closeModal(); loadAll(); });
+    }
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.WMW = {
+    onSearch: function(v){ _filters.search = v; renderTable(); },
+    onStreamFilter: function(v){ _filters.stream = v; renderTable(); },
+    onDateFrom: function(v){ _filters.dateFrom = v; renderTable(); },
+    onDateTo: function(v){ _filters.dateTo = v; renderTable(); },
+    select: function(id){ _selected = (_selected === id) ? null : id; renderTable(); },
+    openAdd: function(){ openForm(null); },
+    openEditSelected: function(){
+      if (!_selected) return;
+      var r = getRecs().filter(function(x){ return x['Record ID'] === _selected; })[0];
+      if (r) openForm(r);
+    },
+    removeSelected: function(){
+      if (!_selected || !can('safety.edit')) return;
+      if (!confirm('Remove this waste record?')) return;
+      postJSON('update', { tab: WASTE.tabKey, id: _selected }, { 'Record ID': _selected, 'Record Status': 'Removed' })
+        .then(function(){ _selected = null; loadAll(); });
+    },
+    closeModal: closeModal,
+    save: save
+  };
+
+  if (typeof IMS_AUTH !== 'undefined'){
+    IMS_AUTH.init({ onReady: function(){ loadAll(); } });
+  } else {
+    loadAll();
   }
 })();
 </script>
 
 <script>
-(function() {
-  function colIdx(headers, name) {
-    var n = name.toLowerCase();
-    for (var i=0;i<headers.length;i++) {
-      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
-    }
-    return -1;
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
   }
-  function countVal(rows, col, val) {
-    if (col < 0) return 0;
-    var v = val ? val.toLowerCase() : null;
-    return rows.filter(function(r){
-      var cell = String(r[col]||'').toLowerCase().trim();
-      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
-    }).length;
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The Waste Management Register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
   }
-  function sumCol(rows, col) {
-    if (col < 0) return 0;
-    return rows.reduce(function(s,r){
-      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
-      return s + (isNaN(v) ? 0 : v);
-    }, 0);
-  }
-  function setCard(idx, val) {
-    var cards = document.querySelectorAll('.kpi-val');
-    if (cards[idx]) cards[idx].textContent = val;
-  }
-
-  var origRender = window.renderTable;
-  window.renderTable = function(data, container) {
-    if (origRender) origRender(data, container);
-    if (!data || !data.rows || !data.headers) return;
-    var rows = data.rows, h = data.headers;
-    try { setCard(0, rows.length); } catch(e) {}
-  };
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
 })();
 </script>
-</body></html>
+</div>
+</body>
+</html>

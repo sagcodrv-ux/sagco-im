@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Scrap Sales Register</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+/* ══════════════════════════════════════════════════════════════════
+   SCRAP SALES REGISTER — same dark navy/gold theme and live-table/
+   modal pattern as waste-management.html / area-inspection.html.
+   One live table: 'scrap_sales' (one row per gate-pass x material
+   line, migrated from SCRAP_SALES-2026.xlsx). Two reporting views on
+   top of the same data: a per-record printable Scrap Issuance Slip
+   and a Monthly Scrap Sale Summary (by material and by customer),
+   mirroring the source workbook's own "SCRAP SALE SUMMARY" block.
+   Class prefix scw-.
+   ══════════════════════════════════════════════════════════════════ */
+.scw-dark-wrap{
+  --scw-bg:#0D1B35; --scw-bg2:#142140; --scw-bg3:#1a2a50;
+  --scw-gold:#C9A84C; --scw-gold-lt:#E8C97A;
+  --scw-text:rgba(255,255,255,.92); --scw-text-muted:rgba(255,255,255,.55);
+  --scw-text-dim:rgba(255,255,255,.35); --scw-border:rgba(255,255,255,.08);
+  --scw-border-gold:rgba(201,168,76,.35);
+  --scw-blue:#5B9BD5; --scw-red:#F0685C; --scw-amb:#E8B339; --scw-grn:#4FCB9E; --scw-purple:#9B7FE0;
+  background:var(--scw-bg); color:var(--scw-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.scw-dark-wrap *{box-sizing:border-box}
+.scw-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.scw-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--scw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--scw-bg2);
+  border-radius:8px;border:1px solid var(--scw-border-gold)}
+.scw-dark-wrap .back-link:hover{background:var(--scw-bg3)}
+.scw-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--scw-bg2);
+  border-radius:8px;border-left:3px solid var(--scw-gold);margin:10px 0;color:var(--scw-text-muted)}
+.scw-dark-wrap .flag-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.08);
+  border-radius:8px;border-left:3px solid var(--scw-amb);margin:10px 0;color:var(--scw-text-muted)}
+.scw-dark-wrap .flag-text code{color:var(--scw-gold-lt)}
+.scw-dark-wrap .sec-banner{background:var(--scw-bg2);color:var(--scw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--scw-border-gold);border-bottom:none}
+.scw-dark-wrap .kpi-grid{display:grid;gap:14px}
+.scw-dark-wrap .kpi-card{background:var(--scw-bg2);border:1px solid var(--scw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.scw-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.scw-dark-wrap .kpi-card.kc-nvy::before{background:var(--scw-gold)}
+.scw-dark-wrap .kpi-card.kc-blue::before{background:var(--scw-blue)}
+.scw-dark-wrap .kpi-card.kc-amb::before{background:var(--scw-amb)}
+.scw-dark-wrap .kpi-card.kc-grn::before{background:var(--scw-grn)}
+.scw-dark-wrap .kpi-lbl{font-size:10px;font-weight:700;color:var(--scw-text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.scw-dark-wrap .kpi-val{font-size:22px;font-weight:800;color:var(--scw-text)}
+.scw-dark-wrap .kpi-sub{font-size:10px;color:var(--scw-text-dim);margin-top:2px}
+.scw-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.scw-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--scw-grn)}
+.scw-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--scw-blue)}
+.scw-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--scw-amb)}
+.scw-dark-wrap .aiw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--scw-bg2);border:1px solid var(--scw-border-gold);border-top:none}
+.scw-dark-wrap .aiw-toolbar input[type=text],.scw-dark-wrap .aiw-toolbar input[type=date]{background:var(--scw-bg3);border:1px solid var(--scw-border);
+  color:var(--scw-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:130px}
+.scw-dark-wrap .aiw-toolbar select{background:var(--scw-bg3);border:1px solid var(--scw-border);
+  color:var(--scw-text);border-radius:7px;padding:7px 10px;font-size:11px}
+.scw-dark-wrap .aiw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--scw-border-gold);
+  background:var(--scw-bg3);color:var(--scw-gold-lt);cursor:pointer}
+.scw-dark-wrap .aiw-btn:hover{background:rgba(201,168,76,.15)}
+.scw-dark-wrap .aiw-btn:disabled{opacity:.4;cursor:not-allowed}
+.scw-dark-wrap .aiw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--scw-grn)}
+.scw-dark-wrap .aiw-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--scw-amb)}
+.scw-dark-wrap .scw-table-wrap{background:var(--scw-bg2);border:1px solid var(--scw-border-gold);border-top:none;
+  border-radius:0 0 10px 10px;overflow-x:auto;max-height:520px;overflow-y:auto}
+.scw-dark-wrap table{width:100%;border-collapse:collapse;font-size:11.5px}
+.scw-dark-wrap thead th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.3px;color:var(--scw-text-dim);border-bottom:1px solid var(--scw-border-gold);white-space:nowrap;
+  background:var(--scw-bg2);position:sticky;top:0}
+.scw-dark-wrap tbody td{padding:8px 10px;border-bottom:1px solid var(--scw-border);white-space:nowrap}
+.scw-dark-wrap tbody tr.aiw-row{cursor:pointer}
+.scw-dark-wrap tbody tr.aiw-row:hover{background:rgba(255,255,255,.02)}
+.scw-dark-wrap tbody tr.aiw-sel{background:rgba(201,168,76,.08)}
+.scw-dark-wrap .empty-state{padding:28px;text-align:center;color:var(--scw-text-dim);font-size:12px}
+.scw-dark-wrap .empty-state strong{display:block;color:var(--scw-text-muted);margin-bottom:4px;font-size:13px}
+/* modal */
+.scw-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;
+  justify-content:center;z-index:500;padding:30px 16px;overflow-y:auto}
+.scw-modal{background:var(--scw-bg2);border:1px solid var(--scw-border-gold);border-radius:14px;
+  max-width:620px;width:100%;padding:0;color:var(--scw-text)}
+.scw-modal.wide{max-width:900px}
+.scw-modal-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;
+  border-bottom:1px solid var(--scw-border);font-size:14px;font-weight:700;color:var(--scw-gold-lt)}
+.scw-modal-hd button{background:none;border:none;color:var(--scw-text-dim);font-size:18px;cursor:pointer}
+.scw-modal-bd{padding:18px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;max-height:70vh;overflow-y:auto}
+.scw-modal-bd .full{grid-column:1/-1}
+.scw-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;
+  color:var(--scw-text-dim);margin-bottom:4px}
+.scw-field input,.scw-field select,.scw-field textarea{width:100%;background:var(--scw-bg3);
+  border:1px solid var(--scw-border);color:var(--scw-text);border-radius:7px;padding:8px 10px;font-size:12px}
+.scw-field textarea{min-height:56px;resize:vertical;font-family:inherit}
+.scw-modal-ft{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--scw-border)}
+.scw-sum-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.scw-sum-tbl th{text-align:left;padding:6px 10px;background:var(--scw-bg3);color:var(--scw-gold-lt);font-size:10px;text-transform:uppercase}
+.scw-sum-tbl td{padding:6px 10px;border-bottom:1px solid var(--scw-border)}
+.scw-sum-tbl tfoot td{font-weight:700;border-top:2px solid var(--scw-border-gold)}
+/* monthly entry form */
+.scw-m-status{display:inline-block;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.scw-m-status.open{background:rgba(232,179,57,.15);color:var(--scw-amb)}
+.scw-m-status.locked{background:rgba(79,203,158,.15);color:var(--scw-grn)}
+.scw-m-status.empty{background:rgba(255,255,255,.08);color:var(--scw-text-dim)}
+.scw-m-tbl{width:100%;border-collapse:collapse;font-size:11px;margin-top:10px}
+.scw-m-tbl th{background:var(--scw-bg3);color:var(--scw-gold-lt);font-size:9.5px;text-transform:uppercase;
+  padding:6px 4px;text-align:center;border:1px solid var(--scw-border);line-height:1.3}
+.scw-m-tbl th span{display:block;font-weight:400;text-transform:none;color:var(--scw-text-dim);font-size:9px}
+.scw-m-tbl td{border:1px solid var(--scw-border);padding:3px;text-align:center}
+.scw-m-tbl input{width:100%;background:var(--scw-bg3);border:1px solid var(--scw-border);color:var(--scw-text);
+  border-radius:5px;padding:5px 4px;font-size:11px;text-align:center}
+.scw-m-tbl input[type=date]{min-width:110px}
+.scw-m-tbl input.scw-m-cust-in{margin-bottom:2px;text-align:left;font-size:10px}
+.scw-m-tbl input:disabled{opacity:.6;background:var(--scw-bg2)}
+.scw-m-tbl .scw-m-rm{background:none;border:none;color:var(--scw-red);cursor:pointer;font-size:13px}
+/* print */
+.scw-print-wrap{display:none}
+@media print{
+  body *{visibility:hidden}
+  .scw-print-wrap, .scw-print-wrap *{visibility:visible}
+  .scw-print-wrap{display:block !important;position:absolute;left:0;top:0;width:100%;color:#000;background:#fff;padding:20px}
+  .scw-print-wrap .slip{border:2px solid #000;padding:20px;max-width:720px;margin:0 auto}
+  .scw-print-wrap h2{text-align:center;margin:0 0 4px}
+  .scw-print-wrap .sub{text-align:center;font-size:12px;margin-bottom:16px}
+  .scw-print-wrap table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
+  .scw-print-wrap td,.scw-print-wrap th{border:1px solid #000;padding:6px 8px;text-align:left}
+  .scw-print-wrap .sig-row{display:flex;justify-content:space-between;margin-top:40px}
+  .scw-print-wrap .sig-box{width:30%;text-align:center;border-top:1px solid #000;padding-top:4px;font-size:11px}
+}
+</style>
+</head><body><div class="scw-dark-wrap">
+<div class="back-row"><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div>
+
+<div class="req-text">Scrap Sales Register — gate-pass level log of scrap material sold off-site (paper/CB trays, mixed scrap, shrink film, wood/plastic pallets), feeding the Waste Management Programme's recycling/disposal-route reporting (cullet recycling and general solid-waste KPIs). Related: <a href="waste-management.html" style="color:var(--scw-gold-lt)">Waste Management Register</a>. <strong>Monthly Entry Form:</strong> the warehouse team fills one grid per month, laid out exactly like their own paper form (one row per gate pass, one column per customer/material); entries save as they go and the month locks once submitted — see "📅 Monthly Entry Form" below.</div>
+
+<div class="flag-text">⚠ <strong>Unit correction applied:</strong> the source workbook (<code>SCRAP_SALES-2026.xlsx</code>) labels every monthly total "TOTAL QUANTITY (MT)", but its own "SCRAP SALE SUMMARY" block confirms CALUMITE PAL, Soda Ash Pall, W. Pallet and Plastic Pallet Soda are wood/plastic <strong>pallet counts (PCS)</strong>, not tonnes — corrected on migration. One value (<code>SHRINK FILM 130 MIC</code>, Apr-2026, 2,536) is implausibly large for MT and is flagged rather than guessed — see the reference workbook. Two customer names (<code>Farij Atiiallah Est</code> → <code>ANSAM AL BARKAH</code>, both "Ahmed Saeed Noor") look like the same buyer renamed — kept separate pending confirmation. <strong>Classification flag (same as Waste Management):</strong> likely belongs under OC-02 Environment &amp; Energy, not OC-01 — built here per direct instruction. No pricing/revenue data exists in the source — this register is quantity-only.</div>
+
+<div class="sec-banner">SCRAP SALES — QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Gate-Pass Lines Logged</div><div class="kpi-val" id="scw-kpi-total">—</div><div class="kpi-sub">Jan–Aug 2026</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">Scrap Sold (MT)</div><div class="kpi-val" id="scw-kpi-mt">—</div><div class="kpi-sub">Paper, mixed scrap, shrink film</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Pallets Sold (PCS)</div><div class="kpi-val" id="scw-kpi-pcs">—</div><div class="kpi-sub">Calumite, Soda Ash, Wood, Plastic pallets</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Active Buyers</div><div class="kpi-val" id="scw-kpi-customers">—</div><div class="kpi-sub">Distinct customers</div></div>
+</div>
+
+<div class="sec-banner">SCRAP SALES REGISTER</div>
+<div class="aiw-toolbar" style="border-top:1px solid var(--scw-border-gold)">
+  <input type="text" id="scw-search" placeholder="Search customer / material / gate-pass…" oninput="SCW.onSearch(this.value)">
+  <select id="scw-customer-filter" onchange="SCW.onCustomerFilter(this.value)"><option value="">All customers</option></select>
+  <select id="scw-material-filter" onchange="SCW.onMaterialFilter(this.value)"><option value="">All materials</option></select>
+  <input type="date" id="scw-date-from" onchange="SCW.onDateFrom(this.value)" title="From date">
+  <input type="date" id="scw-date-to" onchange="SCW.onDateTo(this.value)" title="To date">
+</div>
+<div class="aiw-toolbar" style="border-top:none">
+  <button class="aiw-btn aiw-btn-add" id="scw-btn-new" onclick="SCW.openAdd()">+ New Sale Line</button>
+  <button class="aiw-btn" id="scw-btn-edit" disabled onclick="SCW.openEditSelected()">Open / Edit</button>
+  <button class="aiw-btn" id="scw-btn-remove" disabled onclick="SCW.removeSelected()">Remove</button>
+  <button class="aiw-btn aiw-btn-esc" id="scw-btn-slip" disabled onclick="SCW.printSlipSelected()">🖨 Issuance Slip</button>
+  <button class="aiw-btn" id="scw-btn-report" onclick="SCW.openMonthlyReport()">📊 Monthly Report</button>
+  <button class="aiw-btn aiw-btn-add" id="scw-btn-monthly" onclick="SCW.openMonthlyForm()">📅 Monthly Entry Form</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--scw-text-dim)" id="scw-count-sub"></span>
+</div>
+<div class="scw-table-wrap">
+  <table>
+    <thead><tr>
+      <th>Date</th><th>Gate Pass No.</th><th>Customer</th><th>Material</th><th>Quantity</th><th>Unit</th><th>Remarks</th>
+    </tr></thead>
+    <tbody id="scw-tbody"><tr><td colspan="7" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
+  </table>
+</div>
+
+<div id="scw-modal-root"></div>
+<div id="scw-print-root" class="scw-print-wrap"></div>
+
+<script>
+(function(){
+
+  var SCRAP = { tabKey:'scrap_sales', idCol:'Record ID' };
+  var STATUS_COL = 'Record Status';
+  var MATERIALS = [
+    {name:"CB Trays", unit:"MT"}, {name:"Mixed Scrap", unit:"MT"}, {name:"Shrink Film", unit:"MT"},
+    {name:"SHRINK FILM 130 MIC", unit:"MT"}, {name:"CALUMITE PAL", unit:"PCS"},
+    {name:"Soda Ash Pall", unit:"PCS"}, {name:"W. Pallet", unit:"PCS"}, {name:"Plastic Pallet Soda", unit:"PCS"}
+  ];
+
+  var _cache = null, _rawCache = null, _selected = null;
+  var _filters = { search:'', customer:'', material:'', dateFrom:'', dateTo:'' };
+
+  /* Fixed customer/material columns for the monthly warehouse entry grid,
+     matching the warehouse's own monthly layout (one column per customer x
+     material, one row per gate pass). "Mixed Scrap" has no single fixed
+     buyer in the source form (header reads "Misc. Cust"), so its customer
+     name is typed per-row instead of fixed to the column. */
+  var MONTHLY_FIXED_COLS = [
+    { key:'cb',       customer:'Green City',                         material:'CB Trays',            unit:'MT',  label:'CB Trays', sub:'Green City' },
+    { key:'mix',      customer:null,                                 material:'Mixed Scrap',         unit:'MT',  label:'Mixed Scrap', sub:'Misc. Customer', freeCustomer:true },
+    { key:'shrink',   customer:'Jawhara',                             material:'Shrink Film',         unit:'MT',  label:'Shrink Film', sub:'Jawhara' },
+    { key:'calumite', customer:'Ansam Al Barkah (Ahmed Saeed Noor)',  material:'CALUMITE PAL',        unit:'PCS', label:'Calumite Pal', sub:'Ansam Al Barkah' },
+    { key:'soda',     customer:'Ansam Al Barkah (Ahmed Saeed Noor)',  material:'Soda Ash Pall',       unit:'PCS', label:'Soda Ash Pall', sub:'Ansam Al Barkah' },
+    { key:'wpallet',  customer:'Ansam Al Barkah (Ahmed Saeed Noor)',  material:'W. Pallet',           unit:'PCS', label:'W. Pallet', sub:'Ansam Al Barkah' },
+    { key:'plastic',  customer:'Ansam Al Barkah (Ahmed Saeed Noor)',  material:'Plastic Pallet Soda', unit:'PCS', label:'Plastic Pallet Soda', sub:'Ansam Al Barkah' }
+  ];
+  function loadCustomCols(){
+    try { return JSON.parse(localStorage.getItem('scw_monthly_custom_cols')||'[]'); } catch(e){ return []; }
+  }
+  function saveCustomCols(cols){
+    try { localStorage.setItem('scw_monthly_custom_cols', JSON.stringify(cols)); } catch(e){}
+  }
+  function allMonthlyCols(){ return MONTHLY_FIXED_COLS.concat(loadCustomCols()); }
+
+  var _monthlyState = null; // { month, rows:[{date,gatepass,remarks,cells:{colKey:{qty,customer,recordId}}}], locked }
+  var _localIdCounter = null;
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function sEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+
+  function nextRecordId(cache, prefix, idCol){
+    var year = new Date().getFullYear();
+    if (!cache || !cache.headers || !cache.rows) return prefix + '-' + year + '-0001';
+    var idIdx = colIdx(cache.headers, idCol);
+    if (idIdx < 0) return prefix + '-' + year + '-0001';
+    var maxN = 0;
+    cache.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      var m = v.match(new RegExp('^'+prefix+'-'+year+'-(\\d+)$'));
+      if (m){ var n = parseInt(m[1],10); if (n > maxN) maxN = n; }
+    });
+    var numStr = String(maxN + 1); while (numStr.length < 4) numStr = '0' + numStr;
+    return prefix + '-' + year + '-' + numStr;
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){
+    return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
+  }
+  function filterActive(data){
+    if (data && data.headers && data.rows){
+      var si = colIdx(data.headers, STATUS_COL);
+      if (si >= 0) data.rows = data.rows.filter(function(r){
+        var s = String(r[si]||'').trim().toLowerCase();
+        return s !== 'removed' && s !== 'draft'; // Draft lines are mid-month warehouse entries, not yet submitted
+      });
+    }
+    return data;
+  }
+  function loadAll(){
+    return loadTab(SCRAP.tabKey).then(function(data){
+      _rawCache = data;
+      _cache = filterActive(JSON.parse(JSON.stringify(data||{headers:[],rows:[]})));
+      _localIdCounter = null;
+    }).catch(function(){ _cache = null; _rawCache = null; }).then(render);
+  }
+  function getRecs(){ if (!_cache || !_cache.headers || !_cache.rows) return []; return _cache.rows.map(function(r){ return recFromRow(_cache.headers, r); }); }
+  function getRawRecs(){ if (!_rawCache || !_rawCache.headers || !_rawCache.rows) return []; return _rawCache.rows.map(function(r){ return recFromRow(_rawCache.headers, r); }); }
+  function nextRecordIdLocal(){
+    var year = new Date().getFullYear();
+    if (_localIdCounter == null){
+      _localIdCounter = 0;
+      getRawRecs().forEach(function(r){
+        var v = String(r[SCRAP.idCol]||'').trim();
+        var m = v.match(new RegExp('^SCR-'+year+'-(\\d+)$'));
+        if (m){ var n = parseInt(m[1],10); if (n > _localIdCounter) _localIdCounter = n; }
+      });
+    }
+    _localIdCounter++;
+    var numStr = String(_localIdCounter); while (numStr.length < 4) numStr = '0' + numStr;
+    return 'SCR-' + year + '-' + numStr;
+  }
+
+  /* ── Filtering ────────────────────────────────────────────────── */
+  function matchesFilters(r){
+    var f = _filters;
+    if (f.customer && r['Customer'] !== f.customer) return false;
+    if (f.material && r['Material'] !== f.material) return false;
+    if (f.dateFrom && String(r['Date']) < f.dateFrom) return false;
+    if (f.dateTo && String(r['Date']) > f.dateTo) return false;
+    if (f.search){
+      var hay = ((r['Customer']||'')+' '+(r['Material']||'')+' '+(r['Gate Pass No.']||'')).toLowerCase();
+      if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+    }
+    return true;
+  }
+  function filteredRecs(){ return getRecs().filter(matchesFilters); }
+
+  function uniqueVals(field){
+    var set = {};
+    getRecs().forEach(function(r){ if (r[field]) set[r[field]] = true; });
+    return Object.keys(set).sort();
+  }
+  function populateFilters(){
+    ['customer','material'].forEach(function(kind){
+      var sel = document.getElementById('scw-'+kind+'-filter');
+      var cur = sel.value;
+      var field = kind==='customer' ? 'Customer' : 'Material';
+      var label = kind==='customer' ? 'All customers' : 'All materials';
+      var vals = uniqueVals(field);
+      sel.innerHTML = '<option value="">'+label+'</option>' + vals.map(function(v){
+        return '<option value="'+sEsc(v)+'"'+(v===cur?' selected':'')+'>'+sEsc(v)+'</option>';
+      }).join('');
+    });
+  }
+
+  /* ── KPIs ─────────────────────────────────────────────────────── */
+  function renderKPIs(){
+    var all = getRecs();
+    setTxt('scw-kpi-total', all.length);
+    var mt = 0, pcs = 0, custSet = {};
+    all.forEach(function(r){
+      var q = parseFloat(r['Quantity']); if (isNaN(q)) q = 0;
+      if (r['Unit'] === 'MT') mt += q; else if (r['Unit'] === 'PCS') pcs += q;
+      if (r['Customer']) custSet[r['Customer']] = true;
+    });
+    setTxt('scw-kpi-mt', mt.toLocaleString(undefined,{maximumFractionDigits:1}));
+    setTxt('scw-kpi-pcs', pcs.toLocaleString());
+    setTxt('scw-kpi-customers', Object.keys(custSet).length);
+  }
+
+  /* ── Register table ───────────────────────────────────────────── */
+  function renderTable(){
+    var all = getRecs();
+    var list = filteredRecs();
+    var tbody = document.getElementById('scw-tbody');
+    setTxt('scw-count-sub', list.length + ' of ' + all.length + ' lines shown');
+    populateFilters();
+    if (!list.length){
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><strong>No records match these filters</strong>Try widening the date range or clearing filters.</td></tr>';
+      updateButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Date']||'').localeCompare(String(a['Date']||'')); });
+    tbody.innerHTML = list.map(function(r){
+      var sel = _selected === r['Record ID'];
+      var unitBadge = r['Unit']==='MT' ? 'kc-blue' : 'kc-amb';
+      return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="SCW.select(\'' + sEsc(r['Record ID']) + '\')">'
+        + '<td>' + sEsc(r['Date']) + '</td>'
+        + '<td>' + sEsc(r['Gate Pass No.']) + '</td>'
+        + '<td>' + sEsc(r['Customer']) + '</td>'
+        + '<td>' + sEsc(r['Material']) + '</td>'
+        + '<td>' + sEsc(r['Quantity']) + '</td>'
+        + '<td><span class="badge ' + unitBadge + '">' + sEsc(r['Unit']) + '</span></td>'
+        + '<td style="white-space:normal;max-width:260px">' + sEsc(r['Remarks']) + '</td>'
+        + '</tr>';
+    }).join('');
+    updateButtons();
+  }
+
+  function updateButtons(){
+    var hasSel = !!_selected;
+    document.getElementById('scw-btn-edit').disabled = !hasSel;
+    document.getElementById('scw-btn-remove').disabled = !hasSel || !can('safety.edit');
+    document.getElementById('scw-btn-slip').disabled = !hasSel;
+  }
+
+  function render(){ renderKPIs(); renderTable(); }
+
+  /* ── Add/Edit Modal ──────────────────────────────────────────────*/
+  function closeModal(){ document.getElementById('scw-modal-root').innerHTML = ''; }
+
+  function openForm(existing){
+    var r = existing || {};
+    var isEdit = !!existing;
+    var matOpts = MATERIALS.map(function(m){
+      return '<option value="'+sEsc(m.name)+'" data-unit="'+m.unit+'"'+(r['Material']===m.name?' selected':'')+'>'+sEsc(m.name)+'</option>';
+    }).join('');
+    var html = ''
+      + '<div class="scw-overlay" onclick="if(event.target===this) SCW.closeModal()">'
+      + '<div class="scw-modal">'
+      + '<div class="scw-modal-hd"><span>' + (isEdit?'Edit':'New') + ' Scrap Sale Line</span><button onclick="SCW.closeModal()">✕</button></div>'
+      + '<div class="scw-modal-bd">'
+      + '<div class="scw-field"><label>Date</label><input type="date" id="scw-f-date" value="' + sEsc(r['Date']||'') + '"></div>'
+      + '<div class="scw-field"><label>Gate Pass No.</label><input type="text" id="scw-f-gatepass" value="' + sEsc(r['Gate Pass No.']||'') + '"></div>'
+      + '<div class="scw-field"><label>Customer</label><input type="text" id="scw-f-customer" value="' + sEsc(r['Customer']||'') + '" list="scw-customer-list"></div>'
+      + '<div class="scw-field"><label>Material</label><select id="scw-f-material" onchange="SCW.onMaterialPick(this)">' + matOpts + '</select></div>'
+      + '<div class="scw-field"><label>Quantity</label><input type="number" step="any" id="scw-f-qty" value="' + sEsc(r['Quantity']||'') + '"></div>'
+      + '<div class="scw-field"><label>Unit</label><input type="text" id="scw-f-unit" value="' + sEsc(r['Unit']||'MT') + '" readonly></div>'
+      + '<div class="scw-field full"><label>Remarks</label><textarea id="scw-f-remarks">' + sEsc(r['Remarks']||'') + '</textarea></div>'
+      + '</div>'
+      + '<div class="scw-modal-ft">'
+      + '<button class="aiw-btn" onclick="SCW.closeModal()">Cancel</button>'
+      + '<button class="aiw-btn aiw-btn-add" onclick="SCW.save(\'' + (isEdit ? sEsc(r['Record ID']) : '') + '\')">Save</button>'
+      + '</div></div></div>';
+    document.getElementById('scw-modal-root').innerHTML = html;
+    if (!isEdit) SCW.onMaterialPick(document.getElementById('scw-f-material'));
+  }
+
+  function onMaterialPick(sel){
+    var opt = sel.options[sel.selectedIndex];
+    var unit = opt ? opt.getAttribute('data-unit') : 'MT';
+    var u = document.getElementById('scw-f-unit');
+    if (u) u.value = unit;
+  }
+
+  function save(existingId){
+    var rec = {
+      'Date': document.getElementById('scw-f-date').value,
+      'Gate Pass No.': document.getElementById('scw-f-gatepass').value,
+      'Customer': document.getElementById('scw-f-customer').value,
+      'Material': document.getElementById('scw-f-material').value,
+      'Quantity': document.getElementById('scw-f-qty').value,
+      'Unit': document.getElementById('scw-f-unit').value,
+      'Remarks': document.getElementById('scw-f-remarks').value,
+      'Record Status': 'Active'
+    };
+    if (existingId){
+      rec['Record ID'] = existingId;
+      postJSON('update', { tab: SCRAP.tabKey, id: existingId }, rec).then(function(){ closeModal(); loadAll(); });
+    } else {
+      rec['Record ID'] = nextRecordId(_cache, 'SCR', SCRAP.idCol);
+      postJSON('create', { tab: SCRAP.tabKey }, rec).then(function(){ closeModal(); loadAll(); });
+    }
+  }
+
+  /* ── Printable Issuance Slip ─────────────────────────────────────*/
+  function printSlip(r){
+    var html = ''
+      + '<div class="slip">'
+      + '<h2>SAUDI ARABIAN GLASS COMPANY</h2>'
+      + '<div class="sub">Scrap Sale Issuance Slip</div>'
+      + '<table>'
+      + '<tr><th style="width:30%">Gate Pass No.</th><td>' + sEsc(r['Gate Pass No.']) + '</td></tr>'
+      + '<tr><th>Date</th><td>' + sEsc(r['Date']) + '</td></tr>'
+      + '<tr><th>Customer</th><td>' + sEsc(r['Customer']) + '</td></tr>'
+      + '<tr><th>Material</th><td>' + sEsc(r['Material']) + '</td></tr>'
+      + '<tr><th>Quantity</th><td>' + sEsc(r['Quantity']) + ' ' + sEsc(r['Unit']) + '</td></tr>'
+      + '<tr><th>Vehicle / Plate No.</th><td>&nbsp;</td></tr>'
+      + '<tr><th>Remarks</th><td>' + sEsc(r['Remarks']) + '</td></tr>'
+      + '</table>'
+      + '<div class="sig-row">'
+      + '<div class="sig-box">Prepared By<br>(Warehouse)</div>'
+      + '<div class="sig-box">Security / Gate</div>'
+      + '<div class="sig-box">Customer / Driver<br>Received By</div>'
+      + '</div>'
+      + '</div>';
+    document.getElementById('scw-print-root').innerHTML = html;
+    window.print();
+  }
+
+  /* ── Monthly Report ──────────────────────────────────────────────*/
+  function openMonthlyReport(){
+    var all = getRecs();
+    var months = {};
+    all.forEach(function(r){ var m = String(r['Date']||'').slice(0,7); if (m) months[m] = true; });
+    var monthList = Object.keys(months).sort().reverse();
+    var opts = monthList.map(function(m){ return '<option value="'+m+'">'+m+'</option>'; }).join('');
+    var html = ''
+      + '<div class="scw-overlay" onclick="if(event.target===this) SCW.closeModal()">'
+      + '<div class="scw-modal wide">'
+      + '<div class="scw-modal-hd"><span>Monthly Scrap Sale Report</span><button onclick="SCW.closeModal()">✕</button></div>'
+      + '<div class="scw-modal-bd" style="grid-template-columns:1fr">'
+      + '<div class="scw-field"><label>Month</label><select id="scw-report-month" onchange="SCW.renderReport(this.value)">' + opts + '</select></div>'
+      + '<div id="scw-report-body"></div>'
+      + '</div>'
+      + '<div class="scw-modal-ft">'
+      + '<button class="aiw-btn" onclick="SCW.closeModal()">Close</button>'
+      + '<button class="aiw-btn aiw-btn-esc" onclick="SCW.printReport()">🖨 Print Report</button>'
+      + '</div></div></div>';
+    document.getElementById('scw-modal-root').innerHTML = html;
+    if (monthList.length) renderReport(monthList[0]);
+  }
+
+  function renderReport(month){
+    var all = getRecs().filter(function(r){ return String(r['Date']||'').slice(0,7) === month; });
+    var byMat = {}, byCust = {};
+    all.forEach(function(r){
+      var q = parseFloat(r['Quantity']); if (isNaN(q)) q = 0;
+      var mk = r['Material']+'|'+r['Unit'];
+      byMat[mk] = (byMat[mk]||0) + q;
+      var ck = r['Customer'];
+      byCust[ck] = (byCust[ck]||0) + q;
+    });
+    var matRows = Object.keys(byMat).sort().map(function(k){
+      var parts = k.split('|');
+      return '<tr><td>'+sEsc(parts[0])+'</td><td>'+byMat[k].toLocaleString(undefined,{maximumFractionDigits:2})+' '+sEsc(parts[1])+'</td></tr>';
+    }).join('');
+    var custRows = Object.keys(byCust).sort().map(function(k){
+      return '<tr><td>'+sEsc(k)+'</td><td>'+byCust[k].toLocaleString(undefined,{maximumFractionDigits:2})+'</td></tr>';
+    }).join('');
+    var html = ''
+      + '<div style="margin-top:10px;font-size:12px;color:var(--scw-text-muted)">' + all.length + ' gate-pass lines in ' + month + '</div>'
+      + '<table class="scw-sum-tbl"><thead><tr><th>Material</th><th>Total Quantity</th></tr></thead><tbody>' + (matRows||'<tr><td colspan="2">No data</td></tr>') + '</tbody></table>'
+      + '<table class="scw-sum-tbl"><thead><tr><th>Customer</th><th>Total Quantity (mixed units)</th></tr></thead><tbody>' + (custRows||'<tr><td colspan="2">No data</td></tr>') + '</tbody></table>';
+    document.getElementById('scw-report-body').innerHTML = html;
+  }
+
+  function printReport(){
+    var month = document.getElementById('scw-report-month').value;
+    var body = document.getElementById('scw-report-body').innerHTML;
+    var html = '<div class="slip" style="max-width:600px">'
+      + '<h2>SAUDI ARABIAN GLASS COMPANY</h2>'
+      + '<div class="sub">Monthly Scrap Sale Report — ' + sEsc(month) + '</div>'
+      + body + '</div>';
+    document.getElementById('scw-print-root').innerHTML = html;
+    window.print();
+  }
+
+  /* ── Monthly Warehouse Entry Form ─────────────────────────────────
+     One tab = one month's grid, laid out like the warehouse's own
+     paper/Excel sheet: a row per gate pass, a fixed column per
+     customer x material. Each filled cell is saved immediately as a
+     'Draft' line (same register, same schema as the migrated data) so
+     nothing is lost if the browser closes mid-month. Drafts stay out
+     of the main register/KPIs until "Submit Month" flips them all to
+     'Active' in one pass and the month locks. Reopening a locked month
+     (to fix a mistake) is restricted the same way removing a record is.
+     ─────────────────────────────────────────────────────────────── */
+  function monthLockInfo(month){
+    var recs = getRawRecs().filter(function(r){ return String(r['Date']||'').slice(0,7) === month; });
+    var active = 0, draft = 0;
+    recs.forEach(function(r){
+      var s = String(r[STATUS_COL]||'').trim().toLowerCase();
+      if (s === 'active') active++; else if (s === 'draft') draft++;
+    });
+    if (!recs.length) return { state:'empty', active:0, draft:0 };
+    if (active > 0 && draft === 0) return { state:'locked', active:active, draft:0 };
+    return { state:'open', active:active, draft:draft };
+  }
+
+  function loadMonthlyRows(month){
+    var cols = allMonthlyCols();
+    var recs = getRawRecs().filter(function(r){
+      return String(r['Date']||'').slice(0,7) === month && String(r[STATUS_COL]||'').trim().toLowerCase() !== 'removed';
+    });
+    var rowsMap = {}, order = [];
+    recs.forEach(function(r){
+      var key = (r['Date']||'') + '|' + (r['Gate Pass No.']||'') + '|' + r['Record ID'];
+      // group strictly by date+gatepass so multiple materials under one gate pass share a row
+      var gkey = (r['Date']||'') + '|' + (r['Gate Pass No.']||'');
+      if (!rowsMap[gkey]){ rowsMap[gkey] = { date:r['Date']||'', gatepass:r['Gate Pass No.']||'', remarks:r['Remarks']||'', cells:{} }; order.push(gkey); }
+      var row = rowsMap[gkey];
+      if (r['Remarks']) row.remarks = r['Remarks'];
+      cols.forEach(function(c){
+        var custMatch = c.freeCustomer ? true : (r['Customer'] === c.customer);
+        if (custMatch && r['Material'] === c.material && !row.cells[c.key]){
+          row.cells[c.key] = { recordId: r['Record ID'], qty: r['Quantity'], customer: r['Customer'] };
+        }
+      });
+    });
+    return order.map(function(k){ return rowsMap[k]; });
+  }
+
+  function openMonthlyForm(){
+    var now = new Date();
+    var mm = String(now.getMonth()+1); if (mm.length < 2) mm = '0' + mm;
+    var defMonth = now.getFullYear() + '-' + mm;
+    renderMonthlyModal(defMonth);
+  }
+
+  function renderMonthlyModal(month){
+    var info = monthLockInfo(month);
+    var locked = info.state === 'locked';
+    _monthlyState = { month: month, locked: locked, rows: loadMonthlyRows(month) };
+    var cols = allMonthlyCols();
+    var statusHtml = info.state === 'locked'
+      ? '<span class="scw-m-status locked">Submitted — locked</span>'
+      : (info.state === 'open' ? '<span class="scw-m-status open">In progress — ' + info.draft + ' draft line(s)</span>' : '<span class="scw-m-status empty">No entries yet</span>');
+    var html = ''
+      + '<div class="scw-overlay" onclick="if(event.target===this) SCW.closeModal()">'
+      + '<div class="scw-modal wide">'
+      + '<div class="scw-modal-hd"><span>Monthly Warehouse Entry Form</span><button onclick="SCW.closeModal()">✕</button></div>'
+      + '<div class="scw-modal-bd" style="grid-template-columns:1fr">'
+      + '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
+      + '<div class="scw-field" style="max-width:160px"><label>Month</label><input type="month" id="scw-m-month" value="' + sEsc(month) + '" onchange="SCW.changeMonth(this.value)"></div>'
+      + statusHtml
+      + '<button class="aiw-btn" style="margin-left:auto" onclick="SCW.addCustomColumn()">+ Add Customer Column</button>'
+      + '</div>'
+      + '<div style="overflow-x:auto"><table class="scw-m-tbl" id="scw-m-grid"></table></div>'
+      + '<div style="margin-top:10px">' + (locked ? '' : '<button class="aiw-btn aiw-btn-add" onclick="SCW.addMonthlyRow()">+ Add Gate Pass Row</button>') + '</div>'
+      + '</div>'
+      + '<div class="scw-modal-ft">'
+      + (locked
+          ? '<button class="aiw-btn aiw-btn-esc" onclick="SCW.reopenMonth()"' + (can('safety.edit') ? '' : ' disabled title="IMS Coordinator / Manager only"') + '>🔓 Reopen Month</button>'
+          : '<button class="aiw-btn aiw-btn-add" onclick="SCW.submitMonth()">✅ Submit Month</button>')
+      + '<button class="aiw-btn" onclick="SCW.closeModal()">Close</button>'
+      + '</div></div></div>';
+    document.getElementById('scw-modal-root').innerHTML = html;
+    renderMonthlyGrid();
+  }
+
+  function renderMonthlyGrid(){
+    var cols = allMonthlyCols();
+    var locked = _monthlyState.locked;
+    var head = '<thead><tr><th>Date</th><th>Gate Pass No.</th>'
+      + cols.map(function(c){ return '<th>' + sEsc(c.label) + '<span>' + sEsc(c.sub||'') + ' (' + c.unit + ')</span></th>'; }).join('')
+      + '<th>Remarks</th>' + (locked ? '' : '<th></th>') + '</tr></thead>';
+    var body = '<tbody>' + _monthlyState.rows.map(function(row, idx){
+      var cellsHtml = cols.map(function(c){
+        var cell = row.cells[c.key] || {};
+        var custIn = c.freeCustomer
+          ? '<input type="text" class="scw-m-cust-in" placeholder="Customer name" value="' + sEsc(cell.customer||'') + '"' + (locked?' disabled':' onchange="SCW.onCellChange('+idx+',\''+c.key+'\')"') + '>'
+          : '';
+        return '<td>' + custIn + '<input type="number" step="any" placeholder="—" value="' + sEsc(cell.qty!=null?cell.qty:'') + '"'
+          + (locked?' disabled':' onchange="SCW.onCellChange('+idx+',\''+c.key+'\')"') + '></td>';
+      }).join('');
+      return '<tr>'
+        + '<td><input type="date" value="' + sEsc(row.date) + '"' + (locked?' disabled':' onchange="SCW.onRowMetaChange('+idx+',\'date\',this.value)"') + '></td>'
+        + '<td><input type="text" value="' + sEsc(row.gatepass) + '" placeholder="e.g. 847"' + (locked?' disabled':' onchange="SCW.onRowMetaChange('+idx+',\'gatepass\',this.value)"') + '></td>'
+        + cellsHtml
+        + '<td><input type="text" value="' + sEsc(row.remarks) + '"' + (locked?' disabled':' onchange="SCW.onRowMetaChange('+idx+',\'remarks\',this.value)"') + '></td>'
+        + (locked ? '' : '<td><button class="scw-m-rm" onclick="SCW.removeMonthlyRow('+idx+')" title="Remove row">✕</button></td>')
+        + '</tr>';
+    }).join('') + '</tbody>';
+    if (!_monthlyState.rows.length){
+      body = '<tbody><tr><td colspan="' + (3+cols.length) + '" style="padding:16px;color:var(--scw-text-dim)">No gate passes entered yet this month.</td></tr></tbody>';
+    }
+    document.getElementById('scw-m-grid').innerHTML = head + body;
+  }
+
+  function changeMonth(month){ renderMonthlyModal(month); }
+
+  function addMonthlyRow(){
+    _monthlyState.rows.push({ date:'', gatepass:'', remarks:'', cells:{} });
+    renderMonthlyGrid();
+  }
+
+  function removeMonthlyRow(idx){
+    var row = _monthlyState.rows[idx];
+    var pending = [];
+    Object.keys(row.cells).forEach(function(k){
+      var cell = row.cells[k];
+      if (cell.recordId) pending.push(postJSON('update', { tab: SCRAP.tabKey, id: cell.recordId }, { 'Record ID': cell.recordId, 'Record Status':'Removed' }));
+    });
+    Promise.all(pending).then(function(){
+      _monthlyState.rows.splice(idx,1);
+      loadAll().then(function(){ if (_monthlyState) renderMonthlyGrid(); });
+    });
+  }
+
+  function onRowMetaChange(idx, field, value){
+    var row = _monthlyState.rows[idx];
+    row[field] = value;
+    if (!row.date || !row.gatepass) return; // need both before any cell can be saved
+    syncRow(idx);
+  }
+
+  function onCellChange(idx, colKey){
+    var row = _monthlyState.rows[idx];
+    if (!row.date || !row.gatepass){ alert('Enter the Date and Gate Pass No. for this row first.'); renderMonthlyGrid(); return; }
+    syncRow(idx);
+  }
+
+  function syncRow(idx){
+    var row = _monthlyState.rows[idx];
+    var cols = allMonthlyCols();
+    var grid = document.getElementById('scw-m-grid');
+    var tr = grid.querySelectorAll('tbody tr')[idx];
+    var tds = tr.querySelectorAll('td');
+    var pending = [];
+    cols.forEach(function(c, ci){
+      var td = tds[2 + ci]; // 0=date,1=gatepass
+      var inputs = td.querySelectorAll('input');
+      var qtyInput = c.freeCustomer ? inputs[1] : inputs[0];
+      var custInput = c.freeCustomer ? inputs[0] : null;
+      var qtyVal = qtyInput ? qtyInput.value : '';
+      var hasQty = qtyVal !== '' && !isNaN(parseFloat(qtyVal));
+      var cell = row.cells[c.key] || (row.cells[c.key] = {});
+      var customer = c.freeCustomer ? (custInput && custInput.value ? custInput.value : 'Misc Customer') : c.customer;
+      cell.customer = customer;
+      if (hasQty){
+        cell.qty = qtyVal;
+        var rec = { 'Date': row.date, 'Gate Pass No.': row.gatepass, 'Customer': customer, 'Material': c.material, 'Quantity': qtyVal, 'Unit': c.unit, 'Remarks': row.remarks||'', 'Record Status':'Draft' };
+        if (cell.recordId){
+          rec['Record ID'] = cell.recordId;
+          pending.push(postJSON('update', { tab: SCRAP.tabKey, id: cell.recordId }, rec));
+        } else {
+          var newId = nextRecordIdLocal();
+          cell.recordId = newId;
+          rec['Record ID'] = newId;
+          pending.push(postJSON('create', { tab: SCRAP.tabKey }, rec));
+        }
+      } else if (cell.recordId){
+        pending.push(postJSON('update', { tab: SCRAP.tabKey, id: cell.recordId }, { 'Record ID': cell.recordId, 'Record Status':'Removed' }));
+        cell.recordId = null; cell.qty = null;
+      }
+    });
+    Promise.all(pending).then(function(){ loadAll(); });
+  }
+
+  function addCustomColumn(){
+    var customer = prompt('New customer name (as it should appear on the form):');
+    if (!customer) return;
+    var material = prompt('Material name (e.g. Mixed Scrap, Shrink Film, or a new material):');
+    if (!material) return;
+    var unit = (prompt('Unit — type MT (tonnes) or PCS (pieces):', 'MT') || 'MT').trim().toUpperCase();
+    if (unit !== 'MT' && unit !== 'PCS') unit = 'MT';
+    var cols = loadCustomCols();
+    var key = 'custom_' + Date.now();
+    cols.push({ key:key, customer:customer, material:material, unit:unit, label:material, sub:customer });
+    saveCustomCols(cols);
+    renderMonthlyGrid();
+  }
+
+  function submitMonth(){
+    var month = _monthlyState.month;
+    var draftRecs = getRawRecs().filter(function(r){
+      return String(r['Date']||'').slice(0,7) === month && String(r[STATUS_COL]||'').trim().toLowerCase() === 'draft';
+    });
+    if (!draftRecs.length){ alert('No draft lines to submit for ' + month + '.'); return; }
+    if (!confirm('Submit ' + draftRecs.length + ' line(s) for ' + month + '? The month will lock for warehouse edits afterward.')) return;
+    var pending = draftRecs.map(function(r){
+      var rec = {}; Object.keys(r).forEach(function(k){ rec[k] = r[k]; });
+      rec['Record Status'] = 'Active';
+      return postJSON('update', { tab: SCRAP.tabKey, id: r['Record ID'] }, rec);
+    });
+    Promise.all(pending).then(function(){ loadAll().then(function(){ renderMonthlyModal(month); }); });
+  }
+
+  function reopenMonth(){
+    if (!can('safety.edit')) return;
+    var month = _monthlyState.month;
+    if (!confirm('Reopen ' + month + ' for warehouse edits? This sets its submitted lines back to Draft.')) return;
+    var activeRecs = getRawRecs().filter(function(r){
+      return String(r['Date']||'').slice(0,7) === month && String(r[STATUS_COL]||'').trim().toLowerCase() === 'active';
+    });
+    var pending = activeRecs.map(function(r){
+      var rec = {}; Object.keys(r).forEach(function(k){ rec[k] = r[k]; });
+      rec['Record Status'] = 'Draft';
+      return postJSON('update', { tab: SCRAP.tabKey, id: r['Record ID'] }, rec);
+    });
+    Promise.all(pending).then(function(){ loadAll().then(function(){ renderMonthlyModal(month); }); });
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.SCW = {
+    onSearch: function(v){ _filters.search = v; renderTable(); },
+    onCustomerFilter: function(v){ _filters.customer = v; renderTable(); },
+    onMaterialFilter: function(v){ _filters.material = v; renderTable(); },
+    onDateFrom: function(v){ _filters.dateFrom = v; renderTable(); },
+    onDateTo: function(v){ _filters.dateTo = v; renderTable(); },
+    select: function(id){ _selected = (_selected === id) ? null : id; renderTable(); },
+    openAdd: function(){ openForm(null); },
+    openEditSelected: function(){
+      if (!_selected) return;
+      var r = getRecs().filter(function(x){ return x['Record ID'] === _selected; })[0];
+      if (r) openForm(r);
+    },
+    onMaterialPick: onMaterialPick,
+    removeSelected: function(){
+      if (!_selected || !can('safety.edit')) return;
+      if (!confirm('Remove this scrap sale line?')) return;
+      postJSON('update', { tab: SCRAP.tabKey, id: _selected }, { 'Record ID': _selected, 'Record Status': 'Removed' })
+        .then(function(){ _selected = null; loadAll(); });
+    },
+    printSlipSelected: function(){
+      if (!_selected) return;
+      var r = getRecs().filter(function(x){ return x['Record ID'] === _selected; })[0];
+      if (r) printSlip(r);
+    },
+    openMonthlyReport: openMonthlyReport,
+    renderReport: renderReport,
+    printReport: printReport,
+    openMonthlyForm: openMonthlyForm,
+    changeMonth: changeMonth,
+    addMonthlyRow: addMonthlyRow,
+    removeMonthlyRow: removeMonthlyRow,
+    onRowMetaChange: onRowMetaChange,
+    onCellChange: onCellChange,
+    addCustomColumn: addCustomColumn,
+    submitMonth: submitMonth,
+    reopenMonth: reopenMonth,
+    closeModal: closeModal,
+    save: save
+  };
+
+  if (typeof IMS_AUTH !== 'undefined'){
+    IMS_AUTH.init({ onReady: function(){ loadAll(); } });
+  } else {
+    loadAll();
+  }
+})();
+</script>
+
+<script>
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The Scrap Sales Register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+</div>
+</body>
+</html>
