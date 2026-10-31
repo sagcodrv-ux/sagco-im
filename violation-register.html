@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — HSE Violation Register</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   HSE VIOLATION REGISTER — same dark navy/gold theme as the rest of
+   OC-01 (waste-management.html / fuel-delivery-spill.html / chemical-
+   inventory.html). Scoped to .viw-dark-wrap, class prefix viw-.
+   Doc code: L3-HSE-PR-16-F-03 (HSE-FRM-05), HSE-PR-16 Incident
+   Reporting & Investigation, ISO 45001 Cl.10.2 / Cl.5.4.
+   Source data: HSE_Department.xlsm — 'Violation Log' (730 historical
+   rows, 2018–2026, NOT pre-loaded here) and 'Violations' (the
+   category/escalation/reason reference sheet, used below to power
+   the Category → Reason cascade and the reprimand escalation hint).
+   ══════════════════════════════════════════════════════════════════ */
+.viw-dark-wrap{
+  --viw-bg:#0D1B35; --viw-bg2:#142140; --viw-bg3:#1a2a50;
+  --viw-gold:#C9A84C; --viw-gold-lt:#E8C97A;
+  --viw-text:rgba(255,255,255,.92); --viw-text-muted:rgba(255,255,255,.55);
+  --viw-text-dim:rgba(255,255,255,.35); --viw-border:rgba(255,255,255,.08);
+  --viw-border-gold:rgba(201,168,76,.35);
+  --viw-blue:#5B9BD5; --viw-red:#F0685C; --viw-amb:#E8B339; --viw-grn:#4FCB9E; --viw-purple:#9B7FE0;
+  background:var(--viw-bg); color:var(--viw-text); margin:0; padding:24px; min-height:100vh;
+}
+.viw-dark-wrap *{box-sizing:border-box}
+.viw-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.viw-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--viw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--viw-bg2);
+  border-radius:8px;border:1px solid var(--viw-border-gold)}
+.viw-dark-wrap .back-link:hover{background:var(--viw-bg3)}
+.viw-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--viw-bg2);
+  border-radius:8px;border-left:3px solid var(--viw-gold);margin:10px 0;color:var(--viw-text-muted)}
+.viw-dark-wrap .flag-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.08);
+  border-radius:8px;border-left:3px solid var(--viw-amb);margin:10px 0;color:var(--viw-text-muted)}
+.viw-dark-wrap .priv-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(240,104,92,.08);
+  border-radius:8px;border-left:3px solid var(--viw-red);margin:10px 0;color:var(--viw-text-muted)}
+.viw-dark-wrap .priv-text strong{color:var(--viw-red)}
+.viw-dark-wrap .sec-banner{background:var(--viw-bg2);color:var(--viw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--viw-border-gold);border-bottom:none}
+.viw-dark-wrap .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px}
+.viw-dark-wrap .kpi-card{background:var(--viw-bg2);border:1px solid var(--viw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.viw-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.viw-dark-wrap .kpi-card.kc-nvy::before{background:var(--viw-gold)}
+.viw-dark-wrap .kpi-card.kc-blue::before{background:var(--viw-blue)}
+.viw-dark-wrap .kpi-card.kc-amb::before{background:var(--viw-amb)}
+.viw-dark-wrap .kpi-card.kc-red::before{background:var(--viw-red)}
+.viw-dark-wrap .kpi-card.kc-grn::before{background:var(--viw-grn)}
+.viw-dark-wrap .kpi-lbl{font-size:10px;font-weight:700;color:var(--viw-text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.viw-dark-wrap .kpi-val{font-size:22px;font-weight:800;color:var(--viw-text)}
+.viw-dark-wrap .kpi-sub{font-size:10px;color:var(--viw-text-dim);margin-top:2px}
+.viw-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.viw-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--viw-grn)}
+.viw-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--viw-red)}
+.viw-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--viw-amb)}
+.viw-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--viw-blue)}
+.viw-dark-wrap .badge.kc-purple{background:rgba(155,127,224,.15);color:var(--viw-purple)}
+.viw-dark-wrap .badge.kc-dim{background:rgba(255,255,255,.08);color:var(--viw-text-dim)}
+.viw-dark-wrap .viw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--viw-bg2);border:1px solid var(--viw-border-gold);border-top:none}
+.viw-dark-wrap .viw-toolbar input[type=text],.viw-dark-wrap .viw-toolbar input[type=date]{background:var(--viw-bg3);border:1px solid var(--viw-border);
+  color:var(--viw-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:160px}
+.viw-dark-wrap .viw-toolbar select{background:var(--viw-bg3);border:1px solid var(--viw-border);
+  color:var(--viw-text);border-radius:7px;padding:7px 10px;font-size:11px}
+.viw-dark-wrap .viw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--viw-border-gold);
+  background:var(--viw-bg3);color:var(--viw-gold-lt);cursor:pointer}
+.viw-dark-wrap .viw-btn:hover{background:rgba(201,168,76,.15)}
+.viw-dark-wrap .viw-btn:disabled{opacity:.4;cursor:not-allowed}
+.viw-dark-wrap .viw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--viw-grn)}
+.viw-dark-wrap .viw-table-wrap{border:1px solid var(--viw-border-gold);border-top:none;max-height:460px;overflow:auto}
+.viw-dark-wrap table.viw-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.viw-dark-wrap table.viw-tbl th{position:sticky;top:0;background:var(--viw-bg3);color:var(--viw-gold-lt);
+  text-align:left;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--viw-border-gold);white-space:nowrap}
+.viw-dark-wrap table.viw-tbl td{padding:7px 10px;border-bottom:1px solid var(--viw-border);color:var(--viw-text)}
+.viw-dark-wrap table.viw-tbl tr.viw-row{cursor:pointer}
+.viw-dark-wrap table.viw-tbl tr.viw-row:hover{background:var(--viw-bg3)}
+.viw-dark-wrap table.viw-tbl tr.viw-row.viw-sel{background:rgba(201,168,76,.12)}
+.viw-dark-wrap table.viw-tbl tr.viw-repeat{background:rgba(240,104,92,.06)}
+.viw-dark-wrap .empty-state{padding:30px;text-align:center;color:var(--viw-text-dim);font-size:11px}
+.viw-dark-wrap .empty-state strong{display:block;color:var(--viw-text-muted);margin-bottom:4px;font-size:12px}
+/* Modal */
+.viw-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;
+  justify-content:center;z-index:999;padding:30px 14px;overflow:auto}
+.viw-modal{background:var(--viw-bg2);border:1px solid var(--viw-border-gold);border-radius:14px;
+  padding:20px 22px;max-width:880px;width:100%;color:var(--viw-text)}
+.viw-modal h3{margin:0 0 12px;font-size:14px;color:var(--viw-gold-lt)}
+.viw-hdr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.viw-hdr-grid label,.viw-field label{display:block;font-size:10px;font-weight:600;color:var(--viw-text-muted);
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.viw-hdr-grid input,.viw-hdr-grid select,.viw-field input,.viw-field select,.viw-field textarea{width:100%;background:var(--viw-bg3);
+  border:1px solid var(--viw-border);color:var(--viw-text);border-radius:7px;padding:7px 9px;font-size:12px;font-family:inherit}
+.viw-field{margin-bottom:12px}
+.viw-field textarea{min-height:52px;resize:vertical}
+.viw-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+.viw-note{font-size:10.5px;color:var(--viw-amb);background:rgba(232,179,57,.1);border-left:3px solid var(--viw-amb);
+  padding:8px 10px;border-radius:6px;margin-bottom:12px;line-height:1.5}
+.viw-hist{font-size:10.5px;color:var(--viw-blue);background:rgba(91,155,213,.1);border-left:3px solid var(--viw-blue);
+  padding:8px 10px;border-radius:6px;margin-bottom:12px;line-height:1.5}
+.viw-hist b{color:var(--viw-blue)}
+.viw-photo-box{border:1px dashed var(--viw-border);border-radius:8px;padding:10px;background:var(--viw-bg3);
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.viw-photo-thumb{width:64px;height:64px;border-radius:6px;object-fit:cover;background:var(--viw-bg);border:1px solid var(--viw-border);flex-shrink:0}
+.viw-photo-status{font-size:11px;color:var(--viw-text-muted);flex:1;min-width:140px}
+.viw-photo-status.ok{color:var(--viw-grn)}
+.viw-photo-status.err{color:var(--viw-red)}
+.viw-photo-actions{display:flex;gap:6px;flex-wrap:wrap}
+.viw-photo-actions label{display:inline-block;font-size:11px;font-weight:700;padding:6px 11px;border-radius:7px;
+  border:1px solid var(--viw-border-gold);background:var(--viw-bg2);color:var(--viw-gold-lt);cursor:pointer;margin:0}
+.viw-photo-actions label:hover{background:rgba(201,168,76,.15)}
+.viw-photo-actions a{font-size:11px;font-weight:700;padding:6px 11px;border-radius:7px;
+  border:1px solid var(--viw-border-gold);background:var(--viw-bg2);color:var(--viw-gold-lt);text-decoration:none}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:var(--viw-border);border-radius:3px}
+</style>
+</head><body><div class="viw-dark-wrap">
+<div class="back-row">
+  <a href="oc01-scopes.html" class="back-link">← OC-01 Safety &amp; Emergency — Scopes</a>
+</div>
+
+<div class="req-text">L3-HSE-PR-16-F-03 (HSE-FRM-05) · ISO 45001 §10.2 Nonconformity / §5.4 Worker Consultation · HSE-PR-16 Incident Reporting &amp; Investigation — logs every HSE Violation Form issued on site: safety-rule infractions, the disciplinary action taken, and whether the employee has prior violations in the same category, so repeat offenders and category trends are visible at a glance.</div>
+
+<div class="priv-text">🔒 <strong>Contains personal and disciplinary data.</strong> Every record here names an individual employee and the penalty issued against them (warning letters, salary deductions, HR referral). Treat this the same way as the source HSE Violation Form — internal HSE/HR use only, never shared with TÜV or any external party in raw form; only aggregated, anonymised counts are appropriate as certification evidence (e.g. a worker-consultation or incident-trend indicator).</div>
+
+<div class="flag-text">⚠ <strong>New page, this session — sheet tab not yet created:</strong> this page reads/writes Google Sheet tab <code>hse_violations</code> → <code>HSE Violations</code>, which does not exist in the live spreadsheet yet. Create the tab (header row matching the fields below, including <code>Photo URL</code> and <code>Photo File ID</code> for the camera/upload attachment) and redeploy the Apps Script before this page will load or save real data. Photos themselves go through the portal's existing Drive upload endpoint (no script changes needed) — into a folder named after each violation's own reference number. The historical <code>Violation Log</code> sheet in HSE_Department.xlsm (730 rows, 2018–2026) is NOT pre-loaded here — that's a separate bulk-import decision once the live tab exists, since the historical data uses inconsistent category/reprimand spellings that would need cleaning first. The Category → Reason list and the reprimand escalation hint below are taken from that workbook's own <code>Violations</code> reference sheet. Access is currently Safety (SHEE) Department/Managers/CEO, same as the rest of OC-01 — given the sensitivity above, confirm whether it should be narrowed further (e.g. HSE Head/HR only).</div>
+
+<div class="sec-banner">HSE VIOLATIONS — QUICK STATUS</div>
+<div class="kpi-grid">
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Violations Logged</div><div class="kpi-val" id="viw-kpi-total">—</div><div class="kpi-sub">All time</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">This Month</div><div class="kpi-val" id="viw-kpi-month">—</div><div class="kpi-sub">Violations logged</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">High Risk</div><div class="kpi-val" id="viw-kpi-highrisk">—</div><div class="kpi-sub">All time, High Risk category</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Repeat Offenders</div><div class="kpi-val" id="viw-kpi-repeat">—</div><div class="kpi-sub">Employees with 2+ violations on file</div></div>
+</div>
+
+<div class="sec-banner">HSE VIOLATION REGISTER</div>
+<div class="viw-toolbar">
+  <input type="text" id="viw-search" placeholder="Search employee / reason / reported by…" oninput="VIW.onSearch(this.value)">
+  <select id="viw-cat-filter" onchange="VIW.onCatFilter(this.value)">
+    <option value="">All categories</option>
+    <option value="High Risk">High Risk</option>
+    <option value="Forklift">Forklift</option>
+    <option value="Safety">Safety</option>
+    <option value="Behavioral">Behavioral</option>
+    <option value="Food Safety">Food Safety</option>
+  </select>
+  <input type="date" id="viw-date-from" onchange="VIW.onDateFrom(this.value)">
+  <input type="date" id="viw-date-to" onchange="VIW.onDateTo(this.value)">
+  <button class="viw-btn viw-btn-add" id="viw-btn-new" onclick="VIW.openAdd()">+ New Violation</button>
+  <button class="viw-btn" id="viw-btn-edit" disabled onclick="VIW.openEditSelected()">Open / Edit</button>
+  <button class="viw-btn" id="viw-btn-remove" disabled onclick="VIW.removeSelected()">Remove</button>
+  <button class="viw-btn" onclick="window.print()">🖨 Print Register</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--viw-text-dim)" id="viw-count-sub"></span>
+</div>
+<div class="viw-table-wrap"><div id="viw-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div id="viw-modal-root"></div>
+
+<script>
+(function(){
+
+  var VIOLATION = { tabKey:'hse_violations', idCol:'Violation Ref' };
+  var STATUS_COL = 'Record Status';
+
+  /* Category → Reason cascade, and the reprimand escalation matrix,
+     both taken verbatim from HSE_Department.xlsm's own 'Violations'
+     reference sheet. */
+  var CATEGORY_REASONS = {
+    'High Risk': [
+      'Smoking inside the plant',
+      'Take anesthetic plants inside production area',
+      'Bypass/remove/disable safety device',
+      'Performing hot work without permit-to-Work',
+      'Not wearing mask during infectious disease pandemic',
+      'Not wearing goggles'
+    ],
+    'Forklift': [
+      'Driving forklift with high speed',
+      'Carrying people while driving forklift',
+      'Driving forklift without wearing seat belt',
+      'Refuelling in non-designated area without HSE department permission',
+      'Driving forklift forward with a high obstructed view load',
+      'Using mobile phone / headphones while driving forklift',
+      'Driving forklift without authorization',
+      'Not following storage layout'
+    ],
+    'Safety': [
+      'Not using PPEs',
+      'Using mobile phone or earphones inside plant',
+      'Bad housekeeping',
+      'Blocking pedestrian walkways',
+      'Sleeping inside the plant'
+    ],
+    'Behavioral': [
+      'Not wearing uniform',
+      'Not reporting fire/incident',
+      'Horseplay'
+    ],
+    'Food Safety': [
+      'Eating/drinking in non-designated area',
+      'Using Lehr to warm the food',
+      'Not using cap/hairnet inside production area',
+      'Littering/Spitting',
+      'Using/drinking bottles from production line/finish good',
+      'Mixing bottles at production lines',
+      'Fix wrong tag on the pallet'
+    ]
+  };
+  /* Escalation by offense number within a category (1st..5th+), same
+     progression table as the reference sheet. */
+  var ESCALATION = {
+    'High Risk':   ['Salary Deduction (2 days)', 'Salary Deduction (3 days)', 'Salary Deduction (5 days)', 'HR Action', 'HR Action'],
+    'Forklift':    ['Salary Deduction (2 days)', 'Salary Deduction (3 days)', 'Salary Deduction (5 days)', 'HR Action', 'HR Action'],
+    'Safety':      ['Salary Deduction (10% of the day)', 'Salary Deduction (25% of the day)', 'Salary Deduction (50% of the day)', 'Salary Deduction (1 day)', 'HR Action'],
+    'Behavioral':  ['Warning Letter', 'Salary Deduction (1 day)', 'Salary Deduction (2 days)', 'Salary Deduction (5 days)', 'HR Action'],
+    'Food Safety': ['Warning Letter', 'Salary Deduction (10% of the day)', 'Salary Deduction (50% of the day)', 'Salary Deduction (1 day)', 'HR Action']
+  };
+  var REPRIMAND_OPTS = [
+    'Warning Letter',
+    'Salary Deduction (10% of the day)',
+    'Salary Deduction (25% of the day)',
+    'Salary Deduction (50% of the day)',
+    'Salary Deduction (1 day)',
+    'Salary Deduction (2 days)',
+    'Salary Deduction (3 days)',
+    'Salary Deduction (5 days)',
+    'HR Action'
+  ];
+  var SIGNED_OPTS = ['Yes', 'No', 'Refused to Sign', 'Employee Left Company'];
+
+  var _cache = null, _selected = null;
+  var _filters = { search:'', category:'', dateFrom:'', dateTo:'' };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+
+  function nextRef(cache){
+    var year = new Date().getFullYear();
+    var pat = new RegExp('^VIO-(\\d{4})-(\\d+)$');
+    if (!cache || !cache.headers || !cache.rows) return 'VIO-' + year + '-01';
+    var idIdx = colIdx(cache.headers, VIOLATION.idCol);
+    if (idIdx < 0) return 'VIO-' + year + '-01';
+    var maxN = 0;
+    cache.rows.forEach(function(r){
+      var m = String(r[idIdx]||'').trim().match(pat);
+      if (m && parseInt(m[1],10) === year){ var n = parseInt(m[2],10); if (n > maxN) maxN = n; }
+    });
+    var numStr = String(maxN + 1); while (numStr.length < 2) numStr = '0' + numStr;
+    return 'VIO-' + year + '-' + numStr;
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){
+    return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
+  }
+  function loadAll(){
+    return loadTab(VIOLATION.tabKey).then(function(data){
+      if (data && data.headers && data.rows){
+        var si = colIdx(data.headers, STATUS_COL);
+        if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+      }
+      _cache = data;
+    }).catch(function(){ _cache = null; }).then(render);
+  }
+  function getRecs(){
+    if (!_cache || !_cache.headers || !_cache.rows) return [];
+    return _cache.rows.map(function(r){ return recFromRow(_cache.headers, r); });
+  }
+
+  /* How many prior violations this employee has in this category,
+     among currently-loaded active records — mirrors the paper form's
+     "History of HSE violation(s) from the employee" block. Matches
+     by Employee Name + Card No. when both are present, else by name. */
+  function priorOffenseCount(allRecs, employeeName, cardNo, category, excludeRef){
+    var name = String(employeeName||'').trim().toLowerCase();
+    var card = String(cardNo||'').trim().toLowerCase();
+    if (!name) return 0;
+    return allRecs.filter(function(r){
+      if (excludeRef && r['Violation Ref'] === excludeRef) return false;
+      if (String(r['Violation Category']||'') !== category) return false;
+      var rName = String(r['Employee Name']||'').trim().toLowerCase();
+      var rCard = String(r['Card No.']||'').trim().toLowerCase();
+      if (card && rCard) return rName === name && rCard === card;
+      return rName === name;
+    }).length;
+  }
+  function suggestedReprimand(category, offenseNumber){
+    var ladder = ESCALATION[category];
+    if (!ladder) return '';
+    var idx = Math.min(offenseNumber, ladder.length) - 1;
+    return idx >= 0 ? ladder[idx] : ladder[0];
+  }
+
+  function filteredRecs(allRecs){
+    var f = _filters;
+    return allRecs.filter(function(r){
+      if (f.category && r['Violation Category'] !== f.category) return false;
+      if (f.dateFrom && String(r['Date']||'') < f.dateFrom) return false;
+      if (f.dateTo && String(r['Date']||'') > f.dateTo) return false;
+      if (f.search){
+        var s = f.search.toLowerCase();
+        var hit = String(r['Employee Name']||'').toLowerCase().indexOf(s) >= 0
+          || String(r['Reason']||'').toLowerCase().indexOf(s) >= 0
+          || String(r['Reported By']||'').toLowerCase().indexOf(s) >= 0;
+        if (!hit) return false;
+      }
+      return true;
+    });
+  }
+
+  function render(){
+    var all = getRecs();
+    var thisMonth = new Date().toISOString().slice(0,7);
+    setTxt('viw-kpi-total', all.length);
+    setTxt('viw-kpi-month', all.filter(function(r){ return String(r['Date']||'').slice(0,7) === thisMonth; }).length);
+    setTxt('viw-kpi-highrisk', all.filter(function(r){ return r['Violation Category'] === 'High Risk'; }).length);
+    var byEmp = {};
+    all.forEach(function(r){
+      var key = String(r['Employee Name']||'').trim().toLowerCase() + '|' + String(r['Card No.']||'').trim().toLowerCase();
+      if (!key.trim()) return;
+      byEmp[key] = (byEmp[key]||0) + 1;
+    });
+    var repeatCount = Object.keys(byEmp).filter(function(k){ return byEmp[k] > 1; }).length;
+    setTxt('viw-kpi-repeat', repeatCount);
+
+    renderTable(all);
+  }
+
+  function renderTable(all){
+    var recs = filteredRecs(all);
+    var el = document.getElementById('viw-table');
+    document.getElementById('viw-count-sub').textContent = recs.length + ' of ' + all.length + ' violations shown';
+    if (!recs.length){
+      el.innerHTML = '<div class="empty-state"><strong>No violations match these filters</strong>Click "+ New Violation" to log one, or widen the filters.</div>';
+      updateButtons(); return;
+    }
+    var byEmp = {};
+    all.forEach(function(r){
+      var key = String(r['Employee Name']||'').trim().toLowerCase() + '|' + String(r['Card No.']||'').trim().toLowerCase();
+      if (!key.trim()) return;
+      byEmp[key] = (byEmp[key]||0) + 1;
+    });
+    var catCls = { 'High Risk':'kc-red', 'Forklift':'kc-amb', 'Safety':'kc-blue', 'Behavioral':'kc-purple', 'Food Safety':'kc-grn' };
+    var rows = recs.slice().sort(function(a,b){ return String(b['Date']) < String(a['Date']) ? -1 : 1; }).map(function(r){
+      var sel = _selected === r['Violation Ref'];
+      var key = String(r['Employee Name']||'').trim().toLowerCase() + '|' + String(r['Card No.']||'').trim().toLowerCase();
+      var isRepeat = key.trim() && byEmp[key] > 1;
+      var signedCls = r['Signed']==='Yes' ? 'kc-grn' : (r['Signed']==='No' ? 'kc-amb' : 'kc-red');
+      return '<tr class="viw-row' + (sel?' viw-sel':'') + (isRepeat?' viw-repeat':'') + '" onclick="VIW.select(\'' + vEsc(r['Violation Ref']) + '\')" title="' + (isRepeat?'This employee has more than one violation on file':'') + '">'
+        + '<td>' + vEsc(r['Date']) + '</td>'
+        + '<td>' + vEsc(r['Employee Name']) + (isRepeat?' <span style="color:var(--viw-red)">⚠</span>':'') + '</td>'
+        + '<td>' + vEsc(r['Department']) + '</td>'
+        + '<td><span class="badge ' + (catCls[r['Violation Category']]||'kc-dim') + '">' + vEsc(r['Violation Category']) + '</span></td>'
+        + '<td>' + vEsc(r['Reason']) + '</td>'
+        + '<td>' + vEsc(r['Type of Reprimand']) + '</td>'
+        + '<td>' + vEsc(r['Reported By']) + '</td>'
+        + '<td><span class="badge ' + signedCls + '">' + vEsc(r['Signed']||'—') + '</span></td>'
+        + '<td>' + (r['Photo URL'] ? '<a href="' + vEsc(r['Photo URL']) + '" target="_blank" onclick="event.stopPropagation()">📷 View</a>' : '—') + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="viw-tbl"><thead><tr><th>Date</th><th>Employee</th><th>Dept.</th><th>Category</th><th>Reason</th><th>Reprimand</th><th>Reported By</th><th>Signed</th><th>Photo</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateButtons();
+  }
+  function updateButtons(){
+    var r = getSelected();
+    document.getElementById('viw-btn-edit').disabled = !r;
+    document.getElementById('viw-btn-remove').disabled = !r || !can('delete');
+  }
+  function getSelected(){
+    return getRecs().filter(function(r){ return r['Violation Ref'] === _selected; })[0] || null;
+  }
+
+  function reasonOptionsHtml(category, selectedReason){
+    var list = CATEGORY_REASONS[category] || [];
+    var opts = '<option value="">-- select reason --</option>' + list.map(function(r){
+      return '<option value="'+vEsc(r)+'"'+(r===selectedReason?' selected':'')+'>'+vEsc(r)+'</option>';
+    }).join('');
+    opts += '<option value="Other"' + (selectedReason==='Other'?' selected':'') + '>Other (specify below)</option>';
+    return opts;
+  }
+
+  function buildModal(existingRec){
+    var root = document.getElementById('viw-modal-root');
+    var isEdit = !!existingRec;
+    var ref = isEdit ? existingRec['Violation Ref'] : nextRef(_cache);
+    var r = existingRec || {};
+    var catOpts = Object.keys(CATEGORY_REASONS).map(function(c){
+      return '<option value="'+c+'"'+(r['Violation Category']===c?' selected':'')+'>'+c+'</option>';
+    }).join('');
+    var reprimandOpts = REPRIMAND_OPTS.map(function(o){ return '<option value="'+o+'"'+(r['Type of Reprimand']===o?' selected':'')+'>'+o+'</option>'; }).join('');
+    var signedOpts = SIGNED_OPTS.map(function(o){ return '<option value="'+o+'"'+(r['Signed']===o?' selected':'')+'>'+o+'</option>'; }).join('');
+
+
+    root.innerHTML = '<div class="viw-modal-bg" id="viw-bg"><div class="viw-modal">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' HSE Violation — ' + vEsc(ref) + '</h3>'
+      + '<div class="viw-hdr-grid">'
+        + '<div><label>Date</label><input type="date" id="viw-date" value="' + vEsc(r['Date']||new Date().toISOString().slice(0,10)) + '"></div>'
+        + '<div><label>Time</label><input type="time" id="viw-time" value="' + vEsc(r['Time']||'') + '"></div>'
+        + '<div><label>Reported By</label><input type="text" id="viw-reportedby" value="' + vEsc(r['Reported By']||'') + '"></div>'
+        + '<div><label>Employee Name</label><input type="text" id="viw-empname" value="' + vEsc(r['Employee Name']||'') + '"></div>'
+        + '<div><label>Position</label><input type="text" id="viw-position" value="' + vEsc(r['Position']||'') + '"></div>'
+        + '<div><label>Card No.</label><input type="text" id="viw-cardno" value="' + vEsc(r['Card No.']||'') + '"></div>'
+        + '<div><label>Department</label><input type="text" id="viw-dept" value="' + vEsc(r['Department']||'') + '"></div>'
+        + '<div><label>Location / Area</label><input type="text" id="viw-location" value="' + vEsc(r['Location']||'') + '"></div>'
+      + '</div>'
+      + '<div class="viw-field">'
+        + '<label>Photo of Violation</label>'
+        + '<input type="hidden" id="viw-photo-url" value="' + vEsc(r['Photo URL']||'') + '">'
+        + '<input type="hidden" id="viw-photo-fileid" value="' + vEsc(r['Photo File ID']||'') + '">'
+        + '<div class="viw-photo-box" id="viw-photo-box">'
+          + (r['Photo File ID'] ? '<img class="viw-photo-thumb" id="viw-photo-thumb" src="https://drive.google.com/uc?export=view&id=' + vEsc(r['Photo File ID']) + '">' : '<img class="viw-photo-thumb" id="viw-photo-thumb" style="display:none">')
+          + '<div class="viw-photo-status' + (r['Photo URL']?' ok':'') + '" id="viw-photo-status">' + (r['Photo URL'] ? 'Photo attached' : 'No photo attached yet') + '</div>'
+          + '<div class="viw-photo-actions">'
+            + '<label for="viw-photo-input">📷 ' + (r['Photo URL'] ? 'Replace Photo' : 'Add Photo') + '</label>'
+            + '<input type="file" id="viw-photo-input" accept="image/*" capture="environment" style="display:none" onchange="VIW.onPhotoSelected(event, \'' + vEsc(ref) + '\')">'
+            + (r['Photo URL'] ? '<a href="' + vEsc(r['Photo URL']) + '" target="_blank" id="viw-photo-view-link">View Full Size</a>' : '')
+          + '</div>'
+        + '</div>'
+      + '</div>'
+      + '<div class="viw-hdr-grid" style="grid-template-columns:1fr 1fr">'
+        + '<div><label>Violation Category</label><select id="viw-category" onchange="VIW.onCategoryChange()">' + catOpts + '</select></div>'
+        + '<div><label>Reason</label><select id="viw-reason">' + reasonOptionsHtml(r['Violation Category']||'High Risk', r['Reason']) + '</select></div>'
+      + '</div>'
+      + '<div class="viw-field" id="viw-other-reason-wrap" style="display:' + (r['Reason']==='Other'?'block':'none') + '">'
+        + '<label>Reason (specify)</label><input type="text" id="viw-other-reason" value="' + vEsc(r['Reason']==='Other'?(r['Reason Other']||''):'') + '">'
+      + '</div>'
+      + '<div id="viw-hist-box"></div>'
+      + '<div class="viw-field"><label>Description of Incident</label><textarea id="viw-description">' + vEsc(r['Description']||'') + '</textarea></div>'
+      + '<div class="viw-hdr-grid" style="grid-template-columns:1fr 1fr">'
+        + '<div><label>Witnesses (if any)</label><input type="text" id="viw-witnesses" value="' + vEsc(r['Witnesses']||'') + '"></div>'
+        + '<div><label>Rules/Regulations/Policies Violated</label><input type="text" id="viw-rules" value="' + vEsc(r['Rules Violated']||'') + '"></div>'
+      + '</div>'
+      + '<div class="viw-hdr-grid" style="grid-template-columns:1fr 1fr">'
+        + '<div><label>Type of Reprimand</label><select id="viw-reprimand">' + reprimandOpts + '</select></div>'
+        + '<div><label>Employee Signed?</label><select id="viw-signed">' + signedOpts + '</select></div>'
+      + '</div>'
+      + '<div class="viw-field"><label>Employee Explanation</label><textarea id="viw-explanation">' + vEsc(r['Employee Explanation']||'') + '</textarea></div>'
+      + '<div class="viw-hdr-grid" style="grid-template-columns:1fr 1fr 1fr">'
+        + '<div><label>Approved By</label><input type="text" id="viw-approvedby" value="' + vEsc(r['Approved By']||'') + '"></div>'
+        + '<div><label>Supervisor / SUI</label><input type="text" id="viw-supervisor" value="' + vEsc(r['Supervisor']||'') + '"></div>'
+        + '<div><label>Manager</label><input type="text" id="viw-manager" value="' + vEsc(r['Manager']||'') + '"></div>'
+      + '</div>'
+      + '<div class="viw-field"><label>Remarks</label><textarea id="viw-remarks">' + vEsc(r['Remarks']||'') + '</textarea></div>'
+      + '<div class="viw-note">This register is internal HSE/HR use only — see the notice at the top of the page before sharing any of this data outside that circle.</div>'
+      + '<div class="viw-modal-actions"><button class="viw-btn" id="viw-cancel">Cancel</button><button class="viw-btn viw-btn-add" id="viw-save">Save</button></div>'
+    + '</div></div>';
+
+    document.getElementById('viw-reason').onchange = function(){
+      document.getElementById('viw-other-reason-wrap').style.display = this.value === 'Other' ? 'block' : 'none';
+      updateHistBox();
+    };
+    document.getElementById('viw-empname').oninput = updateHistBox;
+    document.getElementById('viw-cardno').oninput = updateHistBox;
+    document.getElementById('viw-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('viw-bg').onclick = function(e){ if (e.target.id==='viw-bg') root.innerHTML=''; };
+    document.getElementById('viw-save').onclick = function(){ save(ref, isEdit); };
+
+    function updateHistBox(){
+      var box = document.getElementById('viw-hist-box');
+      var name = document.getElementById('viw-empname').value;
+      var card = document.getElementById('viw-cardno').value;
+      var category = document.getElementById('viw-category').value;
+      if (!name.trim()){ box.innerHTML = ''; return; }
+      var prior = priorOffenseCount(getRecs(), name, card, category, isEdit ? ref : null);
+      var offenseNum = prior + 1;
+      var ordinal = offenseNum===1?'1st':offenseNum===2?'2nd':offenseNum===3?'3rd':offenseNum+'th';
+      var suggestion = suggestedReprimand(category, offenseNum);
+      box.innerHTML = '<div class="viw-hist">This would be <b>' + ordinal + '</b> recorded ' + vEsc(category) + ' violation on file for this employee'
+        + (prior ? ' (' + prior + ' prior).' : '.')
+        + (suggestion ? ' Standard escalation for a ' + ordinal + ' ' + vEsc(category) + ' offense: <b>' + vEsc(suggestion) + '</b> — adjust the Type of Reprimand above if different.' : '')
+        + '</div>';
+    }
+    updateHistBox();
+  }
+
+  /* Uploads a photo straight to the shared IMS Drive folder via the
+     portal's existing uploadFilePicker endpoint (same one the
+     Document Register's file picker uses), filed under a subfolder
+     named after this violation's own ref — no server changes needed.
+     Works from a file picker or, on a phone, directly from the
+     camera (accept="image/*" capture="environment" on the input). */
+  function onPhotoSelected(evt, ref){
+    var file = evt.target.files && evt.target.files[0];
+    if (!file) return;
+    var statusEl = document.getElementById('viw-photo-status');
+    var thumbEl = document.getElementById('viw-photo-thumb');
+    var urlField = document.getElementById('viw-photo-url');
+    var fileIdField = document.getElementById('viw-photo-fileid');
+
+    var localPreview = URL.createObjectURL(file);
+    thumbEl.src = localPreview;
+    thumbEl.style.display = 'block';
+    statusEl.className = 'viw-photo-status';
+    statusEl.textContent = 'Uploading…';
+
+    var reader = new FileReader();
+    reader.onload = function(){
+      var dataUrl = reader.result;
+      var commaIdx = dataUrl.indexOf(',');
+      var base64 = commaIdx >= 0 ? dataUrl.substring(commaIdx + 1) : dataUrl;
+      var username = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getCurrentUserName) ? IMS_AUTH.getCurrentUserName() : 'unknown';
+      fetch(SHEETS_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'uploadFilePicker',
+          docId: ref,
+          fileName: file.name,
+          mimeType: file.type || 'image/jpeg',
+          b64: base64,
+          username: username
+        })
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if (!res || res.ok === false){
+          statusEl.className = 'viw-photo-status err';
+          statusEl.textContent = 'Upload failed' + (res && res.error ? ': ' + res.error : '') + ' — try again.';
+          return;
+        }
+        urlField.value = res.webViewLink || res.previewLink || '';
+        fileIdField.value = res.fileId || '';
+        thumbEl.src = 'https://drive.google.com/uc?export=view&id=' + res.fileId;
+        statusEl.className = 'viw-photo-status ok';
+        statusEl.textContent = 'Photo attached';
+        var actions = document.querySelector('.viw-photo-actions');
+        var existingLink = document.getElementById('viw-photo-view-link');
+        if (!existingLink && actions){
+          var a = document.createElement('a');
+          a.id = 'viw-photo-view-link'; a.target = '_blank'; a.href = urlField.value; a.textContent = 'View Full Size';
+          actions.appendChild(a);
+        } else if (existingLink){
+          existingLink.href = urlField.value;
+        }
+        var replaceLabel = document.querySelector('.viw-photo-actions label');
+        if (replaceLabel) replaceLabel.textContent = '📷 Replace Photo';
+      }).catch(function(){
+        statusEl.className = 'viw-photo-status err';
+        statusEl.textContent = 'Upload failed — check your connection and try again.';
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function onCategoryChange(){
+    var category = document.getElementById('viw-category').value;
+    document.getElementById('viw-reason').innerHTML = reasonOptionsHtml(category, '');
+    document.getElementById('viw-other-reason-wrap').style.display = 'none';
+  }
+
+  function save(ref, isEdit){
+    var root = document.getElementById('viw-modal-root');
+    var btn = document.getElementById('viw-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    var reasonSel = document.getElementById('viw-reason').value;
+    var values = {
+      'Violation Ref': ref,
+      'Date': document.getElementById('viw-date').value,
+      'Time': document.getElementById('viw-time').value,
+      'Reported By': document.getElementById('viw-reportedby').value.trim(),
+      'Employee Name': document.getElementById('viw-empname').value.trim(),
+      'Position': document.getElementById('viw-position').value.trim(),
+      'Card No.': document.getElementById('viw-cardno').value.trim(),
+      'Department': document.getElementById('viw-dept').value.trim(),
+      'Location': document.getElementById('viw-location').value.trim(),
+      'Photo URL': document.getElementById('viw-photo-url').value,
+      'Photo File ID': document.getElementById('viw-photo-fileid').value,
+      'Photo': document.getElementById('viw-photo-url').value ? 'Yes' : 'No',
+      'Violation Category': document.getElementById('viw-category').value,
+      'Reason': reasonSel,
+      'Reason Other': reasonSel==='Other' ? document.getElementById('viw-other-reason').value.trim() : '',
+      'Description': document.getElementById('viw-description').value.trim(),
+      'Witnesses': document.getElementById('viw-witnesses').value.trim(),
+      'Rules Violated': document.getElementById('viw-rules').value.trim(),
+      'Type of Reprimand': document.getElementById('viw-reprimand').value,
+      'Signed': document.getElementById('viw-signed').value,
+      'Employee Explanation': document.getElementById('viw-explanation').value.trim(),
+      'Approved By': document.getElementById('viw-approvedby').value.trim(),
+      'Supervisor': document.getElementById('viw-supervisor').value.trim(),
+      'Manager': document.getElementById('viw-manager').value.trim(),
+      'Remarks': document.getElementById('viw-remarks').value.trim()
+    };
+    if (!values['Employee Name']){ alert('Employee Name is required.'); reenable(); return; }
+    if (isEdit){
+      postJSON('update', {tab: VIOLATION.tabKey, idCol: VIOLATION.idCol, id: ref}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: VIOLATION.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  window.VIW = {
+    onSearch: function(v){ _filters.search = v; render(); },
+    onCatFilter: function(v){ _filters.category = v; render(); },
+    onDateFrom: function(v){ _filters.dateFrom = v; render(); },
+    onDateTo: function(v){ _filters.dateTo = v; render(); },
+    select: function(id){ _selected = (_selected!==null && String(_selected)===String(id)) ? null : id; render(); },
+    openAdd: function(){ if (can('add')) buildModal(null); },
+    openEditSelected: function(){ var r=getSelected(); if(!r) return alert('Select a row first.'); buildModal(r); },
+    onCategoryChange: onCategoryChange,
+    onPhotoSelected: onPhotoSelected,
+    removeSelected: function(){
+      if (!can('delete')) return;
+      var r = getSelected(); if(!r) return alert('Select a row first.');
+      if (!confirm('Remove violation ' + r['Violation Ref'] + ' (' + r['Employee Name'] + ')? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: VIOLATION.tabKey, idCol: VIOLATION.idCol, id: r['Violation Ref']}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status==='error'){ alert('Remove failed: '+(res.message||'unknown error')); return; }
+        _selected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(loadAll, 100);
+  });
+})();
+</script>
+
+<script>
+/* ── Access gate: same rule as the rest of OC-01 ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The HSE Violation Register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+
+</div></body></html>
