@@ -115,6 +115,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .chw-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
 .chw-note{font-size:10.5px;color:var(--chw-amb);background:rgba(232,179,57,.1);border-left:3px solid var(--chw-amb);
   padding:8px 10px;border-radius:6px;margin-bottom:12px;line-height:1.5}
+.chw-chk-group{display:flex;flex-direction:column;gap:5px;background:var(--chw-bg3);border:1px solid var(--chw-border);
+  border-radius:10px;padding:10px 12px;margin-bottom:12px}
+.chw-chk-row{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid var(--chw-border)}
+.chw-chk-row:last-child{border-bottom:none}
+.chw-chk-text{font-size:11.5px;color:var(--chw-text-muted);flex:1;min-width:220px;line-height:1.4}
+.chw-chk-text b{color:var(--chw-text);font-weight:700;margin-right:4px}
+.chw-chk-row select{width:auto;min-width:100px;flex-shrink:0;font-size:11px;padding:6px 8px;background:var(--chw-bg2);
+  border:1px solid var(--chw-border);color:var(--chw-text);border-radius:7px}
+.chw-chk-row select.chw-chk-no{border-color:var(--chw-red);color:var(--chw-red)}
+.chw-chk-row select.chw-chk-blank{border-color:var(--chw-amb)}
 </style>
 </head><body><div class="chm-dark-wrap">
 <div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div>
@@ -190,21 +200,102 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 </div>
 <div class="chw-table-wrap"><div id="chm-stock-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
 
+<div class="sec-banner" id="storage-conditions">5. STORAGE CONDITIONS — periodic chemical storage area inspections (OC-02, Sh.46)</div>
+<div class="flag-text" style="margin-top:14px">⚠ <strong>New section, this session — sheet tabs not yet created:</strong> this reads/writes Google Sheet tab <code>chemical_storage_conditions</code> → <code>Chemical Storage Conditions</code>, which does not exist in the live spreadsheet yet. Create the tab (header row: Inspection Ref, Date, Location/Store, Inspector, <code>Item-1…Item-10</code>, Exceptions, Record Status) and redeploy the Apps Script before this section will load or save real data. Covers the Chemical Storage &amp; Spills programme (Sh.46, companion to <code>L4-ENV-PR-05-CL-01</code>) — routine inspection of how chemicals are stored, as distinct from the Spill Records log below which covers actual spill events. This page's access gate is currently Safety (SHEE)/Managers/CEO — confirm whether Environment Department staff should also see these two sections, and add their department value to the check if so.</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:0">
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Inspections Logged</div><div class="kpi-val" id="chm-sto-kpi-total">—</div><div class="kpi-sub">All time</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">This Month</div><div class="kpi-val" id="chm-sto-kpi-month">—</div><div class="kpi-sub">Inspections logged</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">Locations Failing</div><div class="kpi-val" id="chm-sto-kpi-fail">—</div><div class="kpi-sub">Most recent inspection per location</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Clean Inspections</div><div class="kpi-val" id="chm-sto-kpi-clean">—</div><div class="kpi-sub">All items passed</div></div>
+</div>
+<div class="chw-toolbar" style="border-top:1px solid var(--chw-border-gold)">
+  <input type="text" id="chm-sto-search" placeholder="Search location / inspector…" oninput="CHM.onStoSearch(this.value)">
+  <button class="chw-btn chw-btn-add" id="chm-sto-btn-new" onclick="CHM.openStoAdd()">+ New Inspection</button>
+  <button class="chw-btn" id="chm-sto-btn-edit" disabled onclick="CHM.openStoEditSelected()">Open / Edit</button>
+  <button class="chw-btn" id="chm-sto-btn-remove" disabled onclick="CHM.removeStoSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--chw-text-dim)" id="chm-sto-count-sub"></span>
+</div>
+<div class="chw-table-wrap"><div id="chm-sto-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div class="sec-banner" id="spill-records">6. SPILL RECORDS — any chemical spill, site-wide (OC-02, Sh.46)</div>
+<div class="flag-text" style="margin-top:14px">⚠ <strong>New section, this session — sheet tab not yet created:</strong> this reads/writes Google Sheet tab <code>chemical_spill_records</code> → <code>Chemical Spill Records</code>, which does not exist in the live spreadsheet yet. Create the tab and redeploy the Apps Script before this section will load or save real data. Log any chemical spill here, from any source on site — fuel-tanker-delivery spills have their own dedicated record in the Fuel Delivery Spill Prevention register and are not duplicated here.</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:0">
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Spills Logged</div><div class="kpi-val" id="chm-spl-kpi-total">—</div><div class="kpi-sub">All time</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl">This Month</div><div class="kpi-val" id="chm-spl-kpi-month">—</div><div class="kpi-sub">Spills logged</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">Reached Drain/Soil/Water</div><div class="kpi-val" id="chm-spl-kpi-reached">—</div><div class="kpi-sub">All time</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Open CAPA</div><div class="kpi-val" id="chm-spl-kpi-opencapa">—</div><div class="kpi-sub">Spills with no CAPA ref. yet</div></div>
+</div>
+<div class="chw-toolbar" style="border-top:1px solid var(--chw-border-gold)">
+  <input type="text" id="chm-spl-search" placeholder="Search location / chemical / reported by…" oninput="CHM.onSplSearch(this.value)">
+  <button class="chw-btn chw-btn-add" id="chm-spl-btn-new" onclick="CHM.openSplAdd()">+ New Spill Record</button>
+  <button class="chw-btn" id="chm-spl-btn-edit" disabled onclick="CHM.openSplEditSelected()">Open / Edit</button>
+  <button class="chw-btn" id="chm-spl-btn-remove" disabled onclick="CHM.removeSplSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--chw-text-dim)" id="chm-spl-count-sub"></span>
+</div>
+<div class="chw-table-wrap"><div id="chm-spl-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
 <div id="chm-modal-root"></div>
 
 <script>
 (function(){
 
-  var MASTER = { tabKey:'chemical_inv', containerId:'live-table-master', idCol:'Item Code' };
+  var MASTER  = { tabKey:'chemical_inv', containerId:'live-table-master', idCol:'Item Code' };
   var LOG     = { tabKey:'chemical_sds_log', containerId:'live-table-log', idCol:'Review Ref' };
   var STOCK   = { tabKey:'chemical_stock_monthly', containerId:'chm-stock-table', idCol:'Month' };
+  var STORAGE = { tabKey:'chemical_storage_conditions', containerId:'chm-sto-table', idCol:'Inspection Ref' };
+  var SPILL   = { tabKey:'chemical_spill_records', containerId:'chm-spl-table', idCol:'Spill Ref' };
   var STATUS_COL = 'Record Status';
 
-  var _masterCache = null, _logCache = null, _stockCache = null;
-  var _masterSelected = null, _logSelected = null, _stockSelectedMonth = null;
+  /* Storage Conditions checklist — 10 items, routine inspection of a
+     chemical storage area (as distinct from a one-off spill event). */
+  var STO_ITEMS = [
+    "All containers clearly labelled per GHS (product name, pictograms, signal word legible)",
+    "Containers properly closed/sealed — no visible leaks or damage",
+    "Secondary containment / bunding in place and free of cracks or debris",
+    "Incompatible chemicals segregated per compatibility chart (e.g. acids kept away from oxidizers)",
+    "Spill kit present, fully stocked, and accessible within the storage area",
+    "SDS for items stored here accessible on-site (binder or digital)",
+    "Appropriate fire extinguisher present and accessible for the chemical class stored",
+    "Ventilation adequate — no strong or unusual odours noted",
+    "Storage area clean and tidy, with clear access to exits and emergency equipment",
+    "PPE required for handling (gloves, goggles, etc.) available at or near the location"
+  ];
+  function stoItemField(i){ return 'Item-' + (i+1); }
+  function computeStoResult(rec){
+    var anyBlank=false, anyNo=false;
+    STO_ITEMS.forEach(function(_,i){
+      var v = rec[stoItemField(i)];
+      if (!v) anyBlank = true; else if (v === 'No') anyNo = true;
+    });
+    if (anyNo) return 'Fail';
+    if (anyBlank) return 'Incomplete';
+    return 'Pass';
+  }
+
+  var _masterCache = null, _logCache = null, _stockCache = null, _stoCache = null, _splCache = null;
+  var _masterSelected = null, _logSelected = null, _stockSelectedMonth = null, _stoSelected = null, _splSelected = null;
   var _masterFilters = { search:'', special:null, status:'' };
   var _logFilters = { search:'', special:null };
+  var _stoFilters = { search:'' };
+  var _splFilters = { search:'' };
   var _charts = { status:null };
+
+  /* Generic ref-number generator, same <PREFIX>-<year>-<seq> convention
+     already used for Review Refs — reused here for Inspection Ref / Spill Ref. */
+  function nextRef(cache, idCol, prefix){
+    var year = new Date().getFullYear();
+    var pat = new RegExp('^' + prefix + '-(\\d{4})-(\\d+)$');
+    if (!cache || !cache.headers || !cache.rows) return prefix + '-' + year + '-01';
+    var idIdx = colIdx(cache.headers, idCol);
+    if (idIdx < 0) return prefix + '-' + year + '-01';
+    var maxN = 0;
+    cache.rows.forEach(function(r){
+      var m = String(r[idIdx]||'').trim().match(pat);
+      if (m && parseInt(m[1],10) === year){ var n = parseInt(m[2],10); if (n > maxN) maxN = n; }
+    });
+    var numStr = String(maxN + 1); while (numStr.length < 2) numStr = '0' + numStr;
+    return prefix + '-' + year + '-' + numStr;
+  }
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
   function colIdx(headers, name){
@@ -264,7 +355,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
         }
         _stockCache = data;
-      }).catch(function(){ _stockCache = null; })
+      }).catch(function(){ _stockCache = null; }),
+      loadTab(STORAGE.tabKey).then(function(data){
+        if (data && data.headers && data.rows){
+          var si = colIdx(data.headers, STATUS_COL);
+          if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+        }
+        _stoCache = data;
+      }).catch(function(){ _stoCache = null; }),
+      loadTab(SPILL.tabKey).then(function(data){
+        if (data && data.headers && data.rows){
+          var si = colIdx(data.headers, STATUS_COL);
+          if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+        }
+        _splCache = data;
+      }).catch(function(){ _splCache = null; })
     ]).then(render);
   }
 
@@ -279,6 +384,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function getStockRecs(){
     if (!_stockCache || !_stockCache.headers || !_stockCache.rows) return [];
     return _stockCache.rows.map(function(r){ return recFromRow(_stockCache.headers, r); });
+  }
+  function getStoRecs(){
+    if (!_stoCache || !_stoCache.headers || !_stoCache.rows) return [];
+    return _stoCache.rows.map(function(r){ return recFromRow(_stoCache.headers, r); });
+  }
+  function getSplRecs(){
+    if (!_splCache || !_splCache.headers || !_splCache.rows) return [];
+    return _splCache.rows.map(function(r){ return recFromRow(_splCache.headers, r); });
   }
   function masterByCode(code){
     var found = getMasterRecs().filter(function(m){ return m['Item Code'] === code; });
@@ -307,6 +420,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     renderLogTable(logRecs);
     renderDashboard(masterRecs, logRecs);
     renderStockSection(getStockRecs());
+    renderStoSection(getStoRecs());
+    renderSplSection(getSplRecs());
   }
 
   function renderChart(currentN, legacyN, pendingN){
@@ -979,6 +1094,249 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   }
 
   /* ── Public API ───────────────────────────────────────────────── */
+  /* ══════════ 5. STORAGE CONDITIONS ══════════ */
+  function filteredStoRecs(recs){
+    var s = (_stoFilters.search||'').trim().toLowerCase();
+    if (!s) return recs;
+    return recs.filter(function(r){
+      return String(r['Location/Store']||'').toLowerCase().indexOf(s) >= 0
+          || String(r['Inspector']||'').toLowerCase().indexOf(s) >= 0;
+    });
+  }
+  function renderStoSection(allRecs){
+    var recs = filteredStoRecs(allRecs);
+    var el = document.getElementById(STORAGE.containerId);
+    if (!el) return;
+    var thisMonth = new Date().toISOString().slice(0,7);
+    setTxt('chm-sto-kpi-total', allRecs.length);
+    setTxt('chm-sto-kpi-month', allRecs.filter(function(r){ return String(r['Date']||'').slice(0,7) === thisMonth; }).length);
+    setTxt('chm-sto-kpi-clean', allRecs.filter(function(r){ return computeStoResult(r) === 'Pass'; }).length);
+    // "Locations Failing" = among locations' most recent inspection, how many are Fail.
+    var byLoc = {};
+    allRecs.forEach(function(r){
+      var loc = r['Location/Store'] || '(unspecified)';
+      if (!byLoc[loc] || String(r['Date']||'') > String(byLoc[loc]['Date']||'')) byLoc[loc] = r;
+    });
+    var failLocs = Object.keys(byLoc).filter(function(loc){ return computeStoResult(byLoc[loc]) === 'Fail'; }).length;
+    setTxt('chm-sto-kpi-fail', failLocs);
+
+    document.getElementById('chm-sto-count-sub').textContent = recs.length + ' of ' + allRecs.length + ' inspections shown';
+    if (!recs.length){
+      el.innerHTML = '<div class="empty-state"><strong>No inspections match these filters</strong>Click "+ New Inspection" to log the first one.</div>';
+      updateStoButtons(); return;
+    }
+    var rows = recs.slice().sort(function(a,b){ return String(b['Date']) < String(a['Date']) ? -1 : 1; }).map(function(r){
+      var sel = _stoSelected === r['Inspection Ref'];
+      var result = computeStoResult(r);
+      var cls = result==='Pass' ? 'kc-grn' : (result==='Fail' ? 'kc-red' : 'kc-amb');
+      return '<tr class="chw-row' + (sel?' chw-sel':'') + '" onclick="CHM.selectSto(\'' + chmEsc(r['Inspection Ref']) + '\')">'
+        + '<td>' + chmEsc(r['Date']) + '</td>'
+        + '<td>' + chmEsc(r['Location/Store']) + '</td>'
+        + '<td>' + chmEsc(r['Inspector']) + '</td>'
+        + '<td><span class="badge ' + cls + '">' + result + '</span></td>'
+        + '<td>' + chmEsc(r['Exceptions']) + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="chw-tbl"><thead><tr><th>Date</th><th>Location/Store</th><th>Inspector</th><th>Result</th><th>Exceptions</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateStoButtons();
+  }
+  function updateStoButtons(){
+    var r = getSelectedSto();
+    document.getElementById('chm-sto-btn-edit').disabled = !r;
+    document.getElementById('chm-sto-btn-remove').disabled = !r || !can('delete');
+  }
+  function getSelectedSto(){
+    return getStoRecs().filter(function(r){ return r['Inspection Ref'] === _stoSelected; })[0] || null;
+  }
+  function stoItemSelect(idx, existingRec){
+    var field = stoItemField(idx);
+    var id = 'chm-sto-item-' + (idx+1);
+    var v = existingRec ? (existingRec[field]||'') : '';
+    var cls = v==='No' ? ' class="chw-chk-no"' : (!v ? ' class="chw-chk-blank"' : '');
+    var opts = ['', 'Yes', 'No', 'N/A'].map(function(o){
+      return '<option value="'+o+'"'+(v===o?' selected':'')+'>'+(o===''?'— Select —':o)+'</option>';
+    }).join('');
+    return '<select id="'+id+'"'+cls+' onchange="this.className=this.value===\'No\'?\'chw-chk-no\':(this.value?\'\':\'chw-chk-blank\')">' + opts + '</select>';
+  }
+  function buildStoModal(existingRec){
+    var root = document.getElementById('chm-modal-root');
+    var isEdit = !!existingRec;
+    var ref = isEdit ? existingRec['Inspection Ref'] : nextRef(_stoCache, STORAGE.idCol, 'CHM-STO');
+    var rows = STO_ITEMS.map(function(text, i){
+      return '<div class="chw-chk-row"><div class="chw-chk-text"><b>' + (i+1) + '.</b>' + chmEsc(text) + '</div>' + stoItemSelect(i, existingRec) + '</div>';
+    }).join('');
+    root.innerHTML = '<div class="chw-modal-bg" id="chm-bg"><div class="chw-modal" style="max-width:800px">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' Storage Inspection — ' + chmEsc(ref) + '</h3>'
+      + '<div class="chw-modal-hdr-grid" style="grid-template-columns:repeat(3,1fr)">'
+        + '<div><label>Date</label><input type="date" id="chm-sto-date" value="' + chmEsc(existingRec?existingRec['Date']:new Date().toISOString().slice(0,10)) + '"></div>'
+        + '<div><label>Location / Store</label><input type="text" id="chm-sto-loc" value="' + chmEsc(existingRec?existingRec['Location/Store']:'') + '"></div>'
+        + '<div><label>Inspector</label><input type="text" id="chm-sto-inspector" value="' + chmEsc(existingRec?existingRec['Inspector']:'') + '"></div>'
+      + '</div>'
+      + '<div class="chw-chk-group">' + rows + '</div>'
+      + '<div class="chw-field" style="margin-bottom:14px"><label>Exceptions / Notes on any "No" item</label><textarea id="chm-sto-exceptions" rows="2" style="width:100%;background:var(--chw-bg3);border:1px solid var(--chw-border);color:var(--chw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + chmEsc(existingRec?existingRec['Exceptions']:'') + '</textarea></div>'
+      + '<div class="chw-modal-actions"><button class="chw-btn" id="chm-sto-cancel">Cancel</button><button class="chw-btn chw-btn-add" id="chm-sto-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('chm-sto-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('chm-bg').onclick = function(e){ if (e.target.id==='chm-bg') root.innerHTML=''; };
+    document.getElementById('chm-sto-save').onclick = function(){ saveSto(ref, isEdit); };
+  }
+  function saveSto(ref, isEdit){
+    var root = document.getElementById('chm-modal-root');
+    var btn = document.getElementById('chm-sto-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    var values = {
+      'Inspection Ref': ref,
+      'Date': document.getElementById('chm-sto-date').value,
+      'Location/Store': document.getElementById('chm-sto-loc').value.trim(),
+      'Inspector': document.getElementById('chm-sto-inspector').value.trim(),
+      'Exceptions': document.getElementById('chm-sto-exceptions').value.trim()
+    };
+    STO_ITEMS.forEach(function(_, i){
+      var el = document.getElementById('chm-sto-item-' + (i+1));
+      values[stoItemField(i)] = el ? el.value : '';
+    });
+    if (isEdit){
+      postJSON('update', {tab: STORAGE.tabKey, idCol: STORAGE.idCol, id: ref}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: STORAGE.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
+  /* ══════════ 6. SPILL RECORDS ══════════ */
+  function filteredSplRecs(recs){
+    var s = (_splFilters.search||'').trim().toLowerCase();
+    if (!s) return recs;
+    return recs.filter(function(r){
+      return String(r['Location']||'').toLowerCase().indexOf(s) >= 0
+          || String(r['Chemical Name']||'').toLowerCase().indexOf(s) >= 0
+          || String(r['Reported By']||'').toLowerCase().indexOf(s) >= 0;
+    });
+  }
+  function renderSplSection(allRecs){
+    var recs = filteredSplRecs(allRecs);
+    var el = document.getElementById(SPILL.containerId);
+    if (!el) return;
+    var thisMonth = new Date().toISOString().slice(0,7);
+    setTxt('chm-spl-kpi-total', allRecs.length);
+    setTxt('chm-spl-kpi-month', allRecs.filter(function(r){ return String(r['Date']||'').slice(0,7) === thisMonth; }).length);
+    setTxt('chm-spl-kpi-reached', allRecs.filter(function(r){ return String(r['Reached Drain/Soil/Water']||'').toLowerCase()==='yes'; }).length);
+    setTxt('chm-spl-kpi-opencapa', allRecs.filter(function(r){ return !String(r['CAPA Ref']||'').trim(); }).length);
+
+    document.getElementById('chm-spl-count-sub').textContent = recs.length + ' of ' + allRecs.length + ' spill records shown';
+    if (!recs.length){
+      el.innerHTML = '<div class="empty-state"><strong>No spill records match these filters</strong>Click "+ New Spill Record" to log one.</div>';
+      updateSplButtons(); return;
+    }
+    var sevCls = { 'Minor':'kc-amb', 'Moderate':'kc-red', 'Major':'kc-red' };
+    var rows = recs.slice().sort(function(a,b){ return String(b['Date']) < String(a['Date']) ? -1 : 1; }).map(function(r){
+      var sel = _splSelected === r['Spill Ref'];
+      var reached = String(r['Reached Drain/Soil/Water']||'').toLowerCase()==='yes';
+      return '<tr class="chw-row' + (sel?' chw-sel':'') + '" onclick="CHM.selectSpl(\'' + chmEsc(r['Spill Ref']) + '\')">'
+        + '<td>' + chmEsc(r['Date']) + '</td>'
+        + '<td>' + chmEsc(r['Location']) + '</td>'
+        + '<td>' + chmEsc(r['Chemical Name']) + '</td>'
+        + '<td>' + chmEsc(r['Quantity Spilled']) + '</td>'
+        + '<td><span class="badge ' + (sevCls[r['Severity']]||'kc-dim') + '">' + chmEsc(r['Severity']||'—') + '</span></td>'
+        + '<td><span class="badge ' + (reached?'kc-red':'kc-grn') + '">' + (reached?'Yes':'No') + '</span></td>'
+        + '<td>' + (r['CAPA Ref'] ? chmEsc(r['CAPA Ref']) : '<span style="color:var(--chw-amb)">— open —</span>') + '</td>'
+        + '<td>' + chmEsc(r['Reported By']) + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="chw-tbl"><thead><tr><th>Date</th><th>Location</th><th>Chemical</th><th>Qty</th><th>Severity</th><th>Reached Drain?</th><th>CAPA Ref.</th><th>Reported By</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateSplButtons();
+  }
+  function updateSplButtons(){
+    var r = getSelectedSpl();
+    document.getElementById('chm-spl-btn-edit').disabled = !r;
+    document.getElementById('chm-spl-btn-remove').disabled = !r || !can('delete');
+  }
+  function getSelectedSpl(){
+    return getSplRecs().filter(function(r){ return r['Spill Ref'] === _splSelected; })[0] || null;
+  }
+  var SEVERITY_OPTS = ['Minor','Moderate','Major'];
+  function buildSplModal(existingRec){
+    var root = document.getElementById('chm-modal-root');
+    var isEdit = !!existingRec;
+    var ref = isEdit ? existingRec['Spill Ref'] : nextRef(_splCache, SPILL.idCol, 'CHM-SPL');
+    var itemOpts = getMasterOptions();
+    var selectedCode = existingRec ? existingRec['Item Code'] : '';
+    var itemSelectOpts = '<option value="">-- not in Chemical Inventory / free text below --</option>' + itemOpts.map(function(o){
+      return '<option value="'+chmEsc(o.code)+'"'+(o.code===selectedCode?' selected':'')+'>'+chmEsc(o.label)+'</option>';
+    }).join('');
+    var sevOpts = SEVERITY_OPTS.map(function(o){ return '<option value="'+o+'"'+((existingRec&&existingRec['Severity']===o)?' selected':'')+'>'+o+'</option>'; }).join('');
+    var reachedOpts = ['No','Yes'].map(function(o){ return '<option value="'+o+'"'+((existingRec&&existingRec['Reached Drain/Soil/Water']===o)?' selected':'')+'>'+o+'</option>'; }).join('');
+    root.innerHTML = '<div class="chw-modal-bg" id="chm-bg"><div class="chw-modal" style="max-width:820px">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' Spill Record — ' + chmEsc(ref) + '</h3>'
+      + '<div class="chw-modal-hdr-grid">'
+        + '<div><label>Date</label><input type="date" id="chm-spl-date" value="' + chmEsc(existingRec?existingRec['Date']:new Date().toISOString().slice(0,10)) + '"></div>'
+        + '<div><label>Time</label><input type="time" id="chm-spl-time" value="' + chmEsc(existingRec?existingRec['Time']:'') + '"></div>'
+        + '<div><label>Location</label><input type="text" id="chm-spl-loc" value="' + chmEsc(existingRec?existingRec['Location']:'') + '"></div>'
+        + '<div><label>Severity</label><select id="chm-spl-severity">' + sevOpts + '</select></div>'
+        + '<div><label>Chemical (if in Inventory)</label><select id="chm-spl-item">' + itemSelectOpts + '</select></div>'
+        + '<div><label>Chemical Name (free text)</label><input type="text" id="chm-spl-chemname" value="' + chmEsc(existingRec?existingRec['Chemical Name']:'') + '" placeholder="Fills in from Inventory pick, or type directly"></div>'
+        + '<div><label>Quantity Spilled</label><input type="text" id="chm-spl-qty" value="' + chmEsc(existingRec?existingRec['Quantity Spilled']:'') + '"></div>'
+        + '<div><label>Reached Drain/Soil/Water?</label><select id="chm-spl-reached">' + reachedOpts + '</select></div>'
+        + '<div><label>Reported By</label><input type="text" id="chm-spl-reportedby" value="' + chmEsc(existingRec?existingRec['Reported By']:'') + '"></div>'
+        + '<div><label>CAPA / Incident Ref.</label><input type="text" id="chm-spl-capa" value="' + chmEsc(existingRec?existingRec['CAPA Ref']:'') + '"></div>'
+        + '<div><label>HSE Notified</label><input type="text" id="chm-spl-hse" value="' + chmEsc(existingRec?existingRec['HSE Notified']:'') + '" placeholder="Name / time"></div>'
+      + '</div>'
+      + '<div class="chw-field" style="margin-bottom:10px"><label>Cause</label><textarea id="chm-spl-cause" rows="2" style="width:100%;background:var(--chw-bg3);border:1px solid var(--chw-border);color:var(--chw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + chmEsc(existingRec?existingRec['Cause']:'') + '</textarea></div>'
+      + '<div class="chw-field" style="margin-bottom:10px"><label>Immediate Action Taken</label><textarea id="chm-spl-action" rows="2" style="width:100%;background:var(--chw-bg3);border:1px solid var(--chw-border);color:var(--chw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + chmEsc(existingRec?existingRec['Immediate Action Taken']:'') + '</textarea></div>'
+      + '<div class="chw-field" style="margin-bottom:14px"><label>Remarks</label><textarea id="chm-spl-remarks" rows="2" style="width:100%;background:var(--chw-bg3);border:1px solid var(--chw-border);color:var(--chw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + chmEsc(existingRec?existingRec['Remarks']:'') + '</textarea></div>'
+      + '<div class="chw-modal-actions"><button class="chw-btn" id="chm-spl-cancel">Cancel</button><button class="chw-btn chw-btn-add" id="chm-spl-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('chm-spl-item').onchange = function(){
+      var code = this.value;
+      if (!code) return;
+      var m = masterByCode(code);
+      if (m) document.getElementById('chm-spl-chemname').value = m['Description'] || '';
+    };
+    document.getElementById('chm-spl-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('chm-bg').onclick = function(e){ if (e.target.id==='chm-bg') root.innerHTML=''; };
+    document.getElementById('chm-spl-save').onclick = function(){ saveSpl(ref, isEdit); };
+  }
+  function saveSpl(ref, isEdit){
+    var root = document.getElementById('chm-modal-root');
+    var btn = document.getElementById('chm-spl-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    var values = {
+      'Spill Ref': ref,
+      'Date': document.getElementById('chm-spl-date').value,
+      'Time': document.getElementById('chm-spl-time').value,
+      'Location': document.getElementById('chm-spl-loc').value.trim(),
+      'Severity': document.getElementById('chm-spl-severity').value,
+      'Item Code': document.getElementById('chm-spl-item').value,
+      'Chemical Name': document.getElementById('chm-spl-chemname').value.trim(),
+      'Quantity Spilled': document.getElementById('chm-spl-qty').value.trim(),
+      'Cause': document.getElementById('chm-spl-cause').value.trim(),
+      'Reached Drain/Soil/Water': document.getElementById('chm-spl-reached').value,
+      'Immediate Action Taken': document.getElementById('chm-spl-action').value.trim(),
+      'Reported By': document.getElementById('chm-spl-reportedby').value.trim(),
+      'CAPA Ref': document.getElementById('chm-spl-capa').value.trim(),
+      'HSE Notified': document.getElementById('chm-spl-hse').value.trim(),
+      'Remarks': document.getElementById('chm-spl-remarks').value.trim()
+    };
+    if (isEdit){
+      postJSON('update', {tab: SPILL.tabKey, idCol: SPILL.idCol, id: ref}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: SPILL.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
   window.CHM = {
     printDashboard: printDashboard,
     setDashView: setDashView,
@@ -1053,6 +1411,32 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       };
       try { sessionStorage.setItem('incomingChemicalSdsContext', JSON.stringify(ctx)); } catch(e){}
       window.open('action-register.html?fromChemicalSds=' + encodeURIComponent(r['Review Ref']) + '&lane=ACT', '_blank');
+    },
+    onStoSearch: function(v){ _stoFilters.search = v; render(); },
+    selectSto: function(id){ _stoSelected = (_stoSelected!==null && String(_stoSelected)===String(id)) ? null : id; render(); },
+    openStoAdd: function(){ if (can('add')) buildStoModal(null); },
+    openStoEditSelected: function(){ var r=getSelectedSto(); if(!r) return alert('Select a row first.'); buildStoModal(r); },
+    removeStoSelected: function(){
+      if (!can('delete')) return;
+      var r = getSelectedSto(); if(!r) return alert('Select a row first.');
+      if (!confirm('Remove inspection ' + r['Inspection Ref'] + '? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: STORAGE.tabKey, idCol: STORAGE.idCol, id: r['Inspection Ref']}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status==='error'){ alert('Remove failed: '+(res.message||'unknown error')); return; }
+        _stoSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+    onSplSearch: function(v){ _splFilters.search = v; render(); },
+    selectSpl: function(id){ _splSelected = (_splSelected!==null && String(_splSelected)===String(id)) ? null : id; render(); },
+    openSplAdd: function(){ if (can('add')) buildSplModal(null); },
+    openSplEditSelected: function(){ var r=getSelectedSpl(); if(!r) return alert('Select a row first.'); buildSplModal(r); },
+    removeSplSelected: function(){
+      if (!can('delete')) return;
+      var r = getSelectedSpl(); if(!r) return alert('Select a row first.');
+      if (!confirm('Remove spill record ' + r['Spill Ref'] + '? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: SPILL.tabKey, idCol: SPILL.idCol, id: r['Spill Ref']}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status==='error'){ alert('Remove failed: '+(res.message||'unknown error')); return; }
+        _splSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
     }
   };
 
