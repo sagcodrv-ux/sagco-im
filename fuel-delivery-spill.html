@@ -171,6 +171,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   <button class="aiw-btn aiw-btn-add" id="fdw-btn-new" onclick="FDW.openAdd()">+ New Delivery</button>
   <button class="aiw-btn" id="fdw-btn-edit" disabled onclick="FDW.openEditSelected()">Open / Edit</button>
   <button class="aiw-btn" id="fdw-btn-remove" disabled onclick="FDW.removeSelected()">Remove</button>
+  <button class="aiw-btn" id="fdw-btn-print-checklist" disabled onclick="FDW.printChecklistSelected()">🖨 Print Checklist</button>
   <button class="aiw-btn" onclick="window.print()">🖨 Print Register</button>
   <span style="margin-left:auto;font-size:10px;color:var(--fdw-text-dim)" id="fdw-count-sub"></span>
 </div>
@@ -382,6 +383,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     var hasSel = !!_selected;
     document.getElementById('fdw-btn-edit').disabled = !hasSel;
     document.getElementById('fdw-btn-remove').disabled = !hasSel || !can('safety.edit');
+    document.getElementById('fdw-btn-print-checklist').disabled = !hasSel;
   }
 
   function render(){ renderKPIs(); renderTable(); }
@@ -569,10 +571,110 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     return d.toLocaleString(undefined, {year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});
   }
 
+  function printChecklist(r){
+    function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function val(k){ return esc(r[k] || ''); }
+    function sectionTable(section, crossRefNote){
+      var rows = section.items.map(function(text, i){
+        var ans = r[itemFieldName(section.key, i)] || '';
+        var ansCls = ans === 'No' ? ' class="pc-no"' : '';
+        var noteTag = (section.key === 'Pre' && (i === 6 || i === 7)) ? ' <span class="pc-xref">(OC-01 cross-ref)</span>' : '';
+        return '<tr><td class="pc-num">' + (i+1) + '</td><td>' + esc(text) + noteTag + '</td><td' + ansCls + '>' + esc(ans || '—') + '</td></tr>';
+      }).join('');
+      var ts = r[section.key + ' Completed At'];
+      return '<table class="pc-table"><thead><tr><th class="pc-num">#</th><th>Check Item</th><th>Result</th></tr></thead><tbody>'
+        + rows + '</tbody></table>'
+        + '<div class="pc-ts">Marked complete: <b>' + (ts ? esc(fmtTsStandalone(ts)) : 'NOT YET COMPLETED') + '</b></div>';
+    }
+    var spillYes = String(r['Spill Occurred']||'').toLowerCase() === 'yes';
+    var spillSection = spillYes
+      ? ('<table class="pc-dd">'
+          + '<tr><td class="pc-lbl">Spill Occurred</td><td class="pc-no-cell">Yes</td>'
+          +     '<td class="pc-lbl">Estimated Qty Spilled</td><td>' + val('Spill Quantity') + '</td></tr>'
+          + '<tr><td class="pc-lbl">Cause</td><td colspan="3">' + val('Spill Cause') + '</td></tr>'
+          + '<tr><td class="pc-lbl">Reached Drain/Soil/Water?</td><td colspan="3">' + val('Reached Drain/Soil/Water') + '</td></tr>'
+          + '<tr><td class="pc-lbl">CAPA / Incident Ref.</td><td>' + val('CAPA Ref') + '</td>'
+          +     '<td class="pc-lbl">HSE Notified</td><td>' + val('HSE Notified') + '</td></tr>'
+          + '</table>')
+      : '<div class="pc-nospill">No spill reported for this delivery.</div>';
+    var exceptions = (r['Exceptions'] || '').trim();
+    var remarks = (r['Remarks'] || '').trim();
+
+    var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Fuel Delivery Checklist — ' + val('Record ID') + '</title><style>'
+      + 'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:28px;font-size:12px;line-height:1.45}'
+      + 'h1{font-size:17px;margin:0 0 2px}'
+      + '.pc-code{font-size:11px;color:#555;margin-bottom:10px}'
+      + '.pc-class{font-size:11px;background:#f2f2f2;border-left:3px solid #999;padding:6px 10px;margin-bottom:14px}'
+      + '.pc-sec-hd{font-size:13px;font-weight:700;margin:18px 0 6px;border-bottom:2px solid #333;padding-bottom:3px}'
+      + '.pc-dd{width:100%;border-collapse:collapse;margin-bottom:6px}'
+      + '.pc-dd td{border:1px solid #bbb;padding:5px 8px;vertical-align:top}'
+      + '.pc-lbl{font-weight:700;background:#f6f6f6;width:18%}'
+      + '.pc-table{width:100%;border-collapse:collapse;margin-bottom:4px}'
+      + '.pc-table th,.pc-table td{border:1px solid #bbb;padding:5px 7px;text-align:left;vertical-align:top}'
+      + '.pc-table th{background:#2b3a55;color:#fff;font-size:11px}'
+      + '.pc-num{width:28px;text-align:center}'
+      + '.pc-table td:last-child{width:70px;text-align:center;font-weight:700}'
+      + '.pc-no{background:#fdecea;color:#b3261e}'
+      + '.pc-no-cell{background:#fdecea;color:#b3261e;font-weight:700}'
+      + '.pc-xref{font-size:10px;color:#777;font-weight:400}'
+      + '.pc-ts{font-size:10.5px;color:#444;margin-bottom:10px;font-style:italic}'
+      + '.pc-nospill{font-size:12px;color:#2e7d32;font-weight:700;margin-bottom:10px}'
+      + '.pc-free{border:1px solid #bbb;padding:8px;min-height:30px;margin-bottom:10px;white-space:pre-wrap}'
+      + '.pc-sign{width:100%;border-collapse:collapse;margin-top:10px}'
+      + '.pc-sign td{border:1px solid #bbb;padding:14px 8px 6px;width:33.3%;vertical-align:bottom}'
+      + '.pc-sign .pc-role{font-weight:700;font-size:11px}'
+      + '.pc-sign .pc-name{font-size:12px;margin-top:14px;border-top:1px solid #333;padding-top:3px}'
+      + '.pc-foot{margin-top:16px;font-size:10px;color:#777;display:flex;justify-content:space-between}'
+      + '@media print{body{margin:14mm}}'
+      + '</style></head><body>'
+      + '<h1>Fuel Delivery (Diesel/HFO) Spill Prevention Checklist</h1>'
+      + '<div class="pc-code">HSE-FRM-XX (proposed, OC-02) · Doc code (proposed): L4-ENV-PR-05-CL-02 · Record ID: ' + val('Record ID') + ' · Printed: ' + esc(new Date().toLocaleString()) + '</div>'
+      + '<div class="pc-class">Classification: OC-02 — Environment &amp; Energy (Chemical Storage &amp; Spills programme). Items 7–8 of the Pre-Delivery checks cross-reference OC-01 — Safety &amp; Emergency Controls (fire/ignition risk).</div>'
+
+      + '<div class="pc-sec-hd">Delivery Details</div>'
+      + '<table class="pc-dd">'
+      +   '<tr><td class="pc-lbl">Date</td><td>' + val('Date') + '</td><td class="pc-lbl">Fuel Type</td><td>' + val('Fuel Type') + '</td></tr>'
+      +   '<tr><td class="pc-lbl">Tanker/Vehicle No.</td><td>' + val('Tanker/Vehicle No.') + '</td><td class="pc-lbl">Supplier</td><td>' + val('Supplier') + '</td></tr>'
+      +   '<tr><td class="pc-lbl">Driver Name</td><td>' + val('Driver Name') + '</td><td class="pc-lbl">Location/Tank ID</td><td>' + val('Delivery Location/Tank ID') + '</td></tr>'
+      +   '<tr><td class="pc-lbl">Qty Ordered</td><td>' + val('Quantity Ordered') + '</td><td class="pc-lbl">Qty Delivered</td><td>' + val('Quantity Delivered') + '</td></tr>'
+      +   '<tr><td class="pc-lbl">Receiving Attendant</td><td>' + val('Receiving Attendant') + '</td><td class="pc-lbl">Supervisor on Site</td><td>' + val('Supervisor on Site') + '</td></tr>'
+      + '</table>'
+
+      + '<div class="pc-sec-hd">A. Pre-Delivery Checks (10 items)</div>' + sectionTable(CHECK_SECTIONS[0])
+      + '<div class="pc-sec-hd">B. During-Delivery Checks (4 items)</div>' + sectionTable(CHECK_SECTIONS[1])
+      + '<div class="pc-sec-hd">C. Post-Delivery Checks (5 items)</div>' + sectionTable(CHECK_SECTIONS[2])
+
+      + '<div class="pc-sec-hd">Exceptions / Notes on any "No" item</div>'
+      + '<div class="pc-free">' + (exceptions ? esc(exceptions) : '<i style="color:#999">None recorded</i>') + '</div>'
+
+      + '<div class="pc-sec-hd">D. Spill Occurrence</div>' + spillSection
+      + (remarks ? ('<div class="pc-sec-hd">Remarks</div><div class="pc-free">' + esc(remarks) + '</div>') : '')
+
+      + '<div class="pc-sec-hd">Sign-Off</div>'
+      + '<table class="pc-sign"><tr>'
+      +   '<td><div class="pc-role">Receiving Attendant</div><div class="pc-name">' + val('Receiving Attendant') + '</div></td>'
+      +   '<td><div class="pc-role">Supervisor on Site</div><div class="pc-name">' + val('Supervisor on Site') + '</div></td>'
+      +   '<td><div class="pc-role">Driver</div><div class="pc-name">' + val('Driver Name') + '</div></td>'
+      + '</tr></table>'
+
+      + '<div class="pc-foot"><span>SAGCO IMS — OC-02 Environment &amp; Energy</span><span>Fuel Delivery Spill Prevention Register</span></div>'
+      + '</body></html>';
+
+    var w = window.open('', '_blank');
+    if (!w){ alert('Please allow pop-ups for this site to print the checklist.'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+    w.onload = function(){ w.focus(); w.print(); };
+  }
+
   /* ── Public API ───────────────────────────────────────────────── */
   window.FDW = {
     showChkTab: showChkTab,
     markStageComplete: markStageComplete,
+    printChecklistSelected: function(){
+      if (!_selected) return;
+      var r = getRecs().filter(function(x){ return x['Record ID'] === _selected; })[0];
+      if (r) printChecklist(r);
+    },
     onSearch: function(v){ _filters.search = v; renderTable(); },
     onFuelFilter: function(v){ _filters.fuel = v; renderTable(); },
     onSpillFilter: function(v){ _filters.spill = v; renderTable(); },
