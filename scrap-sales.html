@@ -128,12 +128,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   .scw-print-wrap td,.scw-print-wrap th{border:1px solid #000;padding:6px 8px;text-align:left}
   .scw-print-wrap .sig-row{display:flex;justify-content:space-between;margin-top:40px}
   .scw-print-wrap .sig-box{width:30%;text-align:center;border-top:1px solid #000;padding-top:4px;font-size:11px}
+  .scw-print-wrap .no-print{display:none !important}
 }
 </style>
 </head><body><div class="scw-dark-wrap">
 <div class="back-row"><a href="oc02-environment.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
 
-<div class="req-text">Scrap Sales Register — gate-pass level log of scrap material sold off-site (paper/CB trays, mixed scrap, shrink film, wood/plastic pallets), feeding the Waste Management Programme's recycling/disposal-route reporting (cullet recycling and general solid-waste KPIs). Related: <a href="waste-management.html" style="color:var(--scw-gold-lt)">Waste Management Register</a>. <strong>Monthly Entry Form:</strong> the warehouse team fills one adjustable table per month — add or remove rows freely, each row picks its own Customer and Material from the shared lists below — and the month locks once submitted; see "📅 Monthly Entry Form" below. There is no separate per-line add form — every new record is created there. <strong>Customers / Materials:</strong> two shared master lists (see the buttons below) that the Monthly Entry Form, the Issuance Slip and this register all read from, so a name is spelled the same way everywhere; adding or deactivating an entry is limited to the IMS Coordinator and the warehouse lead.</div>
+<div class="req-text">Scrap Sales — gate-pass level log of scrap material sold off-site (paper/CB trays, mixed scrap, shrink film, wood/plastic pallets), feeding the Waste Management Programme's recycling/disposal-route reporting (cullet recycling and general solid-waste KPIs). Related: <a href="waste-management.html" style="color:var(--scw-gold-lt)">Waste Management Register</a>. <strong>Monthly Entry Register (below):</strong> one row per month — status, line count, totals in MT and PCS. Click a month to open its adjustable entry form, the only place anything is added, fixed or removed; "📊 Report" on each row gives a printable, read-only report of that month's lines (and the Issuance Slip for any one line) — line-level detail is never shown as its own editable table, to avoid a second, redundant register. <strong>Customers / Materials:</strong> two shared lists (buttons below) that the entry form and reports both read from; anyone with page access can view them, adding or deactivating an entry is limited to Managers and the IMS Coordinator, same as reopening a submitted month.</div>
 
 <div class="flag-text">⚠ <strong>Unit correction applied:</strong> the source workbook (<code>SCRAP_SALES-2026.xlsx</code>) labels every monthly total "TOTAL QUANTITY (MT)", but its own "SCRAP SALE SUMMARY" block confirms CALUMITE PAL, Soda Ash Pall, W. Pallet and Plastic Pallet Soda are wood/plastic <strong>pallet counts (PCS)</strong>, not tonnes — corrected on migration. One value (<code>SHRINK FILM 130 MIC</code>, Apr-2026, 2,536) is implausibly large for MT and is flagged rather than guessed — see the reference workbook. Two customer names (<code>Farij Atiiallah Est</code> → <code>ANSAM AL BARKAH</code>, both "Ahmed Saeed Noor") look like the same buyer renamed — kept separate pending confirmation. ✅ <strong>Reclassified to OC-02:</strong> moved off OC-01, alongside Waste Management — back-link above now points to <code>oc02-environment.html</code>. No pricing/revenue data exists in the source — this register is quantity-only. <strong>Customers/Materials lists (new, 2026-11-01):</strong> pre-filled from the same 626 historical lines — 7 customers, 8 materials — before these tabs exist on the live sheet (see below); the same two look-alike customer names and the one implausible <code>SHRINK FILM 130 MIC</code> row are carried onto those lists too, not silently merged or dropped.</div>
 
@@ -147,20 +148,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   <div class="kpi-card kc-grn"><div class="kpi-lbl">Active Buyers</div><div class="kpi-val" id="scw-kpi-customers">—</div><div class="kpi-sub">Distinct customers</div></div>
 </div>
 
-<div class="sec-banner">SCRAP SALES REGISTER</div>
+<div class="sec-banner">MONTHLY ENTRY REGISTER</div>
+<!-- Rev (Issam, 2026-11-01, voice) — the sale-line register is gone;
+     it would have duplicated the Monthly Entry Form. This is now the
+     page's one register: one row per month. Click a month to open its
+     entry form (the only place anything is added, fixed or removed);
+     use "📊 Report" for a point-in-time printable report of that
+     month's lines — line-level detail lives only in reports now, never
+     in an editable table. -->
 <div class="aiw-toolbar" style="border-top:1px solid var(--scw-border-gold)">
-  <input type="text" id="scw-search" placeholder="Search customer / material / gate-pass…" oninput="SCW.onSearch(this.value)">
-  <select id="scw-customer-filter" onchange="SCW.onCustomerFilter(this.value)"><option value="">All customers</option></select>
-  <select id="scw-material-filter" onchange="SCW.onMaterialFilter(this.value)"><option value="">All materials</option></select>
-  <input type="date" id="scw-date-from" onchange="SCW.onDateFrom(this.value)" title="From date">
-  <input type="date" id="scw-date-to" onchange="SCW.onDateTo(this.value)" title="To date">
-</div>
-<div class="aiw-toolbar" style="border-top:none">
-  <button class="aiw-btn" id="scw-btn-edit" disabled onclick="SCW.openEditSelected()">Open / Edit</button>
-  <button class="aiw-btn" id="scw-btn-remove" disabled onclick="SCW.removeSelected()">Remove</button>
-  <button class="aiw-btn aiw-btn-esc" id="scw-btn-slip" disabled onclick="SCW.printSlipSelected()">🖨 Issuance Slip</button>
-  <button class="aiw-btn" id="scw-btn-report" onclick="SCW.openMonthlyReport()">📊 Monthly Report</button>
-  <button class="aiw-btn aiw-btn-add" id="scw-btn-monthly" onclick="SCW.openMonthlyForm()">📅 Monthly Entry Form</button>
+  <button class="aiw-btn aiw-btn-add" id="scw-btn-monthly" onclick="SCW.openMonthlyForm()">📅 This Month's Entry Form</button>
   <button class="aiw-btn" id="scw-btn-customers" onclick="SCW.openCustomers()">👥 Customers</button>
   <button class="aiw-btn" id="scw-btn-materials" onclick="SCW.openMaterials()">📦 Materials</button>
   <span style="margin-left:auto;font-size:10px;color:var(--scw-text-dim)" id="scw-count-sub"></span>
@@ -168,9 +165,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 <div class="scw-table-wrap">
   <table>
     <thead><tr>
-      <th>Date</th><th>Gate Pass No.</th><th>Customer</th><th>Material</th><th>Quantity</th><th>Unit</th><th>Remarks</th>
+      <th>Month</th><th>Status</th><th>Lines</th><th>Total (MT)</th><th>Total (PCS)</th><th></th>
     </tr></thead>
-    <tbody id="scw-tbody"><tr><td colspan="7" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
+    <tbody id="scw-month-tbody"><tr><td colspan="6" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
   </table>
 </div>
 
@@ -217,6 +214,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   var _localIdCounter = null;
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  /* Rev (Issam, 2026-11-01, voice) — narrowed from the generic
+     can('safety.edit') gate to Managers + the IMS Coordinator
+     specifically, per Issam's "all managers with the IMS coordinator"
+     instruction. Everyone with page access can still VIEW the
+     Customers/Materials lists and the Monthly Entry Register; only
+     adding/editing those lists or reopening a submitted month needs
+     this. Fails open with no active session, same reasoning as
+     capa-wizard.js's canRaise() — this only restricts someone who IS
+     logged in with a role below what's needed. */
+  function canManage(){
+    if (typeof IMS_AUTH === 'undefined') return true;
+    var u = IMS_AUTH.getUser ? IMS_AUTH.getUser() : null;
+    if (!u) return true;
+    if (u.role === 'superadmin') return true;
+    if (/manager|head|ims coordinator/i.test(u.title||'')) return true;
+    if (u.username === 'ceo') return true;
+    return false;
+  }
   function colIdx(headers, name){
     var out = -1;
     (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
@@ -282,39 +297,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     return 'SCR-' + year + '-' + numStr;
   }
 
-  /* ── Filtering ────────────────────────────────────────────────── */
-  function matchesFilters(r){
-    var f = _filters;
-    if (f.customer && r['Customer'] !== f.customer) return false;
-    if (f.material && r['Material'] !== f.material) return false;
-    if (f.dateFrom && String(r['Date']) < f.dateFrom) return false;
-    if (f.dateTo && String(r['Date']) > f.dateTo) return false;
-    if (f.search){
-      var hay = ((r['Customer']||'')+' '+(r['Material']||'')+' '+(r['Gate Pass No.']||'')).toLowerCase();
-      if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
-    }
-    return true;
-  }
-  function filteredRecs(){ return getRecs().filter(matchesFilters); }
-
-  function uniqueVals(field){
-    var set = {};
-    getRecs().forEach(function(r){ if (r[field]) set[r[field]] = true; });
-    return Object.keys(set).sort();
-  }
-  function populateFilters(){
-    ['customer','material'].forEach(function(kind){
-      var sel = document.getElementById('scw-'+kind+'-filter');
-      var cur = sel.value;
-      var field = kind==='customer' ? 'Customer' : 'Material';
-      var label = kind==='customer' ? 'All customers' : 'All materials';
-      var vals = uniqueVals(field);
-      sel.innerHTML = '<option value="">'+label+'</option>' + vals.map(function(v){
-        return '<option value="'+sEsc(v)+'"'+(v===cur?' selected':'')+'>'+sEsc(v)+'</option>';
-      }).join('');
-    });
-  }
-
   /* ── KPIs ─────────────────────────────────────────────────────── */
   function renderKPIs(){
     var all = getRecs();
@@ -330,107 +312,56 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     setTxt('scw-kpi-customers', Object.keys(custSet).length);
   }
 
-  /* ── Register table ───────────────────────────────────────────── */
-  function renderTable(){
-    var all = getRecs();
-    var list = filteredRecs();
-    var tbody = document.getElementById('scw-tbody');
-    setTxt('scw-count-sub', list.length + ' of ' + all.length + ' lines shown');
-    populateFilters();
-    if (!list.length){
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><strong>No records match these filters</strong>Try widening the date range or clearing filters.</td></tr>';
-      updateButtons();
+  /* ── Monthly Entry Register ───────────────────────────────────────
+     Rev (Issam, 2026-11-01, voice) — replaces the old sale-line
+     register entirely ("avoid one register for sale line, it will be
+     redundant"). One row per month that has ANY non-removed line
+     (Draft or Active), so an in-progress month shows up before it's
+     submitted. Click the month to open its entry form; "📊 Report"
+     opens a read-only, printable report of that month only — line-
+     level detail is never shown as its own editable table. */
+  function monthlyTotals(){
+    var byMonth = {};
+    getRawRecs().forEach(function(r){
+      if (String(r[STATUS_COL]||'').trim().toLowerCase() === 'removed') return;
+      var m = String(r['Date']||'').slice(0,7); if (!m) return;
+      var q = parseFloat(r['Quantity']); if (isNaN(q)) q = 0;
+      if (!byMonth[m]) byMonth[m] = { month:m, lines:0, mt:0, pcs:0 };
+      byMonth[m].lines++;
+      if (r['Unit'] === 'MT') byMonth[m].mt += q; else if (r['Unit'] === 'PCS') byMonth[m].pcs += q;
+    });
+    return byMonth;
+  }
+
+  function renderMonthRegister(){
+    var byMonth = monthlyTotals();
+    var months = Object.keys(byMonth).sort().reverse();
+    var tbody = document.getElementById('scw-month-tbody');
+    setTxt('scw-count-sub', months.length + ' month(s) with entries');
+    if (!months.length){
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><strong>No entries yet</strong>Use "📅 This Month\'s Entry Form" to start.</td></tr>';
       return;
     }
-    list.sort(function(a,b){ return String(b['Date']||'').localeCompare(String(a['Date']||'')); });
-    tbody.innerHTML = list.map(function(r){
-      var sel = _selected === r['Record ID'];
-      var unitBadge = r['Unit']==='MT' ? 'kc-blue' : 'kc-amb';
-      return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="SCW.select(\'' + sEsc(r['Record ID']) + '\')">'
-        + '<td>' + sEsc(r['Date']) + '</td>'
-        + '<td>' + sEsc(r['Gate Pass No.']) + '</td>'
-        + '<td>' + sEsc(r['Customer']) + '</td>'
-        + '<td>' + sEsc(r['Material']) + '</td>'
-        + '<td>' + sEsc(r['Quantity']) + '</td>'
-        + '<td><span class="badge ' + unitBadge + '">' + sEsc(r['Unit']) + '</span></td>'
-        + '<td style="white-space:normal;max-width:260px">' + sEsc(r['Remarks']) + '</td>'
+    tbody.innerHTML = months.map(function(m){
+      var info = monthLockInfo(m);
+      var t = byMonth[m];
+      var statusHtml = info.state === 'locked'
+        ? '<span class="scw-m-status locked">Submitted</span>'
+        : '<span class="scw-m-status open">In progress</span>';
+      return '<tr class="aiw-row" onclick="SCW.openMonthEntry(\''+m+'\')">'
+        + '<td>' + sEsc(m) + '</td>'
+        + '<td>' + statusHtml + '</td>'
+        + '<td>' + t.lines + '</td>'
+        + '<td>' + (t.mt ? t.mt.toLocaleString(undefined,{maximumFractionDigits:2}) : '—') + '</td>'
+        + '<td>' + (t.pcs ? t.pcs.toLocaleString() : '—') + '</td>'
+        + '<td><button class="aiw-btn" style="padding:3px 8px;font-size:10px" onclick="event.stopPropagation();SCW.openMonthReport(\''+m+'\')">📊 Report</button></td>'
         + '</tr>';
     }).join('');
-    updateButtons();
   }
 
-  function updateButtons(){
-    var hasSel = !!_selected;
-    document.getElementById('scw-btn-edit').disabled = !hasSel;
-    document.getElementById('scw-btn-remove').disabled = !hasSel || !can('safety.edit');
-    document.getElementById('scw-btn-slip').disabled = !hasSel;
-  }
+  function render(){ renderKPIs(); renderMonthRegister(); }
 
-  function render(){ renderKPIs(); renderTable(); }
-
-  /* ── Add/Edit Modal ──────────────────────────────────────────────*/
   function closeModal(){ document.getElementById('scw-modal-root').innerHTML = ''; }
-
-  /* Edit-only — per Issam (voice, 2026-11-01), there is no more
-     freestanding "+ New Sale Line" entry path. Every new record is
-     created through the Monthly Entry Form; this modal only lets you
-     correct a record that's already on the register (Customer/Material
-     still come from the same shared master lists, so a correction here
-     can't introduce a name the monthly form wouldn't also offer). */
-  function openForm(existing){
-    var r = existing || {};
-    var custOpts = activeCustomers().map(function(c){
-      return '<option value="'+sEsc(c['Customer Name'])+'"'+(r['Customer']===c['Customer Name']?' selected':'')+'>'+sEsc(c['Customer Name'])+'</option>';
-    }).join('');
-    if (r['Customer'] && !activeCustomers().some(function(c){ return c['Customer Name']===r['Customer']; })){
-      custOpts += '<option value="'+sEsc(r['Customer'])+'" selected>'+sEsc(r['Customer'])+' (inactive/not on list)</option>';
-    }
-    var matOpts = activeMaterials().map(function(m){
-      return '<option value="'+sEsc(m['Material Name'])+'" data-unit="'+sEsc(m['Unit'])+'"'+(r['Material']===m['Material Name']?' selected':'')+'>'+sEsc(m['Material Name'])+'</option>';
-    }).join('');
-    if (r['Material'] && !activeMaterials().some(function(m){ return m['Material Name']===r['Material']; })){
-      matOpts += '<option value="'+sEsc(r['Material'])+'" data-unit="'+sEsc(r['Unit']||'')+'" selected>'+sEsc(r['Material'])+' (inactive/not on list)</option>';
-    }
-    var html = ''
-      + '<div class="scw-overlay" onclick="if(event.target===this) SCW.closeModal()">'
-      + '<div class="scw-modal">'
-      + '<div class="scw-modal-hd"><span>Edit Scrap Sale Line</span><button onclick="SCW.closeModal()">✕</button></div>'
-      + '<div class="scw-modal-bd">'
-      + '<div class="scw-field"><label>Date</label><input type="date" id="scw-f-date" value="' + sEsc(r['Date']||'') + '"></div>'
-      + '<div class="scw-field"><label>Gate Pass No.</label><input type="text" id="scw-f-gatepass" value="' + sEsc(r['Gate Pass No.']||'') + '"></div>'
-      + '<div class="scw-field"><label>Customer</label><select id="scw-f-customer">' + custOpts + '</select></div>'
-      + '<div class="scw-field"><label>Material</label><select id="scw-f-material" onchange="SCW.onMaterialPick(this)">' + matOpts + '</select></div>'
-      + '<div class="scw-field"><label>Quantity</label><input type="number" step="any" id="scw-f-qty" value="' + sEsc(r['Quantity']||'') + '"></div>'
-      + '<div class="scw-field"><label>Unit</label><input type="text" id="scw-f-unit" value="' + sEsc(r['Unit']||'MT') + '" readonly></div>'
-      + '<div class="scw-field full"><label>Remarks</label><textarea id="scw-f-remarks">' + sEsc(r['Remarks']||'') + '</textarea></div>'
-      + '</div>'
-      + '<div class="scw-modal-ft">'
-      + '<button class="aiw-btn" onclick="SCW.closeModal()">Cancel</button>'
-      + '<button class="aiw-btn aiw-btn-add" onclick="SCW.save(\'' + sEsc(r['Record ID']) + '\')">Save</button>'
-      + '</div></div></div>';
-    document.getElementById('scw-modal-root').innerHTML = html;
-  }
-
-  function onMaterialPick(sel){
-    var opt = sel.options[sel.selectedIndex];
-    var unit = opt ? opt.getAttribute('data-unit') : 'MT';
-    var u = document.getElementById('scw-f-unit');
-    if (u) u.value = unit || 'MT';
-  }
-
-  function save(existingId){
-    var rec = {
-      'Record ID': existingId,
-      'Date': document.getElementById('scw-f-date').value,
-      'Gate Pass No.': document.getElementById('scw-f-gatepass').value,
-      'Customer': document.getElementById('scw-f-customer').value,
-      'Material': document.getElementById('scw-f-material').value,
-      'Quantity': document.getElementById('scw-f-qty').value,
-      'Unit': document.getElementById('scw-f-unit').value,
-      'Remarks': document.getElementById('scw-f-remarks').value,
-    };
-    postJSON('update', { tab: SCRAP.tabKey, id: existingId }, rec).then(function(){ closeModal(); loadAll(); });
-  }
 
   /* ── Printable Issuance Slip ─────────────────────────────────────*/
   function printSlip(r){
@@ -458,18 +389,31 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   }
 
   /* ── Monthly Report ──────────────────────────────────────────────*/
-  function openMonthlyReport(){
-    var all = getRecs();
-    var months = {};
-    all.forEach(function(r){ var m = String(r['Date']||'').slice(0,7); if (m) months[m] = true; });
-    var monthList = Object.keys(months).sort().reverse();
-    var opts = monthList.map(function(m){ return '<option value="'+m+'">'+m+'</option>'; }).join('');
+  /* ── Monthly Report ───────────────────────────────────────────────
+     Rev (Issam, 2026-11-01, voice) — the sale-line detail that used to
+     live in its own editable register now lives ONLY here: a read-
+     only, printable report for one month, with its own search/filter
+     (replacing the old register's toolbar filters) and a per-line
+     🖨 Issuance Slip button. Works on an in-progress (Draft) month too,
+     not just a submitted one, since "📊 Report" is meant as a point-in-
+     time snapshot either way. */
+  var _reportFilters = { search:'', customer:'', material:'' };
+
+  function openMonthReport(presetMonth){
+    var byMonth = monthlyTotals();
+    var monthList = Object.keys(byMonth).sort().reverse();
+    if (presetMonth && monthList.indexOf(presetMonth) < 0) monthList.unshift(presetMonth);
+    var opts = monthList.map(function(m){ return '<option value="'+m+'"'+(m===presetMonth?' selected':'')+'>'+m+'</option>'; }).join('');
+    _reportFilters = { search:'', customer:'', material:'' };
     var html = ''
       + '<div class="scw-overlay" onclick="if(event.target===this) SCW.closeModal()">'
       + '<div class="scw-modal wide">'
       + '<div class="scw-modal-hd"><span>Monthly Scrap Sale Report</span><button onclick="SCW.closeModal()">✕</button></div>'
       + '<div class="scw-modal-bd" style="grid-template-columns:1fr">'
-      + '<div class="scw-field"><label>Month</label><select id="scw-report-month" onchange="SCW.renderReport(this.value)">' + opts + '</select></div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+      + '<div class="scw-field" style="max-width:160px"><label>Month</label><select id="scw-report-month" onchange="SCW.renderReport(this.value)">' + opts + '</select></div>'
+      + '<input type="text" placeholder="Search customer / material / gate-pass…" oninput="SCW.onReportSearch(this.value)" style="flex:1;min-width:160px;background:var(--scw-bg3);border:1px solid var(--scw-border);color:var(--scw-text);border-radius:7px;padding:7px 10px;font-size:11px">'
+      + '</div>'
       + '<div id="scw-report-body"></div>'
       + '</div>'
       + '<div class="scw-modal-ft">'
@@ -477,11 +421,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
       + '<button class="aiw-btn aiw-btn-esc" onclick="SCW.printReport()">🖨 Print Report</button>'
       + '</div></div></div>';
     document.getElementById('scw-modal-root').innerHTML = html;
-    if (monthList.length) renderReport(monthList[0]);
+    if (monthList.length) renderReport(presetMonth || monthList[0]);
+  }
+
+  function onReportSearch(v){
+    _reportFilters.search = v;
+    var sel = document.getElementById('scw-report-month');
+    if (sel) renderReport(sel.value);
   }
 
   function renderReport(month){
-    var all = getRecs().filter(function(r){ return String(r['Date']||'').slice(0,7) === month; });
+    var all = getRawRecs().filter(function(r){
+      return String(r['Date']||'').slice(0,7) === month && String(r[STATUS_COL]||'').trim().toLowerCase() !== 'removed';
+    });
     var byMat = {}, byCust = {};
     all.forEach(function(r){
       var q = parseFloat(r['Quantity']); if (isNaN(q)) q = 0;
@@ -497,17 +449,35 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     var custRows = Object.keys(byCust).sort().map(function(k){
       return '<tr><td>'+sEsc(k)+'</td><td>'+byCust[k].toLocaleString(undefined,{maximumFractionDigits:2})+'</td></tr>';
     }).join('');
+    var s = (_reportFilters.search||'').toLowerCase();
+    var lineRecs = all.filter(function(r){
+      if (!s) return true;
+      var hay = ((r['Customer']||'')+' '+(r['Material']||'')+' '+(r['Gate Pass No.']||'')).toLowerCase();
+      return hay.indexOf(s) >= 0;
+    }).sort(function(a,b){ return String(a['Date']||'').localeCompare(String(b['Date']||'')); });
+    var lineRows = lineRecs.map(function(r){
+      return '<tr><td>'+sEsc(r['Date'])+'</td><td>'+sEsc(r['Gate Pass No.'])+'</td><td>'+sEsc(r['Customer'])+'</td>'
+        + '<td>'+sEsc(r['Material'])+'</td><td>'+sEsc(r['Quantity'])+' '+sEsc(r['Unit'])+'</td>'
+        + '<td style="white-space:normal;max-width:200px">'+sEsc(r['Remarks'])+'</td>'
+        + '<td class="no-print"><button class="aiw-btn" style="padding:2px 6px;font-size:10px" onclick="SCW.printSlipFor(\''+sEsc(r['Record ID'])+'\',\''+sEsc(month)+'\')">🖨 Slip</button></td></tr>';
+    }).join('');
     var html = ''
-      + '<div style="margin-top:10px;font-size:12px;color:var(--scw-text-muted)">' + all.length + ' gate-pass lines in ' + month + '</div>'
+      + '<div style="margin-top:10px;font-size:12px;color:var(--scw-text-muted)">' + lineRecs.length + ' of ' + all.length + ' gate-pass lines shown in ' + month + '</div>'
       + '<table class="scw-sum-tbl"><thead><tr><th>Material</th><th>Total Quantity</th></tr></thead><tbody>' + (matRows||'<tr><td colspan="2">No data</td></tr>') + '</tbody></table>'
-      + '<table class="scw-sum-tbl"><thead><tr><th>Customer</th><th>Total Quantity (mixed units)</th></tr></thead><tbody>' + (custRows||'<tr><td colspan="2">No data</td></tr>') + '</tbody></table>';
+      + '<table class="scw-sum-tbl"><thead><tr><th>Customer</th><th>Total Quantity (mixed units)</th></tr></thead><tbody>' + (custRows||'<tr><td colspan="2">No data</td></tr>') + '</tbody></table>'
+      + '<table class="scw-sum-tbl"><thead><tr><th>Date</th><th>Gate Pass No.</th><th>Customer</th><th>Material</th><th>Quantity</th><th>Remarks</th><th class="no-print"></th></tr></thead><tbody>' + (lineRows||'<tr><td colspan="7">No lines match</td></tr>') + '</tbody></table>';
     document.getElementById('scw-report-body').innerHTML = html;
+  }
+
+  function printSlipFor(recordId, month){
+    var r = getRawRecs().filter(function(x){ return x['Record ID'] === recordId; })[0];
+    if (r) printSlip(r);
   }
 
   function printReport(){
     var month = document.getElementById('scw-report-month').value;
     var body = document.getElementById('scw-report-body').innerHTML;
-    var html = '<div class="slip" style="max-width:600px">'
+    var html = '<div class="slip" style="max-width:700px">'
       + '<h2>SAUDI ARABIAN GLASS COMPANY</h2>'
       + '<div class="sub">Monthly Scrap Sale Report — ' + sEsc(month) + '</div>'
       + body + '</div>';
@@ -562,6 +532,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     renderMonthlyModal(defMonth);
   }
 
+  /* Opens a specific month's entry form — used by clicking a row in
+     the Monthly Entry Register. Same modal as openMonthlyForm(),
+     just not defaulted to the current month. */
+  function openMonthEntry(month){ renderMonthlyModal(month); }
+
   function renderMonthlyModal(month){
     var info = monthLockInfo(month);
     var locked = info.state === 'locked';
@@ -583,7 +558,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
       + '</div>'
       + '<div class="scw-modal-ft">'
       + (locked
-          ? '<button class="aiw-btn aiw-btn-esc" onclick="SCW.reopenMonth()"' + (can('safety.edit') ? '' : ' disabled title="IMS Coordinator / Manager only"') + '>🔓 Reopen Month</button>'
+          ? '<button class="aiw-btn aiw-btn-esc" onclick="SCW.reopenMonth()"' + (canManage() ? '' : ' disabled title="Managers / IMS Coordinator only"') + '>🔓 Reopen Month</button>'
           : '<button class="aiw-btn aiw-btn-add" onclick="SCW.submitMonth()">✅ Submit Month</button>')
       + '<button class="aiw-btn" onclick="SCW.closeModal()">Close</button>'
       + '</div></div></div>';
@@ -698,7 +673,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   }
 
   function reopenMonth(){
-    if (!can('safety.edit')) return;
+    if (!canManage()) return;
     var month = _monthlyState.month;
     if (!confirm('Reopen ' + month + ' for warehouse edits? This sets its submitted lines back to Draft.')) return;
     var activeRecs = getRawRecs().filter(function(r){
@@ -729,7 +704,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     var list = isCust ? _customers : _materials;
     var tab = isCust ? CUSTOMERS_TAB.tabKey : MATERIALS_TAB.tabKey;
     var idCol = isCust ? CUSTOMERS_TAB.idCol : MATERIALS_TAB.idCol;
-    var canEdit = can('safety.edit');
+    var canEdit = canManage();
     var rows = list.slice().sort(function(a,b){ return String(a[idCol]||'').localeCompare(String(b[idCol]||'')); }).map(function(r, i){
       var active = String(r['Status']||'Active').toLowerCase() !== 'inactive';
       var cells = isCust
@@ -767,7 +742,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   }
 
   function addCustomer(){
-    if (!can('safety.edit')) return;
+    if (!canManage()) return;
     var name = document.getElementById('scw-new-cust-name').value.trim();
     if (!name) return alert('Enter a customer name.');
     if (_customers.some(function(c){ return c['Customer Name']===name; })) return alert('That customer is already on the list.');
@@ -777,7 +752,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   }
 
   function addMaterial(){
-    if (!can('safety.edit')) return;
+    if (!canManage()) return;
     var name = document.getElementById('scw-new-mat-name').value.trim();
     if (!name) return alert('Enter a material name.');
     if (_materials.some(function(m){ return m['Material Name']===name; })) return alert('That material is already on the list.');
@@ -786,7 +761,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   }
 
   function toggleMasterStatus(kind, id){
-    if (!can('safety.edit')) return;
+    if (!canManage()) return;
     var isCust = kind === 'customer';
     var tab = isCust ? CUSTOMERS_TAB.tabKey : MATERIALS_TAB.tabKey;
     var idCol = isCust ? CUSTOMERS_TAB.idCol : MATERIALS_TAB.idCol;
@@ -800,32 +775,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 
   /* ── Public API ───────────────────────────────────────────────── */
   window.SCW = {
-    onSearch: function(v){ _filters.search = v; renderTable(); },
-    onCustomerFilter: function(v){ _filters.customer = v; renderTable(); },
-    onMaterialFilter: function(v){ _filters.material = v; renderTable(); },
-    onDateFrom: function(v){ _filters.dateFrom = v; renderTable(); },
-    onDateTo: function(v){ _filters.dateTo = v; renderTable(); },
-    select: function(id){ _selected = (_selected === id) ? null : id; renderTable(); },
-    openEditSelected: function(){
-      if (!_selected) return;
-      var r = getRecs().filter(function(x){ return x['Record ID'] === _selected; })[0];
-      if (r) openForm(r);
-    },
-    onMaterialPick: onMaterialPick,
-    removeSelected: function(){
-      if (!_selected || !can('safety.edit')) return;
-      if (!confirm('Remove this scrap sale line?')) return;
-      postJSON('update', { tab: SCRAP.tabKey, id: _selected }, { 'Record ID': _selected, 'Record Status': 'Removed' })
-        .then(function(){ _selected = null; loadAll(); });
-    },
-    printSlipSelected: function(){
-      if (!_selected) return;
-      var r = getRecs().filter(function(x){ return x['Record ID'] === _selected; })[0];
-      if (r) printSlip(r);
-    },
-    openMonthlyReport: openMonthlyReport,
+    openMonthEntry: openMonthEntry,
+    openMonthReport: openMonthReport,
+    onReportSearch: onReportSearch,
     renderReport: renderReport,
     printReport: printReport,
+    printSlipFor: printSlipFor,
     openMonthlyForm: openMonthlyForm,
     changeMonth: changeMonth,
     addMonthlyRow: addMonthlyRow,
@@ -839,8 +794,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     addCustomer: addCustomer,
     addMaterial: addMaterial,
     toggleMasterStatus: toggleMasterStatus,
-    closeModal: closeModal,
-    save: save
+    closeModal: closeModal
   };
 
   function startPage(){ loadMasters().then(loadAll); }
