@@ -133,9 +133,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 </head><body><div class="scw-dark-wrap">
 <div class="back-row"><a href="oc02-environment.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
 
-<div class="req-text">Scrap Sales Register — gate-pass level log of scrap material sold off-site (paper/CB trays, mixed scrap, shrink film, wood/plastic pallets), feeding the Waste Management Programme's recycling/disposal-route reporting (cullet recycling and general solid-waste KPIs). Related: <a href="waste-management.html" style="color:var(--scw-gold-lt)">Waste Management Register</a>. <strong>Monthly Entry Form:</strong> the warehouse team fills one grid per month, laid out exactly like their own paper form (one row per gate pass, one column per customer/material); entries save as they go and the month locks once submitted — see "📅 Monthly Entry Form" below.</div>
+<div class="req-text">Scrap Sales Register — gate-pass level log of scrap material sold off-site (paper/CB trays, mixed scrap, shrink film, wood/plastic pallets), feeding the Waste Management Programme's recycling/disposal-route reporting (cullet recycling and general solid-waste KPIs). Related: <a href="waste-management.html" style="color:var(--scw-gold-lt)">Waste Management Register</a>. <strong>Monthly Entry Form:</strong> the warehouse team fills one adjustable table per month — add or remove rows freely, each row picks its own Customer and Material from the shared lists below — and the month locks once submitted; see "📅 Monthly Entry Form" below. There is no separate per-line add form — every new record is created there. <strong>Customers / Materials:</strong> two shared master lists (see the buttons below) that the Monthly Entry Form, the Issuance Slip and this register all read from, so a name is spelled the same way everywhere; adding or deactivating an entry is limited to the IMS Coordinator and the warehouse lead.</div>
 
-<div class="flag-text">⚠ <strong>Unit correction applied:</strong> the source workbook (<code>SCRAP_SALES-2026.xlsx</code>) labels every monthly total "TOTAL QUANTITY (MT)", but its own "SCRAP SALE SUMMARY" block confirms CALUMITE PAL, Soda Ash Pall, W. Pallet and Plastic Pallet Soda are wood/plastic <strong>pallet counts (PCS)</strong>, not tonnes — corrected on migration. One value (<code>SHRINK FILM 130 MIC</code>, Apr-2026, 2,536) is implausibly large for MT and is flagged rather than guessed — see the reference workbook. Two customer names (<code>Farij Atiiallah Est</code> → <code>ANSAM AL BARKAH</code>, both "Ahmed Saeed Noor") look like the same buyer renamed — kept separate pending confirmation. ✅ <strong>Reclassified to OC-02:</strong> moved off OC-01, alongside Waste Management — back-link above now points to <code>oc02-environment.html</code>. No pricing/revenue data exists in the source — this register is quantity-only.</div>
+<div class="flag-text">⚠ <strong>Unit correction applied:</strong> the source workbook (<code>SCRAP_SALES-2026.xlsx</code>) labels every monthly total "TOTAL QUANTITY (MT)", but its own "SCRAP SALE SUMMARY" block confirms CALUMITE PAL, Soda Ash Pall, W. Pallet and Plastic Pallet Soda are wood/plastic <strong>pallet counts (PCS)</strong>, not tonnes — corrected on migration. One value (<code>SHRINK FILM 130 MIC</code>, Apr-2026, 2,536) is implausibly large for MT and is flagged rather than guessed — see the reference workbook. Two customer names (<code>Farij Atiiallah Est</code> → <code>ANSAM AL BARKAH</code>, both "Ahmed Saeed Noor") look like the same buyer renamed — kept separate pending confirmation. ✅ <strong>Reclassified to OC-02:</strong> moved off OC-01, alongside Waste Management — back-link above now points to <code>oc02-environment.html</code>. No pricing/revenue data exists in the source — this register is quantity-only. <strong>Customers/Materials lists (new, 2026-11-01):</strong> pre-filled from the same 626 historical lines — 7 customers, 8 materials — before these tabs exist on the live sheet (see below); the same two look-alike customer names and the one implausible <code>SHRINK FILM 130 MIC</code> row are carried onto those lists too, not silently merged or dropped.</div>
+
+<div class="flag-text">⚠ <strong>Two new sheet tabs — not yet created:</strong> this page now reads/writes <code>scrap_customers</code> (→ sheet tab <code>Scrap Customers</code>, header row: Customer Name, Contact Person, Phone, Status) and <code>scrap_materials</code> (→ <code>Scrap Materials</code>, header row: Material Name, Unit, Status). Create both tabs and redeploy the Apps Script, then paste in the pre-filled lists from the updated reference workbook, before "👥 Customers" / "📦 Materials" or the Monthly Entry Form's dropdowns will have anything to show.</div>
 
 <div class="sec-banner">SCRAP SALES — QUICK STATUS</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
@@ -154,12 +156,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   <input type="date" id="scw-date-to" onchange="SCW.onDateTo(this.value)" title="To date">
 </div>
 <div class="aiw-toolbar" style="border-top:none">
-  <button class="aiw-btn aiw-btn-add" id="scw-btn-new" onclick="SCW.openAdd()">+ New Sale Line</button>
   <button class="aiw-btn" id="scw-btn-edit" disabled onclick="SCW.openEditSelected()">Open / Edit</button>
   <button class="aiw-btn" id="scw-btn-remove" disabled onclick="SCW.removeSelected()">Remove</button>
   <button class="aiw-btn aiw-btn-esc" id="scw-btn-slip" disabled onclick="SCW.printSlipSelected()">🖨 Issuance Slip</button>
   <button class="aiw-btn" id="scw-btn-report" onclick="SCW.openMonthlyReport()">📊 Monthly Report</button>
   <button class="aiw-btn aiw-btn-add" id="scw-btn-monthly" onclick="SCW.openMonthlyForm()">📅 Monthly Entry Form</button>
+  <button class="aiw-btn" id="scw-btn-customers" onclick="SCW.openCustomers()">👥 Customers</button>
+  <button class="aiw-btn" id="scw-btn-materials" onclick="SCW.openMaterials()">📦 Materials</button>
   <span style="margin-left:auto;font-size:10px;color:var(--scw-text-dim)" id="scw-count-sub"></span>
 </div>
 <div class="scw-table-wrap">
@@ -178,39 +181,39 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 (function(){
 
   var SCRAP = { tabKey:'scrap_sales', idCol:'Record ID' };
+  var CUSTOMERS_TAB = { tabKey:'scrap_customers', idCol:'Customer Name' };
+  var MATERIALS_TAB = { tabKey:'scrap_materials', idCol:'Material Name' };
   var STATUS_COL = 'Record Status';
-  var MATERIALS = [
-    {name:"CB Trays", unit:"MT"}, {name:"Mixed Scrap", unit:"MT"}, {name:"Shrink Film", unit:"MT"},
-    {name:"SHRINK FILM 130 MIC", unit:"MT"}, {name:"CALUMITE PAL", unit:"PCS"},
-    {name:"Soda Ash Pall", unit:"PCS"}, {name:"W. Pallet", unit:"PCS"}, {name:"Plastic Pallet Soda", unit:"PCS"}
-  ];
+
+  /* Rev (Issam, 2026-11-01, voice) — Customer and Material are now two
+     shared master tables on the live sheet ('scrap_customers',
+     'scrap_materials'), not a per-browser localStorage list. Issam was
+     not comfortable with per-line "+ New Sale Line" entry or with the
+     old fixed-column monthly grid (every customer/material pair as its
+     own hardcoded or ad-hoc column) — he wants ONE adjustable monthly
+     entry form where every row picks its own Customer and Material
+     from these shared lists, and a dedicated place to maintain those
+     lists (initially: Issam + the warehouse lead — gated the same way
+     as Remove/Reopen Month below, flagged for Issam to confirm the
+     exact role mapping). */
+  var _customers = [], _materials = [];
 
   var _cache = null, _rawCache = null, _selected = null;
   var _filters = { search:'', customer:'', material:'', dateFrom:'', dateTo:'' };
 
-  /* Fixed customer/material columns for the monthly warehouse entry grid,
-     matching the warehouse's own monthly layout (one column per customer x
-     material, one row per gate pass). "Mixed Scrap" has no single fixed
-     buyer in the source form (header reads "Misc. Cust"), so its customer
-     name is typed per-row instead of fixed to the column. */
-  var MONTHLY_FIXED_COLS = [
-    { key:'cb',       customer:'Green City',                         material:'CB Trays',            unit:'MT',  label:'CB Trays', sub:'Green City' },
-    { key:'mix',      customer:null,                                 material:'Mixed Scrap',         unit:'MT',  label:'Mixed Scrap', sub:'Misc. Customer', freeCustomer:true },
-    { key:'shrink',   customer:'Jawhara',                             material:'Shrink Film',         unit:'MT',  label:'Shrink Film', sub:'Jawhara' },
-    { key:'calumite', customer:'Ansam Al Barkah (Ahmed Saeed Noor)',  material:'CALUMITE PAL',        unit:'PCS', label:'Calumite Pal', sub:'Ansam Al Barkah' },
-    { key:'soda',     customer:'Ansam Al Barkah (Ahmed Saeed Noor)',  material:'Soda Ash Pall',       unit:'PCS', label:'Soda Ash Pall', sub:'Ansam Al Barkah' },
-    { key:'wpallet',  customer:'Ansam Al Barkah (Ahmed Saeed Noor)',  material:'W. Pallet',           unit:'PCS', label:'W. Pallet', sub:'Ansam Al Barkah' },
-    { key:'plastic',  customer:'Ansam Al Barkah (Ahmed Saeed Noor)',  material:'Plastic Pallet Soda', unit:'PCS', label:'Plastic Pallet Soda', sub:'Ansam Al Barkah' }
-  ];
-  function loadCustomCols(){
-    try { return JSON.parse(localStorage.getItem('scw_monthly_custom_cols')||'[]'); } catch(e){ return []; }
-  }
-  function saveCustomCols(cols){
-    try { localStorage.setItem('scw_monthly_custom_cols', JSON.stringify(cols)); } catch(e){}
-  }
-  function allMonthlyCols(){ return MONTHLY_FIXED_COLS.concat(loadCustomCols()); }
+  function activeCustomers(){ return _customers.filter(function(c){ return String(c['Status']||'Active').toLowerCase() !== 'inactive'; }); }
+  function activeMaterials(){ return _materials.filter(function(m){ return String(m['Status']||'Active').toLowerCase() !== 'inactive'; }); }
+  function materialByName(name){ return _materials.filter(function(m){ return m['Material Name']===name; })[0] || null; }
 
-  var _monthlyState = null; // { month, rows:[{date,gatepass,remarks,cells:{colKey:{qty,customer,recordId}}}], locked }
+  function loadMasters(){
+    return Promise.all([ loadTab(CUSTOMERS_TAB.tabKey), loadTab(MATERIALS_TAB.tabKey) ]).then(function(results){
+      var cData = results[0], mData = results[1];
+      _customers = (cData && cData.headers && cData.rows) ? cData.rows.map(function(r){ return recFromRow(cData.headers, r); }) : [];
+      _materials = (mData && mData.headers && mData.rows) ? mData.rows.map(function(r){ return recFromRow(mData.headers, r); }) : [];
+    }).catch(function(){ _customers = []; _materials = []; });
+  }
+
+  var _monthlyState = null; // { month, rows:[{recordId,date,gatepass,customer,material,qty,remarks}], locked }
   var _localIdCounter = null;
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
@@ -368,20 +371,34 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   /* ── Add/Edit Modal ──────────────────────────────────────────────*/
   function closeModal(){ document.getElementById('scw-modal-root').innerHTML = ''; }
 
+  /* Edit-only — per Issam (voice, 2026-11-01), there is no more
+     freestanding "+ New Sale Line" entry path. Every new record is
+     created through the Monthly Entry Form; this modal only lets you
+     correct a record that's already on the register (Customer/Material
+     still come from the same shared master lists, so a correction here
+     can't introduce a name the monthly form wouldn't also offer). */
   function openForm(existing){
     var r = existing || {};
-    var isEdit = !!existing;
-    var matOpts = MATERIALS.map(function(m){
-      return '<option value="'+sEsc(m.name)+'" data-unit="'+m.unit+'"'+(r['Material']===m.name?' selected':'')+'>'+sEsc(m.name)+'</option>';
+    var custOpts = activeCustomers().map(function(c){
+      return '<option value="'+sEsc(c['Customer Name'])+'"'+(r['Customer']===c['Customer Name']?' selected':'')+'>'+sEsc(c['Customer Name'])+'</option>';
     }).join('');
+    if (r['Customer'] && !activeCustomers().some(function(c){ return c['Customer Name']===r['Customer']; })){
+      custOpts += '<option value="'+sEsc(r['Customer'])+'" selected>'+sEsc(r['Customer'])+' (inactive/not on list)</option>';
+    }
+    var matOpts = activeMaterials().map(function(m){
+      return '<option value="'+sEsc(m['Material Name'])+'" data-unit="'+sEsc(m['Unit'])+'"'+(r['Material']===m['Material Name']?' selected':'')+'>'+sEsc(m['Material Name'])+'</option>';
+    }).join('');
+    if (r['Material'] && !activeMaterials().some(function(m){ return m['Material Name']===r['Material']; })){
+      matOpts += '<option value="'+sEsc(r['Material'])+'" data-unit="'+sEsc(r['Unit']||'')+'" selected>'+sEsc(r['Material'])+' (inactive/not on list)</option>';
+    }
     var html = ''
       + '<div class="scw-overlay" onclick="if(event.target===this) SCW.closeModal()">'
       + '<div class="scw-modal">'
-      + '<div class="scw-modal-hd"><span>' + (isEdit?'Edit':'New') + ' Scrap Sale Line</span><button onclick="SCW.closeModal()">✕</button></div>'
+      + '<div class="scw-modal-hd"><span>Edit Scrap Sale Line</span><button onclick="SCW.closeModal()">✕</button></div>'
       + '<div class="scw-modal-bd">'
       + '<div class="scw-field"><label>Date</label><input type="date" id="scw-f-date" value="' + sEsc(r['Date']||'') + '"></div>'
       + '<div class="scw-field"><label>Gate Pass No.</label><input type="text" id="scw-f-gatepass" value="' + sEsc(r['Gate Pass No.']||'') + '"></div>'
-      + '<div class="scw-field"><label>Customer</label><input type="text" id="scw-f-customer" value="' + sEsc(r['Customer']||'') + '" list="scw-customer-list"></div>'
+      + '<div class="scw-field"><label>Customer</label><select id="scw-f-customer">' + custOpts + '</select></div>'
       + '<div class="scw-field"><label>Material</label><select id="scw-f-material" onchange="SCW.onMaterialPick(this)">' + matOpts + '</select></div>'
       + '<div class="scw-field"><label>Quantity</label><input type="number" step="any" id="scw-f-qty" value="' + sEsc(r['Quantity']||'') + '"></div>'
       + '<div class="scw-field"><label>Unit</label><input type="text" id="scw-f-unit" value="' + sEsc(r['Unit']||'MT') + '" readonly></div>'
@@ -389,21 +406,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
       + '</div>'
       + '<div class="scw-modal-ft">'
       + '<button class="aiw-btn" onclick="SCW.closeModal()">Cancel</button>'
-      + '<button class="aiw-btn aiw-btn-add" onclick="SCW.save(\'' + (isEdit ? sEsc(r['Record ID']) : '') + '\')">Save</button>'
+      + '<button class="aiw-btn aiw-btn-add" onclick="SCW.save(\'' + sEsc(r['Record ID']) + '\')">Save</button>'
       + '</div></div></div>';
     document.getElementById('scw-modal-root').innerHTML = html;
-    if (!isEdit) SCW.onMaterialPick(document.getElementById('scw-f-material'));
   }
 
   function onMaterialPick(sel){
     var opt = sel.options[sel.selectedIndex];
     var unit = opt ? opt.getAttribute('data-unit') : 'MT';
     var u = document.getElementById('scw-f-unit');
-    if (u) u.value = unit;
+    if (u) u.value = unit || 'MT';
   }
 
   function save(existingId){
     var rec = {
+      'Record ID': existingId,
       'Date': document.getElementById('scw-f-date').value,
       'Gate Pass No.': document.getElementById('scw-f-gatepass').value,
       'Customer': document.getElementById('scw-f-customer').value,
@@ -411,15 +428,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
       'Quantity': document.getElementById('scw-f-qty').value,
       'Unit': document.getElementById('scw-f-unit').value,
       'Remarks': document.getElementById('scw-f-remarks').value,
-      'Record Status': 'Active'
     };
-    if (existingId){
-      rec['Record ID'] = existingId;
-      postJSON('update', { tab: SCRAP.tabKey, id: existingId }, rec).then(function(){ closeModal(); loadAll(); });
-    } else {
-      rec['Record ID'] = nextRecordId(_cache, 'SCR', SCRAP.idCol);
-      postJSON('create', { tab: SCRAP.tabKey }, rec).then(function(){ closeModal(); loadAll(); });
-    }
+    postJSON('update', { tab: SCRAP.tabKey, id: existingId }, rec).then(function(){ closeModal(); loadAll(); });
   }
 
   /* ── Printable Issuance Slip ─────────────────────────────────────*/
@@ -527,27 +537,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     return { state:'open', active:active, draft:draft };
   }
 
+  /* Rev (Issam, 2026-11-01, voice) — rebuilt as one row per gate-pass
+     x material line (matching the live 'scrap_sales' schema directly,
+     one DB record per row), with Customer and Material picked from
+     the shared master tables instead of fixed/ad-hoc columns. Still
+     one month per tab, still adjustable (add/remove rows freely until
+     submitted), still Draft-until-submitted with the same lock/reopen
+     behaviour as before. */
   function loadMonthlyRows(month){
-    var cols = allMonthlyCols();
     var recs = getRawRecs().filter(function(r){
       return String(r['Date']||'').slice(0,7) === month && String(r[STATUS_COL]||'').trim().toLowerCase() !== 'removed';
     });
-    var rowsMap = {}, order = [];
-    recs.forEach(function(r){
-      var key = (r['Date']||'') + '|' + (r['Gate Pass No.']||'') + '|' + r['Record ID'];
-      // group strictly by date+gatepass so multiple materials under one gate pass share a row
-      var gkey = (r['Date']||'') + '|' + (r['Gate Pass No.']||'');
-      if (!rowsMap[gkey]){ rowsMap[gkey] = { date:r['Date']||'', gatepass:r['Gate Pass No.']||'', remarks:r['Remarks']||'', cells:{} }; order.push(gkey); }
-      var row = rowsMap[gkey];
-      if (r['Remarks']) row.remarks = r['Remarks'];
-      cols.forEach(function(c){
-        var custMatch = c.freeCustomer ? true : (r['Customer'] === c.customer);
-        if (custMatch && r['Material'] === c.material && !row.cells[c.key]){
-          row.cells[c.key] = { recordId: r['Record ID'], qty: r['Quantity'], customer: r['Customer'] };
-        }
-      });
+    return recs.map(function(r){
+      return { recordId: r['Record ID'], date: r['Date']||'', gatepass: r['Gate Pass No.']||'',
+        customer: r['Customer']||'', material: r['Material']||'', qty: r['Quantity'], unit: r['Unit']||'',
+        remarks: r['Remarks']||'' };
     });
-    return order.map(function(k){ return rowsMap[k]; });
   }
 
   function openMonthlyForm(){
@@ -561,7 +566,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     var info = monthLockInfo(month);
     var locked = info.state === 'locked';
     _monthlyState = { month: month, locked: locked, rows: loadMonthlyRows(month) };
-    var cols = allMonthlyCols();
     var statusHtml = info.state === 'locked'
       ? '<span class="scw-m-status locked">Submitted — locked</span>'
       : (info.state === 'open' ? '<span class="scw-m-status open">In progress — ' + info.draft + ' draft line(s)</span>' : '<span class="scw-m-status empty">No entries yet</span>');
@@ -573,10 +577,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
       + '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
       + '<div class="scw-field" style="max-width:160px"><label>Month</label><input type="month" id="scw-m-month" value="' + sEsc(month) + '" onchange="SCW.changeMonth(this.value)"></div>'
       + statusHtml
-      + '<button class="aiw-btn" style="margin-left:auto" onclick="SCW.addCustomColumn()">+ Add Customer Column</button>'
       + '</div>'
       + '<div style="overflow-x:auto"><table class="scw-m-tbl" id="scw-m-grid"></table></div>'
-      + '<div style="margin-top:10px">' + (locked ? '' : '<button class="aiw-btn aiw-btn-add" onclick="SCW.addMonthlyRow()">+ Add Gate Pass Row</button>') + '</div>'
+      + '<div style="margin-top:10px">' + (locked ? '' : '<button class="aiw-btn aiw-btn-add" onclick="SCW.addMonthlyRow()">+ Add Row</button>') + '</div>'
       + '</div>'
       + '<div class="scw-modal-ft">'
       + (locked
@@ -589,30 +592,36 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   }
 
   function renderMonthlyGrid(){
-    var cols = allMonthlyCols();
     var locked = _monthlyState.locked;
-    var head = '<thead><tr><th>Date</th><th>Gate Pass No.</th>'
-      + cols.map(function(c){ return '<th>' + sEsc(c.label) + '<span>' + sEsc(c.sub||'') + ' (' + c.unit + ')</span></th>'; }).join('')
-      + '<th>Remarks</th>' + (locked ? '' : '<th></th>') + '</tr></thead>';
+    var cust = activeCustomers(), mats = activeMaterials();
+    var head = '<thead><tr><th>Date</th><th>Gate Pass No.</th><th>Customer</th><th>Material</th><th>Quantity</th><th>Unit</th><th>Remarks</th>'
+      + (locked ? '' : '<th></th>') + '</tr></thead>';
     var body = '<tbody>' + _monthlyState.rows.map(function(row, idx){
-      var cellsHtml = cols.map(function(c){
-        var cell = row.cells[c.key] || {};
-        var custIn = c.freeCustomer
-          ? '<input type="text" class="scw-m-cust-in" placeholder="Customer name" value="' + sEsc(cell.customer||'') + '"' + (locked?' disabled':' onchange="SCW.onCellChange('+idx+',\''+c.key+'\')"') + '>'
-          : '';
-        return '<td>' + custIn + '<input type="number" step="any" placeholder="—" value="' + sEsc(cell.qty!=null?cell.qty:'') + '"'
-          + (locked?' disabled':' onchange="SCW.onCellChange('+idx+',\''+c.key+'\')"') + '></td>';
+      var custOptsHtml = '<option value="">-- select --</option>' + cust.map(function(c){
+        return '<option value="'+sEsc(c['Customer Name'])+'"'+(row.customer===c['Customer Name']?' selected':'')+'>'+sEsc(c['Customer Name'])+'</option>';
       }).join('');
+      if (row.customer && !cust.some(function(c){ return c['Customer Name']===row.customer; })){
+        custOptsHtml += '<option value="'+sEsc(row.customer)+'" selected>'+sEsc(row.customer)+' (not on list)</option>';
+      }
+      var matOptsHtml = '<option value="">-- select --</option>' + mats.map(function(m){
+        return '<option value="'+sEsc(m['Material Name'])+'" data-unit="'+sEsc(m['Unit'])+'"'+(row.material===m['Material Name']?' selected':'')+'>'+sEsc(m['Material Name'])+'</option>';
+      }).join('');
+      if (row.material && !mats.some(function(m){ return m['Material Name']===row.material; })){
+        matOptsHtml += '<option value="'+sEsc(row.material)+'" data-unit="'+sEsc(row.unit||'')+'" selected>'+sEsc(row.material)+' (not on list)</option>';
+      }
       return '<tr>'
-        + '<td><input type="date" value="' + sEsc(row.date) + '"' + (locked?' disabled':' onchange="SCW.onRowMetaChange('+idx+',\'date\',this.value)"') + '></td>'
-        + '<td><input type="text" value="' + sEsc(row.gatepass) + '" placeholder="e.g. 847"' + (locked?' disabled':' onchange="SCW.onRowMetaChange('+idx+',\'gatepass\',this.value)"') + '></td>'
-        + cellsHtml
-        + '<td><input type="text" value="' + sEsc(row.remarks) + '"' + (locked?' disabled':' onchange="SCW.onRowMetaChange('+idx+',\'remarks\',this.value)"') + '></td>'
+        + '<td><input type="date" value="' + sEsc(row.date) + '"' + (locked?' disabled':' onchange="SCW.onRowFieldChange('+idx+',\'date\',this.value)"') + '></td>'
+        + '<td><input type="text" value="' + sEsc(row.gatepass) + '" placeholder="e.g. 847"' + (locked?' disabled':' onchange="SCW.onRowFieldChange('+idx+',\'gatepass\',this.value)"') + '></td>'
+        + '<td><select' + (locked?' disabled':' onchange="SCW.onRowFieldChange('+idx+',\'customer\',this.value)"') + '>' + custOptsHtml + '</select></td>'
+        + '<td><select' + (locked?' disabled':' onchange="SCW.onMonthlyMaterialChange('+idx+',this)"') + '>' + matOptsHtml + '</select></td>'
+        + '<td><input type="number" step="any" placeholder="—" value="' + sEsc(row.qty!=null?row.qty:'') + '"' + (locked?' disabled':' onchange="SCW.onRowFieldChange('+idx+',\'qty\',this.value)"') + '></td>'
+        + '<td>' + sEsc(row.unit||'—') + '</td>'
+        + '<td><input type="text" value="' + sEsc(row.remarks) + '"' + (locked?' disabled':' onchange="SCW.onRowFieldChange('+idx+',\'remarks\',this.value)"') + '></td>'
         + (locked ? '' : '<td><button class="scw-m-rm" onclick="SCW.removeMonthlyRow('+idx+')" title="Remove row">✕</button></td>')
         + '</tr>';
     }).join('') + '</tbody>';
     if (!_monthlyState.rows.length){
-      body = '<tbody><tr><td colspan="' + (3+cols.length) + '" style="padding:16px;color:var(--scw-text-dim)">No gate passes entered yet this month.</td></tr></tbody>';
+      body = '<tbody><tr><td colspan="8" style="padding:16px;color:var(--scw-text-dim)">No gate passes entered yet this month.</td></tr></tbody>';
     }
     document.getElementById('scw-m-grid').innerHTML = head + body;
   }
@@ -620,85 +629,57 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   function changeMonth(month){ renderMonthlyModal(month); }
 
   function addMonthlyRow(){
-    _monthlyState.rows.push({ date:'', gatepass:'', remarks:'', cells:{} });
+    _monthlyState.rows.push({ recordId:null, date:'', gatepass:'', customer:'', material:'', qty:null, unit:'', remarks:'' });
     renderMonthlyGrid();
   }
 
   function removeMonthlyRow(idx){
     var row = _monthlyState.rows[idx];
-    var pending = [];
-    Object.keys(row.cells).forEach(function(k){
-      var cell = row.cells[k];
-      if (cell.recordId) pending.push(postJSON('update', { tab: SCRAP.tabKey, id: cell.recordId }, { 'Record ID': cell.recordId, 'Record Status':'Removed' }));
-    });
-    Promise.all(pending).then(function(){
-      _monthlyState.rows.splice(idx,1);
-      loadAll().then(function(){ if (_monthlyState) renderMonthlyGrid(); });
-    });
+    if (!row.recordId){ _monthlyState.rows.splice(idx,1); renderMonthlyGrid(); return; }
+    postJSON('update', { tab: SCRAP.tabKey, id: row.recordId }, { 'Record ID': row.recordId, 'Record Status':'Removed' })
+      .then(function(){ _monthlyState.rows.splice(idx,1); loadAll().then(function(){ if (_monthlyState) renderMonthlyGrid(); }); });
   }
 
-  function onRowMetaChange(idx, field, value){
+  /* Material picked → auto-fill Unit from the master list, same spot
+     a hand-typed Unit used to live, then fall through to the normal
+     per-row save. */
+  function onMonthlyMaterialChange(idx, sel){
+    var row = _monthlyState.rows[idx];
+    row.material = sel.value;
+    var opt = sel.options[sel.selectedIndex];
+    row.unit = (opt && opt.getAttribute('data-unit')) || '';
+    syncMonthlyRow(idx);
+  }
+
+  function onRowFieldChange(idx, field, value){
     var row = _monthlyState.rows[idx];
     row[field] = value;
-    if (!row.date || !row.gatepass) return; // need both before any cell can be saved
-    syncRow(idx);
+    syncMonthlyRow(idx);
   }
 
-  function onCellChange(idx, colKey){
+  function syncMonthlyRow(idx){
     var row = _monthlyState.rows[idx];
-    if (!row.date || !row.gatepass){ alert('Enter the Date and Gate Pass No. for this row first.'); renderMonthlyGrid(); return; }
-    syncRow(idx);
-  }
-
-  function syncRow(idx){
-    var row = _monthlyState.rows[idx];
-    var cols = allMonthlyCols();
-    var grid = document.getElementById('scw-m-grid');
-    var tr = grid.querySelectorAll('tbody tr')[idx];
-    var tds = tr.querySelectorAll('td');
-    var pending = [];
-    cols.forEach(function(c, ci){
-      var td = tds[2 + ci]; // 0=date,1=gatepass
-      var inputs = td.querySelectorAll('input');
-      var qtyInput = c.freeCustomer ? inputs[1] : inputs[0];
-      var custInput = c.freeCustomer ? inputs[0] : null;
-      var qtyVal = qtyInput ? qtyInput.value : '';
-      var hasQty = qtyVal !== '' && !isNaN(parseFloat(qtyVal));
-      var cell = row.cells[c.key] || (row.cells[c.key] = {});
-      var customer = c.freeCustomer ? (custInput && custInput.value ? custInput.value : 'Misc Customer') : c.customer;
-      cell.customer = customer;
-      if (hasQty){
-        cell.qty = qtyVal;
-        var rec = { 'Date': row.date, 'Gate Pass No.': row.gatepass, 'Customer': customer, 'Material': c.material, 'Quantity': qtyVal, 'Unit': c.unit, 'Remarks': row.remarks||'', 'Record Status':'Draft' };
-        if (cell.recordId){
-          rec['Record ID'] = cell.recordId;
-          pending.push(postJSON('update', { tab: SCRAP.tabKey, id: cell.recordId }, rec));
-        } else {
-          var newId = nextRecordIdLocal();
-          cell.recordId = newId;
-          rec['Record ID'] = newId;
-          pending.push(postJSON('create', { tab: SCRAP.tabKey }, rec));
-        }
-      } else if (cell.recordId){
-        pending.push(postJSON('update', { tab: SCRAP.tabKey, id: cell.recordId }, { 'Record ID': cell.recordId, 'Record Status':'Removed' }));
-        cell.recordId = null; cell.qty = null;
+    var complete = row.date && row.gatepass && row.customer && row.material && row.qty !== '' && row.qty != null && !isNaN(parseFloat(row.qty));
+    if (!complete){
+      // Not enough to save yet — if it already exists on the sheet (user
+      // blanked a required field), pull it back to Removed rather than
+      // leave a half-filled record live.
+      if (row.recordId){
+        postJSON('update', { tab: SCRAP.tabKey, id: row.recordId }, { 'Record ID': row.recordId, 'Record Status':'Removed' }).then(function(){ row.recordId = null; });
       }
-    });
-    Promise.all(pending).then(function(){ loadAll(); });
-  }
-
-  function addCustomColumn(){
-    var customer = prompt('New customer name (as it should appear on the form):');
-    if (!customer) return;
-    var material = prompt('Material name (e.g. Mixed Scrap, Shrink Film, or a new material):');
-    if (!material) return;
-    var unit = (prompt('Unit — type MT (tonnes) or PCS (pieces):', 'MT') || 'MT').trim().toUpperCase();
-    if (unit !== 'MT' && unit !== 'PCS') unit = 'MT';
-    var cols = loadCustomCols();
-    var key = 'custom_' + Date.now();
-    cols.push({ key:key, customer:customer, material:material, unit:unit, label:material, sub:customer });
-    saveCustomCols(cols);
-    renderMonthlyGrid();
+      return;
+    }
+    var rec = { 'Date': row.date, 'Gate Pass No.': row.gatepass, 'Customer': row.customer, 'Material': row.material,
+      'Quantity': row.qty, 'Unit': row.unit, 'Remarks': row.remarks||'', 'Record Status':'Draft' };
+    if (row.recordId){
+      rec['Record ID'] = row.recordId;
+      postJSON('update', { tab: SCRAP.tabKey, id: row.recordId }, rec).then(function(){ loadAll(); });
+    } else {
+      var newId = nextRecordIdLocal();
+      row.recordId = newId;
+      rec['Record ID'] = newId;
+      postJSON('create', { tab: SCRAP.tabKey }, rec).then(function(){ loadAll(); });
+    }
   }
 
   function submitMonth(){
@@ -731,6 +712,92 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     Promise.all(pending).then(function(){ loadAll().then(function(){ renderMonthlyModal(month); }); });
   }
 
+  /* ── Customer / Material master lists ────────────────────────────
+     Shared, sheet-backed lists (not per-browser). Viewable by anyone
+     who can open this page; adding/editing/deactivating is gated by
+     can('safety.edit') — same gate as Remove/Reopen Month — per
+     Issam's "initially me + the warehouse lead" (voice, 2026-11-01).
+     Flagged for Issam to confirm that gate maps to the right accounts;
+     see the flag banner at the top of the page. A row is never hard-
+     deleted (sales history may reference it) — only set Inactive, so
+     it drops off the dropdowns but the name/unit stay on old records. */
+  function openCustomers(){ renderMasterModal('customer'); }
+  function openMaterials(){ renderMasterModal('material'); }
+
+  function renderMasterModal(kind){
+    var isCust = kind === 'customer';
+    var list = isCust ? _customers : _materials;
+    var tab = isCust ? CUSTOMERS_TAB.tabKey : MATERIALS_TAB.tabKey;
+    var idCol = isCust ? CUSTOMERS_TAB.idCol : MATERIALS_TAB.idCol;
+    var canEdit = can('safety.edit');
+    var rows = list.slice().sort(function(a,b){ return String(a[idCol]||'').localeCompare(String(b[idCol]||'')); }).map(function(r, i){
+      var active = String(r['Status']||'Active').toLowerCase() !== 'inactive';
+      var cells = isCust
+        ? '<td>' + sEsc(r['Customer Name']) + '</td><td>' + sEsc(r['Contact Person']||'—') + '</td><td>' + sEsc(r['Phone']||'—') + '</td>'
+        : '<td>' + sEsc(r['Material Name']) + '</td><td>' + sEsc(r['Unit']||'—') + '</td>';
+      return '<tr>' + cells
+        + '<td><span class="badge ' + (active?'kc-grn':'kc-amb') + '">' + (active?'Active':'Inactive') + '</span></td>'
+        + '<td>' + (canEdit ? '<button class="aiw-btn" style="padding:3px 8px;font-size:10px" onclick="SCW.toggleMasterStatus(\''+kind+'\',\''+sEsc(r[idCol])+'\')">' + (active?'Deactivate':'Reactivate') + '</button>' : '—') + '</td>'
+        + '</tr>';
+    }).join('');
+    var head = isCust
+      ? '<tr><th>Customer Name</th><th>Contact Person</th><th>Phone</th><th>Status</th><th></th></tr>'
+      : '<tr><th>Material Name</th><th>Unit</th><th>Status</th><th></th></tr>';
+    var addFormHtml = !canEdit ? '<div class="flag-text">Only the IMS Coordinator or the warehouse lead can add or change this list.</div>' : (isCust
+      ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'
+        + '<input type="text" id="scw-new-cust-name" placeholder="New customer name">'
+        + '<input type="text" id="scw-new-cust-contact" placeholder="Contact person (optional)">'
+        + '<input type="text" id="scw-new-cust-phone" placeholder="Phone (optional)">'
+        + '<button class="aiw-btn aiw-btn-add" onclick="SCW.addCustomer()">+ Add Customer</button></div>'
+      : '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'
+        + '<input type="text" id="scw-new-mat-name" placeholder="New material name">'
+        + '<select id="scw-new-mat-unit"><option value="MT">MT (tonnes)</option><option value="PCS">PCS (pieces)</option></select>'
+        + '<button class="aiw-btn aiw-btn-add" onclick="SCW.addMaterial()">+ Add Material</button></div>');
+    var html = ''
+      + '<div class="scw-overlay" onclick="if(event.target===this) SCW.closeModal()">'
+      + '<div class="scw-modal wide">'
+      + '<div class="scw-modal-hd"><span>' + (isCust?'Customers':'Materials') + '</span><button onclick="SCW.closeModal()">✕</button></div>'
+      + '<div class="scw-modal-bd" style="grid-template-columns:1fr">'
+      + '<table class="scw-sum-tbl"><thead>' + head + '</thead><tbody>' + (rows || '<tr><td colspan="5" style="padding:14px;color:var(--scw-text-dim)">None yet.</td></tr>') + '</tbody></table>'
+      + addFormHtml
+      + '</div>'
+      + '<div class="scw-modal-ft"><button class="aiw-btn" onclick="SCW.closeModal()">Close</button></div>'
+      + '</div></div>';
+    document.getElementById('scw-modal-root').innerHTML = html;
+  }
+
+  function addCustomer(){
+    if (!can('safety.edit')) return;
+    var name = document.getElementById('scw-new-cust-name').value.trim();
+    if (!name) return alert('Enter a customer name.');
+    if (_customers.some(function(c){ return c['Customer Name']===name; })) return alert('That customer is already on the list.');
+    var rec = { 'Customer Name': name, 'Contact Person': document.getElementById('scw-new-cust-contact').value.trim(),
+      'Phone': document.getElementById('scw-new-cust-phone').value.trim(), 'Status': 'Active' };
+    postJSON('create', { tab: CUSTOMERS_TAB.tabKey }, rec).then(function(){ loadMasters().then(function(){ renderMasterModal('customer'); }); });
+  }
+
+  function addMaterial(){
+    if (!can('safety.edit')) return;
+    var name = document.getElementById('scw-new-mat-name').value.trim();
+    if (!name) return alert('Enter a material name.');
+    if (_materials.some(function(m){ return m['Material Name']===name; })) return alert('That material is already on the list.');
+    var rec = { 'Material Name': name, 'Unit': document.getElementById('scw-new-mat-unit').value, 'Status': 'Active' };
+    postJSON('create', { tab: MATERIALS_TAB.tabKey }, rec).then(function(){ loadMasters().then(function(){ renderMasterModal('material'); }); });
+  }
+
+  function toggleMasterStatus(kind, id){
+    if (!can('safety.edit')) return;
+    var isCust = kind === 'customer';
+    var tab = isCust ? CUSTOMERS_TAB.tabKey : MATERIALS_TAB.tabKey;
+    var idCol = isCust ? CUSTOMERS_TAB.idCol : MATERIALS_TAB.idCol;
+    var list = isCust ? _customers : _materials;
+    var r = list.filter(function(x){ return x[idCol]===id; })[0];
+    if (!r) return;
+    var newStatus = String(r['Status']||'Active').toLowerCase()==='inactive' ? 'Active' : 'Inactive';
+    var rec = {}; rec[idCol] = id; rec['Status'] = newStatus;
+    postJSON('update', { tab: tab, id: id }, rec).then(function(){ loadMasters().then(function(){ renderMasterModal(kind); }); });
+  }
+
   /* ── Public API ───────────────────────────────────────────────── */
   window.SCW = {
     onSearch: function(v){ _filters.search = v; renderTable(); },
@@ -739,7 +806,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     onDateFrom: function(v){ _filters.dateFrom = v; renderTable(); },
     onDateTo: function(v){ _filters.dateTo = v; renderTable(); },
     select: function(id){ _selected = (_selected === id) ? null : id; renderTable(); },
-    openAdd: function(){ openForm(null); },
     openEditSelected: function(){
       if (!_selected) return;
       var r = getRecs().filter(function(x){ return x['Record ID'] === _selected; })[0];
@@ -764,19 +830,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     changeMonth: changeMonth,
     addMonthlyRow: addMonthlyRow,
     removeMonthlyRow: removeMonthlyRow,
-    onRowMetaChange: onRowMetaChange,
-    onCellChange: onCellChange,
-    addCustomColumn: addCustomColumn,
+    onRowFieldChange: onRowFieldChange,
+    onMonthlyMaterialChange: onMonthlyMaterialChange,
     submitMonth: submitMonth,
     reopenMonth: reopenMonth,
+    openCustomers: openCustomers,
+    openMaterials: openMaterials,
+    addCustomer: addCustomer,
+    addMaterial: addMaterial,
+    toggleMasterStatus: toggleMasterStatus,
     closeModal: closeModal,
     save: save
   };
 
+  function startPage(){ loadMasters().then(loadAll); }
   if (typeof IMS_AUTH !== 'undefined'){
-    IMS_AUTH.init({ onReady: function(){ loadAll(); } });
+    IMS_AUTH.init({ onReady: startPage });
   } else {
-    loadAll();
+    startPage();
   }
 })();
 </script>
