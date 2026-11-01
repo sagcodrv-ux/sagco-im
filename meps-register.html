@@ -104,28 +104,29 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
 .mps-sum-tbl td{padding:6px 8px;border-bottom:1px solid var(--mps-border)}
 /* print */
 .mps-print-wrap{display:none}
+@page{ size: portrait; margin: 12mm; }
 @media print{
+  html, body{height:auto !important}
   body *{visibility:hidden}
   .mps-print-wrap, .mps-print-wrap *{visibility:visible}
-  .mps-print-wrap{display:block !important;position:absolute;left:0;top:0;width:100%;color:#000;background:#fff;padding:20px}
-  .mps-print-wrap .slip{border:2px solid #000;padding:20px;max-width:760px;margin:0 auto}
-  .mps-print-wrap h2{text-align:center;margin:0 0 4px}
-  .mps-print-wrap .sub{text-align:center;font-size:12px;margin-bottom:16px}
-  .mps-print-wrap table{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}
-  .mps-print-wrap td,.mps-print-wrap th{border:1px solid #000;padding:6px 8px;text-align:left}
-  .mps-print-wrap .sig-row{display:flex;justify-content:space-between;margin-top:40px}
-  .mps-print-wrap .sig-box{width:30%;text-align:center;border-top:1px solid #000;padding-top:4px;font-size:11px}
-  .mps-print-wrap .result-line{font-size:15px;font-weight:700;text-align:center;margin:14px 0;padding:8px;border:2px solid #000}
+  .mps-print-wrap{display:block !important;position:absolute;left:0;top:0;width:100%;color:#000;background:#fff;padding:8px}
+  .mps-print-wrap .slip{border:2px solid #000;padding:14px;max-width:720px;margin:0 auto;page-break-inside:avoid}
+  .mps-print-wrap h2{text-align:center;margin:0 0 3px;font-size:16px}
+  .mps-print-wrap .sub{text-align:center;font-size:11px;margin-bottom:10px;color:#333}
+  .mps-print-wrap table{width:100%;border-collapse:collapse;font-size:10.5px;margin:7px 0}
+  .mps-print-wrap td,.mps-print-wrap th{border:1px solid #000;padding:4px 6px;text-align:left}
+  /* filled-in data values — dark gray, not light gray or black */
+  .mps-print-wrap table td{color:#333}
+  .mps-print-wrap table th{color:#000;font-weight:700}
+  .mps-print-wrap .sig-row{display:flex;justify-content:space-between;margin-top:26px}
+  .mps-print-wrap .sig-box{width:30%;text-align:center;border-top:1px solid #000;padding-top:4px;font-size:10px;color:#333}
+  .mps-print-wrap .result-line{font-size:13px;font-weight:700;text-align:center;margin:10px 0;padding:6px;border:2px solid #000}
 }
 </style>
 </head><body><div class="mps-dark-wrap">
 <div class="back-row"><a href="oc02-environment.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
 
 <div class="req-text">MEPS Compliance Register — Minimum Energy Performance Standards (SEEC/SASO): any electrical equipment with a motor rated <strong>7.5 kW or above</strong> must meet a minimum efficiency class (IE3/IE4) before purchase or installation. Evidence of this check is required under <strong>ISO 50001 §8.3</strong> (Design &amp; Procurement). <strong>Pre-Purchase Slip:</strong> before buying, log the equipment here — the page checks it against the MEPS threshold and tells you whether it's approved to buy; print the slip to attach to the purchase order. <strong>Register:</strong> every slip becomes a row here; after delivery, use "Open / Edit" to record whether it was verified at goods receipt. <strong>One Purchase Ref can cover several equipment lines</strong> — e.g. a single furnace-rebuild contract with many motors — "🖨 Print Slip" prints all lines under one Purchase Ref together.</div>
-
-<div class="flag-text">⚠ <strong>Sheet already exists, header row needs updating:</strong> Google Sheet tab <code>48 – MEPS Compliance Register</code> (tabKey <code>meps</code>) already exists but with the OLD header row (Purchase Ref, Equipment Description, Motor Rating, Supplier, MEPS Required, Declared Efficiency Class, IE3/IE4 Certificate Ref, Certificate Date, Verified At Goods Receipt, Installation Date, 90-Day Performance Check, Performance vs Nameplate, Approved For Installation, Notes). Replace it with the new header row below before this page will save real data — the 90-day/performance-vs-nameplate columns are dropped, and <code>Equipment Ref</code>/<code>Compliance Result</code>/<code>Approved By</code> are new: <code>Equipment Ref, Purchase Ref, Date, Equipment Description, Motor Rating (kW), Supplier, Declared Efficiency Class, Certificate Ref, MEPS Required, Compliance Result, Approved By, Verified At Goods Receipt, Installation Date, Remarks, Record Status</code>. No historical data exists — this register starts empty.</div>
-
-<div class="flag-text">⚠ <strong>Sign-off assumption — please confirm:</strong> the Pre-Purchase Slip currently records a single "Approved By" name (meant to be the Procurement Manager). You'd mentioned Engineering might need to sign too, but we didn't settle it on the call — let me know if you want a second, separate Engineering sign-off field added.</div>
 
 <div class="sec-banner">MEPS — QUICK STATUS</div>
 <div class="kpi-grid" style="margin-bottom:14px">
@@ -417,8 +418,12 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
         + '<td>'+mEsc(r['Declared Efficiency Class'])+'</td><td>'+mEsc(r['Certificate Ref'])+'</td>'
         + '<td>'+mEsc(r['MEPS Required'])+'</td><td>'+mEsc(r['Compliance Result'])+'</td></tr>';
     }).join('');
+    /* keep the slip to one printed page even with many equipment lines
+       under one Purchase Ref — shrink type/spacing instead of splitting pages */
+    var n = lines.length;
+    var slipStyle = n > 14 ? 'font-size:8px' : (n > 8 ? 'font-size:9.5px' : '');
     var html = ''
-      + '<div class="slip">'
+      + '<div class="slip" style="'+slipStyle+'">'
       + '<h2>SAUDI ARABIAN GLASS COMPANY</h2>'
       + '<div class="sub">MEPS Pre-Purchase Compliance Slip — Purchase Ref ' + mEsc(purchaseRef) + '</div>'
       + '<table><tr><th>Date</th><td>'+mEsc(lines[0]['Date'])+'</td><th>Supplier</th><td>'+mEsc(lines[0]['Supplier'])+'</td></tr></table>'
