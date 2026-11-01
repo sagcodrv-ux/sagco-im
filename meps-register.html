@@ -2,150 +2,501 @@
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SAGCO IMS — MEPS Compliance Register</title>
-<link rel="stylesheet" href="style.css">
-<script src="data.js"></script><script src="nav.js"></script>
-</head><body>
-<div class="main"><div id="tb"></div><div class="content"><style>
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;font-family:var(--mono)}
-.badge.kc-grn{background:#C8E6C9;color:#1B5E20}.badge.kc-red{background:#FFCDD2;color:#B71C1C}
-.badge.kc-amb{background:#FFF9C4;color:#8a6000}.badge.kc-org{background:#FFE0B2;color:#E65100}
-.badge.kc-blue{background:#E3F2FD;color:#1565C0}.badge.kc-nvy{background:#1B2A4A;color:#C9A84C}
-.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--g100);
-  border-radius:var(--radius);border-left:3px solid var(--gold);margin:10px 0;color:var(--text-lt)}
-.alert-red{background:#FFEBEE;border:1px solid #EF9A9A;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#B71C1C;margin-bottom:10px}
-.alert-amb{background:#FFF8E1;border:1px solid #F9A825;border-radius:var(--radius);
-  padding:10px 14px;font-size:11px;color:#7a5800;margin-bottom:10px}
-.sec-banner{background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;
-  font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em}
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+/* ══════════════════════════════════════════════════════════════════
+   MEPS COMPLIANCE REGISTER — same dark navy/gold theme and live-table/
+   modal pattern as scrap-sales.html / waste-management.html.
+   Rebuilt 2026-11-01 (Issam, voice) around a pre-purchase approval
+   slip: Procurement logs the equipment BEFORE buying it, the page
+   computes whether it meets MEPS, and prints a slip to attach to the
+   PO. One live table ('meps'), one row per equipment LINE — several
+   lines can share one Purchase Ref, for a single PO or contract (e.g.
+   a furnace rebuild) that covers many motors at once. No 90-day
+   performance check and no performance-vs-nameplate field — dropped
+   per Issam, since ISO 50001 §8.3 only requires evidence the energy
+   criteria were APPLIED at purchase, not a post-installation study.
+   Class prefix mps-.
+   ══════════════════════════════════════════════════════════════════ */
+.mps-dark-wrap{
+  --mps-bg:#0D1B35; --mps-bg2:#142140; --mps-bg3:#1a2a50;
+  --mps-gold:#C9A84C; --mps-gold-lt:#E8C97A;
+  --mps-text:rgba(255,255,255,.92); --mps-text-muted:rgba(255,255,255,.55);
+  --mps-text-dim:rgba(255,255,255,.35); --mps-border:rgba(255,255,255,.08);
+  --mps-border-gold:rgba(201,168,76,.35);
+  --mps-blue:#5B9BD5; --mps-red:#F0685C; --mps-amb:#E8B339; --mps-grn:#4FCB9E; --mps-purple:#9B7FE0;
+  background:var(--mps-bg); color:var(--mps-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.mps-dark-wrap *{box-sizing:border-box}
 .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--navy);font-size:11px;
-  font-weight:600;text-decoration:none;padding:5px 10px;background:var(--g100);
-  border-radius:var(--radius);border:1px solid #e0e0e0}
-.back-link:hover{background:#e3f0fa}
-</style><div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc02-environment.html" class="back-link">← OC-02 Environment</a></div><div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"><div class="kpi-card kc-blue"><div class="kpi-lbl">MEPS Threshold</div><div class="kpi-val">&gt;7.5 kW</div><div class="kpi-sub">IE3 efficiency class mandatory for new motors</div></div><div class="kpi-card kc-grn"><div class="kpi-lbl">Verification</div><div class="kpi-val">Goods Receipt</div><div class="kpi-sub">Certificate checked before installation</div></div><div class="kpi-card kc-amb"><div class="kpi-lbl">90-Day Check</div><div class="kpi-val">Post-install</div><div class="kpi-sub">Performance vs nameplate verification</div></div><div class="kpi-card kc-nvy"><div class="kpi-lbl">Saudi Standard</div><div class="kpi-val">SEEC/SASO</div><div class="kpi-sub">MEPS per SEEC energy labelling requirements</div></div><div class="kpi-card kc-grn"><div class="kpi-lbl">Document Code</div><div class="kpi-val">L4-ENE-PR-02-RC-01</div><div class="kpi-sub">OC-02 §B.7</div></div></div><div class="req-text">ISO 50001 §8.1 / SEEC MEPS Requirements — All new electrical equipment &gt;7.5 kW must meet MEPS efficiency class ≥IE3 (IE4 preferred). MEPS certificate verified at goods receipt before installation authorised. 90-day post-installation performance verification required. Non-compliant equipment: return to supplier. Governed by OC-02 §B.7.</div><div style="margin-top:24px"><div style="background:var(--navy);color:var(--gold-lt);padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:.04em">&#x1F4E1; LIVE DATA &#x2014; Google Sheets &nbsp;|&nbsp; Updates automatically when you edit the spreadsheet</div><div id="live-table" style="margin-top:0"></div></div></div></div>
-<script>initPage("meps-register.html");document.getElementById("tb").innerHTML=renderTopbar("MEPS Compliance Register","L4-ENE-PR-02-RC-01 · ISO 50001 §8.1 · SEEC MEPS · IE3 Mandatory &gt;7.5kW · 90-day Post-install Check · OC-02 §B.7");</script>
+.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--mps-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--mps-bg2);
+  border-radius:8px;border:1px solid var(--mps-border-gold)}
+.back-link:hover{background:var(--mps-bg3)}
+.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--mps-bg2);
+  border-radius:8px;border-left:3px solid var(--mps-gold);margin:10px 0;color:var(--mps-text-muted)}
+.flag-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.08);
+  border-radius:8px;border-left:3px solid var(--mps-amb);margin:10px 0;color:var(--mps-text-muted)}
+.flag-text code{color:var(--mps-gold-lt)}
+.sec-banner{background:var(--mps-bg2);color:var(--mps-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--mps-border-gold);border-bottom:none}
+.kpi-grid{display:grid;gap:14px;grid-template-columns:repeat(4,1fr)}
+.kpi-card{background:var(--mps-bg2);border:1px solid var(--mps-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.kpi-card.kc-nvy::before{background:var(--mps-gold)}
+.kpi-card.kc-grn::before{background:var(--mps-grn)}
+.kpi-card.kc-red::before{background:var(--mps-red)}
+.kpi-card.kc-amb::before{background:var(--mps-amb)}
+.kpi-lbl{font-size:10px;font-weight:700;color:var(--mps-text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.kpi-val{font-size:22px;font-weight:800;color:var(--mps-text)}
+.kpi-sub{font-size:10px;color:var(--mps-text-dim);margin-top:2px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.badge.kc-grn{background:rgba(79,203,158,.15);color:var(--mps-grn)}
+.badge.kc-red{background:rgba(240,104,92,.15);color:var(--mps-red)}
+.badge.kc-amb{background:rgba(232,179,57,.15);color:var(--mps-amb)}
+.badge.kc-blue{background:rgba(91,155,213,.15);color:var(--mps-blue)}
+.aiw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--mps-bg2);border:1px solid var(--mps-border-gold);border-top:none}
+.aiw-toolbar input[type=text],.aiw-toolbar select{background:var(--mps-bg3);border:1px solid var(--mps-border);
+  color:var(--mps-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:130px}
+.aiw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--mps-border-gold);
+  background:var(--mps-bg3);color:var(--mps-text);cursor:pointer}
+.aiw-btn:hover{background:rgba(201,168,76,.15)}
+.aiw-btn:disabled{opacity:.4;cursor:not-allowed}
+.aiw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--mps-grn)}
+.aiw-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--mps-amb)}
+.mps-table-wrap{overflow-x:auto;border:1px solid var(--mps-border-gold);border-top:none}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{background:var(--mps-bg3);color:var(--mps-gold-lt);font-weight:700;text-align:left;padding:8px 10px;
+  text-transform:uppercase;font-size:9.5px;letter-spacing:.3px;border-bottom:1px solid var(--mps-border-gold);white-space:nowrap}
+tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--mps-text-muted);white-space:nowrap}
+.aiw-row{cursor:pointer}
+.aiw-row:hover{background:rgba(255,255,255,.03)}
+.aiw-row.aiw-sel{background:rgba(201,168,76,.1)}
+.empty-state{padding:30px;text-align:center;color:var(--mps-text-dim)}
+.empty-state strong{display:block;color:var(--mps-text-muted);margin-bottom:4px;font-size:12px}
+.mps-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px}
+.mps-modal{background:var(--mps-bg2);border:1px solid var(--mps-border-gold);border-radius:14px;
+  max-width:560px;width:100%;max-height:90vh;overflow:auto}
+.mps-modal.wide{max-width:900px}
+.mps-modal-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;
+  border-bottom:1px solid var(--mps-border);font-weight:700;color:var(--mps-gold-lt)}
+.mps-modal-hd button{background:none;border:none;color:var(--mps-text-dim);font-size:18px;cursor:pointer}
+.mps-modal-bd{padding:18px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;max-height:70vh;overflow-y:auto}
+.mps-modal-bd .full{grid-column:1/-1}
+.mps-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;
+  color:var(--mps-text-dim);margin-bottom:4px}
+.mps-field input,.mps-field select,.mps-field textarea{width:100%;background:var(--mps-bg3);
+  border:1px solid var(--mps-border);color:var(--mps-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.mps-field textarea{min-height:56px;resize:vertical}
+.mps-modal-ft{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--mps-border)}
+.mps-result-banner{grid-column:1/-1;border-radius:8px;padding:10px 14px;font-size:12px;font-weight:700;text-align:center}
+.mps-result-banner.approved{background:rgba(79,203,158,.15);color:var(--mps-grn);border:1px solid rgba(79,203,158,.4)}
+.mps-result-banner.notapproved{background:rgba(240,104,92,.15);color:var(--mps-red);border:1px solid rgba(240,104,92,.4)}
+.mps-result-banner.na{background:rgba(255,255,255,.06);color:var(--mps-text-dim);border:1px solid var(--mps-border)}
+.mps-sum-tbl{width:100%;border-collapse:collapse;font-size:11px;margin-top:10px}
+.mps-sum-tbl th{background:var(--mps-bg3);color:var(--mps-gold-lt);font-size:9.5px;text-transform:uppercase;
+  text-align:left;padding:6px 8px;border-bottom:1px solid var(--mps-border-gold)}
+.mps-sum-tbl td{padding:6px 8px;border-bottom:1px solid var(--mps-border)}
+/* print */
+.mps-print-wrap{display:none}
+@media print{
+  body *{visibility:hidden}
+  .mps-print-wrap, .mps-print-wrap *{visibility:visible}
+  .mps-print-wrap{display:block !important;position:absolute;left:0;top:0;width:100%;color:#000;background:#fff;padding:20px}
+  .mps-print-wrap .slip{border:2px solid #000;padding:20px;max-width:760px;margin:0 auto}
+  .mps-print-wrap h2{text-align:center;margin:0 0 4px}
+  .mps-print-wrap .sub{text-align:center;font-size:12px;margin-bottom:16px}
+  .mps-print-wrap table{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}
+  .mps-print-wrap td,.mps-print-wrap th{border:1px solid #000;padding:6px 8px;text-align:left}
+  .mps-print-wrap .sig-row{display:flex;justify-content:space-between;margin-top:40px}
+  .mps-print-wrap .sig-box{width:30%;text-align:center;border-top:1px solid #000;padding-top:4px;font-size:11px}
+  .mps-print-wrap .result-line{font-size:15px;font-weight:700;text-align:center;margin:14px 0;padding:8px;border:2px solid #000}
+}
+</style>
+</head><body><div class="mps-dark-wrap">
+<div class="back-row"><a href="oc02-environment.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
+
+<div class="req-text">MEPS Compliance Register — Minimum Energy Performance Standards (SEEC/SASO): any electrical equipment with a motor rated <strong>7.5 kW or above</strong> must meet a minimum efficiency class (IE3/IE4) before purchase or installation. Evidence of this check is required under <strong>ISO 50001 §8.3</strong> (Design &amp; Procurement). <strong>Pre-Purchase Slip:</strong> before buying, log the equipment here — the page checks it against the MEPS threshold and tells you whether it's approved to buy; print the slip to attach to the purchase order. <strong>Register:</strong> every slip becomes a row here; after delivery, use "Open / Edit" to record whether it was verified at goods receipt. <strong>One Purchase Ref can cover several equipment lines</strong> — e.g. a single furnace-rebuild contract with many motors — "🖨 Print Slip" prints all lines under one Purchase Ref together.</div>
+
+<div class="flag-text">⚠ <strong>Sheet already exists, header row needs updating:</strong> Google Sheet tab <code>48 – MEPS Compliance Register</code> (tabKey <code>meps</code>) already exists but with the OLD header row (Purchase Ref, Equipment Description, Motor Rating, Supplier, MEPS Required, Declared Efficiency Class, IE3/IE4 Certificate Ref, Certificate Date, Verified At Goods Receipt, Installation Date, 90-Day Performance Check, Performance vs Nameplate, Approved For Installation, Notes). Replace it with the new header row below before this page will save real data — the 90-day/performance-vs-nameplate columns are dropped, and <code>Equipment Ref</code>/<code>Compliance Result</code>/<code>Approved By</code> are new: <code>Equipment Ref, Purchase Ref, Date, Equipment Description, Motor Rating (kW), Supplier, Declared Efficiency Class, Certificate Ref, MEPS Required, Compliance Result, Approved By, Verified At Goods Receipt, Installation Date, Remarks, Record Status</code>. No historical data exists — this register starts empty.</div>
+
+<div class="flag-text">⚠ <strong>Sign-off assumption — please confirm:</strong> the Pre-Purchase Slip currently records a single "Approved By" name (meant to be the Procurement Manager). You'd mentioned Engineering might need to sign too, but we didn't settle it on the call — let me know if you want a second, separate Engineering sign-off field added.</div>
+
+<div class="sec-banner">MEPS — QUICK STATUS</div>
+<div class="kpi-grid" style="margin-bottom:14px">
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Equipment Lines Logged</div><div class="kpi-val" id="mps-kpi-total">—</div><div class="kpi-sub">Since go-live</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Approved</div><div class="kpi-val" id="mps-kpi-approved">—</div><div class="kpi-sub">Meets MEPS, cleared to buy</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">Not Approved</div><div class="kpi-val" id="mps-kpi-notapproved">—</div><div class="kpi-sub">Below required efficiency class</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Pending Goods-Receipt Check</div><div class="kpi-val" id="mps-kpi-pending">—</div><div class="kpi-sub">Approved lines not yet verified on arrival</div></div>
+</div>
+
+<div class="sec-banner">MEPS COMPLIANCE REGISTER</div>
+<div class="aiw-toolbar" style="border-top:1px solid var(--mps-border-gold)">
+  <input type="text" id="mps-search" placeholder="Search equipment / supplier / purchase ref…" oninput="MPS.onSearch(this.value)">
+  <select id="mps-result-filter" onchange="MPS.onResultFilter(this.value)">
+    <option value="">All results</option>
+    <option value="Approved">Approved</option>
+    <option value="Not Approved">Not Approved</option>
+    <option value="N/A — Below Threshold">N/A — Below Threshold</option>
+  </select>
+</div>
+<div class="aiw-toolbar" style="border-top:none">
+  <button class="aiw-btn aiw-btn-add" id="mps-btn-new" onclick="MPS.openAdd()">+ New Equipment Line (Pre-Purchase Slip)</button>
+  <button class="aiw-btn" id="mps-btn-edit" disabled onclick="MPS.openEditSelected()">Open / Edit</button>
+  <button class="aiw-btn aiw-btn-esc" id="mps-btn-slip" disabled onclick="MPS.printSlipSelected()">🖨 Print Slip</button>
+  <button class="aiw-btn" id="mps-btn-remove" disabled onclick="MPS.removeSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--mps-text-dim)" id="mps-count-sub"></span>
+</div>
+<div class="mps-table-wrap">
+  <table>
+    <thead><tr>
+      <th>Purchase Ref</th><th>Date</th><th>Equipment</th><th>Motor (kW)</th><th>Supplier</th>
+      <th>Efficiency Class</th><th>MEPS Req.</th><th>Result</th><th>Goods-Receipt</th>
+    </tr></thead>
+    <tbody id="mps-tbody"><tr><td colspan="9" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
+  </table>
+</div>
+
+<div id="mps-modal-root"></div>
+<div id="mps-print-root" class="mps-print-wrap"></div>
 
 <script>
-/* ── Auto-update summary cards from live Sheets data ── */
-
-function _h(h){ return typeof h==='string'?h.trim().toLowerCase():'' }
-function getColIdx(headers, colName){
-  var cn = _h(colName);
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i])===cn) return i; }
-  // partial match
-  for(var i=0;i<headers.length;i++){ if(_h(headers[i]).indexOf(cn)>-1) return i; }
-  return -1;
-}
-function getVal(row, colName){
-  var idx = getColIdx(window._liveHeaders||[], colName);
-  return idx>-1 ? String(row[idx]||'').trim() : '';
-}
-function count(){ return window._liveRows ? window._liveRows.length : 0; }
-function countWhere(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').trim()===val; }).length;
-}
-function countNotEmpty(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.filter(function(r){ var v=String(r[idx]||'').trim(); return v && v!=='-' && v!=='—'; }).length;
-}
-function countContains(col,val){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  var vl=val.toLowerCase();
-  return window._liveRows.filter(function(r){ return String(r[idx]||'').toLowerCase().indexOf(vl)>-1; }).length;
-}
-function sumCol(col){
-  if(!window._liveRows) return 0;
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return 0;
-  return window._liveRows.reduce(function(s,r){ return s+(parseFloat(String(r[idx]||'').replace(/,/g,''))||0); },0);
-}
-function getFirst(col){
-  if(!window._liveRows||!window._liveRows.length) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  return idx>-1 ? String(window._liveRows[0][idx]||'').trim()||'—' : '—';
-}
-function getLastNotEmpty(col){
-  if(!window._liveRows) return '—';
-  var idx=getColIdx(window._liveHeaders||[],col);
-  if(idx<0) return '—';
-  for(var i=window._liveRows.length-1;i>=0;i--){
-    var v=String(window._liveRows[i][idx]||'').trim();
-    if(v && v!=='-' && v!=='—') return v;
-  }
-  return '—';
-}
-
-function updateCard(label, val){
-  var cards = document.querySelectorAll('.kpi-card');
-  for(var i=0;i<cards.length;i++){
-    var lbl = cards[i].querySelector('.kpi-lbl');
-    var valEl = cards[i].querySelector('.kpi-val');
-    if(lbl && valEl && lbl.textContent.trim()===label){
-      if(val !== null && val !== undefined && val !== '') valEl.textContent = val;
-      break;
-    }
-  }
-}
 (function(){
-  var origRT = window.renderTable;
-  if(typeof origRT === 'function'){
-    window.renderTable = function(d, el){
-      origRT(d, el);
-      if(d && d.rows){
-        var rows = d.rows, headers = d.headers||[];
-        window._liveRows = rows; window._liveHeaders = headers;
-  updateCard('Equipment Checked', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return rows.length; })(d.rows||[],d.headers||[]));
-  updateCard('Compliant', (function(rows,headers){ window._liveRows=rows;window._liveHeaders=headers;return countContains("MEPS Required","YES") + countContains("Status","PASS"); })(d.rows||[],d.headers||[]));
+
+  var MEPS = { tabKey:'meps', idCol:'Equipment Ref' };
+  var STATUS_COL = 'Record Status';
+  var THRESHOLD_KW = 7.5;
+  var EFF_CLASSES = ['IE3','IE4','IE2','Not Rated / Unknown'];
+
+  var _cache = null, _selected = null;
+  var _filters = { search:'', result:'' };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function mEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+
+  /* MEPS rule, kept in one place: a motor at or above the threshold
+     must be IE3 or IE4 to be Approved; below the threshold the rule
+     simply doesn't apply (N/A, not a pass). No 90-day/performance-vs-
+     nameplate step — dropped per Issam (voice, 2026-11-01): ISO 50001
+     §8.3 only asks for evidence the criteria were applied at
+     purchase, not a post-installation study. */
+  function mepsRequired(kw){
+    var n = parseFloat(kw);
+    return !isNaN(n) && n >= THRESHOLD_KW;
+  }
+  function complianceResult(kw, effClass){
+    if (!mepsRequired(kw)) return 'N/A — Below Threshold';
+    return (effClass === 'IE3' || effClass === 'IE4') ? 'Approved' : 'Not Approved';
+  }
+  function resultBadgeClass(result){
+    if (result === 'Approved') return 'kc-grn';
+    if (result === 'Not Approved') return 'kc-red';
+    return 'kc-blue';
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){
+    return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
+  }
+  function loadAll(){
+    return loadTab(MEPS.tabKey).then(function(data){
+      if (data && data.headers && data.rows){
+        var si = colIdx(data.headers, STATUS_COL);
+        if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
       }
+      _cache = data;
+    }).catch(function(){ _cache = null; }).then(render);
+  }
+  function getRecs(){ if (!_cache || !_cache.headers || !_cache.rows) return []; return _cache.rows.map(function(r){ return recFromRow(_cache.headers, r); }); }
+
+  function nextEquipmentRef(){
+    var year = new Date().getFullYear();
+    var maxN = 0;
+    getRecs().forEach(function(r){
+      var m = String(r['Equipment Ref']||'').trim().match(new RegExp('^MEPS-'+year+'-(\\d+)$'));
+      if (m){ var n = parseInt(m[1],10); if (n > maxN) maxN = n; }
+    });
+    var numStr = String(maxN + 1); while (numStr.length < 3) numStr = '0' + numStr;
+    return 'MEPS-' + year + '-' + numStr;
+  }
+
+  /* ── Filtering ────────────────────────────────────────────────── */
+  function matchesFilters(r){
+    var f = _filters;
+    if (f.result && r['Compliance Result'] !== f.result) return false;
+    if (f.search){
+      var hay = ((r['Equipment Description']||'')+' '+(r['Supplier']||'')+' '+(r['Purchase Ref']||'')).toLowerCase();
+      if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+    }
+    return true;
+  }
+  function filteredRecs(){ return getRecs().filter(matchesFilters); }
+
+  /* ── KPIs ─────────────────────────────────────────────────────── */
+  function renderKPIs(){
+    var all = getRecs();
+    setTxt('mps-kpi-total', all.length);
+    var approved = 0, notApproved = 0, pending = 0;
+    all.forEach(function(r){
+      if (r['Compliance Result'] === 'Approved') approved++;
+      if (r['Compliance Result'] === 'Not Approved') notApproved++;
+      if (r['Compliance Result'] === 'Approved' && String(r['Verified At Goods Receipt']||'').toLowerCase() !== 'yes') pending++;
+    });
+    setTxt('mps-kpi-approved', approved);
+    setTxt('mps-kpi-notapproved', notApproved);
+    setTxt('mps-kpi-pending', pending);
+  }
+
+  /* ── Register table ───────────────────────────────────────────── */
+  function renderTable(){
+    var all = getRecs();
+    var list = filteredRecs();
+    var tbody = document.getElementById('mps-tbody');
+    setTxt('mps-count-sub', list.length + ' of ' + all.length + ' lines shown');
+    if (!list.length){
+      tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><strong>No records match these filters</strong>Use "+ New Equipment Line" to log a purchase before buying it.</td></tr>';
+      updateButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Date']||'').localeCompare(String(a['Date']||'')); });
+    tbody.innerHTML = list.map(function(r){
+      var sel = _selected === r['Equipment Ref'];
+      var grCls = String(r['Verified At Goods Receipt']||'').toLowerCase()==='yes' ? 'kc-grn' : 'kc-amb';
+      return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="MPS.select(\'' + mEsc(r['Equipment Ref']) + '\')">'
+        + '<td>' + mEsc(r['Purchase Ref']) + '</td>'
+        + '<td>' + mEsc(r['Date']) + '</td>'
+        + '<td style="white-space:normal;max-width:220px">' + mEsc(r['Equipment Description']) + '</td>'
+        + '<td>' + mEsc(r['Motor Rating (kW)']) + '</td>'
+        + '<td>' + mEsc(r['Supplier']) + '</td>'
+        + '<td>' + mEsc(r['Declared Efficiency Class']) + '</td>'
+        + '<td>' + (String(r['MEPS Required']).toLowerCase()==='yes' ? 'Yes' : 'No') + '</td>'
+        + '<td><span class="badge ' + resultBadgeClass(r['Compliance Result']) + '">' + mEsc(r['Compliance Result']) + '</span></td>'
+        + '<td><span class="badge ' + grCls + '">' + (r['Verified At Goods Receipt'] || 'Pending') + '</span></td>'
+        + '</tr>';
+    }).join('');
+    updateButtons();
+  }
+
+  function updateButtons(){
+    var hasSel = !!_selected;
+    document.getElementById('mps-btn-edit').disabled = !hasSel;
+    document.getElementById('mps-btn-remove').disabled = !hasSel || !can('safety.edit');
+    document.getElementById('mps-btn-slip').disabled = !hasSel;
+  }
+
+  function render(){ renderKPIs(); renderTable(); }
+
+  /* ── Add/Edit Modal ──────────────────────────────────────────────
+     Add = the Pre-Purchase Slip itself: fill it in BEFORE buying, see
+     the live compliance result, then save and print. Edit (post-
+     delivery) adds only Verified At Goods Receipt / Installation
+     Date / Remarks — the purchase-time fields stay locked once saved,
+     since changing them after the fact would misrepresent what was
+     actually checked before the purchase. */
+  function closeModal(){ document.getElementById('mps-modal-root').innerHTML = ''; }
+
+  function openForm(existing){
+    var r = existing || {};
+    var isEdit = !!existing;
+    var effOpts = EFF_CLASSES.map(function(c){
+      return '<option value="'+c+'"'+(r['Declared Efficiency Class']===c?' selected':'')+'>'+c+'</option>';
+    }).join('');
+    var purchaseLines = isEdit ? [] : getRecs().filter(function(x){ return x['Purchase Ref'] && r['Purchase Ref'] ? x['Purchase Ref']===r['Purchase Ref'] : false; });
+    var html = ''
+      + '<div class="mps-overlay" onclick="if(event.target===this) MPS.closeModal()">'
+      + '<div class="mps-modal">'
+      + '<div class="mps-modal-hd"><span>' + (isEdit?'Edit Equipment Line':'New Equipment Line — Pre-Purchase Slip') + '</span><button onclick="MPS.closeModal()">✕</button></div>'
+      + '<div class="mps-modal-bd">'
+      + '<div class="mps-field full"><label>Purchase Ref (PO / contract no. — reuse the same ref for multiple equipment lines under one order, e.g. a furnace rebuild)</label><input type="text" id="mps-f-pref" value="' + mEsc(r['Purchase Ref']||'') + '"' + (isEdit?' readonly':'') + ' placeholder="e.g. PO-2026-0145"></div>'
+      + '<div class="mps-field"><label>Date</label><input type="date" id="mps-f-date" value="' + mEsc(r['Date']||'') + '"' + (isEdit?' readonly':'') + '></div>'
+      + '<div class="mps-field"><label>Supplier</label><input type="text" id="mps-f-supplier" value="' + mEsc(r['Supplier']||'') + '"' + (isEdit?' readonly':'') + '></div>'
+      + '<div class="mps-field full"><label>Equipment Description</label><input type="text" id="mps-f-equip" value="' + mEsc(r['Equipment Description']||'') + '"' + (isEdit?' readonly':'') + ' placeholder="e.g. Compressed air compressor, Unit 3"></div>'
+      + '<div class="mps-field"><label>Motor Rating (kW)</label><input type="number" step="any" id="mps-f-kw" value="' + mEsc(r['Motor Rating (kW)']||'') + '"' + (isEdit?' readonly':' oninput="MPS.recomputeResult()"') + '></div>'
+      + '<div class="mps-field"><label>Declared Efficiency Class</label><select id="mps-f-eff"' + (isEdit?' disabled':' onchange="MPS.recomputeResult()"') + '>' + effOpts + '</select></div>'
+      + '<div class="mps-field full"><label>Certificate Ref</label><input type="text" id="mps-f-cert" value="' + mEsc(r['Certificate Ref']||'') + '"' + (isEdit?' readonly':'') + '></div>'
+      + (isEdit ? '' : '<div class="mps-field full"><label>Approved By (Procurement Manager)</label><input type="text" id="mps-f-approver" value=""></div>')
+      + '<div class="mps-result-banner" id="mps-result-banner"></div>'
+      + (isEdit
+        ? '<div class="mps-field"><label>Verified At Goods Receipt</label><select id="mps-f-gr"><option value="">Pending</option><option value="Yes"'+(r['Verified At Goods Receipt']==='Yes'?' selected':'')+'>Yes</option><option value="No"'+(r['Verified At Goods Receipt']==='No'?' selected':'')+'>No — returned to supplier</option></select></div>'
+        : '')
+      + (isEdit
+        ? '<div class="mps-field"><label>Installation Date</label><input type="date" id="mps-f-instdate" value="' + mEsc(r['Installation Date']||'') + '"></div>'
+        : '')
+      + '<div class="mps-field full"><label>Remarks</label><textarea id="mps-f-remarks">' + mEsc(r['Remarks']||'') + '</textarea></div>'
+      + '</div>'
+      + '<div class="mps-modal-ft">'
+      + '<button class="aiw-btn" onclick="MPS.closeModal()">Cancel</button>'
+      + '<button class="aiw-btn aiw-btn-add" onclick="MPS.save(\'' + (isEdit ? mEsc(r['Equipment Ref']) : '') + '\')">Save</button>'
+      + '</div></div></div>';
+    document.getElementById('mps-modal-root').innerHTML = html;
+    recomputeResult();
+  }
+
+  function recomputeResult(){
+    var kwEl = document.getElementById('mps-f-kw');
+    var effEl = document.getElementById('mps-f-eff');
+    if (!kwEl || !effEl) return;
+    var kw = kwEl.value, eff = effEl.value;
+    var req = mepsRequired(kw);
+    var result = complianceResult(kw, eff);
+    var banner = document.getElementById('mps-result-banner');
+    if (!banner) return;
+    var cls = result === 'Approved' ? 'approved' : (result === 'Not Approved' ? 'notapproved' : 'na');
+    var msg = result === 'Approved' ? '✅ APPROVED TO BUY — meets MEPS (' + eff + ', ' + kw + ' kW)'
+      : (result === 'Not Approved' ? '❌ NOT APPROVED — ' + (eff||'efficiency class not set') + ' does not meet the required IE3/IE4 for a ' + kw + ' kW motor. Do not purchase — ask the supplier for an IE3/IE4 option.'
+      : 'ℹ️ N/A — ' + (kw||'0') + ' kW is below the 7.5 kW MEPS threshold. No efficiency class requirement applies.');
+    banner.className = 'mps-result-banner ' + cls;
+    banner.textContent = msg;
+  }
+
+  function save(existingId){
+    var isEdit = !!existingId;
+    if (isEdit){
+      var rec = {
+        'Equipment Ref': existingId,
+        'Verified At Goods Receipt': document.getElementById('mps-f-gr').value,
+        'Installation Date': document.getElementById('mps-f-instdate').value,
+        'Remarks': document.getElementById('mps-f-remarks').value,
+      };
+      postJSON('update', { tab: MEPS.tabKey, id: existingId }, rec).then(function(){ closeModal(); loadAll(); });
+      return;
+    }
+    var kw = document.getElementById('mps-f-kw').value;
+    var eff = document.getElementById('mps-f-eff').value;
+    var req = mepsRequired(kw);
+    var result = complianceResult(kw, eff);
+    var rec = {
+      'Equipment Ref': nextEquipmentRef(),
+      'Purchase Ref': document.getElementById('mps-f-pref').value,
+      'Date': document.getElementById('mps-f-date').value,
+      'Equipment Description': document.getElementById('mps-f-equip').value,
+      'Motor Rating (kW)': kw,
+      'Supplier': document.getElementById('mps-f-supplier').value,
+      'Declared Efficiency Class': eff,
+      'Certificate Ref': document.getElementById('mps-f-cert').value,
+      'MEPS Required': req ? 'Yes' : 'No',
+      'Compliance Result': result,
+      'Approved By': document.getElementById('mps-f-approver').value,
+      'Verified At Goods Receipt': '',
+      'Installation Date': '',
+      'Remarks': document.getElementById('mps-f-remarks').value,
+      'Record Status': 'Active'
     };
+    if (!rec['Purchase Ref'] || !rec['Date'] || !rec['Equipment Description'] || !rec['Supplier'] || kw===''){
+      alert('Purchase Ref, Date, Equipment Description, Supplier and Motor Rating are all required.');
+      return;
+    }
+    postJSON('create', { tab: MEPS.tabKey }, rec).then(function(){ closeModal(); loadAll(); });
+  }
+
+  /* ── Printable Slip — groups every line under one Purchase Ref,
+     so a multi-motor order (e.g. a furnace rebuild) prints as a
+     single slip rather than one per motor. ──────────────────────── */
+  function printSlip(purchaseRef){
+    var lines = getRecs().filter(function(r){ return r['Purchase Ref'] === purchaseRef; });
+    if (!lines.length) return;
+    var anyNotApproved = lines.some(function(r){ return r['Compliance Result']==='Not Approved'; });
+    var overall = anyNotApproved ? 'NOT APPROVED — one or more lines below required efficiency' : 'APPROVED TO PURCHASE';
+    var rows = lines.map(function(r){
+      return '<tr><td>'+mEsc(r['Equipment Description'])+'</td><td>'+mEsc(r['Motor Rating (kW)'])+'</td>'
+        + '<td>'+mEsc(r['Declared Efficiency Class'])+'</td><td>'+mEsc(r['Certificate Ref'])+'</td>'
+        + '<td>'+mEsc(r['MEPS Required'])+'</td><td>'+mEsc(r['Compliance Result'])+'</td></tr>';
+    }).join('');
+    var html = ''
+      + '<div class="slip">'
+      + '<h2>SAUDI ARABIAN GLASS COMPANY</h2>'
+      + '<div class="sub">MEPS Pre-Purchase Compliance Slip — Purchase Ref ' + mEsc(purchaseRef) + '</div>'
+      + '<table><tr><th>Date</th><td>'+mEsc(lines[0]['Date'])+'</td><th>Supplier</th><td>'+mEsc(lines[0]['Supplier'])+'</td></tr></table>'
+      + '<table><thead><tr><th>Equipment</th><th>Motor (kW)</th><th>Efficiency Class</th><th>Certificate Ref</th><th>MEPS Req.</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table>'
+      + '<div class="result-line">' + overall + '</div>'
+      + '<div class="sig-row">'
+      + '<div class="sig-box">Prepared By<br>(Procurement)</div>'
+      + '<div class="sig-box">Approved By<br>' + mEsc(lines[0]['Approved By']||'') + '</div>'
+      + '<div class="sig-box">Date</div>'
+      + '</div>'
+      + '</div>';
+    document.getElementById('mps-print-root').innerHTML = html;
+    window.print();
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.MPS = {
+    onSearch: function(v){ _filters.search = v; renderTable(); },
+    onResultFilter: function(v){ _filters.result = v; renderTable(); },
+    select: function(id){ _selected = (_selected === id) ? null : id; renderTable(); },
+    openAdd: function(){ openForm(null); },
+    openEditSelected: function(){
+      if (!_selected) return;
+      var r = getRecs().filter(function(x){ return x['Equipment Ref'] === _selected; })[0];
+      if (r) openForm(r);
+    },
+    recomputeResult: recomputeResult,
+    removeSelected: function(){
+      if (!_selected || !can('safety.edit')) return;
+      if (!confirm('Remove this equipment line?')) return;
+      postJSON('update', { tab: MEPS.tabKey, id: _selected }, { 'Equipment Ref': _selected, 'Record Status': 'Removed' })
+        .then(function(){ _selected = null; loadAll(); });
+    },
+    printSlipSelected: function(){
+      if (!_selected) return;
+      var r = getRecs().filter(function(x){ return x['Equipment Ref'] === _selected; })[0];
+      if (r) printSlip(r['Purchase Ref']);
+    },
+    closeModal: closeModal,
+    save: save
+  };
+
+  if (typeof IMS_AUTH !== 'undefined'){
+    IMS_AUTH.init({ onReady: function(){ loadAll(); } });
+  } else {
+    loadAll();
   }
 })();
 </script>
 
 <script>
-(function() {
-  function colIdx(headers, name) {
-    var n = name.toLowerCase();
-    for (var i=0;i<headers.length;i++) {
-      if (headers[i].toLowerCase().indexOf(n) >= 0) return i;
-    }
-    return -1;
+/* ── Access gate ──────────────────────────────────────────────────
+   Flagged assumption: this data is Procurement/Engineering-owned
+   (not Safety), so gated to Engineering/Energy dept + Managers + CEO
+   rather than copying the SHEE-department rule used on the Safety
+   pages. Please confirm this matches who should actually see it. */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(engineering|energy|procurement)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
   }
-  function countVal(rows, col, val) {
-    if (col < 0) return 0;
-    var v = val ? val.toLowerCase() : null;
-    return rows.filter(function(r){
-      var cell = String(r[col]||'').toLowerCase().trim();
-      return v ? (cell === v || cell.indexOf(v) >= 0) : cell !== '' && cell !== '—' && cell !== '-';
-    }).length;
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The MEPS Compliance Register is limited to Engineering, Energy, Procurement, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
   }
-  function sumCol(rows, col) {
-    if (col < 0) return 0;
-    return rows.reduce(function(s,r){
-      var v = parseFloat(String(r[col]).replace(/[^0-9.]/g,''));
-      return s + (isNaN(v) ? 0 : v);
-    }, 0);
-  }
-  function setCard(idx, val) {
-    var cards = document.querySelectorAll('.kpi-val');
-    if (cards[idx]) cards[idx].textContent = val;
-  }
-
-  var origRender = window.renderTable;
-  window.renderTable = function(data, container) {
-    if (origRender) origRender(data, container);
-    if (!data || !data.rows || !data.headers) return;
-    var rows = data.rows, h = data.headers;
-    try { setCard(0, rows.length); } catch(e) {}
-  };
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
 })();
 </script>
-</body></html>
+</div>
+</body>
+</html>
