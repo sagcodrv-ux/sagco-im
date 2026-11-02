@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Energy Invoices</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+/* ══════════════════════════════════════════════════════════════════
+   ENERGY INVOICES — OC-02 Environment & Energy. Collects every energy
+   invoice (Electricity, LPG, Diesel, Fuel Oil) entered by Finance.
+   Built 2026-11-01 (Issam, voice), same one-record-per-MONTH pattern
+   as furnace-energy.html, but with FOUR sections inside one monthly
+   record — one per energy type — each independently either a typed
+   total or a set of summed invoice lines, plus scanned-invoice
+   attachments via the portal's existing Drive upload endpoint. Class
+   prefix eni-.
+   ══════════════════════════════════════════════════════════════════ */
+.eni-dark-wrap{
+  --eni-bg:#0D1B35; --eni-bg2:#142140; --eni-bg3:#1a2a50;
+  --eni-gold:#C9A84C; --eni-gold-lt:#E8C97A;
+  --eni-text:rgba(255,255,255,.92); --eni-text-muted:rgba(255,255,255,.55);
+  --eni-text-dim:rgba(255,255,255,.35); --eni-border:rgba(255,255,255,.08);
+  --eni-border-gold:rgba(201,168,76,.35);
+  --eni-blue:#5B9BD5; --eni-red:#F0685C; --eni-amb:#E8B339; --eni-grn:#4FCB9E; --eni-purple:#9B7FE0;
+  background:var(--eni-bg); color:var(--eni-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.eni-dark-wrap *{box-sizing:border-box}
+.back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--eni-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--eni-bg2);
+  border-radius:8px;border:1px solid var(--eni-border-gold)}
+.back-link:hover{background:var(--eni-bg3)}
+.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--eni-bg2);
+  border-radius:8px;border-left:3px solid var(--eni-gold);margin:10px 0;color:var(--eni-text-muted)}
+.sec-banner{background:var(--eni-bg2);color:var(--eni-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--eni-border-gold);border-bottom:none}
+.kpi-grid{display:grid;gap:14px;grid-template-columns:repeat(4,1fr)}
+.kpi-card{background:var(--eni-bg2);border:1px solid var(--eni-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.kpi-card.kc-nvy::before{background:var(--eni-gold)}
+.kpi-card.kc-grn::before{background:var(--eni-grn)}
+.kpi-card.kc-amb::before{background:var(--eni-amb)}
+.kpi-card.kc-blue::before{background:var(--eni-blue)}
+.kpi-lbl{font-size:10px;font-weight:700;color:var(--eni-text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.kpi-val{font-size:20px;font-weight:800;color:var(--eni-text)}
+.kpi-sub{font-size:10px;color:var(--eni-text-dim);margin-top:2px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.badge.kc-grn{background:rgba(79,203,158,.15);color:var(--eni-grn)}
+.badge.kc-amb{background:rgba(232,179,57,.15);color:var(--eni-amb)}
+.aiw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--eni-bg2);border:1px solid var(--eni-border-gold);border-top:none}
+.aiw-toolbar select{background:var(--eni-bg3);border:1px solid var(--eni-border);
+  color:var(--eni-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:120px}
+.aiw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--eni-border-gold);
+  background:var(--eni-bg3);color:var(--eni-text);cursor:pointer}
+.aiw-btn:hover{background:rgba(201,168,76,.15)}
+.aiw-btn:disabled{opacity:.4;cursor:not-allowed}
+.aiw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--eni-grn)}
+.aiw-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--eni-amb)}
+.eni-table-wrap{overflow-x:auto;border:1px solid var(--eni-border-gold);border-top:none}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{background:var(--eni-bg3);color:var(--eni-gold-lt);font-weight:700;text-align:left;padding:8px 10px;
+  text-transform:uppercase;font-size:9.5px;letter-spacing:.3px;border-bottom:1px solid var(--eni-border-gold);white-space:nowrap}
+tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--eni-text-muted);white-space:nowrap}
+.aiw-row{cursor:pointer}
+.aiw-row:hover{background:rgba(255,255,255,.03)}
+.aiw-row.aiw-sel{background:rgba(201,168,76,.1)}
+.empty-state{padding:30px;text-align:center;color:var(--eni-text-dim)}
+.empty-state strong{display:block;color:var(--eni-text-muted);margin-bottom:4px;font-size:12px}
+.eni-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px}
+.eni-modal{background:var(--eni-bg2);border:1px solid var(--eni-border-gold);border-radius:14px;
+  max-width:760px;width:100%;max-height:90vh;overflow:auto}
+.eni-modal-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;
+  border-bottom:1px solid var(--eni-border);font-weight:700;color:var(--eni-gold-lt)}
+.eni-modal-hd button{background:none;border:none;color:var(--eni-text-dim);font-size:18px;cursor:pointer}
+.eni-modal-bd{padding:18px 20px;max-height:70vh;overflow-y:auto}
+.eni-field{margin-bottom:10px}
+.eni-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;
+  color:var(--eni-text-dim);margin-bottom:4px}
+.eni-field input,.eni-field select,.eni-field textarea{width:100%;background:var(--eni-bg3);
+  border:1px solid var(--eni-border);color:var(--eni-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.eni-field textarea{min-height:44px;resize:vertical}
+.eni-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.eni-modal-ft{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--eni-border);flex-wrap:wrap}
+.eni-progress-banner{border-radius:8px;padding:9px 13px;font-size:11px;font-weight:600;margin:10px 0;text-align:center}
+.eni-progress-banner.open{background:rgba(232,179,57,.15);color:var(--eni-amb);border:1px solid rgba(232,179,57,.4)}
+.eni-progress-banner.ready{background:rgba(79,203,158,.15);color:var(--eni-grn);border:1px solid rgba(79,203,158,.4)}
+.eni-progress-banner.closed{background:rgba(91,155,213,.15);color:var(--eni-blue);border:1px solid rgba(91,155,213,.4)}
+.eni-section{border:1px solid var(--eni-border-gold);border-radius:10px;margin-bottom:14px;overflow:hidden}
+.eni-section-hd{background:var(--eni-bg3);color:var(--eni-gold-lt);font-weight:700;font-size:12px;
+  padding:9px 14px;display:flex;justify-content:space-between;align-items:center}
+.eni-section-bd{padding:12px 14px}
+.eni-lines-tbl{width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:8px}
+.eni-lines-tbl th{background:var(--eni-bg3);color:var(--eni-gold-lt);font-size:9px;text-transform:uppercase;
+  text-align:left;padding:5px 7px;border-bottom:1px solid var(--eni-border-gold)}
+.eni-lines-tbl td{padding:4px 7px;border-bottom:1px solid var(--eni-border)}
+.eni-mini-btn{font-size:10px;padding:4px 8px;border-radius:5px;border:1px solid var(--eni-border-gold);
+  background:var(--eni-bg3);color:var(--eni-text);cursor:pointer}
+.eni-line-form{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:8px}
+.eni-line-form input{background:var(--eni-bg3);border:1px solid var(--eni-border);color:var(--eni-text);
+  border-radius:5px;padding:5px 6px;font-size:10.5px;width:100%}
+.eni-totals-row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-top:6px}
+.eni-totals-row .eni-field{flex:1;min-width:140px;margin-bottom:0}
+.eni-unit-cost{font-size:11px;color:var(--eni-text-dim);margin-top:6px}
+.eni-attach-list{display:flex;flex-direction:column;gap:4px;margin:8px 0}
+.eni-attach-item{display:flex;align-items:center;justify-content:space-between;background:var(--eni-bg3);
+  border-radius:6px;padding:5px 9px;font-size:10.5px}
+.eni-attach-item a{color:var(--eni-gold-lt);text-decoration:none}
+.eni-attach-status{font-size:10px;color:var(--eni-text-dim);margin-top:4px}
+</style>
+</head><body><div class="eni-dark-wrap">
+<div class="back-row"><a href="oc02-environment.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
+
+<div class="req-text">Energy Invoices — every energy invoice in one place: <strong>Electricity, LPG, Diesel and Fuel Oil (HFO)</strong>, entered by Finance. <strong>One record per month</strong>, with one section per energy type inside it. Each section can be filled in two ways: type the month's <strong>total quantity and amount</strong> directly, or add the <strong>individual invoice lines</strong> (invoice no., date, supplier, quantity, amount — plus account/feeder for Electricity and LPG) and the page sums them automatically. Scanned invoices can be attached to each energy type — more than one per month if there's more than one invoice. The page shows the unit cost for each energy type (SAR per kWh or per liter) and the month's total spend. The month closes once all four energy types have a total entered.</div>
+
+<div class="sec-banner">ENERGY INVOICES — QUICK STATUS</div>
+<div class="kpi-grid" style="margin-bottom:14px">
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Months Logged</div><div class="kpi-val" id="eni-kpi-total">—</div><div class="kpi-sub">Since go-live</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Open</div><div class="kpi-val" id="eni-kpi-open">—</div><div class="kpi-sub">Still being filled in</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Closed</div><div class="kpi-val" id="eni-kpi-closed">—</div><div class="kpi-sub">Finalised by Finance</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl" id="eni-kpi-month-lbl">This Month Spend</div><div class="kpi-val" id="eni-kpi-month">—</div><div class="kpi-sub">SAR, all energy types</div></div>
+</div>
+
+<div class="sec-banner">ENERGY INVOICES REGISTER</div>
+<div class="aiw-toolbar" style="border-top:1px solid var(--eni-border-gold)">
+  <select id="eni-status-filter" onchange="ENI.onStatusFilter(this.value)">
+    <option value="">All statuses</option>
+    <option value="Open">Open</option>
+    <option value="Closed">Closed</option>
+  </select>
+</div>
+<div class="aiw-toolbar" style="border-top:none">
+  <button class="aiw-btn aiw-btn-add" id="eni-btn-new" onclick="ENI.openAdd()">+ New Month</button>
+  <button class="aiw-btn" id="eni-btn-edit" disabled onclick="ENI.openEditSelected()">Open / Edit</button>
+  <button class="aiw-btn" id="eni-btn-remove" disabled onclick="ENI.removeSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--eni-text-dim)" id="eni-count-sub"></span>
+</div>
+<div class="eni-table-wrap">
+  <table>
+    <thead><tr>
+      <th>Month</th><th>Status</th><th>Electricity (SAR)</th><th>LPG (SAR)</th><th>Diesel (SAR)</th><th>Fuel Oil (SAR)</th><th>Total (SAR)</th>
+    </tr></thead>
+    <tbody id="eni-tbody"><tr><td colspan="7" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
+  </table>
+</div>
+
+<div id="eni-modal-root"></div>
+
+<script>
+(function(){
+
+  var ENI_TAB = { tabKey:'energy_invoices', idCol:'Record ID' };
+  var STATUS_COL = 'Record Status';
+
+  /* ── Energy type definitions — drives every section the same way.
+     unit: what Total Quantity is measured in. hasAccount/hasFeeder:
+     which extra fields an invoice LINE carries for that type. */
+  var TYPES = [
+    { key:'Electricity', unit:'kWh', hasAccount:true,  hasFeeder:true  },
+    { key:'LPG',          unit:'L',   hasAccount:true,  hasFeeder:false },
+    { key:'Diesel',       unit:'L',   hasAccount:false, hasFeeder:false },
+    { key:'Fuel Oil',     unit:'L',   hasAccount:false, hasFeeder:false }
+  ];
+
+  var _cache = null, _selected = null, _lastEditedId = null;
+  var _filters = { status:'' };
+  var _formLines = {};  // { 'Electricity': [...], 'LPG': [...], ... } — working copy while modal open
+  var _formAttach = {}; // { 'Electricity': [{name,url,fileId}], ... }
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
+    var s = IMS_AUTH.getSession();
+    var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    return (u && u.name) || (s && s.username) || '';
+  }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function eEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+  function fmt(n, dp){ if (n==null || isNaN(n)) return '—'; return Number(n).toLocaleString(undefined,{minimumFractionDigits:dp||0, maximumFractionDigits:dp||0}); }
+  function parseJSONArr(s){ if(!s) return []; try{ var a=JSON.parse(s); return Array.isArray(a)?a:[]; } catch(e){ return []; } }
+  function sumLines(lines, key){ return lines.reduce(function(s,l){ var n=parseFloat(l[key]); return s+(isNaN(n)?0:n); },0); }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){
+    return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
+  }
+  function loadAll(){
+    return loadTab(ENI_TAB.tabKey).then(function(data){
+      if (data && data.headers && data.rows){
+        var si = colIdx(data.headers, STATUS_COL);
+        if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+      }
+      _cache = data;
+    }).catch(function(){ _cache = null; }).then(render);
+  }
+  function getRecs(){ if (!_cache || !_cache.headers || !_cache.rows) return []; return _cache.rows.map(function(r){ return recFromRow(_cache.headers, r); }); }
+
+  function recordId(month){ return 'ENI-' + month; }
+
+  /* ── Per-type figures for a saved record (register table + KPIs) ── */
+  function typeAmount(r, typeKey){ return parseFloat(r[typeKey + ' Total Amount']) || 0; }
+  function typeQty(r, typeKey){ return parseFloat(r[typeKey + ' Total Quantity']) || 0; }
+  function recordTotalSpend(r){ return TYPES.reduce(function(s,t){ return s + typeAmount(r, t.key); }, 0); }
+  function typeFilled(r, typeKey){ return typeQty(r, typeKey) > 0 && typeAmount(r, typeKey) > 0; }
+  function allTypesFilled(r){ return TYPES.every(function(t){ return typeFilled(r, t.key); }); }
+
+  /* ── Filtering ────────────────────────────────────────────────── */
+  function matchesFilters(r){
+    if (_filters.status && r['Status'] !== _filters.status) return false;
+    return true;
+  }
+  function filteredRecs(){ return getRecs().filter(matchesFilters); }
+
+  /* ── KPIs ─────────────────────────────────────────────────────── */
+  function currentMonthStr(){
+    var d = new Date(); var m = d.getMonth()+1;
+    return d.getFullYear() + '-' + (m<10?'0'+m:m);
+  }
+  function renderKPIs(){
+    var all = getRecs();
+    setTxt('eni-kpi-total', all.length);
+    var open=0, closed=0;
+    all.forEach(function(r){ if (r['Status']==='Closed') closed++; else open++; });
+    setTxt('eni-kpi-open', open);
+    setTxt('eni-kpi-closed', closed);
+    var thisMonth = currentMonthStr();
+    var rec = all.filter(function(r){ return r['Month']===thisMonth; })[0];
+    setTxt('eni-kpi-month-lbl', thisMonth + ' Spend');
+    setTxt('eni-kpi-month', rec ? fmt(recordTotalSpend(rec)) : '0');
+  }
+
+  /* ── Register table ───────────────────────────────────────────── */
+  function renderTable(){
+    var all = getRecs();
+    var list = filteredRecs();
+    var tbody = document.getElementById('eni-tbody');
+    setTxt('eni-count-sub', list.length + ' of ' + all.length + ' records shown');
+    if (!list.length){
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><strong>No records match these filters</strong>Use "+ New Month" to start an energy invoices record.</td></tr>';
+      updateButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Month']||'').localeCompare(String(a['Month']||'')); });
+    tbody.innerHTML = list.map(function(r){
+      var sel = _selected === r['Record ID'];
+      var statusCls = r['Status']==='Closed' ? 'kc-grn' : 'kc-amb';
+      return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="ENI.select(\'' + eEsc(r['Record ID']) + '\')">'
+        + '<td>' + eEsc(r['Month']) + '</td>'
+        + '<td><span class="badge ' + statusCls + '">' + eEsc(r['Status']) + '</span></td>'
+        + '<td>' + fmt(typeAmount(r,'Electricity')) + '</td>'
+        + '<td>' + fmt(typeAmount(r,'LPG')) + '</td>'
+        + '<td>' + fmt(typeAmount(r,'Diesel')) + '</td>'
+        + '<td>' + fmt(typeAmount(r,'Fuel Oil')) + '</td>'
+        + '<td><strong>' + fmt(recordTotalSpend(r)) + '</strong></td>'
+        + '</tr>';
+    }).join('');
+    updateButtons();
+  }
+
+  function updateButtons(){
+    var hasSel = !!_selected;
+    document.getElementById('eni-btn-edit').disabled = !hasSel;
+    document.getElementById('eni-btn-remove').disabled = !hasSel || !can('safety.edit');
+  }
+
+  function render(){ renderKPIs(); renderTable(); }
+
+  /* ── Add Modal ────────────────────────────────────────────────── */
+  function closeModal(){ document.getElementById('eni-modal-root').innerHTML=''; _formLines={}; _formAttach={}; _lastEditedId=null; }
+
+  function openAdd(){
+    var html = ''
+      + '<div class="eni-overlay" onclick="if(event.target===this) ENI.closeModal()">'
+      + '<div class="eni-modal" style="max-width:420px">'
+      + '<div class="eni-modal-hd"><span>New Month</span><button onclick="ENI.closeModal()">✕</button></div>'
+      + '<div class="eni-modal-bd">'
+      + '<div class="eni-field"><label>Month</label><input type="month" id="eni-new-month" value="' + currentMonthStr() + '"></div>'
+      + '</div>'
+      + '<div class="eni-modal-ft">'
+      + '<button class="aiw-btn" onclick="ENI.closeModal()">Cancel</button>'
+      + '<button class="aiw-btn aiw-btn-add" onclick="ENI.createRecord()">Start Record</button>'
+      + '</div></div></div>';
+    document.getElementById('eni-modal-root').innerHTML = html;
+  }
+
+  function createRecord(){
+    var month = document.getElementById('eni-new-month').value;
+    if (!month){ alert('Pick a month first.'); return; }
+    var id = recordId(month);
+    if (getRecs().some(function(r){ return r['Record ID']===id; })){
+      alert('A record for ' + month + ' already exists. Opening it instead.');
+      closeModal();
+      openEdit(getRecs().filter(function(r){ return r['Record ID']===id; })[0]);
+      return;
+    }
+    var rec = { 'Record ID': id, 'Month': month, 'Status':'Open', 'Closed By':'', 'Closed Date':'', 'Remarks':'', 'Record Status':'Active' };
+    TYPES.forEach(function(t){
+      rec[t.key+' Lines (JSON)'] = '[]';
+      rec[t.key+' Total Quantity'] = '';
+      rec[t.key+' Total Amount'] = '';
+      rec[t.key+' Attachments (JSON)'] = '[]';
+    });
+    postJSON('create', { tab: ENI_TAB.tabKey }, rec).then(function(){ closeModal(); loadAll().then(function(){
+      var r = getRecs().filter(function(x){ return x['Record ID']===id; })[0];
+      if (r) openEdit(r);
+    }); });
+  }
+
+  function openEditSelected(){
+    if (!_selected) return;
+    var r = getRecs().filter(function(x){ return x['Record ID']===_selected; })[0];
+    if (r) openEdit(r);
+  }
+
+  function openEdit(r){
+    _lastEditedId = r['Record ID'];
+    _formLines = {}; _formAttach = {};
+    TYPES.forEach(function(t){
+      _formLines[t.key] = parseJSONArr(r[t.key+' Lines (JSON)']);
+      _formAttach[t.key] = parseJSONArr(r[t.key+' Attachments (JSON)']);
+    });
+    var isClosed = r['Status'] === 'Closed';
+    var html = ''
+      + '<div class="eni-overlay" onclick="if(event.target===this) ENI.closeModal()">'
+      + '<div class="eni-modal">'
+      + '<div class="eni-modal-hd"><span>Energy Invoices — ' + eEsc(r['Month']) + '</span><button onclick="ENI.closeModal()">✕</button></div>'
+      + '<div class="eni-modal-bd" id="eni-edit-body"></div>'
+      + '<div class="eni-modal-ft" id="eni-edit-footer"></div>'
+      + '</div></div>';
+    document.getElementById('eni-modal-root').innerHTML = html;
+    renderEditBody(isClosed);
+  }
+
+  function currentEditingRec(){ return getRecs().filter(function(x){ return x['Record ID']===_lastEditedId; })[0] || {}; }
+
+  function sectionTotals(typeKey){
+    var lines = _formLines[typeKey] || [];
+    if (lines.length){
+      return { qty: sumLines(lines,'quantity'), amt: sumLines(lines,'amount'), fromLines:true };
+    }
+    var qtyEl = document.getElementById('eni-bulk-qty-' + typeKey);
+    var amtEl = document.getElementById('eni-bulk-amt-' + typeKey);
+    var r = currentEditingRec();
+    var qty = qtyEl ? parseFloat(qtyEl.value)||0 : (parseFloat(r[typeKey+' Total Quantity'])||0);
+    var amt = amtEl ? parseFloat(amtEl.value)||0 : (parseFloat(r[typeKey+' Total Amount'])||0);
+    return { qty: qty, amt: amt, fromLines:false };
+  }
+
+  function renderEditBody(isClosed){
+    var r = currentEditingRec();
+    var body = document.getElementById('eni-edit-body');
+    var footer = document.getElementById('eni-edit-footer');
+
+    var allFilled = true, grandTotal = 0;
+    var sectionsHtml = TYPES.map(function(t){
+      var tot = sectionTotals(t.key);
+      if (!(tot.qty>0 && tot.amt>0)) allFilled = false;
+      grandTotal += tot.amt;
+      var unitCost = tot.qty>0 ? (tot.amt/tot.qty) : null;
+      var lines = _formLines[t.key] || [];
+      var attach = _formAttach[t.key] || [];
+
+      var linesRows = lines.map(function(l,idx){
+        var extra = (t.hasAccount ? ('<td>'+eEsc(l.account||'')+'</td>') : '') + (t.hasFeeder ? ('<td>'+eEsc(l.feeder||'')+'</td>') : '');
+        return '<tr><td>'+eEsc(l.invoiceNo)+'</td><td>'+eEsc(l.date)+'</td><td>'+eEsc(l.supplier)+'</td>'+extra
+          +'<td>'+fmt(l.quantity)+'</td><td>'+fmt(l.amount)+'</td>'
+          +'<td>'+(isClosed?'':'<button class="eni-mini-btn" onclick="ENI.removeLine(\''+t.key+'\','+idx+')">✕</button>')+'</td></tr>';
+      }).join('');
+      var extraHead = (t.hasAccount?'<th>Account</th>':'') + (t.hasFeeder?'<th>Feeder</th>':'');
+      var linesTbl = lines.length ? (''
+        + '<table class="eni-lines-tbl"><thead><tr><th>Invoice No.</th><th>Date</th><th>Supplier</th>'+extraHead+'<th>Qty ('+t.unit+')</th><th>Amount (SAR)</th><th></th></tr></thead>'
+        + '<tbody>'+linesRows+'</tbody></table>') : '';
+
+      var lineFormExtra = (t.hasAccount ? '<input placeholder="Account" id="eni-ln-account-'+t.key+'">' : '')
+        + (t.hasFeeder ? '<input placeholder="Feeder" id="eni-ln-feeder-'+t.key+'">' : '');
+      var addLineForm = isClosed ? '' : (''
+        + '<div class="eni-line-form">'
+        + '<input placeholder="Invoice No." id="eni-ln-no-'+t.key+'">'
+        + '<input type="date" id="eni-ln-date-'+t.key+'">'
+        + '<input placeholder="Supplier" id="eni-ln-supplier-'+t.key+'">'
+        + lineFormExtra
+        + '<input type="number" step="any" placeholder="Qty" id="eni-ln-qty-'+t.key+'">'
+        + '<input type="number" step="any" placeholder="Amount SAR" id="eni-ln-amt-'+t.key+'">'
+        + '</div>'
+        + '<button class="eni-mini-btn" onclick="ENI.addLine(\''+t.key+'\')">+ Add Invoice Line</button>');
+
+      var attachList = attach.length ? ('<div class="eni-attach-list">' + attach.map(function(a,idx){
+          return '<div class="eni-attach-item"><a href="'+eEsc(a.url)+'" target="_blank">📎 '+eEsc(a.name)+'</a>'
+            + (isClosed?'':'<button class="eni-mini-btn" onclick="ENI.removeAttachment(\''+t.key+'\','+idx+')">✕</button>')+'</div>';
+        }).join('') + '</div>') : '';
+      var uploadCtl = isClosed ? '' : (''
+        + '<label class="eni-mini-btn" style="display:inline-block;cursor:pointer">📎 Attach Scan<input type="file" accept="application/pdf,image/*" style="display:none" id="eni-file-'+t.key+'" onchange="ENI.onFileSelected(event,\''+t.key+'\')"></label>'
+        + '<span class="eni-attach-status" id="eni-attach-status-'+t.key+'"></span>');
+
+      var totalsRow = tot.fromLines
+        ? ('<div class="eni-totals-row"><div class="eni-field"><label>Total Quantity ('+t.unit+')</label><input value="'+fmt(tot.qty,1)+'" readonly></div>'
+           + '<div class="eni-field"><label>Total Amount (SAR)</label><input value="'+fmt(tot.amt,2)+'" readonly></div></div>')
+        : ('<div class="eni-totals-row"><div class="eni-field"><label>Total Quantity ('+t.unit+')</label><input type="number" step="any" id="eni-bulk-qty-'+t.key+'" value="'+eEsc(r[t.key+' Total Quantity']||'')+'"'+(isClosed?' readonly':' oninput="ENI.onBulkChange(\''+t.key+'\')"')+'></div>'
+           + '<div class="eni-field"><label>Total Amount (SAR)</label><input type="number" step="any" id="eni-bulk-amt-'+t.key+'" value="'+eEsc(r[t.key+' Total Amount']||'')+'"'+(isClosed?' readonly':' oninput="ENI.onBulkChange(\''+t.key+'\')"')+'></div></div>');
+
+      return ''
+        + '<div class="eni-section">'
+        + '<div class="eni-section-hd"><span>' + t.key + '</span><span>' + (tot.qty>0&&tot.amt>0?'✅ filled':'— not filled yet') + '</span></div>'
+        + '<div class="eni-section-bd">'
+        + linesTbl + addLineForm
+        + totalsRow
+        + '<div class="eni-unit-cost">Unit cost: ' + (unitCost!=null ? ('SAR '+unitCost.toFixed(3)+' / '+t.unit) : '—') + '</div>'
+        + attachList + uploadCtl
+        + '</div></div>';
+    }).join('');
+
+    var progressHtml = isClosed
+      ? '<div class="eni-progress-banner closed">✔ CLOSED by ' + eEsc(r['Closed By']||'') + ' on ' + eEsc(r['Closed Date']||'') + '</div>'
+      : '<div class="eni-progress-banner ' + (allFilled?'ready':'open') + '">'
+        + (allFilled ? '✅ All four energy types filled — ready to close' : 'Fill in all four energy types (Electricity, LPG, Diesel, Fuel Oil) to close this month')
+        + ' — Total so far: SAR ' + fmt(grandTotal) + '</div>';
+
+    body.innerHTML = progressHtml + sectionsHtml
+      + '<div class="eni-field" style="margin-top:4px"><label>Remarks</label><textarea id="eni-remarks">' + eEsc(r['Remarks']||'') + '</textarea></div>';
+
+    var footerBtns = '<button class="aiw-btn" onclick="ENI.closeModal()">Cancel</button>';
+    if (!isClosed){
+      footerBtns += '<button class="aiw-btn" onclick="ENI.saveProgress(\'' + eEsc(r['Record ID']) + '\')">Save</button>';
+      footerBtns += '<button class="aiw-btn aiw-btn-esc"' + (allFilled?'':' disabled') + ' onclick="ENI.closeMonth(\'' + eEsc(r['Record ID']) + '\')">Close Month</button>';
+    } else if (can('safety.edit')) {
+      footerBtns += '<button class="aiw-btn" onclick="ENI.reopenMonth(\'' + eEsc(r['Record ID']) + '\')">Reopen</button>';
+    }
+    footer.innerHTML = footerBtns;
+  }
+
+  function addLine(typeKey){
+    var get = function(suffix){ var el = document.getElementById('eni-ln-'+suffix+'-'+typeKey); return el ? el.value : ''; };
+    var line = {
+      invoiceNo: get('no'), date: get('date'), supplier: get('supplier'),
+      account: get('account'), feeder: get('feeder'),
+      quantity: parseFloat(get('qty'))||0, amount: parseFloat(get('amt'))||0
+    };
+    if (!line.invoiceNo || !line.date || !line.quantity || !line.amount){
+      alert('Invoice No., Date, Quantity and Amount are required for a line.'); return;
+    }
+    _formLines[typeKey] = _formLines[typeKey] || [];
+    _formLines[typeKey].push(line);
+    renderEditBody(false);
+  }
+  function removeLine(typeKey, idx){
+    _formLines[typeKey].splice(idx,1);
+    renderEditBody(false);
+  }
+  function onBulkChange(typeKey){ renderEditBody(false); }
+
+  /* ── Scanned-invoice uploads — same Drive endpoint already used by
+     violation-register.html / loto-register.html / chemical-
+     inventory.html. Filed under a subfolder named after this record's
+     ID plus the energy type, e.g. ENI-2026-11-Electricity. */
+  function onFileSelected(evt, typeKey){
+    var file = evt.target.files && evt.target.files[0];
+    if (!file) return;
+    var statusEl = document.getElementById('eni-attach-status-' + typeKey);
+    statusEl.textContent = 'Uploading…';
+    var reader = new FileReader();
+    reader.onload = function(){
+      var dataUrl = reader.result;
+      var commaIdx = dataUrl.indexOf(',');
+      var base64 = commaIdx >= 0 ? dataUrl.substring(commaIdx+1) : dataUrl;
+      var username = currentUserName() || 'unknown';
+      var docId = _lastEditedId + '-' + typeKey;
+      fetch(SHEETS_URL, {
+        method:'POST',
+        body: JSON.stringify({ action:'uploadFilePicker', docId: docId, fileName: file.name, mimeType: file.type || 'application/octet-stream', b64: base64, username: username })
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if (!res || res.ok === false){
+          statusEl.textContent = 'Upload failed' + (res && res.error ? ': '+res.error : '') + ' — try again.';
+          return;
+        }
+        _formAttach[typeKey] = _formAttach[typeKey] || [];
+        _formAttach[typeKey].push({ name: file.name, url: res.webViewLink || res.previewLink || '', fileId: res.fileId || '' });
+        statusEl.textContent = '';
+        renderEditBody(false);
+      }).catch(function(){ statusEl.textContent = 'Upload failed — try again.'; });
+    };
+    reader.readAsDataURL(file);
+  }
+  function removeAttachment(typeKey, idx){
+    _formAttach[typeKey].splice(idx,1);
+    renderEditBody(false);
+  }
+
+  function buildSaveRec(id){
+    var r = currentEditingRec();
+    var rec = { 'Record ID': id };
+    TYPES.forEach(function(t){
+      var tot = sectionTotals(t.key);
+      rec[t.key+' Lines (JSON)'] = JSON.stringify(_formLines[t.key]||[]);
+      rec[t.key+' Total Quantity'] = tot.qty;
+      rec[t.key+' Total Amount'] = tot.amt;
+      rec[t.key+' Attachments (JSON)'] = JSON.stringify(_formAttach[t.key]||[]);
+    });
+    rec['Remarks'] = document.getElementById('eni-remarks') ? document.getElementById('eni-remarks').value : (r['Remarks']||'');
+    return rec;
+  }
+
+  function saveProgress(id){
+    var rec = buildSaveRec(id);
+    postJSON('update', { tab: ENI_TAB.tabKey, id:id }, rec).then(function(){ closeModal(); loadAll(); });
+  }
+  function closeMonth(id){
+    if (!confirm('Close this month? The record will be locked; a Manager or Superadmin can reopen it later if needed.')) return;
+    var rec = buildSaveRec(id);
+    rec['Status'] = 'Closed';
+    rec['Closed By'] = currentUserName();
+    rec['Closed Date'] = new Date().toISOString().slice(0,10);
+    postJSON('update', { tab: ENI_TAB.tabKey, id:id }, rec).then(function(){ closeModal(); loadAll(); });
+  }
+  function reopenMonth(id){
+    if (!can('safety.edit')) return;
+    if (!confirm('Reopen this month for editing?')) return;
+    postJSON('update', { tab: ENI_TAB.tabKey, id:id }, { 'Record ID':id, 'Status':'Open', 'Closed By':'', 'Closed Date':'' })
+      .then(function(){ closeModal(); loadAll(); });
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.ENI = {
+    onStatusFilter: function(v){ _filters.status=v; renderTable(); },
+    select: function(id){ _selected = (_selected===id)?null:id; renderTable(); },
+    openAdd: openAdd,
+    createRecord: createRecord,
+    openEditSelected: openEditSelected,
+    addLine: addLine,
+    removeLine: removeLine,
+    onBulkChange: onBulkChange,
+    onFileSelected: onFileSelected,
+    removeAttachment: removeAttachment,
+    saveProgress: saveProgress,
+    closeMonth: closeMonth,
+    reopenMonth: reopenMonth,
+    removeSelected: function(){
+      if (!_selected || !can('safety.edit')) return;
+      if (!confirm('Remove this month\'s energy invoices record?')) return;
+      postJSON('update', { tab: ENI_TAB.tabKey, id:_selected }, { 'Record ID':_selected, 'Record Status':'Removed' })
+        .then(function(){ _selected=null; loadAll(); });
+    },
+    closeModal: closeModal
+  };
+
+  if (typeof IMS_AUTH !== 'undefined'){
+    IMS_AUTH.init({ onReady: function(){ loadAll(); } });
+  } else {
+    loadAll();
+  }
+})();
+</script>
+
+<script>
+/* ── Access gate ──────────────────────────────────────────────────
+   Flagged assumption: Finance enters this data, but Energy/Engineering
+   presumably needs to see it too, so gated to Finance + Engineering/
+   Energy dept + Managers + CEO + Superadmin. Please confirm. */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(finance|engineering|energy)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">Energy Invoices is limited to Finance, Engineering, Energy, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+</div>
+</body>
+</html>

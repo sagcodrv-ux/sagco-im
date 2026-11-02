@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Furnace Energy Consumption</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+/* ══════════════════════════════════════════════════════════════════
+   FURNACE ENERGY CONSUMPTION — OC-02 Environment & Energy. Separate
+   from Furnace Monitoring Logs (temperatures/process readings) — this
+   page is fuel-to-output only: monthly HFO consumption vs. melted
+   glass, per furnace. Built 2026-11-01 (Issam, voice) around ONE
+   evolving record per furnace per month: the furnace team can fill it
+   in day by day, or type the month's totals in one go, and close the
+   month once it's complete. Class prefix fec-.
+   ══════════════════════════════════════════════════════════════════ */
+.fec-dark-wrap{
+  --fec-bg:#0D1B35; --fec-bg2:#142140; --fec-bg3:#1a2a50;
+  --fec-gold:#C9A84C; --fec-gold-lt:#E8C97A;
+  --fec-text:rgba(255,255,255,.92); --fec-text-muted:rgba(255,255,255,.55);
+  --fec-text-dim:rgba(255,255,255,.35); --fec-border:rgba(255,255,255,.08);
+  --fec-border-gold:rgba(201,168,76,.35);
+  --fec-blue:#5B9BD5; --fec-red:#F0685C; --fec-amb:#E8B339; --fec-grn:#4FCB9E;
+  background:var(--fec-bg); color:var(--fec-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.fec-dark-wrap *{box-sizing:border-box}
+.back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--fec-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--fec-bg2);
+  border-radius:8px;border:1px solid var(--fec-border-gold)}
+.back-link:hover{background:var(--fec-bg3)}
+.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--fec-bg2);
+  border-radius:8px;border-left:3px solid var(--fec-gold);margin:10px 0;color:var(--fec-text-muted)}
+.sec-banner{background:var(--fec-bg2);color:var(--fec-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--fec-border-gold);border-bottom:none}
+.kpi-grid{display:grid;gap:14px;grid-template-columns:repeat(4,1fr)}
+.kpi-card{background:var(--fec-bg2);border:1px solid var(--fec-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.kpi-card.kc-nvy::before{background:var(--fec-gold)}
+.kpi-card.kc-grn::before{background:var(--fec-grn)}
+.kpi-card.kc-amb::before{background:var(--fec-amb)}
+.kpi-card.kc-blue::before{background:var(--fec-blue)}
+.kpi-lbl{font-size:10px;font-weight:700;color:var(--fec-text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.kpi-val{font-size:22px;font-weight:800;color:var(--fec-text)}
+.kpi-sub{font-size:10px;color:var(--fec-text-dim);margin-top:2px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.badge.kc-grn{background:rgba(79,203,158,.15);color:var(--fec-grn)}
+.badge.kc-red{background:rgba(240,104,92,.15);color:var(--fec-red)}
+.badge.kc-amb{background:rgba(232,179,57,.15);color:var(--fec-amb)}
+.badge.kc-blue{background:rgba(91,155,213,.15);color:var(--fec-blue)}
+.aiw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--fec-bg2);border:1px solid var(--fec-border-gold);border-top:none}
+.aiw-toolbar input[type=text],.aiw-toolbar select{background:var(--fec-bg3);border:1px solid var(--fec-border);
+  color:var(--fec-text);border-radius:7px;padding:7px 10px;font-size:11px;min-width:120px}
+.aiw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--fec-border-gold);
+  background:var(--fec-bg3);color:var(--fec-text);cursor:pointer}
+.aiw-btn:hover{background:rgba(201,168,76,.15)}
+.aiw-btn:disabled{opacity:.4;cursor:not-allowed}
+.aiw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--fec-grn)}
+.aiw-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--fec-amb)}
+.fec-table-wrap{overflow-x:auto;border:1px solid var(--fec-border-gold);border-top:none}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{background:var(--fec-bg3);color:var(--fec-gold-lt);font-weight:700;text-align:left;padding:8px 10px;
+  text-transform:uppercase;font-size:9.5px;letter-spacing:.3px;border-bottom:1px solid var(--fec-border-gold);white-space:nowrap}
+tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--fec-text-muted);white-space:nowrap}
+.aiw-row{cursor:pointer}
+.aiw-row:hover{background:rgba(255,255,255,.03)}
+.aiw-row.aiw-sel{background:rgba(201,168,76,.1)}
+.empty-state{padding:30px;text-align:center;color:var(--fec-text-dim)}
+.empty-state strong{display:block;color:var(--fec-text-muted);margin-bottom:4px;font-size:12px}
+.fec-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px}
+.fec-modal{background:var(--fec-bg2);border:1px solid var(--fec-border-gold);border-radius:14px;
+  max-width:620px;width:100%;max-height:90vh;overflow:auto}
+.fec-modal-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;
+  border-bottom:1px solid var(--fec-border);font-weight:700;color:var(--fec-gold-lt)}
+.fec-modal-hd button{background:none;border:none;color:var(--fec-text-dim);font-size:18px;cursor:pointer}
+.fec-modal-bd{padding:18px 20px;max-height:70vh;overflow-y:auto}
+.fec-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fec-field{margin-bottom:12px}
+.fec-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;
+  color:var(--fec-text-dim);margin-bottom:4px}
+.fec-field input,.fec-field select,.fec-field textarea{width:100%;background:var(--fec-bg3);
+  border:1px solid var(--fec-border);color:var(--fec-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.fec-field textarea{min-height:48px;resize:vertical}
+.fec-field .hint{font-size:10px;color:var(--fec-text-dim);margin-top:3px;line-height:1.5}
+.fec-modal-ft{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--fec-border);flex-wrap:wrap}
+.fec-mode-pick{display:flex;gap:10px;margin-bottom:4px}
+.fec-mode-pick label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;text-transform:none;
+  background:var(--fec-bg3);border:1px solid var(--fec-border);border-radius:8px;padding:8px 12px;cursor:pointer;flex:1}
+.fec-mode-pick input{width:auto}
+.fec-progress-banner{border-radius:8px;padding:9px 13px;font-size:11px;font-weight:600;margin:10px 0;text-align:center}
+.fec-progress-banner.open{background:rgba(232,179,57,.15);color:var(--fec-amb);border:1px solid rgba(232,179,57,.4)}
+.fec-progress-banner.ready{background:rgba(79,203,158,.15);color:var(--fec-grn);border:1px solid rgba(79,203,158,.4)}
+.fec-progress-banner.closed{background:rgba(91,155,213,.15);color:var(--fec-blue);border:1px solid rgba(91,155,213,.4)}
+.fec-daily-tbl{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
+.fec-daily-tbl th{background:var(--fec-bg3);color:var(--fec-gold-lt);font-size:9.5px;text-transform:uppercase;
+  text-align:left;padding:6px 8px;border-bottom:1px solid var(--fec-border-gold)}
+.fec-daily-tbl td{padding:5px 8px;border-bottom:1px solid var(--fec-border)}
+.fec-mini-btn{font-size:10px;padding:4px 8px;border-radius:5px;border:1px solid var(--fec-border-gold);
+  background:var(--fec-bg3);color:var(--fec-text);cursor:pointer}
+.fec-sum-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+.fec-sum-tbl th{text-align:left;color:var(--fec-text-dim);font-size:10px;text-transform:uppercase;padding:5px 0}
+.fec-sum-tbl td{padding:5px 0;font-weight:700;color:var(--fec-text);text-align:right}
+</style>
+</head><body><div class="fec-dark-wrap">
+<div class="back-row"><a href="oc02-environment.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
+
+<div class="req-text">Furnace Energy Consumption — fuel-to-output tracking per furnace, separate from the Furnace Monitoring Logs (temperatures and process readings). <strong>One record per furnace per month.</strong> It can be filled in two ways: <strong>Daily</strong> — add a line each day with liters consumed and tons of glass melted, and the month's totals build up as days are added; or <strong>Bulk</strong> — type the month's total liters and total melted tons directly, in one go. The entry mode is fixed once the record is created. A Daily-mode month can only be closed once the number of daily lines matches the actual number of days in that month (28–31, including leap years); a Bulk-mode month closes as soon as both totals are entered. All figures use <strong>heavy fuel oil only</strong> and <strong>melted glass</strong> (not packed). The page calculates liters per tonne, kilocalories per kilogram melted, and the greenhouse gas rate per tonne melted.</div>
+
+<div class="sec-banner">FURNACE ENERGY — QUICK STATUS</div>
+<div class="kpi-grid" style="margin-bottom:14px">
+  <div class="kpi-card kc-nvy"><div class="kpi-lbl">Furnace-Months Logged</div><div class="kpi-val" id="fec-kpi-total">—</div><div class="kpi-sub">Since go-live</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Open</div><div class="kpi-val" id="fec-kpi-open">—</div><div class="kpi-sub">Still being filled in</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Closed</div><div class="kpi-val" id="fec-kpi-closed">—</div><div class="kpi-sub">Finalised by the furnace team</div></div>
+  <div class="kpi-card kc-blue"><div class="kpi-lbl" id="fec-kpi-month-lbl">This Month Logged</div><div class="kpi-val" id="fec-kpi-month">—</div><div class="kpi-sub">of 5 furnaces have a record started</div></div>
+</div>
+
+<div class="sec-banner">FURNACE ENERGY CONSUMPTION REGISTER</div>
+<div class="aiw-toolbar" style="border-top:1px solid var(--fec-border-gold)">
+  <select id="fec-furnace-filter" onchange="FEC.onFurnaceFilter(this.value)">
+    <option value="">All furnaces</option>
+    <option value="F1">F1</option><option value="F2">F2</option><option value="F3">F3</option>
+    <option value="F4">F4</option><option value="F5">F5</option>
+  </select>
+  <select id="fec-status-filter" onchange="FEC.onStatusFilter(this.value)">
+    <option value="">All statuses</option>
+    <option value="Open">Open</option>
+    <option value="Closed">Closed</option>
+  </select>
+</div>
+<div class="aiw-toolbar" style="border-top:none">
+  <button class="aiw-btn aiw-btn-add" id="fec-btn-new" onclick="FEC.openAdd()">+ New Month</button>
+  <button class="aiw-btn" id="fec-btn-edit" disabled onclick="FEC.openEditSelected()">Open / Edit</button>
+  <button class="aiw-btn" id="fec-btn-remove" disabled onclick="FEC.removeSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--fec-text-dim)" id="fec-count-sub"></span>
+</div>
+<div class="fec-table-wrap">
+  <table>
+    <thead><tr>
+      <th>Furnace</th><th>Month</th><th>Mode</th><th>Status</th><th>Total Liters</th><th>Melted (t)</th>
+      <th>L / t</th><th>kcal/kg Melted</th><th>CO₂e (t)</th><th>CO₂e / t Melted</th>
+    </tr></thead>
+    <tbody id="fec-tbody"><tr><td colspan="10" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
+  </table>
+</div>
+
+<div id="fec-modal-root"></div>
+
+<script>
+(function(){
+
+  var FEC_TAB = { tabKey:'furnace_energy', idCol:'Record ID' };
+  var STATUS_COL = 'Record Status';
+  var FURNACES = ['F1','F2','F3','F4','F5'];
+
+  /* ── Agreed constants (Issam, voice, 2026-11-01) ──────────────────
+     HFO only. Density/GCV already standardized across this project's
+     Energy Review work at 10,361 kcal per liter of HFO. The GHG
+     factor below is NOT yet confirmed by Issam's ESG/GHG-inventory
+     team — it's the standard published default for heavy fuel oil,
+     kept as one editable constant here so it's a one-line fix once
+     the real verified factor is provided. */
+  var HFO_KCAL_PER_LITER = 10361;      // kcal per liter of HFO — confirmed, project-standard
+  var CO2E_KG_PER_LITER  = 3.08;       // kg CO2e per liter of HFO — ⚠ ASSUMED default, confirm with Issam's ESG/GHG team
+
+  var _cache = null, _selected = null, _lastEditedId = null;
+  var _filters = { furnace:'', status:'' };
+  var _formDaily = [];   // working copy of daily lines while the modal is open
+  var _formMode = null;  // 'Daily' | 'Bulk' — for the open modal
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
+    var s = IMS_AUTH.getSession();
+    var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    return (u && u.name) || (s && s.username) || '';
+  }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function mEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+  function fmt(n, dp){ if (n==null || isNaN(n)) return '—'; return Number(n).toLocaleString(undefined,{minimumFractionDigits:dp||0, maximumFractionDigits:dp||0}); }
+
+  function daysInMonth(monthStr){ // monthStr 'YYYY-MM'
+    var parts = String(monthStr||'').split('-');
+    var y = parseInt(parts[0],10), m = parseInt(parts[1],10);
+    if (!y || !m) return 30;
+    return new Date(y, m, 0).getDate(); // handles Feb 28/29 automatically
+  }
+
+  function parseDailyJSON(s){
+    if (!s) return [];
+    try { var arr = JSON.parse(s); return Array.isArray(arr) ? arr : []; } catch(e){ return []; }
+  }
+
+  function sumDaily(lines, key){
+    return lines.reduce(function(s,l){ var n = parseFloat(l[key]); return s + (isNaN(n)?0:n); }, 0);
+  }
+
+  /* ── Derived figures — same formulas everywhere a record's totals
+     are shown, so the register, the KPIs and the modal never disagree. */
+  function computeDerived(totalLiters, totalTons){
+    var L = parseFloat(totalLiters) || 0, T = parseFloat(totalTons) || 0;
+    var litersPerTon = T > 0 ? L / T : null;
+    var kcalPerKgMelted = T > 0 ? (L * HFO_KCAL_PER_LITER) / (T * 1000) : null;
+    var co2eTotalTons = (L * CO2E_KG_PER_LITER) / 1000;
+    var co2ePerTonMelted = T > 0 ? (L * CO2E_KG_PER_LITER) / T : null;
+    return { litersPerTon: litersPerTon, kcalPerKgMelted: kcalPerKgMelted, co2eTotalTons: co2eTotalTons, co2ePerTonMelted: co2ePerTonMelted };
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){
+    return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
+  }
+  function loadAll(){
+    return loadTab(FEC_TAB.tabKey).then(function(data){
+      if (data && data.headers && data.rows){
+        var si = colIdx(data.headers, STATUS_COL);
+        if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+      }
+      _cache = data;
+    }).catch(function(){ _cache = null; }).then(render);
+  }
+  function getRecs(){ if (!_cache || !_cache.headers || !_cache.rows) return []; return _cache.rows.map(function(r){ return recFromRow(_cache.headers, r); }); }
+
+  function recordId(month, furnace){ return 'FEC-' + month + '-' + furnace; }
+
+  /* ── Filtering ────────────────────────────────────────────────── */
+  function matchesFilters(r){
+    var f = _filters;
+    if (f.furnace && r['Furnace'] !== f.furnace) return false;
+    if (f.status && r['Status'] !== f.status) return false;
+    return true;
+  }
+  function filteredRecs(){ return getRecs().filter(matchesFilters); }
+
+  /* ── KPIs ─────────────────────────────────────────────────────── */
+  function currentMonthStr(){
+    var d = new Date(); var m = d.getMonth()+1;
+    return d.getFullYear() + '-' + (m<10?'0'+m:m);
+  }
+  function renderKPIs(){
+    var all = getRecs();
+    setTxt('fec-kpi-total', all.length);
+    var open = 0, closed = 0;
+    all.forEach(function(r){
+      if (r['Status'] === 'Closed') closed++; else open++;
+    });
+    setTxt('fec-kpi-open', open);
+    setTxt('fec-kpi-closed', closed);
+    var thisMonth = currentMonthStr();
+    var startedThisMonth = all.filter(function(r){ return r['Month'] === thisMonth; }).length;
+    setTxt('fec-kpi-month-lbl', thisMonth + ' Logged');
+    setTxt('fec-kpi-month', startedThisMonth);
+  }
+
+  /* ── Register table ───────────────────────────────────────────── */
+  function renderTable(){
+    var all = getRecs();
+    var list = filteredRecs();
+    var tbody = document.getElementById('fec-tbody');
+    setTxt('fec-count-sub', list.length + ' of ' + all.length + ' records shown');
+    if (!list.length){
+      tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><strong>No records match these filters</strong>Use "+ New Month" to start a furnace-month record.</td></tr>';
+      updateButtons();
+      return;
+    }
+    list.sort(function(a,b){
+      var ma = String(b['Month']||'').localeCompare(String(a['Month']||''));
+      if (ma !== 0) return ma;
+      return String(a['Furnace']||'').localeCompare(String(b['Furnace']||''));
+    });
+    tbody.innerHTML = list.map(function(r){
+      var sel = _selected === r['Record ID'];
+      var d = computeDerived(r['Total Liters'], r['Total Melted Tons']);
+      var statusCls = r['Status']==='Closed' ? 'kc-blue' : 'kc-amb';
+      return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="FEC.select(\'' + mEsc(r['Record ID']) + '\')">'
+        + '<td>' + mEsc(r['Furnace']) + '</td>'
+        + '<td>' + mEsc(r['Month']) + '</td>'
+        + '<td>' + mEsc(r['Entry Mode']) + '</td>'
+        + '<td><span class="badge ' + statusCls + '">' + mEsc(r['Status']) + '</span></td>'
+        + '<td>' + fmt(r['Total Liters']) + '</td>'
+        + '<td>' + fmt(r['Total Melted Tons'],1) + '</td>'
+        + '<td>' + (d.litersPerTon!=null ? fmt(d.litersPerTon,1) : '—') + '</td>'
+        + '<td>' + (d.kcalPerKgMelted!=null ? fmt(d.kcalPerKgMelted,0) : '—') + '</td>'
+        + '<td>' + fmt(d.co2eTotalTons,2) + '</td>'
+        + '<td>' + (d.co2ePerTonMelted!=null ? fmt(d.co2ePerTonMelted,1) : '—') + '</td>'
+        + '</tr>';
+    }).join('');
+    updateButtons();
+  }
+
+  function updateButtons(){
+    var hasSel = !!_selected;
+    document.getElementById('fec-btn-edit').disabled = !hasSel;
+    document.getElementById('fec-btn-remove').disabled = !hasSel || !can('safety.edit');
+  }
+
+  function render(){ renderKPIs(); renderTable(); }
+
+  /* ── Add/Edit Modal ──────────────────────────────────────────────
+     New = pick Furnace + Month + Entry Mode, then the same modal
+     shows the right entry UI. Entry Mode is locked once a record is
+     first saved — switching modes mid-month would mix two different
+     ways of counting the same figures. */
+  function closeModal(){ document.getElementById('fec-modal-root').innerHTML = ''; _formDaily = []; _formMode = null; _lastEditedId = null; }
+
+  function openAdd(){
+    var html = ''
+      + '<div class="fec-overlay" onclick="if(event.target===this) FEC.closeModal()">'
+      + '<div class="fec-modal">'
+      + '<div class="fec-modal-hd"><span>New Furnace-Month Record</span><button onclick="FEC.closeModal()">✕</button></div>'
+      + '<div class="fec-modal-bd">'
+      + '<div class="fec-row2">'
+      + '<div class="fec-field"><label>Furnace</label><select id="fec-new-furnace">' + FURNACES.map(function(f){ return '<option value="'+f+'">'+f+'</option>'; }).join('') + '</select></div>'
+      + '<div class="fec-field"><label>Month</label><input type="month" id="fec-new-month" value="' + currentMonthStr() + '"></div>'
+      + '</div>'
+      + '<div class="fec-field"><label>Entry Mode</label>'
+      + '<div class="fec-mode-pick">'
+      + '<label><input type="radio" name="fec-new-mode" value="Daily" checked> Daily — add one line per day</label>'
+      + '<label><input type="radio" name="fec-new-mode" value="Bulk"> Bulk — enter the month\'s totals directly</label>'
+      + '</div>'
+      + '<div class="hint">This can\'t be changed once the record is created.</div>'
+      + '</div>'
+      + '</div>'
+      + '<div class="fec-modal-ft">'
+      + '<button class="aiw-btn" onclick="FEC.closeModal()">Cancel</button>'
+      + '<button class="aiw-btn aiw-btn-add" onclick="FEC.createRecord()">Start Record</button>'
+      + '</div></div></div>';
+    document.getElementById('fec-modal-root').innerHTML = html;
+  }
+
+  function createRecord(){
+    var furnace = document.getElementById('fec-new-furnace').value;
+    var month = document.getElementById('fec-new-month').value;
+    var mode = document.querySelector('input[name="fec-new-mode"]:checked').value;
+    if (!month){ alert('Pick a month first.'); return; }
+    var id = recordId(month, furnace);
+    if (getRecs().some(function(r){ return r['Record ID'] === id; })){
+      alert('A record for ' + furnace + ' / ' + month + ' already exists. Opening it instead.');
+      closeModal();
+      var existing = getRecs().filter(function(r){ return r['Record ID'] === id; })[0];
+      openEdit(existing);
+      return;
+    }
+    var rec = {
+      'Record ID': id,
+      'Furnace': furnace,
+      'Month': month,
+      'Entry Mode': mode,
+      'Daily Entries (JSON)': mode === 'Daily' ? '[]' : '',
+      'Total Liters': 0,
+      'Total Melted Tons': 0,
+      'Days Logged': 0,
+      'Days In Month': daysInMonth(month),
+      'Liters per Ton': '',
+      'kcal per kg Melted': '',
+      'CO2e Total (t)': '',
+      'CO2e per Ton Melted': '',
+      'Status': 'Open',
+      'Closed By': '',
+      'Closed Date': '',
+      'Remarks': '',
+      'Record Status': 'Active'
+    };
+    postJSON('create', { tab: FEC_TAB.tabKey }, rec).then(function(){ closeModal(); loadAll().then(function(){
+      var r = getRecs().filter(function(x){ return x['Record ID'] === id; })[0];
+      if (r) openEdit(r);
+    }); });
+  }
+
+  function openEditSelected(){
+    if (!_selected) return;
+    var r = getRecs().filter(function(x){ return x['Record ID'] === _selected; })[0];
+    if (r) openEdit(r);
+  }
+
+  function openEdit(r){
+    _lastEditedId = r['Record ID'];
+    _formMode = r['Entry Mode'];
+    _formDaily = _formMode === 'Daily' ? parseDailyJSON(r['Daily Entries (JSON)']) : [];
+    var isClosed = r['Status'] === 'Closed';
+    var html = ''
+      + '<div class="fec-overlay" onclick="if(event.target===this) FEC.closeModal()">'
+      + '<div class="fec-modal">'
+      + '<div class="fec-modal-hd"><span>' + mEsc(r['Furnace']) + ' — ' + mEsc(r['Month']) + ' (' + mEsc(r['Entry Mode']) + ')</span><button onclick="FEC.closeModal()">✕</button></div>'
+      + '<div class="fec-modal-bd" id="fec-edit-body"></div>'
+      + '<div class="fec-modal-ft" id="fec-edit-footer"></div>'
+      + '</div></div>';
+    document.getElementById('fec-modal-root').innerHTML = html;
+    renderEditBody(isClosed);
+  }
+
+  function currentEditingRec(){
+    return getRecs().filter(function(x){ return x['Record ID'] === _lastEditedId; })[0] || {};
+  }
+
+  function renderEditBody(isClosed){
+    var r = currentEditingRec();
+    var body = document.getElementById('fec-edit-body');
+    var footer = document.getElementById('fec-edit-footer');
+    var totalLiters, totalTons, daysLogged, daysTotal = daysInMonth(r['Month']);
+
+    if (_formMode === 'Daily'){
+      totalLiters = sumDaily(_formDaily, 'liters');
+      totalTons = sumDaily(_formDaily, 'tons');
+      daysLogged = _formDaily.length;
+    } else {
+      var bulkLitersEl = document.getElementById('fec-bulk-liters');
+      var bulkTonsEl = document.getElementById('fec-bulk-tons');
+      totalLiters = parseFloat(bulkLitersEl ? bulkLitersEl.value : r['Total Liters']) || 0;
+      totalTons = parseFloat(bulkTonsEl ? bulkTonsEl.value : r['Total Melted Tons']) || 0;
+      daysLogged = null;
+    }
+    var d = computeDerived(totalLiters, totalTons);
+    var canClose = _formMode === 'Daily' ? (daysLogged === daysTotal && daysTotal > 0) : (totalLiters > 0 && totalTons > 0);
+
+    var progressHtml;
+    if (isClosed){
+      progressHtml = '<div class="fec-progress-banner closed">✔ CLOSED by ' + mEsc(r['Closed By']||'') + ' on ' + mEsc(r['Closed Date']||'') + '</div>';
+    } else if (_formMode === 'Daily'){
+      progressHtml = '<div class="fec-progress-banner ' + (canClose?'ready':'open') + '">'
+        + (canClose ? '✅ All ' + daysTotal + ' days logged — ready to close' : daysLogged + ' of ' + daysTotal + ' days logged — keep adding daily lines, or close once complete')
+        + '</div>';
+    } else {
+      progressHtml = '<div class="fec-progress-banner ' + (canClose?'ready':'open') + '">'
+        + (canClose ? '✅ Totals entered — ready to close' : 'Enter both totals below to close this month')
+        + '</div>';
+    }
+
+    var entryHtml;
+    if (_formMode === 'Daily'){
+      var sorted = _formDaily.slice().sort(function(a,b){ return String(a.date).localeCompare(String(b.date)); });
+      var rows = sorted.map(function(line){
+        var realIdx = _formDaily.indexOf(line);
+        return '<tr><td>' + mEsc(line.date) + '</td><td>' + fmt(line.liters) + '</td><td>' + fmt(line.tons,1) + '</td>'
+          + '<td>' + (isClosed ? '' : '<button class="fec-mini-btn" onclick="FEC.removeDailyLine(' + realIdx + ')">✕</button>') + '</td></tr>';
+      }).join('');
+      entryHtml = ''
+        + '<table class="fec-daily-tbl"><thead><tr><th>Date</th><th>Liters</th><th>Melted (t)</th><th></th></tr></thead>'
+        + '<tbody>' + (rows || '<tr><td colspan="4" style="text-align:center;color:var(--fec-text-dim)">No daily lines yet</td></tr>') + '</tbody></table>'
+        + (isClosed ? '' : ''
+          + '<div class="fec-row2" style="margin-top:8px">'
+          + '<div class="fec-field"><label>Date</label><input type="date" id="fec-day-date"></div>'
+          + '<div></div>'
+          + '<div class="fec-field"><label>Liters Consumed</label><input type="number" step="any" id="fec-day-liters"></div>'
+          + '<div class="fec-field"><label>Melted (t)</label><input type="number" step="any" id="fec-day-tons"></div>'
+          + '</div>'
+          + '<button class="aiw-btn aiw-btn-add" onclick="FEC.addDailyLine()">+ Add Day</button>');
+    } else {
+      entryHtml = ''
+        + '<div class="fec-row2">'
+        + '<div class="fec-field"><label>Total Liters Consumed</label><input type="number" step="any" id="fec-bulk-liters" value="' + mEsc(totalLiters||'') + '"' + (isClosed?' readonly':' oninput="FEC.onBulkChange()"') + '></div>'
+        + '<div class="fec-field"><label>Total Melted (t)</label><input type="number" step="any" id="fec-bulk-tons" value="' + mEsc(totalTons||'') + '"' + (isClosed?' readonly':' oninput="FEC.onBulkChange()"') + '></div>'
+        + '</div>';
+    }
+
+    var resultsHtml = ''
+      + '<table class="fec-sum-tbl">'
+      + '<tr><th>Total Liters</th><td>' + fmt(totalLiters) + ' L</td></tr>'
+      + '<tr><th>Total Melted</th><td>' + fmt(totalTons,1) + ' t</td></tr>'
+      + '<tr><th>Liters / Tonne</th><td>' + (d.litersPerTon!=null?fmt(d.litersPerTon,1):'—') + '</td></tr>'
+      + '<tr><th>kcal / kg Melted</th><td>' + (d.kcalPerKgMelted!=null?fmt(d.kcalPerKgMelted,0):'—') + '</td></tr>'
+      + '<tr><th>CO₂e Total</th><td>' + fmt(d.co2eTotalTons,2) + ' t</td></tr>'
+      + '<tr><th>CO₂e / Tonne Melted</th><td>' + (d.co2ePerTonMelted!=null?fmt(d.co2ePerTonMelted,1)+' kg':'—') + '</td></tr>'
+      + '</table>';
+
+    body.innerHTML = progressHtml + entryHtml + resultsHtml
+      + '<div class="fec-field" style="margin-top:12px"><label>Remarks</label><textarea id="fec-remarks">' + mEsc(r['Remarks']||'') + '</textarea></div>';
+
+    var footerBtns = '<button class="aiw-btn" onclick="FEC.closeModal()">Cancel</button>';
+    if (!isClosed){
+      footerBtns += '<button class="aiw-btn" onclick="FEC.saveProgress(\'' + mEsc(r['Record ID']) + '\')">Save</button>';
+      footerBtns += '<button class="aiw-btn aiw-btn-esc"' + (canClose?'':' disabled') + ' onclick="FEC.closeMonth(\'' + mEsc(r['Record ID']) + '\')">Close Month</button>';
+    } else if (can('safety.edit')) {
+      footerBtns += '<button class="aiw-btn" onclick="FEC.reopenMonth(\'' + mEsc(r['Record ID']) + '\')">Reopen</button>';
+    }
+    footer.innerHTML = footerBtns;
+  }
+
+  function addDailyLine(){
+    var date = document.getElementById('fec-day-date').value;
+    var liters = document.getElementById('fec-day-liters').value;
+    var tons = document.getElementById('fec-day-tons').value;
+    if (!date || liters==='' || tons===''){ alert('Date, liters and melted tons are all required for a daily line.'); return; }
+    if (_formDaily.some(function(l){ return l.date === date; })){ alert('A line for ' + date + ' already exists. Remove it first if you need to correct it.'); return; }
+    _formDaily.push({ date:date, liters:parseFloat(liters), tons:parseFloat(tons) });
+    renderEditBody(false);
+  }
+  function removeDailyLine(idx){
+    _formDaily.splice(idx,1);
+    renderEditBody(false);
+  }
+  function onBulkChange(){
+    renderEditBody(false);
+  }
+
+  function buildSaveRec(id){
+    var r = currentEditingRec();
+    var totalLiters, totalTons, daysLogged;
+    var dailyJSON = '';
+    if (_formMode === 'Daily'){
+      totalLiters = sumDaily(_formDaily, 'liters');
+      totalTons = sumDaily(_formDaily, 'tons');
+      daysLogged = _formDaily.length;
+      dailyJSON = JSON.stringify(_formDaily);
+    } else {
+      totalLiters = parseFloat(document.getElementById('fec-bulk-liters').value) || 0;
+      totalTons = parseFloat(document.getElementById('fec-bulk-tons').value) || 0;
+      daysLogged = '';
+    }
+    var d = computeDerived(totalLiters, totalTons);
+    return {
+      'Record ID': id,
+      'Daily Entries (JSON)': dailyJSON,
+      'Total Liters': totalLiters,
+      'Total Melted Tons': totalTons,
+      'Days Logged': daysLogged,
+      'Days In Month': daysInMonth(r['Month']),
+      'Liters per Ton': d.litersPerTon!=null ? d.litersPerTon.toFixed(2) : '',
+      'kcal per kg Melted': d.kcalPerKgMelted!=null ? d.kcalPerKgMelted.toFixed(1) : '',
+      'CO2e Total (t)': d.co2eTotalTons.toFixed(3),
+      'CO2e per Ton Melted': d.co2ePerTonMelted!=null ? d.co2ePerTonMelted.toFixed(2) : '',
+      'Remarks': document.getElementById('fec-remarks') ? document.getElementById('fec-remarks').value : (r['Remarks']||'')
+    };
+  }
+
+  function saveProgress(id){
+    var rec = buildSaveRec(id);
+    postJSON('update', { tab: FEC_TAB.tabKey, id: id }, rec).then(function(){ closeModal(); loadAll(); });
+  }
+
+  function closeMonth(id){
+    if (!confirm('Close this month? The record will be locked; a Manager or Superadmin can reopen it later if needed.')) return;
+    var rec = buildSaveRec(id);
+    rec['Status'] = 'Closed';
+    rec['Closed By'] = currentUserName();
+    rec['Closed Date'] = new Date().toISOString().slice(0,10);
+    postJSON('update', { tab: FEC_TAB.tabKey, id: id }, rec).then(function(){ closeModal(); loadAll(); });
+  }
+
+  function reopenMonth(id){
+    if (!can('safety.edit')) return;
+    if (!confirm('Reopen this month for editing?')) return;
+    postJSON('update', { tab: FEC_TAB.tabKey, id: id }, { 'Record ID': id, 'Status': 'Open', 'Closed By': '', 'Closed Date': '' })
+      .then(function(){ closeModal(); loadAll(); });
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.FEC = {
+    onFurnaceFilter: function(v){ _filters.furnace = v; renderTable(); },
+    onStatusFilter: function(v){ _filters.status = v; renderTable(); },
+    select: function(id){ _selected = (_selected === id) ? null : id; renderTable(); },
+    openAdd: openAdd,
+    createRecord: createRecord,
+    openEditSelected: openEditSelected,
+    addDailyLine: addDailyLine,
+    removeDailyLine: removeDailyLine,
+    onBulkChange: onBulkChange,
+    saveProgress: saveProgress,
+    closeMonth: closeMonth,
+    reopenMonth: reopenMonth,
+    removeSelected: function(){
+      if (!_selected || !can('safety.edit')) return;
+      if (!confirm('Remove this furnace-month record?')) return;
+      postJSON('update', { tab: FEC_TAB.tabKey, id: _selected }, { 'Record ID': _selected, 'Record Status': 'Removed' })
+        .then(function(){ _selected = null; loadAll(); });
+    },
+    closeModal: closeModal
+  };
+
+  if (typeof IMS_AUTH !== 'undefined'){
+    IMS_AUTH.init({ onReady: function(){ loadAll(); } });
+  } else {
+    loadAll();
+  }
+})();
+</script>
+
+<script>
+/* ── Access gate ──────────────────────────────────────────────────
+   Flagged assumption, same pattern used on MEPS: this data is
+   Energy/Engineering-owned, not Safety-department, so gated to
+   Engineering/Energy dept + Managers + CEO + Superadmin. Please
+   confirm this matches who should actually fill this page in
+   (the furnace team) and who should see it. */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(engineering|energy)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">Furnace Energy Consumption is limited to Engineering, Energy, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+</div>
+</body>
+</html>

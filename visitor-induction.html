@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Visitor &amp; Contractor Induction</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+/* ══════════════════════════════════════════════════════════════════
+   VISITOR & CONTRACTOR INDUCTION / GATE CLEARANCE — OC-01 Safety &
+   Emergency Controls. Simplified 2026-11-02 per Issam (voice): down
+   to TWO tables. vc_persons now holds the person's own details AND
+   their latest visit/PPE status in one row (no separate visit-history
+   table, no PPE-items-per-department table) — a returning visitor's
+   row is just updated, not re-created. PPE is now a single Yes/No the
+   security guard confirms by eye, using a printed department guide
+   kept in the security room, not an on-screen checklist. vc_spotchecks
+   stays its own table — the only place visit-by-visit history is
+   kept, because that's where it's actually useful (spotting PPE
+   trends and feeding violation escalation). Class prefix vc-.
+   ══════════════════════════════════════════════════════════════════ */
+.vc-dark-wrap{
+  --vc-bg:#0D1B35; --vc-bg2:#142140; --vc-bg3:#1a2a50;
+  --vc-gold:#C9A84C; --vc-gold-lt:#E8C97A;
+  --vc-text:rgba(255,255,255,.92); --vc-text-muted:rgba(255,255,255,.55);
+  --vc-text-dim:rgba(255,255,255,.35); --vc-border:rgba(255,255,255,.08);
+  --vc-border-gold:rgba(201,168,76,.35);
+  --vc-grn:#4FCB9E; --vc-amb:#E8B339; --vc-red:#F0685C; --vc-blue:#5B9BD5;
+  background:var(--vc-bg); color:var(--vc-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.vc-dark-wrap *{box-sizing:border-box}
+.back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--vc-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--vc-bg2);
+  border-radius:8px;border:1px solid var(--vc-border-gold)}
+.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--vc-bg2);
+  border-radius:8px;border-left:3px solid var(--vc-gold);margin:10px 0;color:var(--vc-text-muted)}
+.vc-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 0}
+.vc-tab{font-size:11px;font-weight:700;padding:9px 14px;border-radius:8px 8px 0 0;border:1px solid var(--vc-border-gold);
+  border-bottom:none;background:var(--vc-bg2);color:var(--vc-text-muted);cursor:pointer}
+.vc-tab.active{background:var(--vc-bg3);color:var(--vc-gold-lt)}
+.vc-panel{border:1px solid var(--vc-border-gold);border-radius:0 10px 10px 10px;background:var(--vc-bg2);padding:18px;display:none}
+.vc-panel.active{display:block}
+.vc-field{margin-bottom:12px}
+.vc-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--vc-text-dim);margin-bottom:4px}
+.vc-field input,.vc-field select,.vc-field textarea{width:100%;background:var(--vc-bg3);border:1px solid var(--vc-border);
+  color:var(--vc-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.vc-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.vc-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.aiw-btn{font-size:11px;font-weight:700;padding:8px 14px;border-radius:7px;border:1px solid var(--vc-border-gold);
+  background:var(--vc-bg3);color:var(--vc-text);cursor:pointer}
+.aiw-btn:hover{background:rgba(201,168,76,.15)}
+.aiw-btn:disabled{opacity:.4;cursor:not-allowed}
+.aiw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--vc-grn)}
+.aiw-btn-esc{background:rgba(240,104,92,.15);border-color:rgba(240,104,92,.4);color:var(--vc-red)}
+.vc-status-pill{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:10px;font-weight:800;font-size:14px}
+.vc-status-pill.green{background:rgba(79,203,158,.18);color:var(--vc-grn);border:2px solid var(--vc-grn)}
+.vc-status-pill.amber{background:rgba(232,179,57,.18);color:var(--vc-amb);border:2px solid var(--vc-amb)}
+.vc-status-pill.red{background:rgba(240,104,92,.18);color:var(--vc-red);border:2px solid var(--vc-red)}
+.vc-reason{font-size:11px;color:var(--vc-text-muted);margin-top:6px}
+.vc-card{border:2px solid var(--vc-border-gold);border-radius:14px;padding:16px;max-width:320px;background:var(--vc-bg3);text-align:center}
+.vc-card .name{font-size:16px;font-weight:800;color:var(--vc-text)}
+.vc-card .meta{font-size:11px;color:var(--vc-text-muted);margin:2px 0}
+.vc-qr-box{margin:10px auto;width:160px;height:160px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.vc-yn-pick{display:flex;gap:10px;margin-bottom:4px}
+.vc-yn-pick label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;text-transform:none;
+  background:var(--vc-bg3);border:1px solid var(--vc-border);border-radius:8px;padding:8px 12px;cursor:pointer;flex:1}
+.vc-yn-pick input{width:auto}
+.vc-search-results{margin-top:10px}
+.vc-person-row{display:flex;justify-content:space-between;align-items:center;background:var(--vc-bg3);
+  border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px;cursor:pointer}
+.vc-person-row:hover{background:rgba(255,255,255,.05)}
+.vc-scan-area{text-align:center;padding:14px;background:var(--vc-bg3);border-radius:10px;margin:10px 0}
+.vc-scan-area video{width:100%;max-width:320px;border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{background:var(--vc-bg3);color:var(--vc-gold-lt);font-weight:700;text-align:left;padding:7px 9px;
+  text-transform:uppercase;font-size:9.5px;border-bottom:1px solid var(--vc-border-gold)}
+tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc-text-muted)}
+</style>
+</head><body><div class="vc-dark-wrap">
+<div class="back-row"><a href="safety-hub.html" class="back-link">← Safety Hub</a></div>
+
+<div class="req-text">Visitor &amp; Contractor Induction — one QR-coded card per person. <strong>Cleared to Enter</strong> (green) needs two things together: an induction done within the last <strong>12 months</strong>, and <strong>today's PPE confirmation</strong> — a simple yes/no the security guard ticks by eye for the person's destination, using the printed PPE guide kept in the security room (there's no PPE list on this page — PPE is checked fresh on every visit, it never carries over from a previous day). <strong>Amber</strong> means partly there (inducted but today's PPE not confirmed yet, or the induction expires within 30 days). <strong>Red</strong> means not cleared (never inducted, induction expired, or today's PPE was marked No). A returning visitor's own record is simply updated with today's visit — there's no separate visit history. Induction can be confirmed by HSE looking the person up, or by a trainer scanning each attendee's own card at the end of a session. Any safety officer can also scan a card anywhere in the plant for a spot check, which is logged on its own — if PPE is found missing, it can be escalated to the HSE Violation Register with one click.</div>
+
+<div class="vc-tabs">
+  <div class="vc-tab active" data-tab="checkin" onclick="VC.switchTab('checkin')">Gate Check-In</div>
+  <div class="vc-tab" data-tab="check" onclick="VC.switchTab('check')">Check / Search</div>
+  <div class="vc-tab" data-tab="induct" onclick="VC.switchTab('induct')">Mark Inducted (HSE)</div>
+  <div class="vc-tab" data-tab="trainer" onclick="VC.switchTab('trainer')">Trainer Scan</div>
+  <div class="vc-tab" data-tab="spotcheck" onclick="VC.switchTab('spotcheck')">Spot Check</div>
+</div>
+
+<div class="vc-panel active" id="vc-panel-checkin">
+  <div class="vc-field"><label>ID Number (look up or start a new entry)</label>
+    <div class="vc-row2"><input id="vc-ci-idnum-lookup" placeholder="Enter ID number"><button class="aiw-btn" onclick="VC.lookupForCheckIn()">Look Up</button></div>
+  </div>
+  <div class="vc-row2">
+    <div class="vc-field"><label>First Name</label><input id="vc-ci-first"></div>
+    <div class="vc-field"><label>Family Name</label><input id="vc-ci-family"></div>
+  </div>
+  <div class="vc-row2">
+    <div class="vc-field"><label>ID Number</label><input id="vc-ci-idnum"></div>
+    <div class="vc-field"><label>Phone Number</label><input id="vc-ci-phone"></div>
+  </div>
+  <div class="vc-row2">
+    <div class="vc-field"><label>Company</label><input id="vc-ci-company"></div>
+    <div class="vc-field"><label>Type</label><select id="vc-ci-type"><option>Visitor</option><option>Contractor</option></select></div>
+  </div>
+  <div class="vc-field"><label>Destination Department</label><input id="vc-ci-dept" placeholder="e.g. Batch Plant, Hot End, Administration"></div>
+  <div class="vc-field"><label>PPE Confirmed Today? (check against the security-room PPE guide for this department)</label>
+    <div class="vc-yn-pick">
+      <label><input type="radio" name="vc-ci-ppe" value="Yes"> Yes — full PPE present</label>
+      <label><input type="radio" name="vc-ci-ppe" value="No"> No — missing items</label>
+    </div>
+  </div>
+  <button class="aiw-btn aiw-btn-add" onclick="VC.checkIn()">Confirm &amp; Generate / Update Card</button>
+  <div id="vc-ci-result" style="margin-top:16px"></div>
+</div>
+
+<div class="vc-panel" id="vc-panel-check">
+  <div class="vc-row3">
+    <div class="vc-field"><label>First / Family Name</label><input id="vc-chk-name" placeholder="e.g. Ahmed Noor"></div>
+    <div class="vc-field"><label>ID Number</label><input id="vc-chk-id"></div>
+    <div class="vc-field"><label>Phone</label><input id="vc-chk-phone"></div>
+  </div>
+  <button class="aiw-btn" onclick="VC.searchPersons()">Search</button>
+  <button class="aiw-btn" onclick="VC.startScan('check')">📷 Scan QR Instead</button>
+  <div class="vc-scan-area" id="vc-scan-check" style="display:none"></div>
+  <div class="vc-search-results" id="vc-chk-results"></div>
+  <div id="vc-chk-detail" style="margin-top:14px"></div>
+</div>
+
+<div class="vc-panel" id="vc-panel-induct">
+  <div class="vc-row3">
+    <div class="vc-field"><label>First / Family Name</label><input id="vc-ind-name"></div>
+    <div class="vc-field"><label>ID Number</label><input id="vc-ind-id"></div>
+    <div class="vc-field"><label>Phone</label><input id="vc-ind-phone"></div>
+  </div>
+  <button class="aiw-btn" onclick="VC.searchForInduct()">Search</button>
+  <div id="vc-ind-results" style="margin-top:10px"></div>
+</div>
+
+<div class="vc-panel" id="vc-panel-trainer">
+  <div class="vc-field"><p style="font-size:11px;color:var(--vc-text-muted)">Scan each attendee's own card at the end of the session. Each scan marks that person Inducted immediately.</p></div>
+  <button class="aiw-btn aiw-btn-add" onclick="VC.startScan('trainer')">📷 Start Scanning Attendees</button>
+  <div class="vc-scan-area" id="vc-scan-trainer" style="display:none"></div>
+  <div id="vc-trainer-log" style="margin-top:10px"></div>
+</div>
+
+<div class="vc-panel" id="vc-panel-spotcheck">
+  <button class="aiw-btn" onclick="VC.startScan('spotcheck')">📷 Scan Person's Card</button>
+  <div class="vc-scan-area" id="vc-scan-spotcheck" style="display:none"></div>
+  <div id="vc-spot-detail" style="margin-top:12px"></div>
+</div>
+
+<script>
+(function(){
+
+  var TAB_PERSONS = 'vc_persons', TAB_SPOTCHECKS = 'vc_spotchecks';
+  var STATUS_COL = 'Record Status';
+  var INDUCTION_VALID_DAYS = 365;
+  var INDUCTION_EXPIRING_WINDOW_DAYS = 30;
+
+  var _persons = [], _spotchecks = [];
+  var _activeScanTarget = null;
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
+    var s = IMS_AUTH.getSession();
+    var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    return (u && u.name) || (s && s.username) || '';
+  }
+  function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function todayStr(){ return new Date().toISOString().slice(0,10); }
+  function daysBetween(a,b){ return Math.floor((new Date(b) - new Date(a)) / 86400000); }
+
+  function recFromRow(headers,row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function colIdx(headers,name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body||{}) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tabKey){ return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); }); }
+  function activeRows(data){
+    if (!data || !data.headers || !data.rows) return [];
+    var si = colIdx(data.headers, STATUS_COL);
+    var rows = data.rows;
+    if (si>=0) rows = rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase()!=='removed'; });
+    return rows.map(function(r){ return recFromRow(data.headers, r); });
+  }
+
+  function loadAll(){
+    return Promise.all([ loadTab(TAB_PERSONS), loadTab(TAB_SPOTCHECKS) ])
+      .then(function(results){
+        _persons = activeRows(results[0]);
+        _spotchecks = activeRows(results[1]);
+      }).catch(function(){ /* leave caches as-is */ });
+  }
+
+  function nextPersonId(){ return 'VC-' + String(_persons.length + 1).padStart(5,'0'); }
+  function findByIdNumber(idnum){ return _persons.filter(function(p){ return p['ID Number']===idnum; })[0] || null; }
+  function findById(personId){ return _persons.filter(function(p){ return p['Person ID']===personId; })[0] || null; }
+
+  /* ── Clearance computation — same rules everywhere this is shown.
+     PPE Confirmed / PPE Confirmed Date live on the SAME person row and
+     are only trusted for TODAY — a stale date is treated the same as
+     "not checked yet", matching Issam's "PPE is for that day only". */
+  function inductionState(person){
+    if (!person || person['Induction Status'] !== 'Inducted' || !person['Induction Date']){
+      return { state:'none' };
+    }
+    var d = daysBetween(person['Induction Date'], todayStr());
+    if (d > INDUCTION_VALID_DAYS) return { state:'expired', daysOver: d-INDUCTION_VALID_DAYS };
+    if (d > INDUCTION_VALID_DAYS - INDUCTION_EXPIRING_WINDOW_DAYS) return { state:'expiring', daysLeft: INDUCTION_VALID_DAYS-d };
+    return { state:'valid', daysLeft: INDUCTION_VALID_DAYS-d };
+  }
+  function todaysPPE(person){
+    if (!person || person['PPE Confirmed Date'] !== todayStr()) return null; // stale or never — not checked today
+    return person['PPE Confirmed'] === 'Yes' ? 'Yes' : (person['PPE Confirmed'] === 'No' ? 'No' : null);
+  }
+  function computeClearance(person){
+    var ind = inductionState(person);
+    if (ind.state === 'none') return { color:'red', label:'NOT CLEARED', reason:'Never inducted' };
+    if (ind.state === 'expired') return { color:'red', label:'NOT CLEARED', reason:'Induction expired ' + ind.daysOver + ' day(s) ago' };
+    var ppeToday = todaysPPE(person);
+    if (ppeToday === null) return { color:'amber', label:'PARTIAL', reason:'PPE not confirmed today' };
+    if (ppeToday === 'No') return { color:'red', label:'NOT CLEARED', reason:'Today\'s PPE check: missing items' };
+    if (ind.state === 'expiring') return { color:'amber', label:'PARTIAL', reason:'Induction expires in ' + ind.daysLeft + ' day(s)' };
+    return { color:'green', label:'CLEARED TO ENTER', reason:'Induction valid, PPE confirmed today' };
+  }
+  function statusPillHtml(c){ return '<div class="vc-status-pill ' + c.color + '">' + c.label + '</div><div class="vc-reason">' + vEsc(c.reason) + '</div>'; }
+
+  /* ── QR card rendering ────────────────────────────────────────── */
+  function renderQR(containerId, text){
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = '';
+    if (typeof QRCode !== 'undefined') new QRCode(el, { text: text, width:150, height:150 });
+    else el.textContent = text;
+  }
+  function personCardHtml(person, cardElId){
+    return ''
+      + '<div class="vc-card">'
+      + '<div class="name">' + vEsc(person['First Name']) + ' ' + vEsc(person['Family Name']) + '</div>'
+      + '<div class="meta">ID: ' + vEsc(person['ID Number']) + ' · ' + vEsc(person['Type']) + '</div>'
+      + '<div class="meta">' + vEsc(person['Company']) + '</div>'
+      + '<div class="meta">Destination: ' + vEsc(person['Destination Department']) + '</div>'
+      + '<div class="vc-qr-box" id="' + cardElId + '"></div>'
+      + '<div class="meta">Person ID: ' + vEsc(person['Person ID']) + '</div>'
+      + '</div>';
+  }
+
+  /* ── Gate Check-In (covers first-time registration AND a returning
+     visitor's daily re-confirmation — same form, same row) ───────── */
+  function lookupForCheckIn(){
+    var idnum = document.getElementById('vc-ci-idnum-lookup').value.trim();
+    if (!idnum) return;
+    var p = findByIdNumber(idnum);
+    if (!p){ alert('No existing record for that ID number — fill in the form below to register them.'); return; }
+    document.getElementById('vc-ci-first').value = p['First Name'] || '';
+    document.getElementById('vc-ci-family').value = p['Family Name'] || '';
+    document.getElementById('vc-ci-idnum').value = p['ID Number'] || '';
+    document.getElementById('vc-ci-phone').value = p['Phone'] || '';
+    document.getElementById('vc-ci-company').value = p['Company'] || '';
+    document.getElementById('vc-ci-type').value = p['Type'] || 'Visitor';
+    document.getElementById('vc-ci-dept').value = p['Destination Department'] || '';
+  }
+
+  function checkIn(){
+    var first = document.getElementById('vc-ci-first').value.trim();
+    var family = document.getElementById('vc-ci-family').value.trim();
+    var idnum = document.getElementById('vc-ci-idnum').value.trim();
+    var phone = document.getElementById('vc-ci-phone').value.trim();
+    var company = document.getElementById('vc-ci-company').value.trim();
+    var type = document.getElementById('vc-ci-type').value;
+    var dept = document.getElementById('vc-ci-dept').value.trim();
+    var ppeEl = document.querySelector('input[name="vc-ci-ppe"]:checked');
+    if (!first || !family || !idnum || !dept || !ppeEl){ alert('First name, family name, ID number, destination department and the PPE yes/no are all required.'); return; }
+    var ppe = ppeEl.value;
+
+    var existing = findByIdNumber(idnum);
+    var personId = existing ? existing['Person ID'] : nextPersonId();
+    var rec = {
+      'Person ID': personId, 'First Name': first, 'Family Name': family, 'ID Number': idnum, 'Phone': phone,
+      'Company': company, 'Type': type, 'Destination Department': dept,
+      'Induction Status': existing ? existing['Induction Status'] : 'Not Inducted',
+      'Induction Date': existing ? existing['Induction Date'] : '',
+      'Induction Method': existing ? existing['Induction Method'] : '',
+      'Inducted By': existing ? existing['Inducted By'] : '',
+      'PPE Confirmed': ppe, 'PPE Confirmed Date': todayStr(), 'PPE Confirmed By': currentUserName(),
+      'Registered By': existing ? existing['Registered By'] : currentUserName(),
+      'Registered Date': existing ? existing['Registered Date'] : todayStr(),
+      'Record Status':'Active'
+    };
+    var op = existing ? postJSON('update', { tab: TAB_PERSONS, id: personId }, rec) : postJSON('create', { tab: TAB_PERSONS }, rec);
+    op.then(loadAll).then(function(){
+      var p = findById(personId) || rec;
+      var c = computeClearance(p);
+      document.getElementById('vc-ci-result').innerHTML = personCardHtml(p, 'vc-ci-qr') + statusPillHtml(c);
+      renderQR('vc-ci-qr', 'SAGCO-VC:' + personId);
+    });
+  }
+
+  /* ── Check / Search ──────────────────────────────────────────── */
+  function matchPersons(name, idnum, phone){
+    var n = (name||'').trim().toLowerCase();
+    return _persons.filter(function(p){
+      var full = (p['First Name']+' '+p['Family Name']).toLowerCase();
+      if (n && full.indexOf(n) < 0) return false;
+      if (idnum && p['ID Number'] !== idnum) return false;
+      if (phone && p['Phone'] !== phone) return false;
+      return true;
+    });
+  }
+  function searchPersons(){
+    var results = matchPersons(document.getElementById('vc-chk-name').value, document.getElementById('vc-chk-id').value.trim(), document.getElementById('vc-chk-phone').value.trim());
+    renderCheckResults(results);
+  }
+  function renderCheckResults(results){
+    var el = document.getElementById('vc-chk-results');
+    if (!results.length){ el.innerHTML = '<div class="vc-reason">No match found.</div>'; return; }
+    el.innerHTML = results.map(function(p){
+      var c = computeClearance(p);
+      return '<div class="vc-person-row" onclick="VC.showCheckDetail(\'' + p['Person ID'] + '\')">'
+        + '<span>' + vEsc(p['First Name']) + ' ' + vEsc(p['Family Name']) + ' — ' + vEsc(p['ID Number']) + '</span>'
+        + '<span class="vc-status-pill ' + c.color + '" style="padding:3px 8px;font-size:10px">' + c.label + '</span></div>';
+    }).join('');
+  }
+  function showCheckDetail(personId){
+    var p = findById(personId);
+    if (!p) return;
+    var c = computeClearance(p);
+    document.getElementById('vc-chk-detail').innerHTML = personCardHtml(p, 'vc-chk-qr') + statusPillHtml(c);
+    renderQR('vc-chk-qr', 'SAGCO-VC:' + personId);
+  }
+
+  /* ── Mark Inducted (HSE manual) ──────────────────────────────── */
+  function searchForInduct(){
+    var results = matchPersons(document.getElementById('vc-ind-name').value, document.getElementById('vc-ind-id').value.trim(), document.getElementById('vc-ind-phone').value.trim());
+    var el = document.getElementById('vc-ind-results');
+    if (!results.length){ el.innerHTML = '<div class="vc-reason">No match found.</div>'; return; }
+    el.innerHTML = results.map(function(p){
+      return '<div class="vc-person-row">'
+        + '<span>' + vEsc(p['First Name']) + ' ' + vEsc(p['Family Name']) + ' — ' + vEsc(p['Induction Status']) + '</span>'
+        + '<button class="aiw-btn aiw-btn-add" onclick="VC.markInducted(\'' + p['Person ID'] + '\',\'HSE Manual\')">Mark Inducted</button></div>';
+    }).join('');
+  }
+  function markInducted(personId, method){
+    return postJSON('update', { tab: TAB_PERSONS, id: personId }, {
+      'Person ID': personId, 'Induction Status':'Inducted', 'Induction Date': todayStr(),
+      'Induction Method': method, 'Inducted By': currentUserName()
+    }).then(loadAll);
+  }
+
+  /* ── Trainer Scan ────────────────────────────────────────────── */
+  function onTrainerScan(personId){
+    var p = findById(personId);
+    if (!p){ logTrainerLine('Unknown Person ID: ' + personId, false); return; }
+    return markInducted(personId, 'Trainer QR Scan').then(function(){
+      logTrainerLine(p['First Name'] + ' ' + p['Family Name'] + ' — marked Inducted', true);
+    });
+  }
+  function logTrainerLine(text, ok){
+    var el = document.getElementById('vc-trainer-log');
+    el.innerHTML = '<div class="vc-reason" style="color:' + (ok?'var(--vc-grn)':'var(--vc-red)') + '">' + vEsc(text) + '</div>' + el.innerHTML;
+  }
+
+  /* ── Spot Check (in-plant, separate table — the only place visit-
+     by-visit history is kept) ─────────────────────────────────── */
+  function onSpotScan(personId){
+    var p = findById(personId);
+    if (!p){ document.getElementById('vc-spot-detail').innerHTML = '<div class="vc-reason">Unknown Person ID: ' + vEsc(personId) + '</div>'; return; }
+    var c = computeClearance(p);
+    var html = personCardHtml(p, 'vc-spot-qr') + statusPillHtml(c)
+      + '<div class="vc-reason">Induction date: ' + vEsc(p['Induction Date']||'—') + ' · Last PPE confirmed: ' + vEsc(p['PPE Confirmed Date']||'—') + ' (' + vEsc(p['PPE Confirmed']||'—') + ')</div>'
+      + '<div class="vc-field" style="margin-top:10px"><label>PPE Observed Now</label>'
+      + '<div class="vc-yn-pick">'
+      + '<label><input type="radio" name="vc-spot-ppe" value="Yes"> Yes — full PPE</label>'
+      + '<label><input type="radio" name="vc-spot-ppe" value="No"> No — missing</label>'
+      + '</div></div>'
+      + '<button class="aiw-btn aiw-btn-add" onclick="VC.submitSpotCheck(\'' + personId + '\')">Submit Spot Check</button>';
+    document.getElementById('vc-spot-detail').innerHTML = html;
+    renderQR('vc-spot-qr', 'SAGCO-VC:' + personId);
+  }
+  function submitSpotCheck(personId){
+    var p = findById(personId);
+    var ppeEl = document.querySelector('input[name="vc-spot-ppe"]:checked');
+    if (!ppeEl){ alert('Pick Yes or No for PPE observed.'); return; }
+    var ppe = ppeEl.value;
+    var rec = {
+      'Spot Check ID': 'SPC-' + personId + '-' + Date.now(), 'Person ID': personId,
+      'Checked At': new Date().toISOString(), 'Department': p ? p['Destination Department'] : '',
+      'PPE Confirmed Now': ppe, 'Result': ppe==='No' ? 'Fail' : 'Pass',
+      'Checked By': currentUserName(), 'Escalated': 'No', 'Escalated Violation Ref': '', 'Record Status':'Active'
+    };
+    postJSON('create', { tab: TAB_SPOTCHECKS }, rec).then(loadAll).then(function(){
+      var extra = rec['Result']==='Fail'
+        ? '<div class="vc-reason" style="color:var(--vc-red)">Spot check recorded: FAIL — missing PPE.</div>'
+          + '<button class="aiw-btn aiw-btn-esc" onclick="VC.escalateSpotCheck(\'' + rec['Spot Check ID'] + '\')">Escalate to HSE Violation Register</button>'
+          + '<div id="vc-spot-escalate-status-' + rec['Spot Check ID'] + '"></div>'
+        : '<div class="vc-reason" style="color:var(--vc-grn)">Spot check recorded: PASS.</div>';
+      document.getElementById('vc-spot-detail').innerHTML += extra;
+    });
+  }
+  /* Escalation is a deliberate choice by the inspector, not automatic
+     — a minor, immediately-fixed issue shouldn't create a violation
+     record. Issam already has the HSE Violation Register page and
+     form for the violation itself ("don't worry about the violation
+     so much") — this just opens it with the essentials in the URL and
+     flags the spot check as escalated; wiring violation-register.html
+     to read and prefill from these params is a separate small
+     follow-up, not part of this change. */
+  function escalateSpotCheck(spotCheckId){
+    var row = _spotchecks.filter(function(s){ return s['Spot Check ID']===spotCheckId; })[0];
+    if (!row) return;
+    var p = findById(row['Person ID']);
+    var params = new URLSearchParams({
+      source: 'spotcheck', spotcheck: spotCheckId,
+      name: p ? (p['First Name']+' '+p['Family Name']) : '', company: p ? p['Company'] : '',
+      department: row['Department']||'', date: (row['Checked At']||'').slice(0,10), note: 'PPE missing at in-plant spot check'
+    });
+    if (typeof window !== 'undefined' && window.open) window.open('violation-register.html?' + params.toString(), '_blank');
+    postJSON('update', { tab: TAB_SPOTCHECKS, id: spotCheckId }, { 'Spot Check ID': spotCheckId, 'Escalated':'Yes' }).then(loadAll).then(function(){
+      var el = document.getElementById('vc-spot-escalate-status-' + spotCheckId);
+      if (el) el.innerHTML = '<div class="vc-reason">Escalated — opened in the HSE Violation Register.</div>';
+    });
+  }
+
+  /* ── QR camera scanning (jsQR) ───────────────────────────────── */
+  var _scanStream = null, _scanRAF = null;
+  function startScan(target){
+    _activeScanTarget = target;
+    var area = document.getElementById('vc-scan-' + target);
+    area.style.display = 'block';
+    area.innerHTML = '<video id="vc-video-' + target + '" autoplay playsinline></video><canvas style="display:none" id="vc-canvas-' + target + '"></canvas>';
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      area.innerHTML = '<div class="vc-reason">Camera not available on this device/browser.</div>';
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } }).then(function(stream){
+      _scanStream = stream;
+      var video = document.getElementById('vc-video-' + target);
+      video.srcObject = stream; video.play();
+      tickScan(target);
+    }).catch(function(){ area.innerHTML = '<div class="vc-reason">Could not access camera.</div>'; });
+  }
+  function tickScan(target){
+    var video = document.getElementById('vc-video-' + target);
+    var canvas = document.getElementById('vc-canvas-' + target);
+    if (!video || !canvas) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA && typeof jsQR !== 'undefined'){
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      var code = jsQR(imageData.data, imageData.width, imageData.height);
+      if (code && code.data){ onQRDecoded(code.data); return; }
+    }
+    _scanRAF = requestAnimationFrame(function(){ tickScan(target); });
+  }
+  function stopScan(){
+    if (_scanStream){ _scanStream.getTracks().forEach(function(t){ t.stop(); }); _scanStream = null; }
+    if (_scanRAF){ cancelAnimationFrame(_scanRAF); _scanRAF = null; }
+  }
+  function onQRDecoded(text){
+    stopScan();
+    var m = /^SAGCO-VC:(.+)$/.exec(text);
+    var personId = m ? m[1] : text;
+    var target = _activeScanTarget;
+    if (target === 'check'){ renderCheckResults(_persons.filter(function(p){ return p['Person ID']===personId; })); showCheckDetail(personId); }
+    else if (target === 'trainer'){ onTrainerScan(personId); }
+    else if (target === 'spotcheck'){ onSpotScan(personId); }
+  }
+
+  /* ── Tabs ─────────────────────────────────────────────────────── */
+  function switchTab(name){
+    document.querySelectorAll('.vc-tab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-tab')===name); });
+    document.querySelectorAll('.vc-panel').forEach(function(p){ p.classList.toggle('active', p.id==='vc-panel-'+name); });
+  }
+
+  /* ── Public API ───────────────────────────────────────────────── */
+  window.VC = {
+    switchTab: switchTab,
+    lookupForCheckIn: lookupForCheckIn,
+    checkIn: checkIn,
+    searchPersons: searchPersons,
+    showCheckDetail: showCheckDetail,
+    searchForInduct: searchForInduct,
+    markInducted: markInducted,
+    startScan: startScan,
+    submitSpotCheck: submitSpotCheck,
+    escalateSpotCheck: escalateSpotCheck,
+    // exposed for the Node test harness (bypasses the camera)
+    onQRDecoded: onQRDecoded,
+    onTrainerScan: onTrainerScan,
+    onSpotScan: onSpotScan,
+    computeClearance: computeClearance,
+    _internal: { getPersons:function(){return _persons;}, getSpotChecks:function(){return _spotchecks;}, loadAll: loadAll }
+  };
+
+  if (typeof IMS_AUTH !== 'undefined'){
+    IMS_AUTH.init({ onReady: function(){ loadAll(); } });
+  } else {
+    loadAll();
+  }
+})();
+</script>
+
+<script>
+/* ── Access gate ──────────────────────────────────────────────────
+   Flagged assumption: used by Security, Safety, HSE and trainers, so
+   gated to Security/Safety/HSE dept + Managers + CEO + Superadmin. */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(security|safety|hse)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">Visitor &amp; Contractor Induction is limited to Security, Safety, HSE, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+</div>
+</body>
+</html>
