@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Forklift Inspection</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   SCAFFOLD INSPECTION — same dark navy/gold theme and card/table
+   shapes as loto-register.html / confined-space.html. Scoped entirely
+   to .fi-dark-wrap so this page's own JS is independent, but every
+   class keeps the same naming convention (si- instead of lt-/cs-)
+   for anyone comparing the pages side by side. One register, one
+   combined form per inspection — HSE-FRM-09 Scaffold Inspection
+   Checklist bundles the job/tag information and the full 14-point
+   bilingual (EN/AR) checklist into a single document per visit, so
+   unlike Confined Space's two-register split this page holds one
+   live table: the Scaffold Inspection Register (L4-SHEE-PR-09-R-01,
+   tab key 'scaffold_inspection'). The Print Inspection Checklist button reproduces the
+   original HSE-FRM-09 form as closely as possible, bilingual text
+   and all, for physical sign-off and site posting (green/red tag).
+   ══════════════════════════════════════════════════════════════════ */
+.fi-dark-wrap{
+  --fiw-bg:#0D1B35; --fiw-bg2:#142140; --fiw-bg3:#1a2a50;
+  --fiw-gold:#C9A84C; --fiw-gold-lt:#E8C97A;
+  --fiw-text:rgba(255,255,255,.92); --fiw-text-muted:rgba(255,255,255,.55);
+  --fiw-text-dim:rgba(255,255,255,.35); --fiw-border:rgba(255,255,255,.08);
+  --fiw-border-gold:rgba(201,168,76,.35);
+  --fiw-blue:#5B9BD5; --fiw-red:#F0685C; --fiw-amb:#E8B339; --fiw-grn:#4FCB9E;
+  background:var(--fiw-bg); color:var(--fiw-text); margin:0; padding:24px; min-height:100vh;
+}
+.fi-dark-wrap *{box-sizing:border-box}
+.fi-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.fi-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--fiw-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--fiw-bg2);
+  border-radius:8px;border:1px solid var(--fiw-border-gold)}
+.fi-dark-wrap .back-link:hover{background:var(--fiw-bg3)}
+.fi-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--fiw-bg2);
+  border-radius:8px;border-left:3px solid var(--fiw-gold);margin:10px 0;color:var(--fiw-text-muted)}
+.fi-dark-wrap .sec-banner{background:var(--fiw-bg2);color:var(--fiw-gold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px 8px 0 0;border:1px solid var(--fiw-border-gold);border-bottom:none}
+.fi-dark-wrap .kpi-grid{display:grid;gap:14px}
+.fi-dark-wrap .kpi-card{background:var(--fiw-bg2);border:1px solid var(--fiw-border);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.fi-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.fi-dark-wrap .kpi-card.kc-nvy::before{background:var(--fiw-gold)}
+.fi-dark-wrap .kpi-card.kc-blue::before{background:var(--fiw-blue)}
+.fi-dark-wrap .kpi-card.kc-amb::before{background:var(--fiw-amb)}
+.fi-dark-wrap .kpi-card.kc-red::before{background:var(--fiw-red)}
+.fi-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--fiw-text-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.fi-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--fiw-text);line-height:1.1;margin-bottom:4px}
+.fi-dark-wrap .kpi-sub{font-size:10px;color:var(--fiw-text-muted)}
+.fi-dark-wrap .kpi-card.fi-clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.fi-dark-wrap .kpi-card.fi-clickable:hover{transform:translateY(-2px);border-color:var(--fiw-gold)}
+.fi-dark-wrap .chart-grid{display:grid;gap:14px}
+.fi-dark-wrap .chart-card{background:var(--fiw-bg2);border:1px solid var(--fiw-border);
+  border-radius:14px;padding:16px 18px}
+.fi-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--fiw-text);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.fi-dark-wrap .chart-sub{font-size:10px;color:var(--fiw-text-muted);font-weight:400}
+.fi-dark-wrap .chart-wrap{height:220px;position:relative}
+.fi-dark-wrap .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.fi-dark-wrap .badge.kc-grn{background:rgba(79,203,158,.15);color:var(--fiw-grn)}
+.fi-dark-wrap .badge.kc-red{background:rgba(240,104,92,.15);color:var(--fiw-red)}
+.fi-dark-wrap .badge.kc-amb{background:rgba(232,179,57,.15);color:var(--fiw-amb)}
+.fi-dark-wrap .badge.kc-blue{background:rgba(91,155,213,.15);color:var(--fiw-blue)}
+</style>
+</head><body><div class="fi-dark-wrap"><div class="back-row"><a href="oc01-scopes.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div><div class="req-text">Monthly Forklift Inspection Checklist (HSE Department) — every forklift is inspected monthly by HSE across the full 13-item checklist, bilingual (EN/AR) as per the source form. Each inspection is logged below against the Forklift Inspection Register. GREEN tag = all items Ok, safe to operate. RED tag = one or more items No — unsafe, withdraw from service until re-inspected and corrective action is taken.</div>
+
+<div class="sec-banner">FORKLIFT QUICK STATUS</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy fi-clickable" onclick="FI.cardClick('total')" title="Click to view the Forklift Inspection Register"><div class="kpi-lbl">Total Inspections Logged</div><div class="kpi-val" id="fi-kpi-total">—</div><div class="kpi-sub">Forklift Inspection Register</div></div>
+  <div class="kpi-card kc-blue fi-clickable" onclick="FI.cardClick('total')" title="Click to view this year's inspections"><div class="kpi-lbl">This Year's Inspections</div><div class="kpi-val" id="fi-kpi-year">—</div><div class="kpi-sub" id="fi-kpi-year-sub">Loading…</div></div>
+  <div class="kpi-card kc-red fi-clickable" onclick="FI.cardClick('openentries')" title="Click to view inspections not yet closed"><div class="kpi-lbl">Open Inspections</div><div class="kpi-val" id="fi-kpi-open">—</div><div class="kpi-sub">Inspections not yet Closed</div></div>
+</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-grn fi-clickable" onclick="FI.cardClick('green')" title="Click to view forklifts currently tagged GREEN"><div class="kpi-lbl">GREEN Tag — Safe to Operate</div><div class="kpi-val" id="fi-kpi-green">—</div><div class="kpi-sub">Open inspections, Tag Status = Green</div></div>
+  <div class="kpi-card kc-red fi-clickable" onclick="FI.cardClick('red')" title="Click to view forklifts currently tagged RED"><div class="kpi-lbl">RED Tag — Unsafe, Do Not Operate</div><div class="kpi-val" id="fi-kpi-red">—</div><div class="kpi-sub">Open inspections, Tag Status = Red</div></div>
+  <div class="kpi-card kc-amb fi-clickable" onclick="FI.cardClick('findings')" title="Click to view open corrective actions"><div class="kpi-lbl">Open Corrective Actions</div><div class="kpi-val" id="fi-kpi-findings">—</div><div class="kpi-sub">Corrective action required, not yet closed</div></div>
+</div>
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+  <div class="chart-card">
+    <div class="chart-title">Inspections by Forklift<span class="chart-sub">which forklifts are inspected most often</span></div>
+    <div class="chart-wrap"><canvas id="fiByForkliftChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Inspections by Month<span class="chart-sub">inspection volume over time</span></div>
+    <div class="chart-wrap"><canvas id="fiByMonthChart"></canvas></div>
+  </div>
+</div>
+
+<div class="sec-banner fi-sec-toggle" id="fi-hdr-inspection" onclick="FI.toggle('inspection')"><span class="fi-chevron">▶</span> FORKLIFT INSPECTION REGISTER &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(Monthly Forklift Inspection Checklist — one record per forklift per month)</span></div>
+<div id="live-table-inspection" class="fi-collapsible" style="margin-top:0"></div>
+
+<div style="margin-top:16px;font-size:10px;color:var(--fiw-text-dim);text-align:right" id="fi-live-ts"></div>
+<div id="fi-modal-root"></div>
+</div>
+<!-- No sidebar/topbar: this page is reached only from inside the Operations Hub, same pattern as loto-register.html / ptw-register.html / fire-extinguisher-log.html. -->
+
+<style>
+.fi-dark-wrap .fi-toolbar{display:flex;justify-content:flex-end;padding:6px 0}
+.fi-dark-wrap .fi-btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;
+  border:1px solid var(--fiw-border);background:var(--fiw-bg3);color:var(--fiw-text);cursor:pointer;font-family:inherit}
+.fi-dark-wrap .fi-btn:hover{background:#223457;border-color:var(--fiw-border-gold)}
+.fi-dark-wrap .fi-btn-add{background:var(--fiw-gold);color:#1a1200;border-color:var(--fiw-gold);font-weight:700}
+.fi-dark-wrap .fi-btn-add:hover{background:var(--fiw-gold-lt)}
+.fi-dark-wrap .fi-btn:disabled{opacity:.35;cursor:not-allowed}
+.fi-dark-wrap .fi-btn:disabled:hover{background:var(--fiw-bg3);border-color:var(--fiw-border)}
+.fi-dark-wrap .fi-row-selectable{cursor:pointer}
+.fi-dark-wrap .fi-row-selected td,
+.fi-dark-wrap .fi-row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--fiw-gold)}
+.fi-dark-wrap .fi-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
+  align-items:center;justify-content:center;z-index:9999}
+.fi-dark-wrap .fi-modal{background:var(--fiw-bg2);border:1px solid var(--fiw-border-gold);border-radius:14px;
+  padding:20px;width:460px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--fiw-text)}
+.fi-dark-wrap .fi-modal h3{margin:0 0 12px;font-size:14px;color:var(--fiw-gold-lt)}
+.fi-dark-wrap .fi-field{margin-bottom:10px}
+.fi-dark-wrap .fi-field label{display:block;font-size:10px;font-weight:600;color:var(--fiw-text-muted);margin-bottom:3px}
+.fi-dark-wrap .fi-field input,.fi-dark-wrap .fi-field select,.fi-dark-wrap .fi-field textarea{width:100%;padding:6px 8px;font-size:12px;
+  border:1px solid var(--fiw-border);border-radius:6px;font-family:inherit;box-sizing:border-box;
+  background:var(--fiw-bg3);color:var(--fiw-text)}
+.fi-dark-wrap .fi-field textarea{min-height:56px;resize:vertical}
+.fi-dark-wrap .fi-field .fi-hint{font-size:9px;color:var(--fiw-text-dim);margin-top:3px;display:block}
+.fi-dark-wrap .fi-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.fi-dark-wrap .fi-modal-actions .fi-btn-cancel{background:var(--fiw-bg3)}
+.fi-dark-wrap .fi-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
+  border:1px solid var(--fiw-border-gold);background:var(--fiw-bg2);cursor:pointer;font-family:inherit;color:var(--fiw-gold-lt)}
+.fi-dark-wrap .fi-jump-btn:hover{background:var(--fiw-bg3);border-color:var(--fiw-gold)}
+.fi-dark-wrap .fi-jump-count{font-weight:400;color:var(--fiw-text-muted);font-size:10px}
+.fi-dark-wrap .fi-sec-toggle{cursor:pointer;user-select:none}
+.fi-dark-wrap .fi-sec-toggle:hover{opacity:.9}
+.fi-dark-wrap .fi-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px;color:var(--fiw-gold-lt)}
+.fi-dark-wrap .fi-collapsible{overflow:hidden;max-height:0;transition:none;
+  background:var(--fiw-bg2);border:1px solid var(--fiw-border-gold);border-top:none;border-radius:0 0 8px 8px}
+.fi-dark-wrap .fi-collapsible.fi-open{max-height:none;padding:10px 14px}
+.fi-dark-wrap .fi-filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.fi-dark-wrap .fi-search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
+  border:1px solid var(--fiw-border);border-radius:8px;font-family:inherit;background:var(--fiw-bg3);color:var(--fiw-text)}
+.fi-dark-wrap .fi-search-input::placeholder{color:var(--fiw-text-dim)}
+.fi-dark-wrap .fi-filter-select{padding:6px 8px;font-size:12px;border:1px solid var(--fiw-border);
+  border-radius:8px;font-family:inherit;max-width:220px;background:var(--fiw-bg3);color:var(--fiw-text)}
+.fi-dark-wrap .fi-filter-status{font-size:10px;color:var(--fiw-text-muted);margin-left:auto}
+.fi-dark-wrap .tbl-wrap{overflow-x:auto}
+.fi-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
+.fi-dark-wrap .tbl-stripe th{text-align:left;color:var(--fiw-gold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--fiw-border-gold);
+  background:var(--fiw-bg3);white-space:nowrap}
+.fi-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--fiw-border);color:var(--fiw-text)}
+.fi-dark-wrap .tbl-stripe tbody tr:nth-child(odd) td{background:var(--fiw-bg2)}
+.fi-dark-wrap .tbl-stripe tbody tr:nth-child(even) td{background:#101d3a}
+.fi-dark-wrap .tbl-stripe tbody tr:hover td{background:var(--fiw-bg3)}
+.fi-dark-wrap .fi-expand-cell:hover{background:rgba(232,179,57,.18)!important}
+.fi-dark-wrap .empty-state{text-align:center;padding:20px;color:var(--fiw-text-muted)}
+.fi-dark-wrap .empty-state strong{display:block;font-size:13px;color:var(--fiw-gold-lt);margin-bottom:4px}
+.fi-dark-wrap .nb{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid}
+.fi-dark-wrap .nb-red{background:rgba(240,104,92,.15);color:var(--fiw-red);border-color:rgba(240,104,92,.4)}
+.fi-dark-wrap .nb-amb{background:rgba(232,179,57,.15);color:var(--fiw-amb);border-color:rgba(232,179,57,.4)}
+.fi-dark-wrap .nb-grn{background:rgba(79,203,158,.15);color:var(--fiw-grn);border-color:rgba(79,203,158,.4)}
+.fi-dark-wrap .fi-detail-row td{background:rgba(255,255,255,.03);padding:10px 14px;border-top:1px dashed rgba(255,255,255,.12)}
+.fi-dark-wrap .fi-detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px}
+.fi-dark-wrap .fi-detail-item{font-size:11px;line-height:1.5}
+.fi-dark-wrap .fi-detail-lbl{display:block;font-weight:600;color:var(--fiw-text-muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.3px}
+.fi-dark-wrap .fi-detail-val{display:block;color:var(--fiw-text);word-break:break-word;white-space:pre-wrap}
+</style>
+
+<script>
+/* ── Forklift Inspection: one live table + Add/Edit/Remove, same
+   Add/Edit/Remove modal shell, soft-delete via Record Status, and
+   Escalate-to-Action mechanism as scaffold-inspection.html's own
+   Scaffold Inspection Register — only the field set is specific to
+   the Forklift Inspection Register, digitising the source Monthly
+   Forklift Inspection Checklist (HSE Department).
+   ────────────────────────────────────────────────────────────────── */
+(function(){
+
+  var YESNO = ['Yes','No'];
+  var OKNO = ['Ok','No'];
+  var OKNONA = ['Ok','No','N/A'];
+
+  var TABLES = {
+    inspection: {
+      label: 'Forklift Inspection', tabKey: 'forklift_inspection', containerId: 'live-table-inspection',
+      idCol: 'Inspection ID', idPrefix: 'FLI-', idPad: 3,
+      filterField: 'Status',
+      // A flagged inspection (Corrective Action Required = Yes)
+      // escalates to a single combined Action Register record, same
+      // one-record-one-Action design as Scaffold Inspection's own
+      // table. 'Action Reference' records the resulting ACT- ID once
+      // raised, set automatically by the escalation hand-off. The
+      // Action Register's own write-back, once that Action closes,
+      // auto-closes this inspection's own Status too — see
+      // notifyForkliftInspectionActionCompleted() in capa-wizard.js.
+      hasEscalate: true,
+      // Prints a standalone inspection checklist reproducing the
+      // source bilingual (EN/AR) Monthly Forklift Inspection Checklist
+      // as closely as possible — same pf- print convention as Scaffold
+      // Inspection's own Print Inspection Checklist.
+      hasPrintFI: true,
+      displayCols: ['Inspection ID','Month','Equipment ID','Operator Name','Tag Status','Final Status','Status'],
+      fields: [
+        'Inspection ID','Month','Manufacturer','Model','Equipment ID','Operator Name',
+        // The 13-item checklist, in the source form's own order —
+        // one flat list (no sub-sections, unlike Scaffold's 5
+        // categories), each item its own Ok/No field.
+        'Fork — Unloading Device (Ok/No)',
+        'Truck, Wheel/Tire (Ok/No)',
+        'Propane Cylinder (Ok/No)',
+        'Controller & Brake (Ok/No)',
+        'Rear View Mirror & Alarm (Ok/No)',
+        'Hydraulic Device & Cylinder (Ok/No)',
+        'Lamp (Ok/No)',
+        'Counter Weight (Ok/No)',
+        'Lift System (Ok/No)',
+        'Inspection & Fit — 3rd Party Certification (Ok/No)',
+        'Operator/Driver Competency (Ok/No)',
+        'Fire Extinguisher (Ok/No)',
+        'Others — Steering, Gauges, Seat Belt, Fluids (Ok/No)',
+        // Result and close-out — one shared Remarks field for the
+        // whole inspection (the source form has a single Remarks
+        // column per row, not a separate block per item, so this
+        // stays one field rather than 13 near-empty ones).
+        'Tag Status','Corrective Action Required (Y/N)','Proposed Corrective Action',
+        'Responsible Person','Target Close Date',
+        'Inspected By','Reviewed By','Final Status','Status','Remarks','Action Reference'
+      ],
+      selectFields: {
+        'Fork — Unloading Device (Ok/No)': OKNO,
+        'Truck, Wheel/Tire (Ok/No)': OKNO,
+        'Propane Cylinder (Ok/No)': OKNO,
+        'Controller & Brake (Ok/No)': OKNO,
+        'Rear View Mirror & Alarm (Ok/No)': OKNO,
+        'Hydraulic Device & Cylinder (Ok/No)': OKNO,
+        'Lamp (Ok/No)': OKNO,
+        'Counter Weight (Ok/No)': OKNO,
+        'Lift System (Ok/No)': OKNO,
+        'Inspection & Fit — 3rd Party Certification (Ok/No)': OKNO,
+        'Operator/Driver Competency (Ok/No)': OKNO,
+        'Fire Extinguisher (Ok/No)': OKNO,
+        'Others — Steering, Gauges, Seat Belt, Fluids (Ok/No)': OKNO,
+        'Tag Status': ['Green — Safe to Operate','Red — Unsafe, Do Not Operate'],
+        'Corrective Action Required (Y/N)': YESNO,
+        'Final Status': ['Pass','Fail'],
+        'Status': ['Open','Closed']
+      },
+      textareaFields: [
+        'Proposed Corrective Action','Remarks'
+      ],
+      // Suggest Equipment ID from past inspections, so repeat monthly
+      // inspections of the same forklift are easy to log consistently.
+      crossRef: { 'Equipment ID': 'inspection' }
+    }
+  };
+  var _filters = {};
+  var _selected = {};
+  var _expandedRows = {};
+  var STATUS_COL = 'Record Status';
+  var _cache = {};
+  var _charts = { bySpace: null, byMonth: null };
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUsername(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    return (s && s.username) || 'unknown';
+  }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function nextSequentialId(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return '';
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    if (idIdx < 0) return '';
+    var maxN = 0, prefixLower = cfg.idPrefix.toLowerCase();
+    data.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(prefixLower) !== 0) return;
+      var n = parseInt(v.slice(cfg.idPrefix.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    if (maxN === 0) return '';
+    var numStr = String(maxN + 1);
+    while (numStr.length < cfg.idPad) numStr = '0' + numStr;
+    return cfg.idPrefix + numStr;
+  }
+  function getFieldOfSelected(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    var idVal = _selected[tKeyName];
+    if (!data || idVal === undefined || idVal === null || idVal === '') return '';
+    var cfg = TABLES[tKeyName];
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var fIdx = colIdx(data.headers, fieldName);
+    if (idIdx < 0 || fIdx < 0) return '';
+    var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+    return row ? row[fIdx] : '';
+  }
+  function getOwnColumnValues(tKeyName, fieldName){
+    var data = _cache[tKeyName];
+    if (!data || !data.headers || !data.rows) return [];
+    var idx = colIdx(data.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}, out = [];
+    data.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    });
+    out.sort();
+    return out;
+  }
+  function getSuggestions(tKeyName, fieldName){
+    var cfg = TABLES[tKeyName];
+    var sourceTable = (cfg.crossRef && cfg.crossRef[fieldName]) ? cfg.crossRef[fieldName] : tKeyName;
+    return getOwnColumnValues(sourceTable, fieldName);
+  }
+
+  /* ── Print helpers (same pf- convention as loto-register.html's
+     buildLotoPrintHtml / buildAuditPrintHtml) ─────────────────────── */
+  function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function pfCb(label, checked){ return '<span class="pf-item"><span class="pf-box">'+(checked?'&#9746;':'&#9744;')+'</span><span class="pf-item-label">'+pfEsc(label)+'</span></span>'; }
+  function pfYes(val){ return String(val||'').trim().toLowerCase() === 'yes'; }
+  function pfField(label, value){ return '<div class="pf-field"><span class="pf-label">'+pfEsc(label)+'</span><span class="pf-value">'+pfEsc(value||'')+'</span></div>'; }
+  // Checklist row for the Forklift print form — each item carries its
+  // own Ok/No compliance mark, same column structure as the source
+  // Monthly Forklift Inspection Checklist (Items | Ok | No). The
+  // source form is bilingual (EN/AR), but printed Arabic could not be
+  // read reliably from the scanned copy supplied, so this reproduces
+  // the English text only — ⚠ ask Issam for the Arabic wording (or a
+  // text-layer copy of the source form) before this goes into regular
+  // use, so the bilingual text can be added to match the original.
+  function pfFiRow(enText, okVal){
+    var v = String(okVal||'').trim().toLowerCase();
+    var isOk = v === 'ok' || v === 'yes';
+    var isNo = v === 'no';
+    return '<tr><td class="pf-item-cell">'+pfEsc(enText)+'</td>'
+      + '<td class="pf-ok-cell">'+(isOk?'&#9746;':'&#9744;')+'</td>'
+      + '<td class="pf-ok-cell">'+(isNo?'&#9746;':'&#9744;')+'</td></tr>';
+  }
+
+  // Standalone inspection checklist report for one Inspection ID —
+  // reproduces the source Monthly Forklift Inspection Checklist as
+  // closely as possible given the above: same header field grid, same
+  // flat 13-item Ok/No checklist, same footer code block. Same pf-
+  // CSS/layout convention as Scaffold Inspection's own print form.
+  function buildForkliftPrintHtml(rec){
+    var printedAt = new Date().toLocaleString();
+    var inspectionId = rec['Inspection ID'] || '';
+    var carRequired = pfYes(rec['Corrective Action Required (Y/N)']);
+    var tagStatus = String(rec['Tag Status']||'').trim();
+    var tagIsRed = /red/i.test(tagStatus);
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>Forklift Inspection Checklist '+pfEsc(inspectionId)+'</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#111;margin:0;padding:16px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:10px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:820px;margin:0 auto;border:1px solid #333;padding:14px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}'
+    + '.pf-head h1{font-size:15px;margin:0}'
+    + '.pf-head .pf-code{font-size:10px;text-align:right}'
+    + '.pf-note{font-size:8.5px;color:#a33;border:1px dashed #d99;background:#fff6f6;padding:4px 7px;margin-bottom:8px}'
+    + '.pf-info-tbl{width:100%;border-collapse:collapse;font-size:9.5px;margin-bottom:8px}'
+    + '.pf-info-tbl td{border:1px solid #999;padding:4px 6px;vertical-align:top}'
+    + '.pf-info-tbl .pf-lbl{font-weight:700;width:18%;background:#f7f7f7}'
+    + '.pf-chk-tbl{width:100%;border-collapse:collapse;font-size:9px;margin-top:2px}'
+    + '.pf-chk-tbl th,.pf-chk-tbl td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}'
+    + '.pf-chk-tbl th{background:#f0f0f0;font-size:9px;text-align:center}'
+    + '.pf-item-cell{width:86%}'
+    + '.pf-ok-cell{text-align:center;font-size:13px;width:7%}'
+    + '.pf-remarks-box{border:1px solid #999;padding:6px 8px;margin-top:6px;min-height:28px;font-size:9.5px}'
+    + '.pf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:2px 10px;margin-top:6px}'
+    + '.pf-field{margin-bottom:3px}'
+    + '.pf-label{font-weight:700;margin-right:5px}'
+    + '.pf-value{border-bottom:1px dotted #666;padding:0 4px}'
+    + '.pf-tag{display:inline-block;padding:3px 12px;border-radius:4px;font-weight:700;font-size:11px;margin-top:6px}'
+    + '.pf-tag.pf-tag-red{background:#F0685C;color:#fff}'
+    + '.pf-tag.pf-tag-grn{background:#4FCB9E;color:#083}'
+    + '.pf-footer{margin-top:8px;font-size:8px;color:#666;border-top:1px solid #999;padding-top:4px;display:flex;justify-content:space-between}'
+    + '@media print{.pf-toolbar{display:none}.pf-note{display:none}body{padding:0}.pf-sheet{border:none}@page{size:A4;margin:10mm}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>'
+    + '<div class="pf-note">⚠ The source checklist is bilingual (EN/AR). This reproduction is English-only — the scanned original\'s Arabic text could not be read reliably and was left out rather than guessed. Ask Issam for the Arabic wording (or a text-layer copy of the source form) to add it in.</div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>Monthly Forklift Inspection Checklist</h1>'
+      + '<div class="pf-code">HSE Department<br>Inspection ID: <strong>'+pfEsc(inspectionId)+'</strong></div></div>'
+
+      + '<table class="pf-info-tbl"><tbody>'
+        + '<tr><td class="pf-lbl">Month</td><td colspan="2">'+pfEsc(rec['Month'])+'</td>'
+          + '<td class="pf-lbl">Equipment ID</td><td>'+pfEsc(rec['Equipment ID'])+'</td></tr>'
+        + '<tr><td class="pf-lbl">Manufacturer</td><td colspan="2">'+pfEsc(rec['Manufacturer'])+'</td>'
+          + '<td class="pf-lbl">Model</td><td>'+pfEsc(rec['Model'])+'</td></tr>'
+        + '<tr><td class="pf-lbl">Operator Name</td><td colspan="4">'+pfEsc(rec['Operator Name'])+'</td></tr>'
+      + '</tbody></table>'
+
+      + '<table class="pf-chk-tbl"><thead><tr><th style="width:86%">Items</th><th>Ok</th><th>No</th></tr></thead><tbody>'
+        + pfFiRow('Fork (Unloading device): Fork should not have any deformation, cracks and fixing pin firmly attached', rec['Fork — Unloading Device (Ok/No)'])
+        + pfFiRow('Truck, wheel (Tire): Wheel/Tire should not have any cracks or deformation and has good connection status', rec['Truck, Wheel/Tire (Ok/No)'])
+        + pfFiRow('Propane Cylinder: secured & free of rust, corrosion or damage — no leakage in connection hoses', rec['Propane Cylinder (Ok/No)'])
+        + pfFiRow('Controller & brake: Controller, clutch and brakes should work fine and seat belt needs to be attached', rec['Controller & Brake (Ok/No)'])
+        + pfFiRow('Rear view mirror & alarm: Function properly and alarm/horn device should function normally, no oil leakage from hydraulic motor, cylinder, pipes, etc.', rec['Rear View Mirror & Alarm (Ok/No)'])
+        + pfFiRow('Hydraulic device & cylinder: There shouldn\'t be any leakage, damage or worn-out on hydraulic motor, cylinder, pipe, connecting means, cables, chains, forks, etc.', rec['Hydraulic Device & Cylinder (Ok/No)'])
+        + pfFiRow('Lamp: Function of headlight, taillight, fog lamp and beacon/hazard light should work properly', rec['Lamp (Ok/No)'])
+        + pfFiRow('Counter weight: Extra weight should not be added and connection status of fixing bolt & nut should be firm', rec['Counter Weight (Ok/No)'])
+        + pfFiRow('Lift system (includes load limit switches, load engagement means, chains, cables, forks, etc.): should be functioning', rec['Lift System (Ok/No)'])
+        + pfFiRow('Inspection & fit: Valid 3rd party inspection certification of equipment available and current', rec['Inspection & Fit — 3rd Party Certification (Ok/No)'])
+        + pfFiRow('Operator/Driver competency: valid national driving license and 3rd party certificate available and valid', rec['Operator/Driver Competency (Ok/No)'])
+        + pfFiRow('Fire extinguisher: Available, inspected, color coded and able to use in fire cases', rec['Fire Extinguisher (Ok/No)'])
+        + pfFiRow('Others: Steering, Gauges, Seat Belt, Oil engine and radiator fluid levels', rec['Others — Steering, Gauges, Seat Belt, Fluids (Ok/No)'])
+      + '</tbody></table>'
+
+      + '<div class="pf-remarks-box"><span class="pf-label">Remarks:</span><br>'
+        + (rec['Remarks'] ? pfEsc(rec['Remarks']) : '<em style="color:#888">None noted</em>')
+      + '</div>'
+
+      + '<div class="pf-grid3">'
+        + pfField('Tag Status', tagStatus)
+        + pfField('Final Status (Pass/Fail)', rec['Final Status'])
+        + pfField('Status', rec['Status'])
+      + '</div>'
+      + (tagStatus ? '<div class="pf-tag '+(tagIsRed?'pf-tag-red':'pf-tag-grn')+'">'+pfEsc(tagStatus)+'</div>' : '')
+
+      + (carRequired ?
+          '<div class="pf-field" style="margin-top:6px"><span class="pf-label">Proposed corrective action:</span><span class="pf-value">'+pfEsc(rec['Proposed Corrective Action'])+'</span></div>'
+          + '<div class="pf-grid3">'
+            + pfField('Responsible Person', rec['Responsible Person'])
+            + pfField('Target Close Date', rec['Target Close Date'])
+            + pfField('Action Reference', rec['Action Reference'])
+          + '</div>'
+        : '')
+
+      + '<div class="pf-grid3" style="margin-top:8px">'
+        + pfField('Inspected By (HSE)', rec['Inspected By'])
+        + pfField('Reviewed By (HSE)', rec['Reviewed By'])
+        + '<div></div>'
+      + '</div>'
+
+      + '<div class="pf-footer"><span>HSE Department · Monthly Forklift Inspection Checklist</span><span>Generated from the SAGCO IMS Portal on '+pfEsc(printedAt)+'. Not valid without original signatures.</span></div>'
+    + '</div></body></html>';
+  }
+
+  function renderShell(tKeyName, data){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    if (!data || !data.headers || !data.rows){
+      el.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      return;
+    }
+    _cache[tKeyName] = data;
+    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+    var f = _filters[tKeyName];
+    var sel = _selected[tKeyName];
+
+    var toolbarHtml = '';
+    if (can('add')) toolbarHtml += '<button class="fi-btn fi-btn-add" onclick="FI.openAdd(\''+tKeyName+'\')">+ Add Record</button>';
+    var disabledAttr = sel ? '' : ' disabled';
+    if (cfg.hasPrintFI){
+      toolbarHtml += '<button class="fi-btn" id="fi-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="FI.printInspection(FI.getSelected(\''+tKeyName+'\'))">🖨️ Print Inspection Checklist</button>';
+    }
+    if (cfg.hasEscalate){
+      var carVal = String(getFieldOfSelected(tKeyName, 'Corrective Action Required (Y/N)')||'').trim().toLowerCase();
+      var existingRef = String(getFieldOfSelected(tKeyName, 'Action Reference')||'').trim();
+      if (existingRef){
+        toolbarHtml += '<button class="fi-btn" disabled title="Already escalated — see the Action Register">✓ Escalated → '+existingRef+'</button>';
+      } else {
+        var canEscalate = sel && carVal === 'yes';
+        toolbarHtml += '<button class="fi-btn fi-btn-add" id="fi-tb-escalate-'+tKeyName+'"'+(canEscalate?'':' disabled')+' onclick="FI.escalateToAction(\''+tKeyName+'\', FI.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
+      }
+    }
+    if (can('edit')) toolbarHtml += '<button class="fi-btn" id="fi-tb-edit-'+tKeyName+'"'+disabledAttr+' onclick="FI.openEdit(\''+tKeyName+'\', FI.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
+    if (can('delete')) toolbarHtml += '<button class="fi-btn" id="fi-tb-remove-'+tKeyName+'"'+disabledAttr+' onclick="FI.remove(\''+tKeyName+'\', FI.getSelected(\''+tKeyName+'\'))">🗑️ Remove</button>';
+
+    var categoryHtml = '';
+    if (cfg.filterField){
+      var opts = getOwnColumnValues(tKeyName, cfg.filterField);
+      categoryHtml = '<select class="fi-filter-select" onchange="FI.onCategoryChange(\''+tKeyName+'\', this.value)">' +
+        '<option value="">All ' + cfg.filterField + '</option>' +
+        opts.map(function(o){
+          var selA = (o === f.category) ? ' selected' : '';
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+selA+'>'+o+'</option>';
+        }).join('') + '</select>';
+    }
+
+    var specialLabels = { openentries: 'Open Entries', notsafe: 'Flagged Not Safe to Enter', findings: 'Open Corrective Actions' };
+    var specialPillHtml = '';
+    if (f.special && specialLabels[f.special]){
+      specialPillHtml = '<span class="nb nb-amb" style="margin:6px 0;display:inline-block">Showing: ' + specialLabels[f.special] +
+        ' <span style="cursor:pointer" onclick="FI.clearFilters(\''+tKeyName+'\')">✕</span></span>';
+    }
+
+    el.innerHTML =
+      '<div class="fi-toolbar">' + toolbarHtml + '</div>' +
+      specialPillHtml +
+      '<div class="fi-filterbar">' +
+        '<input type="text" class="fi-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="FI.onSearchInput(\''+tKeyName+'\', this.value)">' +
+        categoryHtml +
+        '<button class="fi-btn" onclick="FI.clearFilters(\''+tKeyName+'\')">Clear</button>' +
+        '<span class="fi-filter-status" id="fi-filter-status-'+tKeyName+'"></span>' +
+      '</div>' +
+      '<div class="fi-table-area" id="fi-table-area-'+tKeyName+'"></div>';
+    renderTableArea(tKeyName);
+  }
+
+  // An inspection is "open" when Status isn't Closed — same
+  // undercounting-is-worse-than-overcounting reasoning as LOTO's
+  // hasOpenIsolation.
+  function hasOpenEntry(row, headers){
+    var statusIdx = colIdx(headers, 'Status');
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return st !== 'closed';
+  }
+  // An inspection is currently showing a given tag colour when its
+  // Tag Status starts with that colour AND it's still Open — a
+  // forklift's live tag is whatever its most recent open inspection
+  // says, same reasoning as scaffold-inspection.html's own hasOpenTag.
+  function hasOpenTag(row, headers, colour){
+    var tagIdx = colIdx(headers, 'Tag Status');
+    var statusIdx = colIdx(headers, 'Status');
+    var tag = tagIdx >= 0 ? String(row[tagIdx]||'').trim().toLowerCase() : '';
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return tag.indexOf(colour) === 0 && st !== 'closed';
+  }
+  // A corrective action finding is "open" when it was required and the
+  // record itself hasn't been closed out yet — same pattern as LOTO's
+  // hasOpenFinding.
+  function hasOpenFinding(row, headers){
+    var carIdx = colIdx(headers, 'Corrective Action Required (Y/N)');
+    var statusIdx = colIdx(headers, 'Status');
+    var car = carIdx >= 0 ? String(row[carIdx]||'').trim().toLowerCase() : '';
+    var st = statusIdx >= 0 ? String(row[statusIdx]||'').trim().toLowerCase() : '';
+    return car === 'yes' && st !== 'closed';
+  }
+
+  function renderTableArea(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    var areaEl = document.getElementById('fi-table-area-' + tKeyName);
+    var statusEl = document.getElementById('fi-filter-status-' + tKeyName);
+    if (!data || !areaEl) return;
+
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
+    var f = _filters[tKeyName] || {search:'', category:'', special:null};
+    var searchLower = f.search.trim().toLowerCase();
+
+    var visibleRows = data.rows.filter(function(r){
+      return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+    var totalVisible = visibleRows.length;
+    if (f.category && filterFieldIdx > -1){
+      visibleRows = visibleRows.filter(function(r){ return String(r[filterFieldIdx]||'').trim() === f.category; });
+    }
+    if (searchLower){
+      visibleRows = visibleRows.filter(function(r){
+        return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
+      });
+    }
+    if (f.special === 'openentries'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenEntry(r, data.headers); });
+    }
+    if (f.special === 'green'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenTag(r, data.headers, 'green'); });
+    }
+    if (f.special === 'red'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenTag(r, data.headers, 'red'); });
+    }
+    if (f.special === 'findings'){
+      visibleRows = visibleRows.filter(function(r){ return hasOpenFinding(r, data.headers); });
+    }
+    if (statusEl){
+      var isFiltered = !!(f.search.trim() || f.category || f.special);
+      statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
+    }
+
+    var displayCols = cfg.displayCols || cfg.fields.slice(0, 5);
+    var colIdxs = displayCols.map(function(c){ return colIdx(data.headers, c); }).filter(function(i){ return i >= 0; });
+    var colNames = colIdxs.map(function(i){ return data.headers[i]; });
+    var shownSet = {};
+    colNames.forEach(function(n){ shownSet[n] = true; });
+    var detailFields = (cfg.fields||[]).filter(function(f){ return !shownSet[f] && f !== STATUS_COL; });
+
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe">';
+    html += '<thead><tr><th style="width:40px"></th>'; colNames.forEach(function(h){ html += '<th>'+h+'</th>'; }); html += '</tr></thead><tbody>';
+
+    if (!visibleRows.length){
+      html += '<tr><td colspan="'+(colNames.length+1)+'"><div class="empty-state"><strong>No records</strong>Add data in Google Sheets or use + Add Record above.</div></td></tr>';
+    } else {
+      var selId = _selected[tKeyName];
+      var expandedSet = _expandedRows[tKeyName] || {};
+      visibleRows.forEach(function(row){
+        var idVal = idIdx>-1 ? row[idIdx] : '';
+        var idValEsc = String(idVal).replace(/'/g,"\\'");
+        var isSel = selId !== undefined && selId !== null && String(selId) === String(idVal);
+        var isExpanded = !!expandedSet[String(idVal)];
+        html += '<tr class="fi-row-selectable'+(isSel?' fi-row-selected':'')+'" onclick="FI.selectRow(\''+tKeyName+'\',\''+idValEsc+'\')">';
+        html += '<td class="fi-expand-cell" style="text-align:center;cursor:pointer;padding:10px 6px" title="Click to show all fields" onclick="event.stopPropagation();FI.toggleRowDetail(\''+tKeyName+'\',\''+idValEsc+'\')">'+
+          '<span class="fi-chevron" style="display:inline-block;font-size:13px;transition:transform .15s'+(isExpanded?';transform:rotate(90deg)':'')+'">▶</span></td>';
+        colIdxs.forEach(function(ci){
+          var cell = row[ci];
+          if (data.headers[ci] === 'Status'){
+            var stv = String(cell||'').trim();
+            var cls = stv.toLowerCase()==='closed' ? 'nb-grn' : 'nb-amb';
+            html += '<td>'+(stv?'<span class="nb '+cls+'">'+stv+'</span>':formatCell(cell))+'</td>';
+          } else {
+            html += '<td>' + formatCell(cell) + '</td>';
+          }
+        });
+        html += '</tr>';
+        if (isExpanded){
+          html += '<tr class="fi-detail-row"><td></td><td colspan="'+colNames.length+'">'+
+            '<div class="fi-detail-grid">' + detailFields.map(function(f){
+              var fi = colIdx(data.headers, f);
+              var val = fi>=0 ? row[fi] : '';
+              return '<div class="fi-detail-item"><span class="fi-detail-lbl">'+f+'</span><span class="fi-detail-val">'+formatCell(val)+'</span></div>';
+            }).join('') +
+            '</div></td></tr>';
+        }
+      });
+    }
+    html += '</tbody></table></div>';
+    areaEl.innerHTML = html;
+  }
+
+  function loadTab(tKeyName){
+    var cfg = TABLES[tKeyName];
+    var el = document.getElementById(cfg.containerId);
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fiw-text-muted);font-size:11px">⏳ Loading live data…</div>';
+    return fetch(SHEETS_URL + '?tab=' + cfg.tabKey + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        renderShell(tKeyName, data);
+        var countEl = document.getElementById('fi-count-' + tKeyName);
+        if (countEl && data && data.rows){
+          var statusIdx = colIdx(data.headers, STATUS_COL);
+          var visibleCount = statusIdx < 0 ? data.rows.length :
+            data.rows.filter(function(r){ return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; }).length;
+          countEl.textContent = '(' + visibleCount + ')';
+        }
+        return data;
+      })
+      .catch(function(){
+        el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
+        return null;
+      });
+  }
+
+  function loadAll(){
+    var keys = Object.keys(TABLES);
+    return Promise.all(keys.map(loadTab)).then(function(){
+      renderDashboard();
+    });
+  }
+  function reloadAll(){ return loadAll(); }
+
+  function visibleRowsOf(tKeyName){
+    var data = _cache[tKeyName];
+    if (!data || !data.rows) return [];
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    return data.rows.filter(function(r){ return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+  }
+
+  function monthLabel(ym){
+    var parts = ym.split('-');
+    var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mi = parseInt(parts[1],10) - 1;
+    return (names[mi] || parts[1]) + ' ' + parts[0];
+  }
+
+  function renderDashboard(){
+    var ins = _cache['inspection'];
+    if (!ins) return;
+    var visibleRows = visibleRowsOf('inspection');
+
+    document.getElementById('fi-kpi-total').textContent = visibleRows.length;
+
+    var dateIdx = colIdx(ins.headers, 'Month');
+    var thisYear = new Date().getFullYear();
+    var yearCount = 0;
+    visibleRows.forEach(function(r){
+      var s = dateIdx>=0 ? String(r[dateIdx]||'').trim() : '';
+      if (/^\d{4}/.test(s) && parseInt(s.slice(0,4),10) === thisYear) yearCount++;
+    });
+    document.getElementById('fi-kpi-year').textContent = yearCount;
+    document.getElementById('fi-kpi-year-sub').textContent = 'Year to date';
+
+    var openCount = visibleRows.filter(function(r){ return hasOpenEntry(r, ins.headers); }).length;
+    document.getElementById('fi-kpi-open').textContent = openCount;
+
+    var greenCount = visibleRows.filter(function(r){ return hasOpenTag(r, ins.headers, 'green'); }).length;
+    var kpiGreen = document.getElementById('fi-kpi-green');
+    if (kpiGreen) kpiGreen.textContent = greenCount;
+
+    var redCount = visibleRows.filter(function(r){ return hasOpenTag(r, ins.headers, 'red'); }).length;
+    var kpiRed = document.getElementById('fi-kpi-red');
+    if (kpiRed) kpiRed.textContent = redCount;
+
+    var findingsCount = visibleRows.filter(function(r){ return hasOpenFinding(r, ins.headers); }).length;
+    var kpiFindings = document.getElementById('fi-kpi-findings');
+    if (kpiFindings) kpiFindings.textContent = findingsCount;
+
+    var BLUE = '#5B9BD5', GOLD = '#C9A84C';
+    var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
+    if (_charts.bySpace) { _charts.bySpace.destroy(); _charts.bySpace = null; }
+    if (_charts.byMonth) { _charts.byMonth.destroy(); _charts.byMonth = null; }
+
+    // Chart 1: Inspections by Forklift (horizontal bar) — counts each
+    // inspection record against the Equipment ID it was logged for.
+    var scaffIdx = colIdx(ins.headers, 'Equipment ID');
+    var spaceCounts = {};
+    if (scaffIdx >= 0){
+      visibleRows.forEach(function(r){
+        var v = String(r[scaffIdx]||'').trim();
+        if (v) spaceCounts[v] = (spaceCounts[v]||0) + 1;
+      });
+    }
+    var usedSpaces = Object.keys(spaceCounts).sort();
+    if (window.Chart && usedSpaces.length){
+      var maxSpaceCount = Math.max.apply(null, usedSpaces.map(function(s){ return spaceCounts[s]||0; }).concat([0]));
+      _charts.bySpace = new Chart(document.getElementById('fiByForkliftChart'), {
+        type:'bar', data:{ labels: usedSpaces, datasets:[{ label:'Inspections', data: usedSpaces.map(function(s){ return spaceCounts[s]||0; }), backgroundColor:BLUE, borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
+          interaction:{ mode:'nearest', axis:'y', intersect:false },
+          layout:{ padding:{ right: 28 } },
+          scales:{ x:{ beginAtZero:true, max: Math.ceil(maxSpaceCount*1.18)||undefined, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } }, y:{ ticks:{ color:TICK }, grid:{ color:GRID } } },
+          plugins:{
+            legend:{ display:false },
+            tooltip:{ callbacks:{ label:function(ctx){ return ctx.parsed.x + ' inspection' + (ctx.parsed.x===1?'':'s'); } } },
+            datalabels:{ anchor:'end', align:'end', clamp:true, color:'#E8C97A', font:{ size:10, weight:'600' }, formatter:function(v){ return v; } }
+          }
+        },
+        plugins: (window.ChartDataLabels ? [window.ChartDataLabels] : [])
+      });
+    }
+
+    // Chart 2: Entries by Month (vertical bar) — same monthLabel
+    // bucketing approach as LOTO's Certificate Expiry chart, grouped
+    // here by the entry's own Date instead of an expiry date.
+    var monthCounts = {};
+    if (dateIdx >= 0){
+      visibleRows.forEach(function(r){
+        var raw = r[dateIdx];
+        if (!raw) return;
+        var s = String(raw).trim();
+        if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return;
+        var year = parseInt(s.slice(0,4), 10);
+        if (year < 2020) return;
+        var ym = s.slice(0,7);
+        monthCounts[ym] = (monthCounts[ym] || 0) + 1;
+      });
+    }
+    var sortedMonths = Object.keys(monthCounts).sort();
+    if (window.Chart && sortedMonths.length){
+      _charts.byMonth = new Chart(document.getElementById('fiByMonthChart'), {
+        type: 'bar',
+        data: { labels: sortedMonths.map(monthLabel), datasets: [{
+          label: 'Inspections', data: sortedMonths.map(function(m){ return monthCounts[m]; }),
+          backgroundColor: GOLD, borderRadius: 4
+        }]},
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: {
+            y: { beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } },
+            x: { ticks:{ color:TICK }, grid:{ color:GRID } }
+          },
+          plugins: { legend: { display:false } } }
+      });
+    }
+  }
+
+  function setExpanded(tKeyName, expanded){
+    var containerId = TABLES[tKeyName].containerId;
+    var el = document.getElementById(containerId);
+    var hdr = document.getElementById('fi-hdr-' + tKeyName);
+    var chev = hdr ? hdr.querySelector('.fi-chevron') : null;
+    if (expanded){ el.classList.add('fi-open'); if (chev) chev.style.transform='rotate(90deg)'; }
+    else { el.classList.remove('fi-open'); if (chev) chev.style.transform='rotate(0deg)'; }
+  }
+
+  /* ── Modal (shared by Add + Edit) — same shell as loto-register.html,
+     extended with <select> rendering for selectFields and <textarea>
+     for textareaFields. ─────────────────────────────────────────── */
+  function showModal(tKeyName, title, fields, initialValues, onSubmit){
+    var root = document.getElementById('fi-modal-root');
+    var cfg = TABLES[tKeyName];
+    var selFields = cfg.selectFields || {};
+    var taFields = cfg.textareaFields || [];
+    var fieldsHtml = fields.map(function(f, fi){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEsc = String(v).replace(/"/g,'&quot;');
+      if (selFields[f]){
+        var optsHtml = '<option value=""></option>' + selFields[f].map(function(o){
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="fi-field"><label>'+f+'</label><select data-field="'+f+'">'+optsHtml+'</select></div>';
+      }
+      if (taFields.indexOf(f) > -1){
+        return '<div class="fi-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+      }
+      var fLower = f.trim().toLowerCase();
+      var hasDate = fLower.indexOf('date') > -1;
+      var hasTime = fLower.indexOf('time') > -1;
+      var inputType = (hasDate && hasTime) ? 'datetime-local' : (hasDate ? 'date' : (hasTime ? 'time' : 'text'));
+      var suggestions = (hasDate || hasTime) ? [] : getSuggestions(tKeyName, f);
+      var dlId = 'fi-dl-' + tKeyName + '-' + fi;
+      var dlHtml = '';
+      if (suggestions.length){
+        dlHtml = '<datalist id="'+dlId+'">' + suggestions.map(function(s){
+          return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
+        }).join('') + '</datalist>';
+      }
+      return '<div class="fi-field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"'+(suggestions.length?' list="'+dlId+'"':'')+'>'+dlHtml+'</div>';
+    }).join('');
+
+    root.innerHTML = '<div class="fi-modal-bg" id="fi-modal-bg"><div class="fi-modal">' +
+      '<h3>'+title+'</h3>' + fieldsHtml +
+      '<div id="fi-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
+      '<div class="fi-modal-actions"><button class="fi-btn fi-btn-cancel" id="fi-modal-cancel">Cancel</button>' +
+      '<button class="fi-btn fi-btn-add" id="fi-modal-save">Save</button></div></div></div>';
+
+    document.getElementById('fi-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('fi-modal-bg').onclick = function(e){ if(e.target.id==='fi-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('fi-modal-save').onclick = function(){
+      var values = {};
+      root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      var saveBtn = document.getElementById('fi-modal-save');
+      saveBtn.disabled = true;
+      window._siReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
+      onSubmit(values, function(){ root.innerHTML = ''; });
+    };
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  /* ── Public API used by inline onclick handlers ─────────────────────── */
+  window.FI = {
+    toggle: function(tKeyName){
+      var containerId = TABLES[tKeyName].containerId;
+      var el = document.getElementById(containerId);
+      setExpanded(tKeyName, !el.classList.contains('fi-open'));
+    },
+    jumpTo: function(tKeyName){
+      setExpanded(tKeyName, true);
+      var hdr = document.getElementById('fi-hdr-' + tKeyName);
+      if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
+    },
+    onSearchInput: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].search = val; renderTableArea(tKeyName);
+    },
+    onCategoryChange: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName].category = val; renderTableArea(tKeyName);
+    },
+    clearFilters: function(tKeyName){
+      _filters[tKeyName] = {search:'', category:'', special:null};
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    cardClick: function(cardName){
+      var special = (cardName === 'total') ? null : cardName === 'openentries' ? 'openentries'
+        : cardName === 'green' ? 'green' : cardName === 'red' ? 'red' : cardName === 'findings' ? 'findings' : null;
+      _filters['inspection'] = {search:'', category:'', special: special};
+      renderShell('inspection', _cache['inspection']);
+      this.jumpTo('inspection');
+    },
+    selectRow: function(tKeyName, idVal){
+      var cur = _selected[tKeyName];
+      _selected[tKeyName] = (cur !== undefined && cur !== null && String(cur) === String(idVal)) ? null : idVal;
+      renderShell(tKeyName, _cache[tKeyName]);
+    },
+    getSelected: function(tKeyName){ return _selected[tKeyName]; },
+    toggleRowDetail: function(tKeyName, idVal){
+      var set = _expandedRows[tKeyName] || (_expandedRows[tKeyName] = {});
+      var key = String(idVal);
+      set[key] = !set[key];
+      renderTableArea(tKeyName);
+    },
+    openAdd: function(tKeyName){
+      var cfg = TABLES[tKeyName];
+      if (!can('add')) return;
+      var initial = {};
+      var suggestedId = nextSequentialId(tKeyName);
+      if (suggestedId) initial[cfg.idCol] = suggestedId;
+      showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._siReenableModalSave) window._siReenableModalSave(); });
+      });
+    },
+    // Opens the printable Forklift Inspection Checklist for one
+    // Inspection ID in a new tab, reproducing the source form, to
+    // print or save as PDF and post at the forklift. Mirrors
+    // SI.printInspection in scaffold-inspection.html.
+    printInspection: function(idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache['inspection'];
+      var idIdx = colIdx(data.headers, 'Inspection ID');
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var rec = {};
+      data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print the checklist.'); return; }
+      w.document.open(); w.document.write(buildForkliftPrintHtml(rec)); w.document.close();
+    },
+    // Escalates a flagged inspection to a single combined record in
+    // the Action Register — same sessionStorage + URL hand-off
+    // mechanism already used for Scaffold Inspection and every other
+    // escalation source, so action-register.html/capa-wizard.js open
+    // the lightweight Action lane pre-filled, no separate wiring
+    // needed on that side beyond the matching 'fromForklift' handler.
+    escalateToAction: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select an inspection record first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var carIdx = colIdx(data.headers, 'Corrective Action Required (Y/N)');
+      if (carIdx < 0 || String(row[carIdx]||'').trim().toLowerCase() !== 'yes'){
+        return alert('This inspection is not flagged as requiring corrective action.');
+      }
+      var refIdx = colIdx(data.headers, 'Action Reference');
+      if (refIdx >= 0 && String(row[refIdx]||'').trim()){
+        return alert('This inspection was already escalated — see Action Register record ' + row[refIdx] + '.');
+      }
+      var equipIdx = colIdx(data.headers, 'Equipment ID');
+      var tagIdx = colIdx(data.headers, 'Tag Status');
+      var pcaIdx = colIdx(data.headers, 'Proposed Corrective Action');
+      // Bundle the equipment reference, tag result, and proposed
+      // corrective action from this one inspection into a single
+      // action-plan description, per the one-inspection-one-Action
+      // design — nothing here should need a second escalation later.
+      var descParts = [];
+      descParts.push('Forklift Inspection: ' + idVal);
+      if (equipIdx >= 0 && row[equipIdx]) descParts.push('Equipment ID: ' + row[equipIdx]);
+      if (tagIdx >= 0 && row[tagIdx]) descParts.push('Tag Status: ' + row[tagIdx]);
+      if (pcaIdx >= 0 && row[pcaIdx]) descParts.push('Proposed corrective action: ' + row[pcaIdx]);
+      var ctx = {
+        inspectionId: idVal,
+        description: descParts.join('\n') || ('Corrective action required — Forklift Inspection ' + idVal),
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingForkliftContext', JSON.stringify(ctx)); } catch(e){ /* not fatal — the destination still opens, just without pre-fill */ }
+      window.open('action-register.html?fromForklift=' + encodeURIComponent(idVal) + '&lane=ACT', '_blank');
+    },
+    openEdit: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('edit')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache[tKeyName];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+            if (window._siReenableModalSave) window._siReenableModalSave();
+            return;
+          }
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._siReenableModalSave) window._siReenableModalSave(); });
+      });
+    },
+    remove: function(tKeyName, idVal){
+      var cfg = TABLES[tKeyName];
+      if (!can('delete')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message || 'unknown error')); return; }
+        _selected[tKeyName] = null;
+        reloadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    }
+  };
+
+  // Deep link from the Action Register's "Source" column — once an
+  // escalated inspection's Action is resolved, clicking its Forklift
+  // Inspection ID reference lands here as ?inspection=<Inspection ID>,
+  // jumps to the Forklift Inspection Register section, and opens that
+  // exact record's full details (not just a highlighted row), same as
+  // scaffold-inspection.html's own hand-off.
+  function handleForkliftDeepLink(){
+    var inspectionId = new URLSearchParams(window.location.search).get('inspection');
+    if (!inspectionId) return;
+    FI.jumpTo('inspection');
+    FI.openEdit('inspection', inspectionId);
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadAll().then(handleForkliftDeepLink); }, 100);
+  });
+})();
+</script>
+
+<script>
+/* ── Access gate: identical rule to scaffold-inspection.html — entered
+   and reviewed entirely by HSE (Safety/SHEE dept), per Issam. ── */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The detailed Forklift Inspection register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+
+</body></html>

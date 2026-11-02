@@ -178,6 +178,8 @@
       sourceContractorComplianceId: '', /* Rev.12 (Issam, 2026-10-15) — set when this ACT record was forwarded from the Contractor Compliance Log's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceOhSurveillanceId: '', /* Rev.13 (Issam, 2026-10-15) — set when this ACT record was forwarded from the OH Surveillance Log's "Escalate to Action" button. Carries only the Round ID — never a worker name or ID, matching that register's privacy-by-design. Mutually exclusive with the other source-* fields in practice. */
       sourceChemicalSdsId: '', /* Rev.14 (Issam, 2026-10-17) — set when this ACT record was forwarded from the Chemical Inventory (GHS) SDS Review Log's "Escalate to Action" button. Carries a Review Ref — this is a paperwork/compliance chase (requesting an updated or missing supplier SDS), never a physical-safety emergency. Mutually exclusive with the other source-* fields in practice. */
+      sourceViolationId: '', /* Rev.15 (Issam, 2026-11-01) — set when this ACT record was forwarded from the HSE Violation Register's "Escalate to Action" button, for a repeat-offender/category-pattern case per Clause 10.2. Carries only the Violation Ref — never the employee's name — matching the Violation Register's own confidentiality notice; ctx.description is built the same privacy-conscious way. Mutually exclusive with the other source-* fields in practice. */
+      sourceForkliftInspectionId: '', /* Rev.16 (Issam, 2026-11-02) — set when this ACT record was forwarded from the Forklift Inspection Register's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -386,7 +388,11 @@
                           ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from OH Surveillance Round <strong>' + esc(state.sourceOhSurveillanceId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that round too.</div>'
                           : (state.sourceChemicalSdsId
                             ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Chemical Inventory SDS Review <strong>' + esc(state.sourceChemicalSdsId) + '</strong> — a plain Action chasing a supplier SDS, not a physical-safety emergency: no root cause analysis, no approval gate. Closing this Action automatically closes that review entry too.</div>'
-                            : '')))))))))));
+                            : (state.sourceViolationId
+                              ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from HSE Violation Register <strong>' + esc(state.sourceViolationId) + '</strong> — a repeat-offender/pattern escalation under Clause 10.2: no root cause analysis, no approval gate. The employee is not named here; see the Violation Register (Safety/Managers/CEO access) for details.</div>'
+                              : (state.sourceForkliftInspectionId
+                                ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Forklift Inspection <strong>' + esc(state.sourceForkliftInspectionId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection record too.</div>'
+                                : '')))))))))))));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -1020,6 +1026,8 @@
       'Source Contractor Compliance ID': state.sourceContractorComplianceId || '',
       'Source OH Surveillance ID': state.sourceOhSurveillanceId || '',
       'Source Chemical SDS ID': state.sourceChemicalSdsId || '',
+      'Source HSE Violation ID': state.sourceViolationId || '',
+      'Source Forklift Inspection ID': state.sourceForkliftInspectionId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
@@ -1414,6 +1422,48 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.15 (Issam, 2026-11-01) — mirrors notifySourceChemicalSds()
+     exactly, for the HSE Violation Register: writes the durable
+     "Action Reference" back to the one violation that escalated it,
+     so violation-register.html's own toolbar button can show its
+     "✓ Escalated → ACT-…" state and block re-escalation. Tab key is
+     'hse_violations', idCol 'Violation Ref'. Only fires on first
+     save. There is no matching notifyViolationActionCompleted() —
+     a violation record has no open/closed workflow status to sync
+     back to, unlike a log or audit entry. */
+  function notifySourceViolation() {
+    if (!state.sourceViolationId) return;
+    fetch(SHEETS_URL + '?action=update&tab=hse_violations&idCol=' + encodeURIComponent('Violation Ref') + '&id=' + encodeURIComponent(state.sourceViolationId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
+  /* Rev.16 (Issam, 2026-11-02) — mirrors notifySourceScaffoldInspection()
+     exactly, for the Forklift Inspection Register: writes the durable
+     "Action Reference" back to the one inspection row that escalated
+     it, so the register's own toolbar button can show its
+     "✓ Escalated → ACT-…" state. Only fires on first save. */
+  function notifySourceForkliftInspection() {
+    if (!state.sourceForkliftInspectionId) return;
+    fetch(SHEETS_URL + '?action=update&tab=forklift_inspection&idCol=' + encodeURIComponent('Inspection ID') + '&id=' + encodeURIComponent(state.sourceForkliftInspectionId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
+  /* Rev.16 (Issam, 2026-11-02) — mirrors notifyScaffoldInspectionActionCompleted()
+     exactly, for the Forklift Inspection Register: once this ACT-lane
+     record reaches Closed, the one inspection that escalated it has
+     its own Status set to Closed too. Fire-and-forget and idempotent. */
+  function notifyForkliftInspectionActionCompleted() {
+    if (!state.sourceForkliftInspectionId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=forklift_inspection&idCol=' + encodeURIComponent('Inspection ID') + '&id=' + encodeURIComponent(state.sourceForkliftInspectionId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Status': 'Closed' }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* Rev.09 (Issam, 2026-10-14) — mirrors notifyScaffoldInspectionActionCompleted()
      exactly, for the Fire Pump Test Log: once this ACT-lane record
      reaches Closed, the one log sheet that escalated it has its own
@@ -1525,6 +1575,8 @@
             notifySourceContractorCompliance();
             notifySourceOhSurveillance();
             notifySourceChemicalSds();
+            notifySourceViolation();
+            notifySourceForkliftInspection();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
@@ -1537,6 +1589,7 @@
             notifyContractorComplianceActionCompleted();
             notifyOhSurveillanceActionCompleted();
             notifyChemicalSdsActionCompleted();
+            notifyForkliftInspectionActionCompleted();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
@@ -1575,6 +1628,7 @@
             notifyContractorComplianceActionCompleted();
             notifyOhSurveillanceActionCompleted();
             notifyChemicalSdsActionCompleted();
+            notifyForkliftInspectionActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1853,6 +1907,8 @@
     state.sourceContractorComplianceId = col('Source Contractor Compliance ID');
     state.sourceOhSurveillanceId = col('Source OH Surveillance ID');
     state.sourceChemicalSdsId = col('Source Chemical SDS ID');
+    state.sourceViolationId = col('Source HSE Violation ID');
+    state.sourceForkliftInspectionId = col('Source Forklift Inspection ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2805,6 +2861,44 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.15 (Issam, 2026-11-01) — HSE Violation Register hand-off —
+     action-register.html?fromViolation=VIO-2026-0X&lane=ACT, opened
+     by violation-register.html's "⚡ Escalate to Action" button, for
+     a repeat-offender or category-pattern case under Clause 10.2.
+     Same sessionStorage-plus-URL-verification pattern as every other
+     hand-off above. ctx.description carries only the Violation Ref,
+     category and pattern reason — never the employee's name — matching
+     that register's own confidentiality notice, since the Action
+     Register has no department-level access gate. */
+  function openFromViolation(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceViolationId = ctx.entryId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'HSE Violation Register';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
+  /* Rev.16 (Issam, 2026-11-02) — Forklift Inspection Register hand-off
+     — action-register.html?fromForklift=FLI-2026-0XX&lane=ACT, opened
+     by forklift-inspection.html's "⚡ Escalate to Action" button. Same
+     sessionStorage-plus-URL-verification pattern as every other
+     hand-off above. */
+  function openFromForklift(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceForkliftInspectionId = ctx.inspectionId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Forklift Inspection';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -3070,6 +3164,40 @@
         loadUserDirectory(function () { openFromChemicalSds(chmCtx); });
       } else {
         loadUserDirectory(function () { openFromChemicalSds({ entryId: fromChemicalSds }); });
+      }
+    }
+
+    /* Rev.15 (Issam, 2026-11-01) — HSE Violation Register hand-off —
+       action-register.html?fromViolation=VIO-2026-0X&lane=ACT, opened
+       by violation-register.html's "⚡ Escalate to Action" button.
+       Same sessionStorage-plus-URL-verification pattern as every
+       other hand-off above. */
+    var fromViolation = params.get('fromViolation');
+    if (fromViolation) {
+      showLoadingWizard();
+      var vioCtx = null;
+      try { vioCtx = JSON.parse(sessionStorage.getItem('incomingViolationContext') || 'null'); } catch (e) { vioCtx = null; }
+      if (vioCtx && String(vioCtx.entryId) === String(fromViolation)) {
+        loadUserDirectory(function () { openFromViolation(vioCtx); });
+      } else {
+        loadUserDirectory(function () { openFromViolation({ entryId: fromViolation }); });
+      }
+    }
+
+    /* Rev.16 (Issam, 2026-11-02) — Forklift Inspection Register
+       hand-off — action-register.html?fromForklift=FLI-2026-0XX&lane=ACT,
+       opened by forklift-inspection.html's "⚡ Escalate to Action"
+       button. Same sessionStorage-plus-URL-verification pattern as
+       every other hand-off above. */
+    var fromForklift = params.get('fromForklift');
+    if (fromForklift) {
+      showLoadingWizard();
+      var fliCtx = null;
+      try { fliCtx = JSON.parse(sessionStorage.getItem('incomingForkliftContext') || 'null'); } catch (e) { fliCtx = null; }
+      if (fliCtx && String(fliCtx.inspectionId) === String(fromForklift)) {
+        loadUserDirectory(function () { openFromForklift(fliCtx); });
+      } else {
+        loadUserDirectory(function () { openFromForklift({ inspectionId: fromForklift }); });
       }
     }
   }
