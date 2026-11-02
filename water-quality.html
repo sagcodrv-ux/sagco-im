@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Water Quality Lab Register</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+/* ══════════════════════════════════════════════════════════════════
+   WATER QUALITY LAB REGISTER — OC-02 Environment & Energy. Built
+   2026-11-02 (Issam, voice) as the WATER half of the planned "Water &
+   Waste Data" scope item (Sh.30) — Air Emissions is still a separate,
+   unbuilt part of that same planned item. One record per lab test
+   (Issam: "for each lab test, we should have only one record"), with
+   a small fixed set of parameters that each carry a clear measured
+   value, entered by the Environmental team (exact people TBD).
+   Specification limits are Kindasa Laboratory's own min/max, taken
+   directly off their Potable Water Analysis Customer report. The
+   in/out-of-spec alert is computed LIVE in the browser from whatever
+   is currently in the Google Sheet (Issam: "it should be live based
+   on the data entry... based on the value existing on the Google
+   data sheet") — never stored as a fixed pass/fail, so correcting a
+   value updates the flag automatically. Class prefix wq-.
+   ══════════════════════════════════════════════════════════════════ */
+.wq-dark-wrap{
+  --wq-bg:#0D1B35; --wq-bg2:#142140; --wq-bg3:#1a2a50;
+  --wq-gold:#C9A84C; --wq-gold-lt:#E8C97A;
+  --wq-text:rgba(255,255,255,.92); --wq-text-muted:rgba(255,255,255,.55);
+  --wq-text-dim:rgba(255,255,255,.35); --wq-border:rgba(255,255,255,.08);
+  --wq-border-gold:rgba(201,168,76,.35);
+  --wq-grn:#4FCB9E; --wq-red:#F0685C;
+  background:var(--wq-bg); color:var(--wq-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.wq-dark-wrap *{box-sizing:border-box}
+.back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--wq-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--wq-bg2);
+  border-radius:8px;border:1px solid var(--wq-border-gold)}
+.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--wq-bg2);
+  border-radius:8px;border-left:3px solid var(--wq-gold);margin:10px 0;color:var(--wq-text-muted)}
+.wq-toolbar{display:flex;justify-content:space-between;align-items:center;margin:14px 0;flex-wrap:wrap;gap:10px}
+.aiw-btn{font-size:11px;font-weight:700;padding:8px 14px;border-radius:7px;border:1px solid var(--wq-border-gold);
+  background:var(--wq-bg3);color:var(--wq-text);cursor:pointer}
+.aiw-btn:hover{background:rgba(201,168,76,.15)}
+.aiw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--wq-grn)}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{background:var(--wq-bg3);color:var(--wq-gold-lt);font-weight:700;text-align:left;padding:7px 9px;
+  text-transform:uppercase;font-size:9.5px;border-bottom:1px solid var(--wq-border-gold)}
+tbody td{padding:6px 9px;border-bottom:1px solid var(--wq-border);color:var(--wq-text-muted)}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:rgba(255,255,255,.03)}
+.wq-pill{display:inline-block;padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700}
+.wq-pill.ok{background:rgba(79,203,158,.18);color:var(--wq-grn)}
+.wq-pill.alert{background:rgba(240,104,92,.18);color:var(--wq-red)}
+.wq-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;align-items:flex-start;justify-content:center;padding:30px 14px;overflow-y:auto}
+.wq-modal-bg.active{display:flex}
+.wq-modal{background:var(--wq-bg2);border:1px solid var(--wq-border-gold);border-radius:12px;padding:20px;max-width:640px;width:100%}
+.wq-modal h3{margin:0 0 12px;color:var(--wq-gold-lt);font-size:14px}
+.wq-field{margin-bottom:10px}
+.wq-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--wq-text-dim);margin-bottom:4px}
+.wq-field input,.wq-field textarea{width:100%;background:var(--wq-bg3);border:1px solid var(--wq-border);
+  color:var(--wq-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.wq-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.wq-row4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
+.wq-spec{font-size:9.5px;color:var(--wq-text-dim);margin-top:2px}
+.wq-out{border-color:var(--wq-red)!important;background:rgba(240,104,92,.08)!important}
+.wq-alert-box{font-size:11px;padding:8px 12px;border-radius:7px;margin-bottom:12px}
+.wq-alert-box.ok{background:rgba(79,203,158,.12);color:var(--wq-grn);border:1px solid rgba(79,203,158,.35)}
+.wq-alert-box.bad{background:rgba(240,104,92,.12);color:var(--wq-red);border:1px solid rgba(240,104,92,.35)}
+.wq-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+</style>
+</head><body><div class="wq-dark-wrap">
+<div class="back-row"><a href="oc02-scopes.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
+
+<div class="req-text">Water Quality Lab Register — the Water half of the planned "Water &amp; Waste Data" scope item; Air Emissions is still to be built separately. <strong>One record per lab test</strong>, entered by the Environmental team. The specification shown for every parameter is Kindasa Laboratory's own min/max, exactly as printed on their Potable Water Analysis Customer report. Each row's in/out-of-spec status is <strong>computed live from whatever is currently stored</strong> — it is never saved as a fixed pass/fail, so correcting a value updates the flag by itself.</div>
+
+<div class="wq-toolbar">
+  <div style="font-size:11px;color:var(--wq-text-muted)" id="wq-count"></div>
+  <button class="aiw-btn aiw-btn-add" onclick="WQ.openNew()">+ New Lab Test Record</button>
+</div>
+
+<table>
+  <thead><tr>
+    <th>Collection Date</th><th>pH</th><th>Conductivity</th><th>TDS</th><th>Turbidity</th>
+    <th>Res. Chlorine</th><th>Status</th>
+  </tr></thead>
+  <tbody id="wq-tbody"></tbody>
+</table>
+
+<div class="wq-modal-bg" id="wq-modal-bg">
+  <div class="wq-modal">
+    <h3 id="wq-modal-title">New Lab Test Record</h3>
+    <div id="wq-modal-alert"></div>
+    <input type="hidden" id="wq-id">
+    <div class="wq-row3">
+      <div class="wq-field"><label>Collection Date</label><input type="date" id="wq-collection-date"></div>
+      <div class="wq-field"><label>Sampling Time</label><input type="time" id="wq-sampling-time"></div>
+      <div class="wq-field"><label>Analysis Date</label><input type="date" id="wq-analysis-date"></div>
+    </div>
+    <div class="wq-field"><label>Reporting Date</label><input type="date" id="wq-reporting-date"></div>
+    <hr style="border-color:var(--wq-border);margin:12px 0">
+    <div class="wq-row3">
+      <div class="wq-field"><label>pH</label><input type="number" step="any" id="wq-ph" oninput="WQ.recompute()"><div class="wq-spec">Spec 8.00–8.40</div></div>
+      <div class="wq-field"><label>Conductivity (µS/cm)</label><input type="number" step="any" id="wq-conductivity" oninput="WQ.recompute()"><div class="wq-spec">Spec 350–530</div></div>
+      <div class="wq-field"><label>TDS (mg/l)</label><input type="number" step="any" id="wq-tds" oninput="WQ.recompute()"><div class="wq-spec">Spec 190–295</div></div>
+    </div>
+    <div class="wq-row3">
+      <div class="wq-field"><label>Turbidity (NTU)</label><input type="number" step="any" id="wq-turbidity" oninput="WQ.recompute()"><div class="wq-spec">Spec 0.0–&lt;1</div></div>
+      <div class="wq-field"><label>Residual Chlorine (mg/l)</label><input type="number" step="any" id="wq-chlorine" oninput="WQ.recompute()"><div class="wq-spec">Spec 0.20–0.40</div></div>
+      <div class="wq-field"><label>Total Hardness (mg/l)</label><input type="number" step="any" id="wq-hardness" oninput="WQ.recompute()"><div class="wq-spec">Spec 10.0–25.0</div></div>
+    </div>
+    <div class="wq-row3">
+      <div class="wq-field"><label>Total Iron (mg/l)</label><input type="number" step="any" id="wq-iron" oninput="WQ.recompute()"><div class="wq-spec">Spec 0.00–&lt;0.05</div></div>
+      <div class="wq-field"><label>Nitrate (mg/l)</label><input type="number" step="any" id="wq-nitrate" oninput="WQ.recompute()"><div class="wq-spec">Spec 0.00–&lt;0.5</div></div>
+      <div class="wq-field"><label>Nitrite (mg/l)</label><input type="number" step="any" id="wq-nitrite" oninput="WQ.recompute()"><div class="wq-spec">Spec 0.00–&lt;0.05</div></div>
+    </div>
+    <hr style="border-color:var(--wq-border);margin:12px 0">
+    <div class="wq-row3">
+      <div class="wq-field"><label>T. Bacteria Count</label><input id="wq-bacteria" placeholder="ND" oninput="WQ.recompute()"><div class="wq-spec">Expected: ND</div></div>
+      <div class="wq-field"><label>T. Coliform</label><input id="wq-coliform" placeholder="ND" oninput="WQ.recompute()"><div class="wq-spec">Expected: ND</div></div>
+      <div class="wq-field"><label>Fecal Coliform</label><input id="wq-fecal" placeholder="ND" oninput="WQ.recompute()"><div class="wq-spec">Expected: ND</div></div>
+    </div>
+    <div class="wq-field"><label>Remarks</label><textarea id="wq-remarks" rows="2"></textarea></div>
+    <div class="wq-actions">
+      <button class="aiw-btn" onclick="WQ.closeModal()">Cancel</button>
+      <button class="aiw-btn aiw-btn-add" onclick="WQ.save()">Save Record</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+
+  var TAB = 'water_quality';
+  var STATUS_COL = 'Record Status';
+
+  /* Spec limits taken directly from Kindasa Laboratory's own report.
+     "lt" = the printed spec is a "<max" ceiling rather than a closed
+     range; treated as a strict upper bound for the alert check. */
+  var SPECS = {
+    'pH':                 { min:8.00, max:8.40 },
+    'Conductivity':       { min:350,  max:530  },
+    'TDS':                { min:190,  max:295  },
+    'Turbidity':          { min:0.0,  max:1,    lt:true },
+    'Residual Chlorine':  { min:0.20, max:0.40 },
+    'Total Hardness':     { min:10.0, max:25.0 },
+    'Total Iron':         { min:0.00, max:0.05, lt:true },
+    'Nitrate':            { min:0.00, max:0.5,  lt:true },
+    'Nitrite':            { min:0.00, max:0.05, lt:true }
+  };
+  var MICRO_FIELDS = ['T Bacteria Count','T Coliform','Fecal Coliform'];
+
+  var _records = [];
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
+    var s = IMS_AUTH.getSession();
+    var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    return (u && u.name) || (s && s.username) || '';
+  }
+  function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmt(n){ return (n===''||n==null||isNaN(n)) ? '—' : String(n); }
+
+  function colIdx(headers,name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+  function recFromRow(headers,row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body||{}) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(){ return fetch(SHEETS_URL + '?tab=' + TAB + '&action=read').then(function(r){ return r.json(); }); }
+
+  function loadAll(){
+    return loadTab().then(function(data){
+      if (!data || !data.headers || !data.rows){ _records = []; return; }
+      var si = colIdx(data.headers, STATUS_COL);
+      var rows = data.rows;
+      if (si>=0) rows = rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase()!=='removed'; });
+      _records = rows.map(function(r){ return recFromRow(data.headers, r); });
+      _records.sort(function(a,b){ return (a['Collection Date']||'') < (b['Collection Date']||'') ? 1 : -1; });
+      render();
+    }).catch(function(){ _records = []; render(); });
+  }
+
+  /* ── Live spec check — recomputed from whatever is currently in the
+     record, never stored. Returns { ok:boolean, outParams:[names] } */
+  function checkSpec(rec){
+    var out = [];
+    Object.keys(SPECS).forEach(function(name){
+      var v = parseFloat(rec[name]);
+      if (isNaN(v)) return; // no value entered yet — nothing to flag
+      var spec = SPECS[name];
+      if (v < spec.min || v > spec.max) out.push(name);
+    });
+    MICRO_FIELDS.forEach(function(name){
+      var v = (rec[name]||'').toString().trim();
+      if (!v) return;
+      if (v.toUpperCase() !== 'ND') out.push(name);
+    });
+    return { ok: out.length===0, outParams: out };
+  }
+
+  function render(){
+    document.getElementById('wq-count').textContent = _records.length + ' record' + (_records.length===1?'':'s');
+    document.getElementById('wq-tbody').innerHTML = _records.map(function(rec){
+      var c = checkSpec(rec);
+      var statusHtml = c.ok
+        ? '<span class="wq-pill ok">In Spec</span>'
+        : '<span class="wq-pill alert" title="' + vEsc(c.outParams.join(', ')) + '">Out: ' + vEsc(c.outParams.join(', ')) + '</span>';
+      return '<tr onclick="WQ.openEdit(\'' + rec['Record ID'] + '\')">'
+        + '<td>' + vEsc(rec['Collection Date']) + '</td>'
+        + '<td>' + fmt(rec['pH']) + '</td>'
+        + '<td>' + fmt(rec['Conductivity']) + '</td>'
+        + '<td>' + fmt(rec['TDS']) + '</td>'
+        + '<td>' + fmt(rec['Turbidity']) + '</td>'
+        + '<td>' + fmt(rec['Residual Chlorine']) + '</td>'
+        + '<td>' + statusHtml + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  /* ── Modal ────────────────────────────────────────────────────── */
+  var FIELD_IDS = {
+    'Collection Date':'wq-collection-date', 'Sampling Time':'wq-sampling-time',
+    'Analysis Date':'wq-analysis-date', 'Reporting Date':'wq-reporting-date',
+    'pH':'wq-ph', 'Conductivity':'wq-conductivity', 'TDS':'wq-tds', 'Turbidity':'wq-turbidity',
+    'Residual Chlorine':'wq-chlorine', 'Total Hardness':'wq-hardness', 'Total Iron':'wq-iron',
+    'Nitrate':'wq-nitrate', 'Nitrite':'wq-nitrite',
+    'T Bacteria Count':'wq-bacteria', 'T Coliform':'wq-coliform', 'Fecal Coliform':'wq-fecal',
+    'Remarks':'wq-remarks'
+  };
+  function clearForm(){
+    document.getElementById('wq-id').value = '';
+    Object.keys(FIELD_IDS).forEach(function(k){ document.getElementById(FIELD_IDS[k]).value = ''; });
+    Object.keys(FIELD_IDS).forEach(function(k){ document.getElementById(FIELD_IDS[k]).classList.remove('wq-out'); });
+  }
+  function openNew(){
+    clearForm();
+    document.getElementById('wq-modal-title').textContent = 'New Lab Test Record';
+    document.getElementById('wq-modal-alert').innerHTML = '';
+    document.getElementById('wq-modal-bg').classList.add('active');
+  }
+  function openEdit(recordId){
+    var rec = _records.filter(function(r){ return r['Record ID']===recordId; })[0];
+    if (!rec) return;
+    clearForm();
+    document.getElementById('wq-id').value = recordId;
+    Object.keys(FIELD_IDS).forEach(function(k){ document.getElementById(FIELD_IDS[k]).value = rec[k] || ''; });
+    document.getElementById('wq-modal-title').textContent = 'Edit Lab Test Record — ' + recordId;
+    document.getElementById('wq-modal-bg').classList.add('active');
+    recompute();
+  }
+  function closeModal(){ document.getElementById('wq-modal-bg').classList.remove('active'); }
+
+  function formToRec(){
+    var rec = {};
+    Object.keys(FIELD_IDS).forEach(function(k){ rec[k] = document.getElementById(FIELD_IDS[k]).value; });
+    return rec;
+  }
+  function recompute(){
+    var rec = formToRec();
+    var c = checkSpec(rec);
+    Object.keys(SPECS).concat(MICRO_FIELDS).forEach(function(k){
+      document.getElementById(FIELD_IDS[k]).classList.toggle('wq-out', c.outParams.indexOf(k)>=0);
+    });
+    var el = document.getElementById('wq-modal-alert');
+    el.innerHTML = c.ok
+      ? '<div class="wq-alert-box ok">All entered parameters are within Kindasa spec.</div>'
+      : '<div class="wq-alert-box bad">Out of spec: ' + vEsc(c.outParams.join(', ')) + '</div>';
+  }
+
+  function nextRecordId(collectionDate){ return 'WQ-' + (collectionDate || 'NEW') + '-' + Date.now(); }
+
+  function save(){
+    var existingId = document.getElementById('wq-id').value;
+    var rec = formToRec();
+    if (!rec['Collection Date']){ alert('Collection date is required.'); return; }
+    rec['Record ID'] = existingId || nextRecordId(rec['Collection Date']);
+    rec['Entered By'] = currentUserName();
+    rec['Record Status'] = 'Active';
+    var op = existingId ? postJSON('update', { tab: TAB, id: existingId }, rec) : postJSON('create', { tab: TAB }, rec);
+    op.then(loadAll).then(closeModal);
+  }
+
+  window.WQ = { openNew:openNew, openEdit:openEdit, closeModal:closeModal, save:save, recompute:recompute,
+    checkSpec: checkSpec, _internal: { getRecords:function(){return _records;}, loadAll: loadAll } };
+
+  if (typeof IMS_AUTH !== 'undefined'){
+    IMS_AUTH.init({ onReady: function(){ loadAll(); } });
+  } else {
+    loadAll();
+  }
+})();
+</script>
+
+<script>
+/* ── Access gate ──────────────────────────────────────────────────
+   Flagged assumption: entered by the Environmental team (exact
+   members TBD per Issam), gated to Environment dept + Managers + CEO
+   + Superadmin in the meantime. */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(environment|environmental|energy)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">Water Quality Lab Register is limited to the Environmental team, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+</div>
+</body>
+</html>

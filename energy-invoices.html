@@ -7,7 +7,14 @@
 body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 /* ══════════════════════════════════════════════════════════════════
    ENERGY INVOICES — OC-02 Environment & Energy. Collects every energy
-   invoice (Electricity, LPG, Diesel, Fuel Oil) entered by Finance.
+   invoice (Electricity, LPG, Diesel, Fuel Oil, Water) entered by Finance.
+   Water added 2026-11-02 (Issam, voice): billing-only, same pattern as
+   the other four types, but deliberately simpler at his request — just
+   a total quantity (m³) and total amount (SAR) per month, no invoice-
+   line breakdown fields beyond the shared ones (no Account/Feeder,
+   and no source field — Issam explicitly said not to track whether it
+   arrived by tanker or network, "just only... the total quantity
+   delivered").
    Built 2026-11-01 (Issam, voice), same one-record-per-MONTH pattern
    as furnace-energy.html, but with FOUR sections inside one monthly
    record — one per energy type — each independently either a typed
@@ -114,7 +121,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
 </head><body><div class="eni-dark-wrap">
 <div class="back-row"><a href="oc02-environment.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
 
-<div class="req-text">Energy Invoices — every energy invoice in one place: <strong>Electricity, LPG, Diesel and Fuel Oil (HFO)</strong>, entered by Finance. <strong>One record per month</strong>, with one section per energy type inside it. Each section can be filled in two ways: type the month's <strong>total quantity and amount</strong> directly, or add the <strong>individual invoice lines</strong> (invoice no., date, supplier, quantity, amount — plus account/feeder for Electricity and LPG) and the page sums them automatically. Scanned invoices can be attached to each energy type — more than one per month if there's more than one invoice. The page shows the unit cost for each energy type (SAR per kWh or per liter) and the month's total spend. The month closes once all four energy types have a total entered.</div>
+<div class="req-text">Energy Invoices — every energy and water invoice in one place: <strong>Electricity, LPG, Diesel, Fuel Oil (HFO) and Water</strong>, entered by Finance. <strong>One record per month</strong>, with one section per type inside it. Each section can be filled in two ways: type the month's <strong>total quantity and amount</strong> directly, or add the <strong>individual invoice lines</strong> (invoice no., date, supplier, quantity, amount — plus account/feeder for Electricity and LPG) and the page sums them automatically. Water is kept deliberately simple — just the month's total quantity (m³) and total amount (SAR), no invoice-line breakdown. Scanned invoices can be attached to each type — more than one per month if there's more than one invoice. The page shows the unit cost for each type (SAR per kWh, per liter, or per m³) and the month's total spend. The month closes once all five types have a total entered.</div>
 
 <div class="sec-banner">ENERGY INVOICES — QUICK STATUS</div>
 <div class="kpi-grid" style="margin-bottom:14px">
@@ -141,9 +148,9 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
 <div class="eni-table-wrap">
   <table>
     <thead><tr>
-      <th>Month</th><th>Status</th><th>Electricity (SAR)</th><th>LPG (SAR)</th><th>Diesel (SAR)</th><th>Fuel Oil (SAR)</th><th>Total (SAR)</th>
+      <th>Month</th><th>Status</th><th>Electricity (SAR)</th><th>LPG (SAR)</th><th>Diesel (SAR)</th><th>Fuel Oil (SAR)</th><th>Water (SAR)</th><th>Total (SAR)</th>
     </tr></thead>
-    <tbody id="eni-tbody"><tr><td colspan="7" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
+    <tbody id="eni-tbody"><tr><td colspan="8" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
   </table>
 </div>
 
@@ -162,7 +169,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
     { key:'Electricity', unit:'kWh', hasAccount:true,  hasFeeder:true  },
     { key:'LPG',          unit:'L',   hasAccount:true,  hasFeeder:false },
     { key:'Diesel',       unit:'L',   hasAccount:false, hasFeeder:false },
-    { key:'Fuel Oil',     unit:'L',   hasAccount:false, hasFeeder:false }
+    { key:'Fuel Oil',     unit:'L',   hasAccount:false, hasFeeder:false },
+    { key:'Water',        unit:'m³',  hasAccount:false, hasFeeder:false }
   ];
 
   var _cache = null, _selected = null, _lastEditedId = null;
@@ -248,7 +256,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
     var tbody = document.getElementById('eni-tbody');
     setTxt('eni-count-sub', list.length + ' of ' + all.length + ' records shown');
     if (!list.length){
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><strong>No records match these filters</strong>Use "+ New Month" to start an energy invoices record.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><strong>No records match these filters</strong>Use "+ New Month" to start an energy invoices record.</td></tr>';
       updateButtons();
       return;
     }
@@ -263,6 +271,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
         + '<td>' + fmt(typeAmount(r,'LPG')) + '</td>'
         + '<td>' + fmt(typeAmount(r,'Diesel')) + '</td>'
         + '<td>' + fmt(typeAmount(r,'Fuel Oil')) + '</td>'
+        + '<td>' + fmt(typeAmount(r,'Water')) + '</td>'
         + '<td><strong>' + fmt(recordTotalSpend(r)) + '</strong></td>'
         + '</tr>';
     }).join('');
@@ -424,7 +433,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
     var progressHtml = isClosed
       ? '<div class="eni-progress-banner closed">✔ CLOSED by ' + eEsc(r['Closed By']||'') + ' on ' + eEsc(r['Closed Date']||'') + '</div>'
       : '<div class="eni-progress-banner ' + (allFilled?'ready':'open') + '">'
-        + (allFilled ? '✅ All four energy types filled — ready to close' : 'Fill in all four energy types (Electricity, LPG, Diesel, Fuel Oil) to close this month')
+        + (allFilled ? '✅ All five types filled — ready to close' : 'Fill in all five types (Electricity, LPG, Diesel, Fuel Oil, Water) to close this month')
         + ' — Total so far: SAR ' + fmt(grandTotal) + '</div>';
 
     body.innerHTML = progressHtml + sectionsHtml
