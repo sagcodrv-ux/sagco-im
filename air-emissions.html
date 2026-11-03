@@ -85,6 +85,11 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
 .ae-pill.exceed{background:rgba(240,104,92,.18);color:var(--ae-red)}
 .ae-pill.unk{background:rgba(255,255,255,.08);color:var(--ae-text-dim)}
 .ae-badge{display:inline-block;padding:2px 7px;border-radius:9px;font-size:9px;font-weight:700;background:rgba(255,255,255,.08);color:var(--ae-text-dim);margin-left:5px}
+.ae-pcell{font-weight:700}
+.ae-pcell.ok{color:var(--ae-grn)}
+.ae-pcell.warn{color:var(--ae-amber)}
+.ae-pcell.exceed{color:var(--ae-red)}
+.ae-pcell.unk{color:var(--ae-text-dim)}
 .ae-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;align-items:flex-start;justify-content:center;padding:30px 14px;overflow-y:auto}
 .ae-modal-bg.active{display:flex}
 .ae-modal{background:var(--ae-bg2);border:1px solid var(--ae-border-gold);border-radius:12px;padding:20px;max-width:680px;width:100%}
@@ -136,10 +141,18 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
 <div class="ae-collapsible" id="ae-body-airquality">
   <div class="ae-toolbar">
     <div style="font-size:11px;color:var(--ae-text-muted)" id="aq-count"></div>
-    <button class="aiw-btn aiw-btn-add" onclick="AQ.openNew()">+ New Air Quality Record</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ae-text-dim)">Parameter</label>
+      <select id="aq-filter" onchange="AE.rerenderAll()" style="background:var(--ae-bg3);border:1px solid var(--ae-border);color:var(--ae-text);border-radius:7px;padding:6px 10px;font-size:11px">
+        <option value="">All Parameters</option>
+        <option value="NO2">NO2</option><option value="CO">CO</option><option value="SO2">SO2</option>
+        <option value="O3">O3</option><option value="PM2.5">PM2.5</option><option value="PM10">PM10</option>
+      </select>
+      <button class="aiw-btn aiw-btn-add" onclick="AQ.openNew()">+ New Air Quality Record</button>
+    </div>
   </div>
   <table>
-    <thead><tr><th>Test Date</th><th>Location</th><th>Worst Parameter</th><th>Worst %</th><th>Status</th></tr></thead>
+    <thead id="aq-thead"><tr><th>Test Date</th><th>Location</th><th>NO2</th><th>CO</th><th>SO2</th><th>O3</th><th>PM2.5</th><th>PM10</th><th>Status</th></tr></thead>
     <tbody id="aq-tbody"></tbody>
   </table>
 </div>
@@ -479,7 +492,7 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
     }
 
     window.SE = { openNew:openNew, openEdit:openEdit, closeModal:closeModal, save:save, recompute:recompute,
-      autoAverage:autoAverage, statusOf:statusOf,
+      autoAverage:autoAverage, statusOf:statusOf, render:render,
       _internal: { getRecords:function(){return _records;}, loadAll: loadAll } };
     window.SE._loadAll = loadAll;
   })();
@@ -530,18 +543,53 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
       return { pct: worstPct, name: worstName };
     }
 
+    /* Table shows either all 6 parameters as their own columns (default,
+       each colour-coded by its own %) with the overall worst-of-six
+       status, or — once a parameter is picked in the filter — just
+       that parameter's reading, limit, % and status (Issam's request:
+       "specify parameter, not worst parameter", with a filter to pick
+       which one). The dashboard KPI tallies always use the true
+       worst-of-six, independent of what the filter is showing. */
     function render(){
       document.getElementById('aq-count').textContent = _records.length + ' record' + (_records.length===1?'':'s');
+      var filterEl = document.getElementById('aq-filter');
+      var filter = filterEl ? filterEl.value : '';
+
+      var theadEl = document.getElementById('aq-thead');
+      if (filter){
+        theadEl.innerHTML = '<tr><th>Test Date</th><th>Location</th><th>' + filter + ' Result</th><th>' + filter + ' Limit</th><th>% of Limit</th><th>Status</th></tr>';
+      } else {
+        theadEl.innerHTML = '<tr><th>Test Date</th><th>Location</th><th>NO2</th><th>CO</th><th>SO2</th><th>O3</th><th>PM2.5</th><th>PM10</th><th>Status</th></tr>';
+      }
+
       document.getElementById('aq-tbody').innerHTML = _records.map(function(rec){
-        var w = worstOf(rec);
-        var st = statusFor(w.pct);
-        tallyKpi(st);
+        var overall = statusFor(worstOf(rec).pct);
+        tallyKpi(overall); // KPI always reflects the true worst-of-six, regardless of the filter
+
+        if (filter){
+          var limit = SPECS[filter].limit;
+          var pct = pctOf(rec[filter], limit);
+          var st = statusFor(pct);
+          return '<tr onclick="AQ.openEdit(\'' + rec['Record ID'] + '\')">'
+            + '<td>' + vEsc(rec['Test Date']) + '</td>'
+            + '<td>' + vEsc(rec['Location']) + '</td>'
+            + '<td><span class="ae-pcell ' + st.cls + '">' + fmt(rec[filter]) + '</span></td>'
+            + '<td>' + limit + '</td>'
+            + '<td>' + (pct==null?'—':pct.toFixed(0)+'%') + '</td>'
+            + '<td><span class="ae-pill ' + st.cls + '">' + st.label + '</span></td>'
+            + '</tr>';
+        }
+
+        var cells = Object.keys(SPECS).map(function(name){
+          var pct = pctOf(rec[name], SPECS[name].limit);
+          var st = statusFor(pct);
+          return '<td><span class="ae-pcell ' + st.cls + '">' + fmt(rec[name]) + '</span></td>';
+        }).join('');
         return '<tr onclick="AQ.openEdit(\'' + rec['Record ID'] + '\')">'
           + '<td>' + vEsc(rec['Test Date']) + '</td>'
           + '<td>' + vEsc(rec['Location']) + '</td>'
-          + '<td>' + (w.name||'—') + '</td>'
-          + '<td>' + (w.pct==null?'—':w.pct.toFixed(0)+'%') + '</td>'
-          + '<td><span class="ae-pill ' + st.cls + '">' + st.label + '</span></td>'
+          + cells
+          + '<td><span class="ae-pill ' + overall.cls + '">' + overall.label + '</span></td>'
           + '</tr>';
       }).join('');
       renderKpis();
@@ -609,7 +657,7 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
     }
 
     window.AQ = { openNew:openNew, openEdit:openEdit, closeModal:closeModal, save:save, recompute:recompute,
-      worstOf:worstOf, _internal: { getRecords:function(){return _records;}, loadAll: loadAll } };
+      worstOf:worstOf, render:render, _internal: { getRecords:function(){return _records;}, loadAll: loadAll } };
     window.AQ._loadAll = loadAll;
   })();
 
@@ -725,7 +773,7 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
     }
 
     window.NS = { openNew:openNew, openEdit:openEdit, closeModal:closeModal, save:save, recompute:recompute,
-      worstOf:worstOf, _internal: { getRecords:function(){return _records;}, loadAll: loadAll } };
+      worstOf:worstOf, render:render, _internal: { getRecords:function(){return _records;}, loadAll: loadAll } };
     window.NS._loadAll = loadAll;
   })();
 
@@ -736,7 +784,21 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
     resetKpis();
     return Promise.all([ window.SE._loadAll(), window.AQ._loadAll(), window.NS._loadAll() ]);
   }
-  window.AE = { toggle: toggleSection, loadAllSections: loadAllSections };
+  /* Re-paints all three tables and the shared KPI strip from data
+     already in memory (no re-fetch) — used when something changes
+     how a table displays (e.g. the Boundary Air Quality parameter
+     filter) without any underlying record having changed. Resetting
+     the KPI counters here, once, before all three render() calls run
+     again, is what stops a filter change from double-counting into
+     the dashboard totals. */
+  function rerenderAll(){
+    resetKpis();
+    window.SE.render();
+    window.AQ.render();
+    window.NS.render();
+    renderKpis();
+  }
+  window.AE = { toggle: toggleSection, loadAllSections: loadAllSections, rerenderAll: rerenderAll };
 
   if (typeof IMS_AUTH !== 'undefined'){
     IMS_AUTH.init({ onReady: function(){ loadAllSections(); } });
