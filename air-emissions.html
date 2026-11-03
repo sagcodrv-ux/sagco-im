@@ -63,6 +63,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 .ae-kpi{flex:1;min-width:110px;background:var(--ae-bg2);border:1px solid var(--ae-border);border-radius:10px;padding:10px 12px}
 .ae-kpi .n{font-size:20px;font-weight:700;color:var(--ae-gold-lt)}
 .ae-kpi .l{font-size:9.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--ae-text-dim);margin-top:2px}
+.ae-kpi.ae-kpi-active{border-color:var(--ae-gold);box-shadow:0 0 0 1px var(--ae-gold) inset}
 .sec-banner{display:flex;align-items:center;gap:8px;background:var(--ae-bg3);border:1px solid var(--ae-border-gold);
   border-radius:9px;padding:10px 14px;font-size:12px;font-weight:700;color:var(--ae-gold-lt);cursor:pointer;margin-top:14px}
 .ae-chevron{display:inline-block;transition:transform .15s}
@@ -118,10 +119,11 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
 <div class="req-text">Air Emissions Monitoring — the Air half of the planned "Water &amp; Waste Data" scope item (the Water half is live as the Water Quality Lab Register). Three annual-campaign registers: <strong>Stack Emissions</strong> (particulate only — that's all US EPA Method 3A/5 ever reports at the chimney), <strong>Boundary Air Quality</strong> (6 ambient parameters, checked against the same national limits regardless of where the station sits), and <strong>Noise Monitoring</strong> (Day/Night boundary levels). Every status shown is <strong>computed live</strong> from the stored numbers — never saved as a fixed flag — and a reading at 80% of its limit or higher shows <span class="ae-pill warn" style="padding:1px 6px">Warning</span> even though it still passes.</div>
 
 <div class="ae-kpis">
-  <div class="ae-kpi"><div class="n" id="ae-kpi-total">0</div><div class="l">Total Records</div></div>
-  <div class="ae-kpi"><div class="n" id="ae-kpi-warn" style="color:var(--ae-amber)">0</div><div class="l">Warnings (&ge;80%)</div></div>
-  <div class="ae-kpi"><div class="n" id="ae-kpi-exceed" style="color:var(--ae-red)">0</div><div class="l">Exceedances</div></div>
+  <div class="ae-kpi" id="ae-kpi-card-total" onclick="AE.setStatusFilter(null)" style="cursor:pointer"><div class="n" id="ae-kpi-total">0</div><div class="l">Total Records</div></div>
+  <div class="ae-kpi" id="ae-kpi-card-warn" onclick="AE.setStatusFilter('warn')" style="cursor:pointer"><div class="n" id="ae-kpi-warn" style="color:var(--ae-amber)">0</div><div class="l">Warnings (&ge;80%)</div></div>
+  <div class="ae-kpi" id="ae-kpi-card-exceed" onclick="AE.setStatusFilter('exceed')" style="cursor:pointer"><div class="n" id="ae-kpi-exceed" style="color:var(--ae-red)">0</div><div class="l">Exceedances</div></div>
 </div>
+<div class="ae-sub" id="ae-filter-note" style="display:none;margin:-6px 0 10px">Showing only <span id="ae-filter-note-word"></span> records across all three registers — click the card again, or "Total Records", to clear. <span style="text-decoration:underline;cursor:pointer" onclick="AE.setStatusFilter(null)">Clear filter</span></div>
 
 <!-- ═══════════════ STACK EMISSIONS ═══════════════ -->
 <div class="sec-banner" id="ae-hdr-stack" onclick="AE.toggle('stack')"><span class="ae-chevron" id="ae-chev-stack">▶</span> STACK EMISSIONS &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(one record per stack per annual campaign — PM only)</span></div>
@@ -160,6 +162,7 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
 <!-- ═══════════════ NOISE MONITORING ═══════════════ -->
 <div class="sec-banner" id="ae-hdr-noise" onclick="AE.toggle('noise')"><span class="ae-chevron" id="ae-chev-noise">▶</span> NOISE MONITORING &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(one record per boundary point per campaign — Day/Night LAeq)</span></div>
 <div class="ae-collapsible" id="ae-body-noise">
+  <div class="req-text" style="margin:10px 0"><strong>NCEC Limits:</strong> Day 70 dB(A) &nbsp;•&nbsp; Night 65 dB(A). Max and Min in each record below are <strong>measured readings</strong> from the report (the loudest and quietest hour during that period) — not limits. The limit is only ever compared against the Average.</div>
   <div class="ae-toolbar">
     <div style="font-size:11px;color:var(--ae-text-muted)" id="ns-count"></div>
     <button class="aiw-btn aiw-btn-add" onclick="NS.openNew()">+ New Noise Record</button>
@@ -381,6 +384,36 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
   }
   function resetKpis(){ _kpiTotal=0; _kpiWarn=0; _kpiExceed=0; }
 
+  /* Global status filter — clicking a KPI card narrows all three
+     tables to only that status (by each record's OVERALL status,
+     which for Boundary Air Quality means worst-of-six: a record shows
+     under "Warnings" if ANY of its six parameters is in warning, even
+     if the others are fine). KPI counts themselves always reflect the
+     full dataset regardless of this filter — only which rows are
+     DRAWN changes, never what's tallied. */
+  var _statusFilter = null; // null | 'warn' | 'exceed'
+  function matchesStatusFilter(cls){ return _statusFilter==null || cls===_statusFilter; }
+  function setStatusFilter(which){
+    _statusFilter = (_statusFilter===which) ? null : which;
+    if (_statusFilter){
+      // Picking a status filter cancels any single-parameter Air
+      // Quality filter, per Issam's instruction — the status cards
+      // always operate on whole records across all three registers.
+      var aqf = document.getElementById('aq-filter');
+      if (aqf) aqf.value = '';
+    }
+    document.getElementById('ae-kpi-card-warn').classList.toggle('ae-kpi-active', _statusFilter==='warn');
+    document.getElementById('ae-kpi-card-exceed').classList.toggle('ae-kpi-active', _statusFilter==='exceed');
+    var note = document.getElementById('ae-filter-note');
+    if (_statusFilter){
+      note.style.display = '';
+      document.getElementById('ae-filter-note-word').textContent = _statusFilter==='warn' ? 'Warning' : 'Exceedance';
+    } else {
+      note.style.display = 'none';
+    }
+    rerenderAll();
+  }
+
   /* ════════════════════ STACK EMISSIONS (SE) ════════════════════ */
   (function(){
     var TAB = 'stack_emissions';
@@ -412,11 +445,13 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
     function statusOf(rec){ return statusFor(pctOf(rec['PM Average'], rec['NCEC Limit'])); }
 
     function render(){
-      document.getElementById('se-count').textContent = _records.length + ' record' + (_records.length===1?'':'s');
-      document.getElementById('se-tbody').innerHTML = _records.map(function(rec){
+      var shown = 0;
+      var rowsHtml = _records.map(function(rec){
         var pct = pctOf(rec['PM Average'], rec['NCEC Limit']);
         var st = statusFor(pct);
-        tallyKpi(st);
+        tallyKpi(st); // every record counts toward the KPI totals, filtered or not
+        if (!matchesStatusFilter(st.cls)) return '';
+        shown++;
         return '<tr onclick="SE.openEdit(\'' + rec['Record ID'] + '\')">'
           + '<td>' + vEsc(rec['Test Date']) + '</td>'
           + '<td>' + vEsc(rec['Stack']) + '</td>'
@@ -427,6 +462,8 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
           + '<td><span class="ae-pill ' + st.cls + '">' + st.label + '</span></td>'
           + '</tr>';
       }).join('');
+      document.getElementById('se-count').textContent = shown + ' of ' + _records.length + ' record' + (_records.length===1?'':'s');
+      document.getElementById('se-tbody').innerHTML = rowsHtml;
       renderKpis();
     }
 
@@ -561,7 +598,6 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
        which one). The dashboard KPI tallies always use the true
        worst-of-six, independent of what the filter is showing. */
     function render(){
-      document.getElementById('aq-count').textContent = _records.length + ' record' + (_records.length===1?'':'s');
       var filterEl = document.getElementById('aq-filter');
       var filter = filterEl ? filterEl.value : '';
 
@@ -572,9 +608,16 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
         theadEl.innerHTML = '<tr><th>Test Date</th><th>Location</th><th>NO2</th><th>CO</th><th>SO2</th><th>O3</th><th>PM2.5</th><th>PM10</th><th>Status</th></tr>';
       }
 
-      document.getElementById('aq-tbody').innerHTML = _records.map(function(rec){
+      var shown = 0;
+      var rowsHtml = _records.map(function(rec){
         var overall = statusFor(worstOf(rec).pct);
-        tallyKpi(overall); // KPI always reflects the true worst-of-six, regardless of the filter
+        tallyKpi(overall); // KPI always reflects the true worst-of-six, every record, filtered or not
+        // The status-card filter (warn/exceed) always goes by the whole
+        // record's overall (worst-of-six) status — a record shows under
+        // "Warnings" if ANY parameter is in warning, even while the
+        // single-parameter column filter is showing just one of them.
+        if (!matchesStatusFilter(overall.cls)) return '';
+        shown++;
 
         if (filter){
           var limit = SPECS[filter].limit;
@@ -602,6 +645,8 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
           + '<td><span class="ae-pill ' + overall.cls + '">' + overall.label + '</span></td>'
           + '</tr>';
       }).join('');
+      document.getElementById('aq-count').textContent = shown + ' of ' + _records.length + ' record' + (_records.length===1?'':'s');
+      document.getElementById('aq-tbody').innerHTML = rowsHtml;
       renderKpis();
     }
 
@@ -713,13 +758,15 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
        the table (would crowd it); they're on the record's own form,
        which is where Issam asked for full detail to live. */
     function render(){
-      document.getElementById('ns-count').textContent = _records.length + ' record' + (_records.length===1?'':'s');
-      document.getElementById('ns-tbody').innerHTML = _records.map(function(rec){
+      var shown = 0;
+      var rowsHtml = _records.map(function(rec){
         var dayPct = pctOf(rec['Day LAeq Average'], DAY_LIMIT);
         var nightPct = pctOf(rec['Night LAeq Average'], NIGHT_LIMIT);
         var dayStatus = statusFor(dayPct), nightStatus = statusFor(nightPct);
         var st = statusFor(worstOf(rec));
-        tallyKpi(st);
+        tallyKpi(st); // every record counts toward the KPI totals, filtered or not
+        if (!matchesStatusFilter(st.cls)) return '';
+        shown++;
         return '<tr onclick="NS.openEdit(\'' + rec['Record ID'] + '\')">'
           + '<td>' + vEsc(rec['Test Date']) + '</td>'
           + '<td>' + vEsc(rec['Location']) + '</td>'
@@ -729,6 +776,8 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
           + '<td><span class="ae-pill ' + st.cls + '">' + st.label + '</span></td>'
           + '</tr>';
       }).join('');
+      document.getElementById('ns-count').textContent = shown + ' of ' + _records.length + ' record' + (_records.length===1?'':'s');
+      document.getElementById('ns-tbody').innerHTML = rowsHtml;
       renderKpis();
     }
 
@@ -818,7 +867,7 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
     window.NS.render();
     renderKpis();
   }
-  window.AE = { toggle: toggleSection, loadAllSections: loadAllSections, rerenderAll: rerenderAll };
+  window.AE = { toggle: toggleSection, loadAllSections: loadAllSections, rerenderAll: rerenderAll, setStatusFilter: setStatusFilter };
 
   if (typeof IMS_AUTH !== 'undefined'){
     IMS_AUTH.init({ onReady: function(){ loadAllSections(); } });
