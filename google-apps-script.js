@@ -279,6 +279,58 @@ var TABS = {
      29-column schema and the printable Area Inspection Slip / Summary
      Report built on top of this same data, no extra tab needed. */
   'area_inspection':   'Area Inspection',
+  /* Rev.21 (Issam, 2026-10-20) — Waste Management Register
+     (HSE-FRM-07 General Waste + Food Waste contractor invoices). Same
+     no-number tab-name convention as Area Inspection above. One flat
+     table across both live streams (General Waste, Food Waste) plus 6
+     proposed-but-not-yet-tracked streams listed on the page for
+     Issam's review (Cullet/Glass Scrap, Hazardous/Chemical, Scrap
+     Metal, Wood/Packaging, Used Oil, E-Waste). FLAGGED: this register
+     sits under OC-01 here per direct instruction, but the project's
+     own IMS taxonomy places "Waste Management Register" under OC-02
+     Environment & Energy (Sheet 45b) — see waste-management.html's
+     on-page flag text for the doc-code discrepancy this needs
+     resolving (L4-ENV-PR-03-RC-01 vs the L3-ENV-PR-05 family). */
+  'waste_management':  '45b – Waste Management', // Rev.23 (Issam, 2026-10-29): corrected to match the REAL existing live-sheet tab name (confirmed by screenshot) — was wrongly assumed to be the no-number "Waste Management" per the Area Inspection/Scrap Sales convention. The tab also confirms doc code L4-ENV-PR-03-RC-01, resolving the earlier two-code ambiguity.
+  /* Rev.22 (Issam, 2026-10-20) — Scrap Sales Register
+     (SCRAP_SALES-2026.xlsx). Same no-number tab-name convention. One
+     flat table, one row per (gate-pass, material) line — a single
+     gate-pass can carry more than one material, so 626 migrated
+     lines cover fewer actual gate-passes. Same OC-01/OC-02
+     classification flag as Waste Management above — see
+     scrap-sales.html's on-page flag text. */
+  'scrap_sales':       'Scrap Sales',
+  /* Rev.29 (Issam, 2026-11-01, voice) — Customer and Material master
+     lists for scrap-sales.html's Monthly Entry Form, replacing the old
+     per-browser localStorage custom-column list. ⚠ Neither tab exists
+     yet in the live Google Sheet — create both (header rows matching
+     scrap-sales.html's CUSTOMERS_TAB/MATERIALS_TAB field names exactly)
+     before "👥 Customers" / "📦 Materials" or the monthly form's
+     dropdowns will have anything to show. See SAGCO_Scrap_Sales_Reference.xlsx
+     for the pre-filled starting lists (from the same 626 historical lines). */
+  'scrap_customers':   'Scrap Customers',
+  'scrap_materials':   'Scrap Materials',
+  /* Rev.24 (Issam, 2026-10-29) — Fuel Delivery (Diesel/HFO) Spill
+     Prevention Checklist (HSE-FRM-XX, proposed L4-ENV-PR-05-CL-02),
+     OC-02 Environment & Energy — a web version of the paper checklist
+     drafted this session. ⚠ This tab does NOT exist yet in the live
+     Google Sheet — create a tab named exactly as below, with a header
+     row matching the fields the page writes (see
+     fuel-delivery-spill.html), before this tabKey will work. */
+  'fuel_delivery_spill': 'Fuel Delivery Spill Prevention',
+  /* OC-02 Chemical Storage & Spills — added as two new sections on the
+     existing chemical-inventory.html page (not a standalone page).
+     ⚠ Neither tab exists yet in the live Google Sheet — create both
+     (header rows matching the fields each section writes — see
+     chemical-inventory.html) before these two tabKeys will work. */
+  'chemical_storage_conditions': 'Chemical Storage Conditions',
+  'chemical_spill_records':      'Chemical Spill Records',
+  /* OC-01 HSE Violation Register (HSE-FRM-05, L3-HSE-PR-16-F-03) —
+     ⚠ tab does not exist yet in the live Google Sheet — create it
+     (header row matching the fields violation-register.html writes)
+     before this tabKey will work. Contains named-employee disciplinary
+     data — restrict sheet sharing accordingly. */
+  'hse_violations': 'HSE Violations',
   'wah_register':      '55 – WAH Register',
   'hot_work':          '56 – Hot Work Log',
   'electrical_safety': '57 – Electrical Safety Log',
@@ -288,6 +340,154 @@ var TABS = {
   'visitor_register':  '61 – Visitor Register',
   'speak_up':          '62 – Speak-Up Register',
   'obs_escalations':   '63 – Observation Escalations', /* NEW — must be created as a real tab on the live sheet; row 3 headers: Case ID, Outcome, Incident Reference, Action Reference, Close Reason, Decided By, Decided Date. Durable record of what happened to each Observation Register case (Forwarded to Incident Register / Forwarded to Action Tracker / Closed - No Escalation) — on the MAIN IMS sheet (read/write via the standard readSheet/writeRows/updateRowById), NOT the separate read-only AppSheet Observations spreadsheet. Observation Register, Incident Register, and the CAPA wizard all read/write this tab by Case ID. */
+  /* Rev.30 (Issam, 2026-11-01, voice) — Furnace Energy Consumption
+     (OC-02 Environment & Energy), separate from 'furnace_monitor'
+     (Sh.47, temperatures/process readings) — this tab is fuel-to-
+     output only: monthly HFO consumption vs. melted glass per
+     furnace. Same no-number tab-name convention as Area Inspection /
+     Scrap Sales / Waste Management. One flat table, one row per
+     FURNACE-MONTH (not per day) — daily figures, when the furnace
+     team chooses to enter them, are kept inside that one row as a
+     JSON array in the "Daily Entries (JSON)" column, so a month can
+     be filled in day-by-day or in one bulk entry without changing
+     the record structure. See furnace-energy.html for the full
+     column schema. ⚠ This tab does NOT exist yet in the live Google
+     Sheet — create it (header row matching the fields
+     furnace-energy.html writes) before this tabKey will work. */
+  'furnace_energy':    'Furnace Energy Consumption',
+  /* Rev.31 (Issam, 2026-11-01, voice; Water section added 2026-11-02)
+     — Energy Invoices (OC-02 Environment & Energy). Collects every
+     energy AND water invoice — Electricity, LPG, Diesel, Fuel Oil
+     (HFO), and Water — entered by Finance. Same one-record-per-MONTH
+     pattern as 'furnace_energy', but with FIVE sections inside one
+     monthly row (one per type) instead of one. Each of the first four
+     sections independently holds either typed totals (quantity +
+     amount) or a JSON array of individual invoice lines (invoice no.,
+     date, supplier, account/feeder for Electricity and LPG, quantity,
+     amount) that the page sums automatically — Finance can use
+     whichever level of detail they have for a given month. The Water
+     section is deliberately simpler, at Issam's explicit request: just
+     a typed total quantity (m³) and total amount (SAR) per month, no
+     source/tanker/network field and no invoice-line breakdown beyond
+     that (it still gets the same Lines/Attachments JSON columns as
+     the other four for schema consistency, but Lines stays an empty
+     array in normal use). Scanned invoice files go through the SAME
+     'uploadFilePicker' Drive endpoint already used by violation-
+     register.html / loto-register.html / chemical-inventory.html (no
+     script changes needed) — multiple files per type per month, filed
+     under a subfolder per Record-ID+type; their Drive links are kept
+     in a JSON array per section, e.g. "Water Attachments (JSON)". See
+     energy-invoices.html for the full column schema. ⚠ This tab does
+     NOT exist yet in the live Google Sheet — create it (header row
+     matching the fields energy-invoices.html writes, now including
+     the Water Lines/Total Quantity/Total Amount/Attachments columns)
+     before this tabKey will work. */
+  'energy_invoices':   'Energy Invoices',
+  /* Rev.33 (Issam, 2026-11-02, voice) — Visitor & Contractor Induction
+     / Gate Clearance (OC-01 Safety & Emergency). SIMPLIFIED from the
+     original Rev.32 four-tab design down to TWO tables, per Issam:
+     - vc_persons: ONE ROW PER PERSON — now holds their own details
+       AND their latest gate visit in the same row (no separate visit-
+       history table: "once he got the induction and got his PPE,
+       what's the use to see historical data"). A returning visitor's
+       row is updated in place, not re-created. Induction state (Not
+       Inducted / Inducted, date, method, by whom) uses the same
+       1-year computed-client-side validity as before. PPE is now a
+       plain "PPE Confirmed" Yes/No plus "PPE Confirmed Date" — no
+       department PPE-items list in the system at all; the security
+       guard judges what's needed from a PRINTED guide kept in the
+       security room. A PPE Confirmed Date other than today is treated
+       as not-yet-confirmed, so it can never silently carry over from
+       a past visit.
+     - vc_spotchecks: ONE ROW PER IN-PLANT SPOT CHECK — kept as its
+       own table (the only place visit-by-visit history now lives),
+       because this is where PPE trends and violation escalation
+       actually need it. A failed spot check can be escalated with one
+       click to the existing HSE Violation Register
+       (violation-register.html) — opened with the essentials in the
+       URL query string; Issam already has that page and its own form
+       for the violation record itself, so no new violation-handling
+       logic was added here, and nothing in violation-register.html
+       reads these params yet (small separate follow-up if wanted).
+     The 'vc_visits' and 'vc_ppe_config' tabs from Rev.32 are NO
+     LONGER USED — do not create them (or ignore/delete if already
+     created). QR codes are generated client-side (cdnjs qrcodejs)
+     encoding the Person ID only; scanning uses cdnjs jsQR against the
+     device camera. See visitor-induction.html for the full column
+     schema of both tabs. ⚠ Neither tab exists yet in the live Google
+     Sheet — create both (header rows matching the fields
+     visitor-induction.html writes) before this feature will work. */
+  'vc_persons':        'VC Persons',
+  'vc_spotchecks':     'VC Spot Checks',
+  /* Rev.34 (Issam, 2026-11-02, voice) — Water Quality Lab Register
+     (OC-02 Environment & Energy). Built as the WATER half of the
+     planned "Water & Waste Data" scope item (Sh.30); Air Emissions is
+     still a separate, unbuilt part of that same item. ONE ROW PER LAB
+     TEST (Issam: "for each lab test, we should have only one
+     record"), entered by the Environmental team (exact members TBD).
+     Specification limits (pH, conductivity, TDS, turbidity, residual
+     chlorine, total hardness, total iron, nitrate, nitrite, and the
+     three microbiological results) are Kindasa Laboratory's own
+     min/max, taken directly off their Potable Water Analysis Customer
+     report. The in/out-of-spec status is NEVER stored as a column —
+     it is computed live in the browser from whatever is currently in
+     the sheet (Issam: "it should be live based on the data entry...
+     based on the value existing on the Google data sheet"), so
+     correcting a value updates the flag automatically on next load.
+     See water-quality.html for the full column schema. ⚠ This tab
+     does not exist yet in the live Google Sheet — create it (header
+     row matching the fields water-quality.html writes) before this
+     feature will work. */
+  'water_quality':     'Water Quality Lab Register',
+  /* Rev.35 (Issam, 2026-11-02) — Forklift Inspection Register (OC-01
+     Safety & Emergency). Built from scaffold-inspection.html's own
+     template — same one-table, one-record-per-inspection design and
+     Escalate-to-Action mechanism — digitising the source Monthly
+     Forklift Inspection Checklist (HSE Department): one record per
+     forklift per month, entered and reviewed entirely by HSE, with a
+     flat 13-item Ok/No checklist (Fork, Tire, Propane Cylinder,
+     Controller & Brake, Mirror & Alarm, Hydraulic Device, Lamp,
+     Counter Weight, Lift System, 3rd-Party Certification, Operator
+     Competency, Fire Extinguisher, Others). GREEN tag = all items Ok;
+     RED tag = one or more No. A flagged inspection escalates to the
+     Action Register exactly like Scaffold Inspection does (Rev.16 in
+     capa-wizard.js, the 13th escalation source). ⚠ The source
+     checklist is bilingual (EN/AR); no Arabic OCR was available to
+     verify the scanned original's Arabic wording, so the printable
+     checklist this page generates is English-only — see the note on
+     the print form itself. See forklift-inspection.html for the full
+     column schema. ⚠ This tab does NOT exist yet in the live Google
+     Sheet — create it (header row matching the fields
+     forklift-inspection.html writes) before this feature will work. */
+  'forklift_inspection': 'Forklift Inspection',
+  /* Rev.36 (Issam, 2026-11-02) — Air Emissions Monitoring (OC-02
+     Environment & Energy), the Air half of Sh.30's originally-planned
+     "Water & Waste Data" item (the Water half is Water Quality Lab
+     Register, above). Three separate annual-campaign tabs, one page
+     (air-emissions.html):
+       - stack_emissions: one record per stack per campaign. Only
+         Particulate Matter (PM) is ever reported at the chimney (US
+         EPA Method 3A/5) — confirmed against two real EMCO campaigns
+         covering all 5 furnace stacks (Dec-2024 and Apr-2026).
+       - boundary_air_quality: one record per campaign per location
+         (Unit 1,2,3,4 / Furnace 5 / ACL) — the 6 NCEC ambient
+         parameters (NO2, CO, SO2, O3, PM2.5, PM10), checked against
+         the same national limits regardless of where the station
+         sits.
+       - noise_monitoring: one record per boundary measurement point
+         per campaign — Day/Night LAeq against NCEC's 70/65 dB(A).
+     All three are live-computed exactly like Water Quality (status
+     never stored, only the entered numbers are), with a reading at
+     80% of its limit or higher flagged as a Warning even though it
+     still technically passes. No CAPA/Action Register escalation on
+     any of the three, matching Water Quality's own design — these are
+     monitoring records, not an inspection-finding workflow. ⚠ None of
+     these three tabs exist yet in the live Google Sheet — create all
+     three (headers matching air-emissions.html's field lists) before
+     this feature will work. */
+  'stack_emissions':      'Stack Emissions',
+  'boundary_air_quality': 'Boundary Air Quality',
+  'noise_monitoring':     'Noise Monitoring',
 };
 
 /* ══════════════════════════════════════════════════════════════

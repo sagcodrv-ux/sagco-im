@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Air Emissions Monitoring</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+/* ══════════════════════════════════════════════════════════════════
+   AIR EMISSIONS MONITORING — OC-02 Environment & Energy. Built
+   2026-11-02 (Issam, voice) as the Air Emissions half of the
+   originally-planned "Water & Waste Data" scope item (Sh.30) — the
+   Water half is already live as the Water Quality Lab Register.
+   Three separate annual-campaign registers in one page, each with its
+   own Google Sheet tab, because they cover different instruments,
+   different limits, and (for Stack) a different subject (a furnace
+   stack) vs (for Air Quality / Noise) the plant boundary:
+     1. Stack Emissions — one record per stack per campaign. Only
+        Particulate Matter (PM) is ever measured at the chimney (US
+        EPA Method 3A/5); O2/CO2 are measured only to calculate PM and
+        are not stored. Two real EMCO campaigns confirmed this
+        (Dec-2024 and Apr-2026, both all 5 furnace stacks).
+     2. Boundary Air Quality — one record per monitoring campaign per
+        location (Unit 1,2,3,4 / Furnace 5 / ACL), the 6 NCEC ambient
+        parameters (NO2, CO, SO2, O3, PM2.5, PM10) checked against the
+        same national limits regardless of where the station sits
+        (Issam: "whatever is the location... the boundary limits
+        should be respected").
+     3. Noise Monitoring — one record per boundary measurement point
+        per campaign, Day/Night LAeq against NCEC's 70/65 dB(A)
+        limits. Required per Issam: it's a government-mandated annual
+        check, done at the boundary, not per-furnace.
+   All three are LIVE-computed exactly like Water Quality: the
+   in/out/warning status is never stored, only the entered numbers
+   are — so correcting a value updates the flag by itself. A reading
+   at 80% of its limit or higher shows Warning even though it still
+   passes, per Issam's 80%-threshold request. No CAPA/Action Register
+   escalation on any of the three — these are monitoring records, not
+   an inspection-finding workflow (same reasoning as Water Quality).
+   Furnace rebuild dates (Furnace 1: Nov-2025, Furnace 2: Aug-2026,
+   Furnaces 3/4/5: no confirmed date, expected ~2028 per Issam) are
+   shown next to a Stack Emissions record so a jump in PM between
+   campaigns isn't misread as drift when it's really a different
+   furnace. Class prefix ae-.
+   ══════════════════════════════════════════════════════════════════ */
+.ae-dark-wrap{
+  --ae-bg:#0D1B35; --ae-bg2:#142140; --ae-bg3:#1a2a50;
+  --ae-gold:#C9A84C; --ae-gold-lt:#E8C97A;
+  --ae-text:rgba(255,255,255,.92); --ae-text-muted:rgba(255,255,255,.55);
+  --ae-text-dim:rgba(255,255,255,.35); --ae-border:rgba(255,255,255,.08);
+  --ae-border-gold:rgba(201,168,76,.35);
+  --ae-grn:#4FCB9E; --ae-amber:#E0A93E; --ae-red:#F0685C;
+  background:var(--ae-bg); color:var(--ae-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.ae-dark-wrap *{box-sizing:border-box}
+.back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--ae-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--ae-bg2);
+  border-radius:8px;border:1px solid var(--ae-border-gold)}
+.req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--ae-bg2);
+  border-radius:8px;border-left:3px solid var(--ae-gold);margin:10px 0;color:var(--ae-text-muted)}
+.ae-kpis{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.ae-kpi{flex:1;min-width:110px;background:var(--ae-bg2);border:1px solid var(--ae-border);border-radius:10px;padding:10px 12px}
+.ae-kpi .n{font-size:20px;font-weight:700;color:var(--ae-gold-lt)}
+.ae-kpi .l{font-size:9.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--ae-text-dim);margin-top:2px}
+.sec-banner{display:flex;align-items:center;gap:8px;background:var(--ae-bg3);border:1px solid var(--ae-border-gold);
+  border-radius:9px;padding:10px 14px;font-size:12px;font-weight:700;color:var(--ae-gold-lt);cursor:pointer;margin-top:14px}
+.ae-chevron{display:inline-block;transition:transform .15s}
+.ae-collapsible{max-height:0;overflow:hidden;padding:0 14px;transition:none;border:1px solid transparent}
+.ae-dark-wrap .ae-collapsible.ae-open{max-height:none;padding:10px 14px;border:1px solid var(--ae-border);border-top:none;border-radius:0 0 9px 9px}
+.ae-toolbar{display:flex;justify-content:space-between;align-items:center;margin:10px 0;flex-wrap:wrap;gap:10px}
+.aiw-btn{font-size:11px;font-weight:700;padding:8px 14px;border-radius:7px;border:1px solid var(--ae-border-gold);
+  background:var(--ae-bg3);color:var(--ae-text);cursor:pointer}
+.aiw-btn:hover{background:rgba(201,168,76,.15)}
+.aiw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--ae-grn)}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{background:var(--ae-bg3);color:var(--ae-gold-lt);font-weight:700;text-align:left;padding:7px 9px;
+  text-transform:uppercase;font-size:9.5px;border-bottom:1px solid var(--ae-border-gold)}
+tbody td{padding:6px 9px;border-bottom:1px solid var(--ae-border);color:var(--ae-text-muted)}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:rgba(255,255,255,.03)}
+.ae-pill{display:inline-block;padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700;white-space:nowrap}
+.ae-pill.ok{background:rgba(79,203,158,.18);color:var(--ae-grn)}
+.ae-pill.warn{background:rgba(224,169,62,.18);color:var(--ae-amber)}
+.ae-pill.exceed{background:rgba(240,104,92,.18);color:var(--ae-red)}
+.ae-pill.unk{background:rgba(255,255,255,.08);color:var(--ae-text-dim)}
+.ae-badge{display:inline-block;padding:2px 7px;border-radius:9px;font-size:9px;font-weight:700;background:rgba(255,255,255,.08);color:var(--ae-text-dim);margin-left:5px}
+.ae-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;align-items:flex-start;justify-content:center;padding:30px 14px;overflow-y:auto}
+.ae-modal-bg.active{display:flex}
+.ae-modal{background:var(--ae-bg2);border:1px solid var(--ae-border-gold);border-radius:12px;padding:20px;max-width:680px;width:100%}
+.ae-modal h3{margin:0 0 12px;color:var(--ae-gold-lt);font-size:14px}
+.ae-field{margin-bottom:10px}
+.ae-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--ae-text-dim);margin-bottom:4px}
+.ae-field input,.ae-field select,.ae-field textarea{width:100%;background:var(--ae-bg3);border:1px solid var(--ae-border);
+  color:var(--ae-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.ae-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ae-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.ae-row4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
+.ae-spec{font-size:9.5px;color:var(--ae-text-dim);margin-top:2px}
+.ae-out{border-color:var(--ae-red)!important;background:rgba(240,104,92,.08)!important}
+.ae-out-warn{border-color:var(--ae-amber)!important;background:rgba(224,169,62,.08)!important}
+.ae-alert-box{font-size:11px;padding:8px 12px;border-radius:7px;margin-bottom:12px}
+.ae-alert-box.ok{background:rgba(79,203,158,.12);color:var(--ae-grn);border:1px solid rgba(79,203,158,.35)}
+.ae-alert-box.warn{background:rgba(224,169,62,.12);color:var(--ae-amber);border:1px solid rgba(224,169,62,.35)}
+.ae-alert-box.bad{background:rgba(240,104,92,.12);color:var(--ae-red);border:1px solid rgba(240,104,92,.35)}
+.ae-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.ae-hr{border-color:var(--ae-border);margin:12px 0}
+.ae-sub{font-size:10.5px;color:var(--ae-text-dim);margin:2px 0 8px}
+</style>
+</head><body><div class="ae-dark-wrap">
+<div class="back-row"><a href="oc02-scopes.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
+
+<div class="req-text">Air Emissions Monitoring — the Air half of the planned "Water &amp; Waste Data" scope item (the Water half is live as the Water Quality Lab Register). Three annual-campaign registers: <strong>Stack Emissions</strong> (particulate only — that's all US EPA Method 3A/5 ever reports at the chimney), <strong>Boundary Air Quality</strong> (6 ambient parameters, checked against the same national limits regardless of where the station sits), and <strong>Noise Monitoring</strong> (Day/Night boundary levels). Every status shown is <strong>computed live</strong> from the stored numbers — never saved as a fixed flag — and a reading at 80% of its limit or higher shows <span class="ae-pill warn" style="padding:1px 6px">Warning</span> even though it still passes.</div>
+
+<div class="ae-kpis">
+  <div class="ae-kpi"><div class="n" id="ae-kpi-total">0</div><div class="l">Total Records</div></div>
+  <div class="ae-kpi"><div class="n" id="ae-kpi-warn" style="color:var(--ae-amber)">0</div><div class="l">Warnings (&ge;80%)</div></div>
+  <div class="ae-kpi"><div class="n" id="ae-kpi-exceed" style="color:var(--ae-red)">0</div><div class="l">Exceedances</div></div>
+</div>
+
+<!-- ═══════════════ STACK EMISSIONS ═══════════════ -->
+<div class="sec-banner" id="ae-hdr-stack" onclick="AE.toggle('stack')"><span class="ae-chevron" id="ae-chev-stack">▶</span> STACK EMISSIONS &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(one record per stack per annual campaign — PM only)</span></div>
+<div class="ae-collapsible" id="ae-body-stack">
+  <div class="ae-toolbar">
+    <div style="font-size:11px;color:var(--ae-text-muted)" id="se-count"></div>
+    <button class="aiw-btn aiw-btn-add" onclick="SE.openNew()">+ New Stack Test Record</button>
+  </div>
+  <table>
+    <thead><tr><th>Test Date</th><th>Stack</th><th>PM Average</th><th>Limit</th><th>% of Limit</th><th>Rebuild</th><th>Status</th></tr></thead>
+    <tbody id="se-tbody"></tbody>
+  </table>
+</div>
+
+<!-- ═══════════════ BOUNDARY AIR QUALITY ═══════════════ -->
+<div class="sec-banner" id="ae-hdr-airquality" onclick="AE.toggle('airquality')"><span class="ae-chevron" id="ae-chev-airquality">▶</span> BOUNDARY AIR QUALITY &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(one record per campaign per location — NO2, CO, SO2, O3, PM2.5, PM10)</span></div>
+<div class="ae-collapsible" id="ae-body-airquality">
+  <div class="ae-toolbar">
+    <div style="font-size:11px;color:var(--ae-text-muted)" id="aq-count"></div>
+    <button class="aiw-btn aiw-btn-add" onclick="AQ.openNew()">+ New Air Quality Record</button>
+  </div>
+  <table>
+    <thead><tr><th>Test Date</th><th>Location</th><th>Worst Parameter</th><th>Worst %</th><th>Status</th></tr></thead>
+    <tbody id="aq-tbody"></tbody>
+  </table>
+</div>
+
+<!-- ═══════════════ NOISE MONITORING ═══════════════ -->
+<div class="sec-banner" id="ae-hdr-noise" onclick="AE.toggle('noise')"><span class="ae-chevron" id="ae-chev-noise">▶</span> NOISE MONITORING &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(one record per boundary point per campaign — Day/Night LAeq)</span></div>
+<div class="ae-collapsible" id="ae-body-noise">
+  <div class="ae-toolbar">
+    <div style="font-size:11px;color:var(--ae-text-muted)" id="ns-count"></div>
+    <button class="aiw-btn aiw-btn-add" onclick="NS.openNew()">+ New Noise Record</button>
+  </div>
+  <table>
+    <thead><tr><th>Test Date</th><th>Location</th><th>Point</th><th>Day LAeq</th><th>Night LAeq</th><th>Status</th></tr></thead>
+    <tbody id="ns-tbody"></tbody>
+  </table>
+</div>
+
+<!-- ═══════════════ STACK EMISSIONS MODAL ═══════════════ -->
+<div class="ae-modal-bg" id="se-modal-bg">
+  <div class="ae-modal">
+    <h3 id="se-modal-title">New Stack Test Record</h3>
+    <div id="se-modal-alert"></div>
+    <input type="hidden" id="se-id">
+    <div class="ae-row2">
+      <div class="ae-field"><label>Test Date</label><input type="date" id="se-test-date"></div>
+      <div class="ae-field"><label>Stack / Furnace</label><select id="se-stack" onchange="SE.recompute()">
+        <option value="">— Select —</option>
+        <option>Furnace 1</option><option>Furnace 2</option><option>Furnace 3</option>
+        <option>Furnace 4</option><option>Furnace 5</option>
+      </select></div>
+    </div>
+    <div class="ae-sub" id="se-rebuild-note"></div>
+    <hr class="ae-hr">
+    <div class="ae-row3">
+      <div class="ae-field"><label>PM Run 1 (g/kg glass)</label><input type="number" step="any" id="se-run1" oninput="SE.autoAverage()"></div>
+      <div class="ae-field"><label>PM Run 2</label><input type="number" step="any" id="se-run2" oninput="SE.autoAverage()"></div>
+      <div class="ae-field"><label>PM Run 3</label><input type="number" step="any" id="se-run3" oninput="SE.autoAverage()"></div>
+    </div>
+    <div class="ae-row2">
+      <div class="ae-field"><label>PM Average</label><input type="number" step="any" id="se-avg" oninput="SE.recompute()"><div class="ae-spec">Auto-filled from the three runs; editable if the report gives only an average</div></div>
+      <div class="ae-field"><label>NCEC Limit (g/kg glass produced)</label><input type="number" step="any" id="se-limit" value="0.5" oninput="SE.recompute()"></div>
+    </div>
+    <hr class="ae-hr">
+    <div class="ae-sub">Operating conditions and stack dimensions — optional, fill in whatever the report gives</div>
+    <div class="ae-row3">
+      <div class="ae-field"><label>Load %</label><input type="number" step="any" id="se-load"></div>
+      <div class="ae-field"><label>Fuel Type</label><input id="se-fuel" placeholder="H.F.O Fuel oil 180"></div>
+      <div class="ae-field"><label>Feed Rate (ton/hr)</label><input type="number" step="any" id="se-feed-rate"></div>
+    </div>
+    <div class="ae-row4">
+      <div class="ae-field"><label>Stack Shape</label><input id="se-shape" placeholder="Circular"></div>
+      <div class="ae-field"><label>Stack Height (m)</label><input type="number" step="any" id="se-height"></div>
+      <div class="ae-field"><label>Stack Diameter (m)</label><input type="number" step="any" id="se-diameter"></div>
+      <div class="ae-field"><label>Sampling Port Diameter (in)</label><input type="number" step="any" id="se-port-diam"></div>
+    </div>
+    <div class="ae-field"><label>Report Reference</label><input id="se-report-ref" placeholder="EM-S-2026-4-29"></div>
+    <div class="ae-field"><label>Remarks</label><textarea id="se-remarks" rows="2"></textarea></div>
+    <div class="ae-actions">
+      <button class="aiw-btn" onclick="SE.closeModal()">Cancel</button>
+      <button class="aiw-btn aiw-btn-add" onclick="SE.save()">Save Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ BOUNDARY AIR QUALITY MODAL ═══════════════ -->
+<div class="ae-modal-bg" id="aq-modal-bg">
+  <div class="ae-modal">
+    <h3 id="aq-modal-title">New Air Quality Record</h3>
+    <div id="aq-modal-alert"></div>
+    <input type="hidden" id="aq-id">
+    <div class="ae-row2">
+      <div class="ae-field"><label>Test Date</label><input type="date" id="aq-test-date"></div>
+      <div class="ae-field"><label>Location</label><select id="aq-location">
+        <option value="">— Select —</option>
+        <option>Unit 1,2,3,4</option><option>Furnace 5</option><option>ACL</option>
+      </select></div>
+    </div>
+    <hr class="ae-hr">
+    <div class="ae-row3">
+      <div class="ae-field"><label>NO2 (µg/m³)</label><input type="number" step="any" id="aq-no2" oninput="AQ.recompute()"><div class="ae-spec">NCEC limit 200 — 1 Hour</div></div>
+      <div class="ae-field"><label>CO (µg/m³)</label><input type="number" step="any" id="aq-co" oninput="AQ.recompute()"><div class="ae-spec">NCEC limit 10000 — 8 Hours</div></div>
+      <div class="ae-field"><label>SO2 (µg/m³)</label><input type="number" step="any" id="aq-so2" oninput="AQ.recompute()"><div class="ae-spec">NCEC limit 217 — 24 Hours</div></div>
+    </div>
+    <div class="ae-row3">
+      <div class="ae-field"><label>O3 (µg/m³)</label><input type="number" step="any" id="aq-o3" oninput="AQ.recompute()"><div class="ae-spec">NCEC limit 157 — 8 Hours</div></div>
+      <div class="ae-field"><label>PM2.5 (µg/m³)</label><input type="number" step="any" id="aq-pm25" oninput="AQ.recompute()"><div class="ae-spec">NCEC limit 35 — 24 Hours</div></div>
+      <div class="ae-field"><label>PM10 (µg/m³)</label><input type="number" step="any" id="aq-pm10" oninput="AQ.recompute()"><div class="ae-spec">NCEC limit 340 — 24 Hours</div></div>
+    </div>
+    <hr class="ae-hr">
+    <div class="ae-sub">Meteorological conditions during the campaign — optional</div>
+    <div class="ae-row4">
+      <div class="ae-field"><label>Temp (°C)</label><input type="number" step="any" id="aq-temp"></div>
+      <div class="ae-field"><label>Rel. Humidity (%)</label><input type="number" step="any" id="aq-humidity"></div>
+      <div class="ae-field"><label>Wind Speed (m/s)</label><input type="number" step="any" id="aq-windspeed"></div>
+      <div class="ae-field"><label>Wind Direction (deg)</label><input type="number" step="any" id="aq-winddir"></div>
+    </div>
+    <div class="ae-field"><label>Report Reference</label><input id="aq-report-ref" placeholder="EM-A-2026-4-148"></div>
+    <div class="ae-field"><label>Remarks</label><textarea id="aq-remarks" rows="2"></textarea></div>
+    <div class="ae-actions">
+      <button class="aiw-btn" onclick="AQ.closeModal()">Cancel</button>
+      <button class="aiw-btn aiw-btn-add" onclick="AQ.save()">Save Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ NOISE MONITORING MODAL ═══════════════ -->
+<div class="ae-modal-bg" id="ns-modal-bg">
+  <div class="ae-modal">
+    <h3 id="ns-modal-title">New Noise Record</h3>
+    <div id="ns-modal-alert"></div>
+    <input type="hidden" id="ns-id">
+    <div class="ae-row3">
+      <div class="ae-field"><label>Test Date</label><input type="date" id="ns-test-date"></div>
+      <div class="ae-field"><label>Location</label><select id="ns-location">
+        <option value="">— Select —</option>
+        <option>Unit 1,2,3,4</option><option>Furnace 5</option><option>ACL</option>
+      </select></div>
+      <div class="ae-field"><label>Measurement Point</label><input id="ns-point" placeholder="Location 1 (leave blank if the report has only one point)"></div>
+    </div>
+    <div class="ae-row2">
+      <div class="ae-field"><label>Day LAeq Average (dB(A))</label><input type="number" step="any" id="ns-day-avg" oninput="NS.recompute()"><div class="ae-spec">NCEC limit 70 dB(A)</div></div>
+      <div class="ae-field"><label>Night LAeq Average (dB(A))</label><input type="number" step="any" id="ns-night-avg" oninput="NS.recompute()"><div class="ae-spec">NCEC limit 65 dB(A)</div></div>
+    </div>
+    <div class="ae-field"><label>Report Reference</label><input id="ns-report-ref" placeholder="EM-N-2026-4-101"></div>
+    <div class="ae-field"><label>Remarks</label><textarea id="ns-remarks" rows="2"></textarea></div>
+    <div class="ae-actions">
+      <button class="aiw-btn" onclick="NS.closeModal()">Cancel</button>
+      <button class="aiw-btn aiw-btn-add" onclick="NS.save()">Save Record</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+
+  /* ── Shared helpers across all three registers ──────────────────── */
+  function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmt(n){ return (n===''||n==null||isNaN(n)) ? '—' : String(n); }
+  function colIdx(headers,name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+  function recFromRow(headers,row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
+    var s = IMS_AUTH.getSession();
+    var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    return (u && u.name) || (s && s.username) || '';
+  }
+  function postJSON(tab, action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&tab=' + tab + (qs?'&'+qs:''), { method:'POST', body: JSON.stringify(body||{}) }).then(function(r){ return r.json(); });
+  }
+  function loadTab(tab){ return fetch(SHEETS_URL + '?tab=' + tab + '&action=read').then(function(r){ return r.json(); }); }
+
+  /* pct of a limit; null when either side is missing/invalid, so the
+     caller can show "—" rather than a false 0%. */
+  function pctOf(value, limit){
+    var v = parseFloat(value), l = parseFloat(limit);
+    if (isNaN(v) || isNaN(l) || l<=0) return null;
+    return (v/l)*100;
+  }
+  /* Single status rule shared by all three registers: <80% Ok,
+     80–100% Warning (still passes, but flagged early per Issam),
+     ≥100% Exceedance. */
+  function statusFor(pct){
+    if (pct==null) return { cls:'unk', label:'—' };
+    if (pct>=100) return { cls:'exceed', label:'Exceedance (' + pct.toFixed(0) + '%)' };
+    if (pct>=80) return { cls:'warn', label:'Warning (' + pct.toFixed(0) + '%)' };
+    return { cls:'ok', label:'OK (' + pct.toFixed(0) + '%)' };
+  }
+
+  /* ── Collapsible section toggle (shared) ─────────────────────────── */
+  var SECTIONS = ['stack','airquality','noise'];
+  function setExpanded(key, expanded){
+    var el = document.getElementById('ae-body-' + key);
+    var chev = document.getElementById('ae-chev-' + key);
+    if (!el) return;
+    if (expanded){ el.classList.add('ae-open'); if (chev) chev.style.transform='rotate(90deg)'; }
+    else { el.classList.remove('ae-open'); if (chev) chev.style.transform='rotate(0deg)'; }
+  }
+  function toggleSection(key){ var el = document.getElementById('ae-body-' + key); setExpanded(key, !el.classList.contains('ae-open')); }
+
+  /* ── Furnace rebuild reference (Issam, 2026-11-02 voice) — Furnace 1
+     rebuilt Nov-2025, Furnace 2 rebuilt Aug-2026; Furnaces 3/4/5 have
+     no confirmed rebuild date, expected ~2028. Shown next to a Stack
+     Emissions record so a PM jump between campaigns isn't misread as
+     drift when it's really a different furnace. */
+  var REBUILDS = {
+    'Furnace 1': { date: '2025-11-01' },
+    'Furnace 2': { date: '2026-08-01' },
+    'Furnace 3': { plannedYear: 2028 },
+    'Furnace 4': { plannedYear: 2028 },
+    'Furnace 5': { plannedYear: 2028 }
+  };
+  function rebuildBadge(stack, testDate){
+    var r = REBUILDS[stack];
+    if (!r) return '';
+    if (r.date && testDate){
+      return testDate < r.date
+        ? '<span class="ae-badge" title="Rebuilt ' + r.date + '">Pre-rebuild</span>'
+        : '<span class="ae-badge" title="Rebuilt ' + r.date + '">Post-rebuild</span>';
+    }
+    if (r.plannedYear) return '<span class="ae-badge" title="No confirmed date yet">Rebuild ~' + r.plannedYear + '</span>';
+    return '';
+  }
+
+  var _kpiTotal = 0, _kpiWarn = 0, _kpiExceed = 0;
+  function tallyKpi(status){
+    _kpiTotal++;
+    if (status.cls==='warn') _kpiWarn++;
+    if (status.cls==='exceed') _kpiExceed++;
+  }
+  function renderKpis(){
+    document.getElementById('ae-kpi-total').textContent = _kpiTotal;
+    document.getElementById('ae-kpi-warn').textContent = _kpiWarn;
+    document.getElementById('ae-kpi-exceed').textContent = _kpiExceed;
+  }
+  function resetKpis(){ _kpiTotal=0; _kpiWarn=0; _kpiExceed=0; }
+
+  /* ════════════════════ STACK EMISSIONS (SE) ════════════════════ */
+  (function(){
+    var TAB = 'stack_emissions';
+    var STATUS_COL = 'Record Status';
+    var _records = [];
+
+    var FIELD_IDS = {
+      'Test Date':'se-test-date', 'Stack':'se-stack',
+      'PM Run 1':'se-run1', 'PM Run 2':'se-run2', 'PM Run 3':'se-run3',
+      'PM Average':'se-avg', 'NCEC Limit':'se-limit',
+      'Load %':'se-load', 'Fuel Type':'se-fuel', 'Feed Rate':'se-feed-rate',
+      'Stack Shape':'se-shape', 'Stack Height':'se-height', 'Stack Diameter':'se-diameter',
+      'Sampling Port Diameter':'se-port-diam',
+      'Report Reference':'se-report-ref', 'Remarks':'se-remarks'
+    };
+
+    function loadAll(){
+      return loadTab(TAB).then(function(data){
+        if (!data || !data.headers || !data.rows){ _records = []; return; }
+        var si = colIdx(data.headers, STATUS_COL);
+        var rows = data.rows;
+        if (si>=0) rows = rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase()!=='removed'; });
+        _records = rows.map(function(r){ return recFromRow(data.headers, r); });
+        _records.sort(function(a,b){ return (a['Test Date']||'') < (b['Test Date']||'') ? 1 : -1; });
+        render();
+      }).catch(function(){ _records = []; render(); });
+    }
+
+    function statusOf(rec){ return statusFor(pctOf(rec['PM Average'], rec['NCEC Limit'])); }
+
+    function render(){
+      document.getElementById('se-count').textContent = _records.length + ' record' + (_records.length===1?'':'s');
+      document.getElementById('se-tbody').innerHTML = _records.map(function(rec){
+        var pct = pctOf(rec['PM Average'], rec['NCEC Limit']);
+        var st = statusFor(pct);
+        tallyKpi(st);
+        return '<tr onclick="SE.openEdit(\'' + rec['Record ID'] + '\')">'
+          + '<td>' + vEsc(rec['Test Date']) + '</td>'
+          + '<td>' + vEsc(rec['Stack']) + '</td>'
+          + '<td>' + fmt(rec['PM Average']) + '</td>'
+          + '<td>' + fmt(rec['NCEC Limit']) + '</td>'
+          + '<td>' + (pct==null?'—':pct.toFixed(0)+'%') + '</td>'
+          + '<td>' + rebuildBadge(rec['Stack'], rec['Test Date']) + '</td>'
+          + '<td><span class="ae-pill ' + st.cls + '">' + st.label + '</span></td>'
+          + '</tr>';
+      }).join('');
+      renderKpis();
+    }
+
+    function clearForm(){
+      document.getElementById('se-id').value = '';
+      Object.keys(FIELD_IDS).forEach(function(k){ document.getElementById(FIELD_IDS[k]).value = ''; });
+      document.getElementById('se-limit').value = '0.5';
+      document.getElementById('se-rebuild-note').textContent = '';
+    }
+    function openNew(){
+      clearForm();
+      document.getElementById('se-modal-title').textContent = 'New Stack Test Record';
+      document.getElementById('se-modal-alert').innerHTML = '';
+      document.getElementById('se-modal-bg').classList.add('active');
+    }
+    function openEdit(recordId){
+      var rec = _records.filter(function(r){ return r['Record ID']===recordId; })[0];
+      if (!rec) return;
+      clearForm();
+      document.getElementById('se-id').value = recordId;
+      Object.keys(FIELD_IDS).forEach(function(k){ document.getElementById(FIELD_IDS[k]).value = rec[k] || ''; });
+      document.getElementById('se-modal-title').textContent = 'Edit Stack Test Record — ' + recordId;
+      document.getElementById('se-modal-bg').classList.add('active');
+      recompute();
+    }
+    function closeModal(){ document.getElementById('se-modal-bg').classList.remove('active'); }
+
+    function autoAverage(){
+      var r1 = parseFloat(document.getElementById('se-run1').value);
+      var r2 = parseFloat(document.getElementById('se-run2').value);
+      var r3 = parseFloat(document.getElementById('se-run3').value);
+      if (!isNaN(r1) && !isNaN(r2) && !isNaN(r3)){
+        document.getElementById('se-avg').value = ((r1+r2+r3)/3).toFixed(3);
+      }
+      recompute();
+    }
+    function recompute(){
+      var avg = document.getElementById('se-avg').value;
+      var limit = document.getElementById('se-limit').value;
+      var pct = pctOf(avg, limit);
+      var st = statusFor(pct);
+      var avgEl = document.getElementById('se-avg');
+      avgEl.classList.toggle('ae-out', st.cls==='exceed');
+      avgEl.classList.toggle('ae-out-warn', st.cls==='warn');
+      var el = document.getElementById('se-modal-alert');
+      el.innerHTML = pct==null
+        ? ''
+        : '<div class="ae-alert-box ' + (st.cls==='exceed'?'bad':st.cls==='warn'?'warn':'ok') + '">' + st.label + ' of the NCEC limit.</div>';
+      var stack = document.getElementById('se-stack').value;
+      var testDate = document.getElementById('se-test-date').value;
+      var badge = rebuildBadge(stack, testDate);
+      document.getElementById('se-rebuild-note').innerHTML = badge ? ('Rebuild reference: ' + badge) : '';
+    }
+
+    function nextRecordId(testDate, stack){ return 'STK-' + (testDate || 'NEW') + '-' + (stack||'').replace(/\s+/g,'') + '-' + Date.now(); }
+
+    function formToRec(){
+      var rec = {};
+      Object.keys(FIELD_IDS).forEach(function(k){ rec[k] = document.getElementById(FIELD_IDS[k]).value; });
+      return rec;
+    }
+    function save(){
+      var existingId = document.getElementById('se-id').value;
+      var rec = formToRec();
+      if (!rec['Test Date']){ alert('Test date is required.'); return; }
+      if (!rec['Stack']){ alert('Stack / furnace is required.'); return; }
+      if (!rec['PM Average']){ alert('PM average is required (enter the three runs or the average directly).'); return; }
+      rec['Record ID'] = existingId || nextRecordId(rec['Test Date'], rec['Stack']);
+      rec['Entered By'] = currentUserName();
+      rec['Record Status'] = 'Active';
+      var op = existingId ? postJSON(TAB, 'update', { id: existingId }, rec) : postJSON(TAB, 'create', {}, rec);
+      op.then(loadAll).then(closeModal);
+    }
+
+    window.SE = { openNew:openNew, openEdit:openEdit, closeModal:closeModal, save:save, recompute:recompute,
+      autoAverage:autoAverage, statusOf:statusOf,
+      _internal: { getRecords:function(){return _records;}, loadAll: loadAll } };
+    window.SE._loadAll = loadAll;
+  })();
+
+  /* ════════════════════ BOUNDARY AIR QUALITY (AQ) ════════════════════ */
+  (function(){
+    var TAB = 'boundary_air_quality';
+    var STATUS_COL = 'Record Status';
+    var _records = [];
+
+    var SPECS = {
+      'NO2':   { limit:200,   fieldId:'aq-no2' },
+      'CO':    { limit:10000, fieldId:'aq-co' },
+      'SO2':   { limit:217,   fieldId:'aq-so2' },
+      'O3':    { limit:157,   fieldId:'aq-o3' },
+      'PM2.5': { limit:35,    fieldId:'aq-pm25' },
+      'PM10':  { limit:340,   fieldId:'aq-pm10' }
+    };
+
+    var FIELD_IDS = {
+      'Test Date':'aq-test-date', 'Location':'aq-location',
+      'NO2':'aq-no2', 'CO':'aq-co', 'SO2':'aq-so2', 'O3':'aq-o3', 'PM2.5':'aq-pm25', 'PM10':'aq-pm10',
+      'Temperature':'aq-temp', 'Relative Humidity':'aq-humidity', 'Wind Speed':'aq-windspeed', 'Wind Direction':'aq-winddir',
+      'Report Reference':'aq-report-ref', 'Remarks':'aq-remarks'
+    };
+
+    function loadAll(){
+      return loadTab(TAB).then(function(data){
+        if (!data || !data.headers || !data.rows){ _records = []; return; }
+        var si = colIdx(data.headers, STATUS_COL);
+        var rows = data.rows;
+        if (si>=0) rows = rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase()!=='removed'; });
+        _records = rows.map(function(r){ return recFromRow(data.headers, r); });
+        _records.sort(function(a,b){ return (a['Test Date']||'') < (b['Test Date']||'') ? 1 : -1; });
+        render();
+      }).catch(function(){ _records = []; render(); });
+    }
+
+    /* Worst-of-six: the parameter closest to (or over) its own limit
+       drives the record's overall status, matching how the source
+       EMCO reports themselves only flag by exceedance count. */
+    function worstOf(rec){
+      var worstPct = null, worstName = null;
+      Object.keys(SPECS).forEach(function(name){
+        var pct = pctOf(rec[name], SPECS[name].limit);
+        if (pct!=null && (worstPct==null || pct>worstPct)){ worstPct = pct; worstName = name; }
+      });
+      return { pct: worstPct, name: worstName };
+    }
+
+    function render(){
+      document.getElementById('aq-count').textContent = _records.length + ' record' + (_records.length===1?'':'s');
+      document.getElementById('aq-tbody').innerHTML = _records.map(function(rec){
+        var w = worstOf(rec);
+        var st = statusFor(w.pct);
+        tallyKpi(st);
+        return '<tr onclick="AQ.openEdit(\'' + rec['Record ID'] + '\')">'
+          + '<td>' + vEsc(rec['Test Date']) + '</td>'
+          + '<td>' + vEsc(rec['Location']) + '</td>'
+          + '<td>' + (w.name||'—') + '</td>'
+          + '<td>' + (w.pct==null?'—':w.pct.toFixed(0)+'%') + '</td>'
+          + '<td><span class="ae-pill ' + st.cls + '">' + st.label + '</span></td>'
+          + '</tr>';
+      }).join('');
+      renderKpis();
+    }
+
+    function clearForm(){
+      document.getElementById('aq-id').value = '';
+      Object.keys(FIELD_IDS).forEach(function(k){ document.getElementById(FIELD_IDS[k]).value = ''; });
+    }
+    function openNew(){
+      clearForm();
+      document.getElementById('aq-modal-title').textContent = 'New Air Quality Record';
+      document.getElementById('aq-modal-alert').innerHTML = '';
+      document.getElementById('aq-modal-bg').classList.add('active');
+    }
+    function openEdit(recordId){
+      var rec = _records.filter(function(r){ return r['Record ID']===recordId; })[0];
+      if (!rec) return;
+      clearForm();
+      document.getElementById('aq-id').value = recordId;
+      Object.keys(FIELD_IDS).forEach(function(k){ document.getElementById(FIELD_IDS[k]).value = rec[k] || ''; });
+      document.getElementById('aq-modal-title').textContent = 'Edit Air Quality Record — ' + recordId;
+      document.getElementById('aq-modal-bg').classList.add('active');
+      recompute();
+    }
+    function closeModal(){ document.getElementById('aq-modal-bg').classList.remove('active'); }
+
+    function formToRec(){
+      var rec = {};
+      Object.keys(FIELD_IDS).forEach(function(k){ rec[k] = document.getElementById(FIELD_IDS[k]).value; });
+      return rec;
+    }
+    function recompute(){
+      var rec = formToRec();
+      var worstPctEach = {};
+      var anyExceed = false, anyWarn = false;
+      Object.keys(SPECS).forEach(function(name){
+        var pct = pctOf(rec[name], SPECS[name].limit);
+        var st = statusFor(pct);
+        var el = document.getElementById(SPECS[name].fieldId);
+        el.classList.toggle('ae-out', st.cls==='exceed');
+        el.classList.toggle('ae-out-warn', st.cls==='warn');
+        if (st.cls==='exceed') anyExceed = true;
+        if (st.cls==='warn') anyWarn = true;
+      });
+      var w = worstOf(rec);
+      var el = document.getElementById('aq-modal-alert');
+      if (w.pct==null){ el.innerHTML = ''; return; }
+      var cls = anyExceed ? 'bad' : (anyWarn ? 'warn' : 'ok');
+      el.innerHTML = '<div class="ae-alert-box ' + cls + '">Worst parameter: ' + w.name + ' at ' + w.pct.toFixed(0) + '% of its NCEC limit.</div>';
+    }
+
+    function nextRecordId(testDate, loc){ return 'AQ-' + (testDate || 'NEW') + '-' + (loc||'').replace(/[^A-Za-z0-9]/g,'') + '-' + Date.now(); }
+
+    function save(){
+      var existingId = document.getElementById('aq-id').value;
+      var rec = formToRec();
+      if (!rec['Test Date']){ alert('Test date is required.'); return; }
+      if (!rec['Location']){ alert('Location is required.'); return; }
+      rec['Record ID'] = existingId || nextRecordId(rec['Test Date'], rec['Location']);
+      rec['Entered By'] = currentUserName();
+      rec['Record Status'] = 'Active';
+      var op = existingId ? postJSON(TAB, 'update', { id: existingId }, rec) : postJSON(TAB, 'create', {}, rec);
+      op.then(loadAll).then(closeModal);
+    }
+
+    window.AQ = { openNew:openNew, openEdit:openEdit, closeModal:closeModal, save:save, recompute:recompute,
+      worstOf:worstOf, _internal: { getRecords:function(){return _records;}, loadAll: loadAll } };
+    window.AQ._loadAll = loadAll;
+  })();
+
+  /* ════════════════════ NOISE MONITORING (NS) ════════════════════ */
+  (function(){
+    var TAB = 'noise_monitoring';
+    var STATUS_COL = 'Record Status';
+    var _records = [];
+    var DAY_LIMIT = 70, NIGHT_LIMIT = 65;
+
+    var FIELD_IDS = {
+      'Test Date':'ns-test-date', 'Location':'ns-location', 'Measurement Point':'ns-point',
+      'Day LAeq Average':'ns-day-avg', 'Night LAeq Average':'ns-night-avg',
+      'Report Reference':'ns-report-ref', 'Remarks':'ns-remarks'
+    };
+
+    function loadAll(){
+      return loadTab(TAB).then(function(data){
+        if (!data || !data.headers || !data.rows){ _records = []; return; }
+        var si = colIdx(data.headers, STATUS_COL);
+        var rows = data.rows;
+        if (si>=0) rows = rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase()!=='removed'; });
+        _records = rows.map(function(r){ return recFromRow(data.headers, r); });
+        _records.sort(function(a,b){ return (a['Test Date']||'') < (b['Test Date']||'') ? 1 : -1; });
+        render();
+      }).catch(function(){ _records = []; render(); });
+    }
+
+    function worstOf(rec){
+      var dayPct = pctOf(rec['Day LAeq Average'], DAY_LIMIT);
+      var nightPct = pctOf(rec['Night LAeq Average'], NIGHT_LIMIT);
+      var worst = null;
+      if (dayPct!=null) worst = dayPct;
+      if (nightPct!=null && (worst==null || nightPct>worst)) worst = nightPct;
+      return worst;
+    }
+
+    function render(){
+      document.getElementById('ns-count').textContent = _records.length + ' record' + (_records.length===1?'':'s');
+      document.getElementById('ns-tbody').innerHTML = _records.map(function(rec){
+        var st = statusFor(worstOf(rec));
+        tallyKpi(st);
+        return '<tr onclick="NS.openEdit(\'' + rec['Record ID'] + '\')">'
+          + '<td>' + vEsc(rec['Test Date']) + '</td>'
+          + '<td>' + vEsc(rec['Location']) + '</td>'
+          + '<td>' + vEsc(rec['Measurement Point'] || '—') + '</td>'
+          + '<td>' + fmt(rec['Day LAeq Average']) + '</td>'
+          + '<td>' + fmt(rec['Night LAeq Average']) + '</td>'
+          + '<td><span class="ae-pill ' + st.cls + '">' + st.label + '</span></td>'
+          + '</tr>';
+      }).join('');
+      renderKpis();
+    }
+
+    function clearForm(){
+      document.getElementById('ns-id').value = '';
+      Object.keys(FIELD_IDS).forEach(function(k){ document.getElementById(FIELD_IDS[k]).value = ''; });
+    }
+    function openNew(){
+      clearForm();
+      document.getElementById('ns-modal-title').textContent = 'New Noise Record';
+      document.getElementById('ns-modal-alert').innerHTML = '';
+      document.getElementById('ns-modal-bg').classList.add('active');
+    }
+    function openEdit(recordId){
+      var rec = _records.filter(function(r){ return r['Record ID']===recordId; })[0];
+      if (!rec) return;
+      clearForm();
+      document.getElementById('ns-id').value = recordId;
+      Object.keys(FIELD_IDS).forEach(function(k){ document.getElementById(FIELD_IDS[k]).value = rec[k] || ''; });
+      document.getElementById('ns-modal-title').textContent = 'Edit Noise Record — ' + recordId;
+      document.getElementById('ns-modal-bg').classList.add('active');
+      recompute();
+    }
+    function closeModal(){ document.getElementById('ns-modal-bg').classList.remove('active'); }
+
+    function formToRec(){
+      var rec = {};
+      Object.keys(FIELD_IDS).forEach(function(k){ rec[k] = document.getElementById(FIELD_IDS[k]).value; });
+      return rec;
+    }
+    function recompute(){
+      var rec = formToRec();
+      var dayPct = pctOf(rec['Day LAeq Average'], DAY_LIMIT);
+      var nightPct = pctOf(rec['Night LAeq Average'], NIGHT_LIMIT);
+      var dayEl = document.getElementById('ns-day-avg'), nightEl = document.getElementById('ns-night-avg');
+      var dayStatus = statusFor(dayPct), nightStatus = statusFor(nightPct);
+      dayEl.classList.toggle('ae-out', dayStatus.cls==='exceed');
+      dayEl.classList.toggle('ae-out-warn', dayStatus.cls==='warn');
+      nightEl.classList.toggle('ae-out', nightStatus.cls==='exceed');
+      nightEl.classList.toggle('ae-out-warn', nightStatus.cls==='warn');
+      var worst = worstOf(rec);
+      var el = document.getElementById('ns-modal-alert');
+      if (worst==null){ el.innerHTML = ''; return; }
+      var st = statusFor(worst);
+      var cls = st.cls==='exceed' ? 'bad' : (st.cls==='warn' ? 'warn' : 'ok');
+      el.innerHTML = '<div class="ae-alert-box ' + cls + '">' + st.label + ' against its NCEC limit (Day 70 / Night 65 dB(A)).</div>';
+    }
+
+    function nextRecordId(testDate, loc){ return 'NSE-' + (testDate || 'NEW') + '-' + (loc||'').replace(/[^A-Za-z0-9]/g,'') + '-' + Date.now(); }
+
+    function save(){
+      var existingId = document.getElementById('ns-id').value;
+      var rec = formToRec();
+      if (!rec['Test Date']){ alert('Test date is required.'); return; }
+      if (!rec['Location']){ alert('Location is required.'); return; }
+      if (!rec['Day LAeq Average'] && !rec['Night LAeq Average']){ alert('Enter at least a Day or Night LAeq average.'); return; }
+      rec['Record ID'] = existingId || nextRecordId(rec['Test Date'], rec['Location']);
+      rec['Entered By'] = currentUserName();
+      rec['Record Status'] = 'Active';
+      var op = existingId ? postJSON(TAB, 'update', { id: existingId }, rec) : postJSON(TAB, 'create', {}, rec);
+      op.then(loadAll).then(closeModal);
+    }
+
+    window.NS = { openNew:openNew, openEdit:openEdit, closeModal:closeModal, save:save, recompute:recompute,
+      worstOf:worstOf, _internal: { getRecords:function(){return _records;}, loadAll: loadAll } };
+    window.NS._loadAll = loadAll;
+  })();
+
+  /* ── Page-level: toggle + first load (all three tabs, then one
+     shared KPI render pass since each register's render() both
+     tallies into the shared counters and repaints its own table) ── */
+  function loadAllSections(){
+    resetKpis();
+    return Promise.all([ window.SE._loadAll(), window.AQ._loadAll(), window.NS._loadAll() ]);
+  }
+  window.AE = { toggle: toggleSection, loadAllSections: loadAllSections };
+
+  if (typeof IMS_AUTH !== 'undefined'){
+    IMS_AUTH.init({ onReady: function(){ loadAllSections(); } });
+  } else {
+    loadAllSections();
+  }
+})();
+</script>
+
+<script>
+/* ── Access gate ──────────────────────────────────────────────────
+   Same rule as Water Quality Lab Register: Environment/Energy dept +
+   Managers + CEO + Superadmin (exact department membership TBD). */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(environment|environmental|energy)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">Air Emissions Monitoring is limited to the Environmental team, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+</div>
+</body>
+</html>
