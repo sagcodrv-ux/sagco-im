@@ -272,10 +272,20 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
       </select></div>
       <div class="ae-field"><label>Measurement Point</label><input id="ns-point" placeholder="Location 1 (leave blank if the report has only one point)"></div>
     </div>
-    <div class="ae-row2">
-      <div class="ae-field"><label>Day LAeq Average (dB(A))</label><input type="number" step="any" id="ns-day-avg" oninput="NS.recompute()"><div class="ae-spec">NCEC limit 70 dB(A)</div></div>
-      <div class="ae-field"><label>Night LAeq Average (dB(A))</label><input type="number" step="any" id="ns-night-avg" oninput="NS.recompute()"><div class="ae-spec">NCEC limit 65 dB(A)</div></div>
+    <hr class="ae-hr">
+    <div class="ae-sub">Day period — NCEC limit 70 dB(A)</div>
+    <div class="ae-row3">
+      <div class="ae-field"><label>Day LAeq Average (dB(A))</label><input type="number" step="any" id="ns-day-avg" oninput="NS.recompute()"></div>
+      <div class="ae-field"><label>Day Max (dB(A)) — optional</label><input type="number" step="any" id="ns-day-max"></div>
+      <div class="ae-field"><label>Day Min (dB(A)) — optional</label><input type="number" step="any" id="ns-day-min"></div>
     </div>
+    <div class="ae-sub">Night period — NCEC limit 65 dB(A)</div>
+    <div class="ae-row3">
+      <div class="ae-field"><label>Night LAeq Average (dB(A))</label><input type="number" step="any" id="ns-night-avg" oninput="NS.recompute()"></div>
+      <div class="ae-field"><label>Night Max (dB(A)) — optional</label><input type="number" step="any" id="ns-night-max"></div>
+      <div class="ae-field"><label>Night Min (dB(A)) — optional</label><input type="number" step="any" id="ns-night-min"></div>
+    </div>
+    <hr class="ae-hr">
     <div class="ae-field"><label>Report Reference</label><input id="ns-report-ref" placeholder="EM-N-2026-4-101"></div>
     <div class="ae-field"><label>Remarks</label><textarea id="ns-remarks" rows="2"></textarea></div>
     <div class="ae-actions">
@@ -670,7 +680,8 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
 
     var FIELD_IDS = {
       'Test Date':'ns-test-date', 'Location':'ns-location', 'Measurement Point':'ns-point',
-      'Day LAeq Average':'ns-day-avg', 'Night LAeq Average':'ns-night-avg',
+      'Day LAeq Average':'ns-day-avg', 'Day Max':'ns-day-max', 'Day Min':'ns-day-min',
+      'Night LAeq Average':'ns-night-avg', 'Night Max':'ns-night-max', 'Night Min':'ns-night-min',
       'Report Reference':'ns-report-ref', 'Remarks':'ns-remarks'
     };
 
@@ -695,17 +706,26 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
       return worst;
     }
 
+    /* Table shows Day and Night each with their own % of limit (colour-
+       coded), so it's clear which period actually drove the overall
+       status — per Issam's point that "Warning 83%" alone doesn't say
+       whether Day or Night caused it. Max/Min are deliberately NOT in
+       the table (would crowd it); they're on the record's own form,
+       which is where Issam asked for full detail to live. */
     function render(){
       document.getElementById('ns-count').textContent = _records.length + ' record' + (_records.length===1?'':'s');
       document.getElementById('ns-tbody').innerHTML = _records.map(function(rec){
+        var dayPct = pctOf(rec['Day LAeq Average'], DAY_LIMIT);
+        var nightPct = pctOf(rec['Night LAeq Average'], NIGHT_LIMIT);
+        var dayStatus = statusFor(dayPct), nightStatus = statusFor(nightPct);
         var st = statusFor(worstOf(rec));
         tallyKpi(st);
         return '<tr onclick="NS.openEdit(\'' + rec['Record ID'] + '\')">'
           + '<td>' + vEsc(rec['Test Date']) + '</td>'
           + '<td>' + vEsc(rec['Location']) + '</td>'
           + '<td>' + vEsc(rec['Measurement Point'] || '—') + '</td>'
-          + '<td>' + fmt(rec['Day LAeq Average']) + '</td>'
-          + '<td>' + fmt(rec['Night LAeq Average']) + '</td>'
+          + '<td><span class="ae-pcell ' + dayStatus.cls + '">' + fmt(rec['Day LAeq Average']) + (dayPct==null?'':' ('+dayPct.toFixed(0)+'%)') + '</span></td>'
+          + '<td><span class="ae-pcell ' + nightStatus.cls + '">' + fmt(rec['Night LAeq Average']) + (nightPct==null?'':' ('+nightPct.toFixed(0)+'%)') + '</span></td>'
           + '<td><span class="ae-pill ' + st.cls + '">' + st.label + '</span></td>'
           + '</tr>';
       }).join('');
