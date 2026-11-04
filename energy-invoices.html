@@ -195,6 +195,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
   var _formAttach = {}; // { 'Electricity': [{name,url,fileId}], ... }
   var _activeType = TYPES[0].key; // which tab is showing inside the edit modal
   var _editIsClosed = false;      // remembered so switching tabs doesn't need the param threaded through onclick
+  var _previewOpen = null;        // 'typeKey|lineIdx' of the line whose scan preview is expanded, or null
+  var _pendingScan = {};          // { typeKey: {name,url,fileId,mimeType} } — uploaded but not yet attached to a saved line
 
   /* Every account number ever typed on a past Electricity or LPG
      invoice line, across every month in the cache — feeds the
@@ -371,6 +373,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
   function openEdit(r){
     _lastEditedId = r['Record ID'];
     _activeType = TYPES[0].key;
+    _previewOpen = null;
+    _pendingScan = {};
     _formLines = {}; _formAttach = {};
     TYPES.forEach(function(t){
       _formLines[t.key] = parseJSONArr(r[t.key+' Lines (JSON)']);
@@ -412,18 +416,33 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
     var tot = sectionTotals(t.key);
     var unitCost = tot.qty>0 ? (tot.amt/tot.qty) : null;
     var lines = _formLines[t.key] || [];
-    var attach = _formAttach[t.key] || [];
     var r = currentEditingRec();
 
     var linesRows = lines.map(function(l,idx){
       var extra = (t.hasAccount ? ('<td>'+eEsc(l.account||'')+'</td>') : '') + (t.hasFeeder ? ('<td>'+eEsc(l.feeder||'')+'</td>') : '');
-      return '<tr><td>'+eEsc(l.invoiceNo)+'</td><td>'+eEsc(l.date)+'</td><td>'+eEsc(l.supplier)+'</td>'+extra
+      var previewKey = t.key + '|' + idx;
+      var scanBtn = l.scan && l.scan.url
+        ? '<button class="eni-mini-btn" onclick="ENI.togglePreview(\''+t.key+'\','+idx+')" title="'+eEsc(l.scan.name||'Scan')+'">🧾 Scan</button>'
+        : '<span class="kpi-sub" style="font-size:9.5px">—</span>';
+      var row = '<tr><td>'+eEsc(l.invoiceNo)+'</td><td>'+eEsc(l.date)+'</td><td>'+eEsc(l.supplier)+'</td>'+extra
         +'<td>'+fmt(l.quantity)+'</td><td>'+fmt(l.amount)+'</td>'
+        +'<td>'+scanBtn+'</td>'
         +'<td>'+(isClosed?'':'<button class="eni-mini-btn" onclick="ENI.removeLine(\''+t.key+'\','+idx+')">✕</button>')+'</td></tr>';
+      if (_previewOpen === previewKey && l.scan && l.scan.url){
+        var colCount = 6 + (t.hasAccount?1:0) + (t.hasFeeder?1:0) + 1;
+        var isImage = /^image\//.test(l.scan.mimeType||'');
+        var previewInner = isImage
+          ? '<img src="'+eEsc(l.scan.url)+'" style="max-height:140px;max-width:100%;border-radius:6px;display:block">'
+          : '<div style="padding:14px;text-align:center;color:var(--eni-text-muted)">📄 ' + eEsc(l.scan.name||'Scanned invoice') + '<br><span style="font-size:9.5px;color:var(--eni-text-dim)">Click to open the full PDF</span></div>';
+        row += '<tr><td colspan="'+colCount+'" style="padding:8px;background:rgba(0,0,0,.15)">'
+          + '<div style="cursor:pointer;display:inline-block" onclick="window.open(\''+eEsc(l.scan.url)+'\',\'_blank\')">' + previewInner + '</div>'
+          + '</td></tr>';
+      }
+      return row;
     }).join('');
     var extraHead = (t.hasAccount?'<th>Account</th>':'') + (t.hasFeeder?'<th>Feeder</th>':'');
     var linesTbl = lines.length ? (''
-      + '<table class="eni-lines-tbl"><thead><tr><th>Invoice No.</th><th>Date</th><th>Supplier</th>'+extraHead+'<th>Qty ('+t.unit+')</th><th>Amount (SAR)</th><th></th></tr></thead>'
+      + '<table class="eni-lines-tbl"><thead><tr><th>Invoice No.</th><th>Date</th><th>Supplier</th>'+extraHead+'<th>Qty ('+t.unit+')</th><th>Amount (SAR)</th><th>Scan</th><th></th></tr></thead>'
       + '<tbody>'+linesRows+'</tbody></table>') : '<div class="kpi-sub" style="margin-bottom:8px">No invoices entered yet for ' + t.key + ' this month.</div>';
 
     var accountFieldHtml = '';
@@ -452,15 +471,11 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
       + '<input type="number" step="any" placeholder="Qty" id="eni-ln-qty-'+t.key+'">'
       + '<input type="number" step="any" placeholder="Amount SAR" id="eni-ln-amt-'+t.key+'">'
       + '</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+      + '<label class="eni-mini-btn" style="display:inline-block;cursor:pointer">📎 Attach Scan (optional)<input type="file" accept="application/pdf,image/*" style="display:none" id="eni-ln-file-'+t.key+'" onchange="ENI.onLineFileSelected(event,\''+t.key+'\')"></label>'
+      + '<span class="eni-attach-status" id="eni-ln-file-status-'+t.key+'"></span>'
+      + '</div>'
       + '<button class="eni-mini-btn" onclick="ENI.addLine(\''+t.key+'\')">+ Add Invoice Line</button>');
-
-    var attachList = attach.length ? ('<div class="eni-attach-list">' + attach.map(function(a,idx){
-        return '<div class="eni-attach-item"><a href="'+eEsc(a.url)+'" target="_blank">📎 '+eEsc(a.name)+'</a>'
-          + (isClosed?'':'<button class="eni-mini-btn" onclick="ENI.removeAttachment(\''+t.key+'\','+idx+')">✕</button>')+'</div>';
-      }).join('') + '</div>') : '';
-    var uploadCtl = isClosed ? '' : (''
-      + '<label class="eni-mini-btn" style="display:inline-block;cursor:pointer">📎 Attach Scan<input type="file" accept="application/pdf,image/*" style="display:none" id="eni-file-'+t.key+'" onchange="ENI.onFileSelected(event,\''+t.key+'\')"></label>'
-      + '<span class="eni-attach-status" id="eni-attach-status-'+t.key+'"></span>');
 
     var totalsRow = tot.fromLines
       ? ('<div class="eni-totals-row"><div class="eni-field"><label>Total Quantity ('+t.unit+')</label><input value="'+fmt(tot.qty,1)+'" readonly></div>'
@@ -475,7 +490,6 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
       + linesTbl + addLineForm
       + totalsRow
       + '<div class="eni-unit-cost">Unit cost: ' + (unitCost!=null ? ('SAR '+unitCost.toFixed(3)+' / '+t.unit) : '—') + '</div>'
-      + attachList + uploadCtl
       + '</div></div>';
   }
 
@@ -525,29 +539,48 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
     var line = {
       invoiceNo: get('no'), date: get('date'), supplier: get('supplier'),
       account: get('account'), feeder: get('feeder'),
-      quantity: parseFloat(get('qty'))||0, amount: parseFloat(get('amt'))||0
+      quantity: parseFloat(get('qty'))||0, amount: parseFloat(get('amt'))||0,
+      scan: _pendingScan[typeKey] || null
     };
     if (!line.invoiceNo || !line.date || !line.quantity || !line.amount){
       alert('Invoice No., Date, Quantity and Amount are required for a line.'); return;
     }
     _formLines[typeKey] = _formLines[typeKey] || [];
     _formLines[typeKey].push(line);
+    delete _pendingScan[typeKey];
     renderEditBody(false);
   }
   function removeLine(typeKey, idx){
+    var key = typeKey + '|' + idx;
+    if (_previewOpen === key) _previewOpen = null;
     _formLines[typeKey].splice(idx,1);
     renderEditBody(false);
   }
   function onBulkChange(typeKey){ renderEditBody(false); }
 
+  /* ── Scanned-invoice preview — toggles an inline preview row right
+     under the invoice line it belongs to; clicking the preview itself
+     opens the full file in a new tab (Issam, 2026-11-03: "a small
+     preview, and then once you click on that small preview, it will
+     redirect you to another new tab"). */
+  function togglePreview(typeKey, idx){
+    var key = typeKey + '|' + idx;
+    _previewOpen = (_previewOpen === key) ? null : key;
+    renderEditBody(_editIsClosed);
+  }
+
   /* ── Scanned-invoice uploads — same Drive endpoint already used by
      violation-register.html / loto-register.html / chemical-
-     inventory.html. Filed under a subfolder named after this record's
-     ID plus the energy type, e.g. ENI-2026-11-Electricity. */
-  function onFileSelected(evt, typeKey){
+     inventory.html. Now attached to the INVOICE LINE itself (Issam,
+     2026-11-03), not to the type/tab as a whole: the file is uploaded
+     as soon as it's chosen, held in _pendingScan until "+ Add Invoice
+     Line" is clicked, and then travels inside that line's own object
+     in the Lines (JSON) column — so each invoice keeps its own scan,
+     and an old line entered before this change simply has none. */
+  function onLineFileSelected(evt, typeKey){
     var file = evt.target.files && evt.target.files[0];
     if (!file) return;
-    var statusEl = document.getElementById('eni-attach-status-' + typeKey);
+    var statusEl = document.getElementById('eni-ln-file-status-' + typeKey);
     statusEl.textContent = 'Uploading…';
     var reader = new FileReader();
     reader.onload = function(){
@@ -555,7 +588,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
       var commaIdx = dataUrl.indexOf(',');
       var base64 = commaIdx >= 0 ? dataUrl.substring(commaIdx+1) : dataUrl;
       var username = currentUserName() || 'unknown';
-      var docId = _lastEditedId + '-' + typeKey;
+      var docId = _lastEditedId + '-' + typeKey + '-line';
       fetch(SHEETS_URL, {
         method:'POST',
         body: JSON.stringify({ action:'uploadFilePicker', docId: docId, fileName: file.name, mimeType: file.type || 'application/octet-stream', b64: base64, username: username })
@@ -564,17 +597,11 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
           statusEl.textContent = 'Upload failed' + (res && res.error ? ': '+res.error : '') + ' — try again.';
           return;
         }
-        _formAttach[typeKey] = _formAttach[typeKey] || [];
-        _formAttach[typeKey].push({ name: file.name, url: res.webViewLink || res.previewLink || '', fileId: res.fileId || '' });
-        statusEl.textContent = '';
-        renderEditBody(false);
+        _pendingScan[typeKey] = { name: file.name, url: res.webViewLink || res.previewLink || '', fileId: res.fileId || '', mimeType: file.type || '' };
+        statusEl.textContent = '✓ ' + file.name + ' — will attach to the next invoice line you add';
       }).catch(function(){ statusEl.textContent = 'Upload failed — try again.'; });
     };
     reader.readAsDataURL(file);
-  }
-  function removeAttachment(typeKey, idx){
-    _formAttach[typeKey].splice(idx,1);
-    renderEditBody(false);
   }
 
   function buildSaveRec(id){
@@ -620,9 +647,9 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
     addLine: addLine,
     removeLine: removeLine,
     setActiveType: setActiveType,
+    togglePreview: togglePreview,
     onBulkChange: onBulkChange,
-    onFileSelected: onFileSelected,
-    removeAttachment: removeAttachment,
+    onLineFileSelected: onLineFileSelected,
     saveProgress: saveProgress,
     closeMonth: closeMonth,
     reopenMonth: reopenMonth,
