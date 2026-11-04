@@ -7,20 +7,28 @@
 body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 /* ══════════════════════════════════════════════════════════════════
    ENERGY INVOICES — OC-02 Environment & Energy. Collects every energy
-   invoice (Electricity, LPG, Diesel, Fuel Oil, Water) entered by Finance.
-   Water added 2026-11-02 (Issam, voice): billing-only, same pattern as
-   the other four types, but deliberately simpler at his request — just
-   a total quantity (m³) and total amount (SAR) per month, no invoice-
-   line breakdown fields beyond the shared ones (no Account/Feeder,
-   and no source field — Issam explicitly said not to track whether it
-   arrived by tanker or network, "just only... the total quantity
-   delivered").
-   Built 2026-11-01 (Issam, voice), same one-record-per-MONTH pattern
-   as furnace-energy.html, but with FOUR sections inside one monthly
-   record — one per energy type — each independently either a typed
-   total or a set of summed invoice lines, plus scanned-invoice
-   attachments via the portal's existing Drive upload endpoint. Class
-   prefix eni-.
+   and water invoice entered by Finance: Electricity, LPG, Diesel, Fuel
+   Oil, Water Supply and Water Discharge. One record per month, with
+   one SIX-TAB form inside it — same visual pattern as the Gate Check-
+   In tabs on visitor-induction.html — so only one type's invoices are
+   on screen at once. Each tab independently supports either a typed
+   month total or any number of individual invoice lines (invoice no.,
+   date, supplier, quantity, amount — plus account/feeder for
+   Electricity and LPG), summed automatically, plus scanned-invoice
+   attachments via the portal's existing Drive upload endpoint.
+   Water was split into two separate tabs 2026-11-03 (Issam, voice):
+   Water Supply (incoming, billed) and Water Discharge (effluent,
+   billed separately) are two different invoices from two different
+   relationships, not one line — previously a single simplified
+   "Water" type with no line-item support; both now get full invoice-
+   line support like every other type.
+   Electricity 2026-11-03 (Issam, voice): he originally wanted a fixed
+   list of the six account numbers, then a user-managed add/remove
+   list, then settled on neither — the Account field now just
+   autocompletes from whatever account numbers have been typed on past
+   invoices (a native <datalist>, no separate tab or sheet needed), so
+   past numbers are easy to reuse without the strictness of a managed
+   list. Class prefix eni-.
    ══════════════════════════════════════════════════════════════════ */
 .eni-dark-wrap{
   --eni-bg:#0D1B35; --eni-bg2:#142140; --eni-bg3:#1a2a50;
@@ -117,11 +125,18 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
   border-radius:6px;padding:5px 9px;font-size:10.5px}
 .eni-attach-item a{color:var(--eni-gold-lt);text-decoration:none}
 .eni-attach-status{font-size:10px;color:var(--eni-text-dim);margin-top:4px}
+.eni-type-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--eni-border-gold);margin-bottom:14px;padding-bottom:0}
+.eni-type-tab{font-size:11px;font-weight:700;padding:8px 14px;border-radius:8px 8px 0 0;border:1px solid transparent;
+  background:transparent;color:var(--eni-text-muted);cursor:pointer;position:relative;top:1px}
+.eni-type-tab .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-left:6px;background:var(--eni-text-dim)}
+.eni-type-tab .dot.filled{background:var(--eni-grn)}
+.eni-type-tab.active{background:var(--eni-bg3);color:var(--eni-gold-lt);border-color:var(--eni-border-gold);border-bottom-color:var(--eni-bg3)}
+.eni-elec-hint{font-size:10px;color:var(--eni-text-dim);margin:-4px 0 8px}
 </style>
 </head><body><div class="eni-dark-wrap">
 <div class="back-row"><a href="oc02-environment.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
 
-<div class="req-text">Energy Invoices — every energy and water invoice in one place: <strong>Electricity, LPG, Diesel, Fuel Oil (HFO) and Water</strong>, entered by Finance. <strong>One record per month</strong>, with one section per type inside it. Each section can be filled in two ways: type the month's <strong>total quantity and amount</strong> directly, or add the <strong>individual invoice lines</strong> (invoice no., date, supplier, quantity, amount — plus account/feeder for Electricity and LPG) and the page sums them automatically. Water is kept deliberately simple — just the month's total quantity (m³) and total amount (SAR), no invoice-line breakdown. Scanned invoices can be attached to each type — more than one per month if there's more than one invoice. The page shows the unit cost for each type (SAR per kWh, per liter, or per m³) and the month's total spend. The month closes once all five types have a total entered.</div>
+<div class="req-text">Energy Invoices — every energy and water invoice in one place: <strong>Electricity, LPG, Diesel, Fuel Oil (HFO), Water Supply and Water Discharge</strong>, entered by Finance. <strong>One record per month</strong>, with one tab per type inside it — click a tab to see only that type's invoices, same as the Gate Check-In tabs. Each tab can be filled in two ways: type the month's <strong>total quantity and amount</strong> directly, or add any number of <strong>individual invoice lines</strong> (invoice no., date, supplier, quantity, amount — plus account/feeder for Electricity and LPG) and the page sums them automatically. On Electricity and LPG, the Account field autocompletes from account numbers typed on past invoices. Scanned invoices can be attached to each type — more than one per month if there's more than one invoice. The page shows the unit cost for each type (SAR per kWh, per liter, or per m³) and the month's total spend. The month closes once all six types have a total entered.</div>
 
 <div class="sec-banner">ENERGY INVOICES — QUICK STATUS</div>
 <div class="kpi-grid" style="margin-bottom:14px">
@@ -148,7 +163,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
 <div class="eni-table-wrap">
   <table>
     <thead><tr>
-      <th>Month</th><th>Status</th><th>Electricity (SAR)</th><th>LPG (SAR)</th><th>Diesel (SAR)</th><th>Fuel Oil (SAR)</th><th>Water (SAR)</th><th>Total (SAR)</th>
+      <th>Month</th><th>Status</th><th>Electricity (SAR)</th><th>LPG (SAR)</th><th>Diesel (SAR)</th><th>Fuel Oil (SAR)</th><th>Water Supply (SAR)</th><th>Water Discharge (SAR)</th><th>Total (SAR)</th>
     </tr></thead>
     <tbody id="eni-tbody"><tr><td colspan="8" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
   </table>
@@ -166,17 +181,36 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
      unit: what Total Quantity is measured in. hasAccount/hasFeeder:
      which extra fields an invoice LINE carries for that type. */
   var TYPES = [
-    { key:'Electricity', unit:'kWh', hasAccount:true,  hasFeeder:true  },
-    { key:'LPG',          unit:'L',   hasAccount:true,  hasFeeder:false },
-    { key:'Diesel',       unit:'L',   hasAccount:false, hasFeeder:false },
-    { key:'Fuel Oil',     unit:'L',   hasAccount:false, hasFeeder:false },
-    { key:'Water',        unit:'m³',  hasAccount:false, hasFeeder:false }
+    { key:'Electricity',     unit:'kWh', hasAccount:true,  hasFeeder:true  },
+    { key:'LPG',             unit:'L',   hasAccount:true,  hasFeeder:false },
+    { key:'Diesel',          unit:'L',   hasAccount:false, hasFeeder:false },
+    { key:'Fuel Oil',        unit:'L',   hasAccount:false, hasFeeder:false },
+    { key:'Water Supply',    unit:'m³',  hasAccount:false, hasFeeder:false },
+    { key:'Water Discharge', unit:'m³',  hasAccount:false, hasFeeder:false }
   ];
 
   var _cache = null, _selected = null, _lastEditedId = null;
   var _filters = { status:'' };
   var _formLines = {};  // { 'Electricity': [...], 'LPG': [...], ... } — working copy while modal open
   var _formAttach = {}; // { 'Electricity': [{name,url,fileId}], ... }
+  var _activeType = TYPES[0].key; // which tab is showing inside the edit modal
+  var _editIsClosed = false;      // remembered so switching tabs doesn't need the param threaded through onclick
+
+  /* Every account number ever typed on a past Electricity or LPG
+     invoice line, across every month in the cache — feeds the
+     Account field's <datalist> so old numbers autocomplete instead
+     of being retyped (Issam, 2026-11-03: no managed list, no fixed
+     six — just "explore historical data... based on what he typed
+     previously"). */
+  function historicalAccounts(typeKey){
+    var seen = {};
+    getRecs().forEach(function(r){
+      parseJSONArr(r[typeKey + ' Lines (JSON)']).forEach(function(l){
+        if (l.account) seen[l.account] = true;
+      });
+    });
+    return Object.keys(seen).sort();
+  }
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
   function currentUserName(){
@@ -256,7 +290,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
     var tbody = document.getElementById('eni-tbody');
     setTxt('eni-count-sub', list.length + ' of ' + all.length + ' records shown');
     if (!list.length){
-      tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><strong>No records match these filters</strong>Use "+ New Month" to start an energy invoices record.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><strong>No records match these filters</strong>Use "+ New Month" to start an energy invoices record.</td></tr>';
       updateButtons();
       return;
     }
@@ -271,7 +305,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
         + '<td>' + fmt(typeAmount(r,'LPG')) + '</td>'
         + '<td>' + fmt(typeAmount(r,'Diesel')) + '</td>'
         + '<td>' + fmt(typeAmount(r,'Fuel Oil')) + '</td>'
-        + '<td>' + fmt(typeAmount(r,'Water')) + '</td>'
+        + '<td>' + fmt(typeAmount(r,'Water Supply')) + '</td>'
+        + '<td>' + fmt(typeAmount(r,'Water Discharge')) + '</td>'
         + '<td><strong>' + fmt(recordTotalSpend(r)) + '</strong></td>'
         + '</tr>';
     }).join('');
@@ -335,6 +370,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
 
   function openEdit(r){
     _lastEditedId = r['Record ID'];
+    _activeType = TYPES[0].key;
     _formLines = {}; _formAttach = {};
     TYPES.forEach(function(t){
       _formLines[t.key] = parseJSONArr(r[t.key+' Lines (JSON)']);
@@ -367,76 +403,111 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
     return { qty: qty, amt: amt, fromLines:false };
   }
 
+  function setActiveType(key){ _activeType = key; renderEditBody(_editIsClosed); }
+
+  /* One section per type, same as before — but now only the ACTIVE
+     type's section is ever rendered into the body; the rest are
+     reachable via the tab bar, exactly like the Gate Check-In tabs. */
+  function renderTypeSection(t, isClosed){
+    var tot = sectionTotals(t.key);
+    var unitCost = tot.qty>0 ? (tot.amt/tot.qty) : null;
+    var lines = _formLines[t.key] || [];
+    var attach = _formAttach[t.key] || [];
+    var r = currentEditingRec();
+
+    var linesRows = lines.map(function(l,idx){
+      var extra = (t.hasAccount ? ('<td>'+eEsc(l.account||'')+'</td>') : '') + (t.hasFeeder ? ('<td>'+eEsc(l.feeder||'')+'</td>') : '');
+      return '<tr><td>'+eEsc(l.invoiceNo)+'</td><td>'+eEsc(l.date)+'</td><td>'+eEsc(l.supplier)+'</td>'+extra
+        +'<td>'+fmt(l.quantity)+'</td><td>'+fmt(l.amount)+'</td>'
+        +'<td>'+(isClosed?'':'<button class="eni-mini-btn" onclick="ENI.removeLine(\''+t.key+'\','+idx+')">✕</button>')+'</td></tr>';
+    }).join('');
+    var extraHead = (t.hasAccount?'<th>Account</th>':'') + (t.hasFeeder?'<th>Feeder</th>':'');
+    var linesTbl = lines.length ? (''
+      + '<table class="eni-lines-tbl"><thead><tr><th>Invoice No.</th><th>Date</th><th>Supplier</th>'+extraHead+'<th>Qty ('+t.unit+')</th><th>Amount (SAR)</th><th></th></tr></thead>'
+      + '<tbody>'+linesRows+'</tbody></table>') : '<div class="kpi-sub" style="margin-bottom:8px">No invoices entered yet for ' + t.key + ' this month.</div>';
+
+    var accountFieldHtml = '';
+    var accountHintHtml = '';
+    if (t.hasAccount){
+      var hist = historicalAccounts(t.key);
+      accountFieldHtml = '<input placeholder="Account" id="eni-ln-account-'+t.key+'" list="eni-accounts-'+t.key+'">'
+        + '<datalist id="eni-accounts-'+t.key+'">' + hist.map(function(a){ return '<option value="'+eEsc(a)+'">'; }).join('') + '</datalist>';
+      if (t.key==='Electricity'){
+        var usedThisMonth = {};
+        lines.forEach(function(l){ if (l.account) usedThisMonth[l.account]=true; });
+        var usedCount = Object.keys(usedThisMonth).length;
+        accountHintHtml = '<div class="eni-elec-hint">' + usedCount + ' distinct account' + (usedCount===1?'':'s') + ' entered this month'
+          + (hist.length ? (' — ' + hist.length + ' seen across all history (type to reuse one, or enter a new account number)') : ' — no past accounts on file yet')
+          + '</div>';
+      }
+    }
+    var lineFormExtra = accountFieldHtml + (t.hasFeeder ? '<input placeholder="Feeder" id="eni-ln-feeder-'+t.key+'">' : '');
+    var addLineForm = isClosed ? '' : (''
+      + accountHintHtml
+      + '<div class="eni-line-form">'
+      + '<input placeholder="Invoice No." id="eni-ln-no-'+t.key+'">'
+      + '<input type="date" id="eni-ln-date-'+t.key+'">'
+      + '<input placeholder="Supplier" id="eni-ln-supplier-'+t.key+'">'
+      + lineFormExtra
+      + '<input type="number" step="any" placeholder="Qty" id="eni-ln-qty-'+t.key+'">'
+      + '<input type="number" step="any" placeholder="Amount SAR" id="eni-ln-amt-'+t.key+'">'
+      + '</div>'
+      + '<button class="eni-mini-btn" onclick="ENI.addLine(\''+t.key+'\')">+ Add Invoice Line</button>');
+
+    var attachList = attach.length ? ('<div class="eni-attach-list">' + attach.map(function(a,idx){
+        return '<div class="eni-attach-item"><a href="'+eEsc(a.url)+'" target="_blank">📎 '+eEsc(a.name)+'</a>'
+          + (isClosed?'':'<button class="eni-mini-btn" onclick="ENI.removeAttachment(\''+t.key+'\','+idx+')">✕</button>')+'</div>';
+      }).join('') + '</div>') : '';
+    var uploadCtl = isClosed ? '' : (''
+      + '<label class="eni-mini-btn" style="display:inline-block;cursor:pointer">📎 Attach Scan<input type="file" accept="application/pdf,image/*" style="display:none" id="eni-file-'+t.key+'" onchange="ENI.onFileSelected(event,\''+t.key+'\')"></label>'
+      + '<span class="eni-attach-status" id="eni-attach-status-'+t.key+'"></span>');
+
+    var totalsRow = tot.fromLines
+      ? ('<div class="eni-totals-row"><div class="eni-field"><label>Total Quantity ('+t.unit+')</label><input value="'+fmt(tot.qty,1)+'" readonly></div>'
+         + '<div class="eni-field"><label>Total Amount (SAR)</label><input value="'+fmt(tot.amt,2)+'" readonly></div></div>')
+      : ('<div class="eni-totals-row"><div class="eni-field"><label>Total Quantity ('+t.unit+')</label><input type="number" step="any" id="eni-bulk-qty-'+t.key+'" value="'+eEsc(r[t.key+' Total Quantity']||'')+'"'+(isClosed?' readonly':' oninput="ENI.onBulkChange(\''+t.key+'\')"')+'></div>'
+         + '<div class="eni-field"><label>Total Amount (SAR)</label><input type="number" step="any" id="eni-bulk-amt-'+t.key+'" value="'+eEsc(r[t.key+' Total Amount']||'')+'"'+(isClosed?' readonly':' oninput="ENI.onBulkChange(\''+t.key+'\')"')+'></div></div>');
+
+    return ''
+      + '<div class="eni-section">'
+      + '<div class="eni-section-hd"><span>' + t.key + '</span><span>' + (tot.qty>0&&tot.amt>0?'✅ filled':'— not filled yet') + '</span></div>'
+      + '<div class="eni-section-bd">'
+      + linesTbl + addLineForm
+      + totalsRow
+      + '<div class="eni-unit-cost">Unit cost: ' + (unitCost!=null ? ('SAR '+unitCost.toFixed(3)+' / '+t.unit) : '—') + '</div>'
+      + attachList + uploadCtl
+      + '</div></div>';
+  }
+
   function renderEditBody(isClosed){
+    _editIsClosed = isClosed;
     var r = currentEditingRec();
     var body = document.getElementById('eni-edit-body');
     var footer = document.getElementById('eni-edit-footer');
 
     var allFilled = true, grandTotal = 0;
-    var sectionsHtml = TYPES.map(function(t){
+    var tabsHtml = TYPES.map(function(t){
       var tot = sectionTotals(t.key);
       if (!(tot.qty>0 && tot.amt>0)) allFilled = false;
       grandTotal += tot.amt;
-      var unitCost = tot.qty>0 ? (tot.amt/tot.qty) : null;
-      var lines = _formLines[t.key] || [];
-      var attach = _formAttach[t.key] || [];
-
-      var linesRows = lines.map(function(l,idx){
-        var extra = (t.hasAccount ? ('<td>'+eEsc(l.account||'')+'</td>') : '') + (t.hasFeeder ? ('<td>'+eEsc(l.feeder||'')+'</td>') : '');
-        return '<tr><td>'+eEsc(l.invoiceNo)+'</td><td>'+eEsc(l.date)+'</td><td>'+eEsc(l.supplier)+'</td>'+extra
-          +'<td>'+fmt(l.quantity)+'</td><td>'+fmt(l.amount)+'</td>'
-          +'<td>'+(isClosed?'':'<button class="eni-mini-btn" onclick="ENI.removeLine(\''+t.key+'\','+idx+')">✕</button>')+'</td></tr>';
-      }).join('');
-      var extraHead = (t.hasAccount?'<th>Account</th>':'') + (t.hasFeeder?'<th>Feeder</th>':'');
-      var linesTbl = lines.length ? (''
-        + '<table class="eni-lines-tbl"><thead><tr><th>Invoice No.</th><th>Date</th><th>Supplier</th>'+extraHead+'<th>Qty ('+t.unit+')</th><th>Amount (SAR)</th><th></th></tr></thead>'
-        + '<tbody>'+linesRows+'</tbody></table>') : '';
-
-      var lineFormExtra = (t.hasAccount ? '<input placeholder="Account" id="eni-ln-account-'+t.key+'">' : '')
-        + (t.hasFeeder ? '<input placeholder="Feeder" id="eni-ln-feeder-'+t.key+'">' : '');
-      var addLineForm = isClosed ? '' : (''
-        + '<div class="eni-line-form">'
-        + '<input placeholder="Invoice No." id="eni-ln-no-'+t.key+'">'
-        + '<input type="date" id="eni-ln-date-'+t.key+'">'
-        + '<input placeholder="Supplier" id="eni-ln-supplier-'+t.key+'">'
-        + lineFormExtra
-        + '<input type="number" step="any" placeholder="Qty" id="eni-ln-qty-'+t.key+'">'
-        + '<input type="number" step="any" placeholder="Amount SAR" id="eni-ln-amt-'+t.key+'">'
-        + '</div>'
-        + '<button class="eni-mini-btn" onclick="ENI.addLine(\''+t.key+'\')">+ Add Invoice Line</button>');
-
-      var attachList = attach.length ? ('<div class="eni-attach-list">' + attach.map(function(a,idx){
-          return '<div class="eni-attach-item"><a href="'+eEsc(a.url)+'" target="_blank">📎 '+eEsc(a.name)+'</a>'
-            + (isClosed?'':'<button class="eni-mini-btn" onclick="ENI.removeAttachment(\''+t.key+'\','+idx+')">✕</button>')+'</div>';
-        }).join('') + '</div>') : '';
-      var uploadCtl = isClosed ? '' : (''
-        + '<label class="eni-mini-btn" style="display:inline-block;cursor:pointer">📎 Attach Scan<input type="file" accept="application/pdf,image/*" style="display:none" id="eni-file-'+t.key+'" onchange="ENI.onFileSelected(event,\''+t.key+'\')"></label>'
-        + '<span class="eni-attach-status" id="eni-attach-status-'+t.key+'"></span>');
-
-      var totalsRow = tot.fromLines
-        ? ('<div class="eni-totals-row"><div class="eni-field"><label>Total Quantity ('+t.unit+')</label><input value="'+fmt(tot.qty,1)+'" readonly></div>'
-           + '<div class="eni-field"><label>Total Amount (SAR)</label><input value="'+fmt(tot.amt,2)+'" readonly></div></div>')
-        : ('<div class="eni-totals-row"><div class="eni-field"><label>Total Quantity ('+t.unit+')</label><input type="number" step="any" id="eni-bulk-qty-'+t.key+'" value="'+eEsc(r[t.key+' Total Quantity']||'')+'"'+(isClosed?' readonly':' oninput="ENI.onBulkChange(\''+t.key+'\')"')+'></div>'
-           + '<div class="eni-field"><label>Total Amount (SAR)</label><input type="number" step="any" id="eni-bulk-amt-'+t.key+'" value="'+eEsc(r[t.key+' Total Amount']||'')+'"'+(isClosed?' readonly':' oninput="ENI.onBulkChange(\''+t.key+'\')"')+'></div></div>');
-
-      return ''
-        + '<div class="eni-section">'
-        + '<div class="eni-section-hd"><span>' + t.key + '</span><span>' + (tot.qty>0&&tot.amt>0?'✅ filled':'— not filled yet') + '</span></div>'
-        + '<div class="eni-section-bd">'
-        + linesTbl + addLineForm
-        + totalsRow
-        + '<div class="eni-unit-cost">Unit cost: ' + (unitCost!=null ? ('SAR '+unitCost.toFixed(3)+' / '+t.unit) : '—') + '</div>'
-        + attachList + uploadCtl
-        + '</div></div>';
+      var filled = tot.qty>0 && tot.amt>0;
+      return '<button type="button" class="eni-type-tab' + (t.key===_activeType?' active':'') + '" onclick="ENI.setActiveType(\'' + t.key + '\')">'
+        + t.key + '<span class="dot' + (filled?' filled':'') + '"></span></button>';
     }).join('');
+
+    if (!TYPES.some(function(t){ return t.key===_activeType; })) _activeType = TYPES[0].key;
+    var activeT = TYPES.filter(function(t){ return t.key===_activeType; })[0];
+    var sectionHtml = renderTypeSection(activeT, isClosed);
 
     var progressHtml = isClosed
       ? '<div class="eni-progress-banner closed">✔ CLOSED by ' + eEsc(r['Closed By']||'') + ' on ' + eEsc(r['Closed Date']||'') + '</div>'
       : '<div class="eni-progress-banner ' + (allFilled?'ready':'open') + '">'
-        + (allFilled ? '✅ All five types filled — ready to close' : 'Fill in all five types (Electricity, LPG, Diesel, Fuel Oil, Water) to close this month')
+        + (allFilled ? '✅ All six types filled — ready to close' : 'Fill in all six types (Electricity, LPG, Diesel, Fuel Oil, Water Supply, Water Discharge) to close this month')
         + ' — Total so far: SAR ' + fmt(grandTotal) + '</div>';
 
-    body.innerHTML = progressHtml + sectionsHtml
+    body.innerHTML = progressHtml
+      + '<div class="eni-type-tabs">' + tabsHtml + '</div>'
+      + sectionHtml
       + '<div class="eni-field" style="margin-top:4px"><label>Remarks</label><textarea id="eni-remarks">' + eEsc(r['Remarks']||'') + '</textarea></div>';
 
     var footerBtns = '<button class="aiw-btn" onclick="ENI.closeModal()">Cancel</button>';
@@ -548,6 +619,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
     openEditSelected: openEditSelected,
     addLine: addLine,
     removeLine: removeLine,
+    setActiveType: setActiveType,
     onBulkChange: onBulkChange,
     onFileSelected: onFileSelected,
     removeAttachment: removeAttachment,
