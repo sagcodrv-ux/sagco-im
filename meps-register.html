@@ -95,8 +95,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
 .mps-field textarea{min-height:56px;resize:vertical}
 .mps-modal-ft{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--mps-border)}
 .mps-result-banner{grid-column:1/-1;border-radius:8px;padding:10px 14px;font-size:12px;font-weight:700;text-align:center}
-.mps-result-banner.approved{background:rgba(79,203,158,.15);color:var(--mps-grn);border:1px solid rgba(79,203,158,.4)}
-.mps-result-banner.notapproved{background:rgba(240,104,92,.15);color:var(--mps-red);border:1px solid rgba(240,104,92,.4)}
+.mps-result-banner.accepted{background:rgba(79,203,158,.15);color:var(--mps-grn);border:1px solid rgba(79,203,158,.4)}
+.mps-result-banner.notaccepted{background:rgba(240,104,92,.15);color:var(--mps-red);border:1px solid rgba(240,104,92,.4)}
 .mps-result-banner.na{background:rgba(255,255,255,.06);color:var(--mps-text-dim);border:1px solid var(--mps-border)}
 .mps-sum-tbl{width:100%;border-collapse:collapse;font-size:11px;margin-top:10px}
 .mps-sum-tbl th{background:var(--mps-bg3);color:var(--mps-gold-lt);font-size:9.5px;text-transform:uppercase;
@@ -126,14 +126,14 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
 </head><body><div class="mps-dark-wrap">
 <div class="back-row"><a href="oc02-environment.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
 
-<div class="req-text">MEPS Compliance Register — Minimum Energy Performance Standards (SEEC/SASO): any electrical equipment with a motor rated <strong>7.5 kW or above</strong> must meet a minimum efficiency class (IE3/IE4) before purchase or installation. Evidence of this check is required under <strong>ISO 50001 §8.3</strong> (Design &amp; Procurement). <strong>Pre-Purchase Slip:</strong> before buying, log the equipment here — the page checks it against the MEPS threshold and tells you whether it's approved to buy; print the slip to attach to the purchase order. <strong>Register:</strong> every slip becomes a row here; after delivery, use "Open / Edit" to record whether it was verified at goods receipt. <strong>One Purchase Ref can cover several equipment lines</strong> — e.g. a single furnace-rebuild contract with many motors — "🖨 Print Slip" prints all lines under one Purchase Ref together.</div>
+<div class="req-text">MEPS Compliance Register — Minimum Energy Performance Standards (SASO/SEEC): any electrical motor rated from <strong>0.75 kW up to 375 kW</strong> must meet a minimum efficiency class of <strong>IE3</strong> (IE3 or IE4) before purchase or installation, per SASO. Evidence of this check is required under <strong>ISO 50001 §8.3</strong> (Design &amp; Procurement). <strong>Pre-Purchase Slip:</strong> before buying, log the equipment here — the page checks it against the MEPS range and tells you whether it's accepted to buy; print the slip to attach to the purchase order. <strong>Register:</strong> every slip becomes a row here; after delivery, use "Open / Edit" to record whether it was verified at goods receipt. <strong>One Purchase Ref can cover several equipment lines</strong> — e.g. a single furnace-rebuild contract with many motors — "🖨 Print Slip" prints all lines under one Purchase Ref together.</div>
 
 <div class="sec-banner">MEPS — QUICK STATUS</div>
 <div class="kpi-grid" style="margin-bottom:14px">
   <div class="kpi-card kc-nvy"><div class="kpi-lbl">Equipment Lines Logged</div><div class="kpi-val" id="mps-kpi-total">—</div><div class="kpi-sub">Since go-live</div></div>
-  <div class="kpi-card kc-grn"><div class="kpi-lbl">Approved</div><div class="kpi-val" id="mps-kpi-approved">—</div><div class="kpi-sub">Meets MEPS, cleared to buy</div></div>
-  <div class="kpi-card kc-red"><div class="kpi-lbl">Not Approved</div><div class="kpi-val" id="mps-kpi-notapproved">—</div><div class="kpi-sub">Below required efficiency class</div></div>
-  <div class="kpi-card kc-amb"><div class="kpi-lbl">Pending Goods-Receipt Check</div><div class="kpi-val" id="mps-kpi-pending">—</div><div class="kpi-sub">Approved lines not yet verified on arrival</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Accepted</div><div class="kpi-val" id="mps-kpi-approved">—</div><div class="kpi-sub">Meets MEPS, cleared to buy</div></div>
+  <div class="kpi-card kc-red"><div class="kpi-lbl">Not Accepted</div><div class="kpi-val" id="mps-kpi-notapproved">—</div><div class="kpi-sub">Below required efficiency class</div></div>
+  <div class="kpi-card kc-amb"><div class="kpi-lbl">Pending Goods-Receipt Check</div><div class="kpi-val" id="mps-kpi-pending">—</div><div class="kpi-sub">Accepted lines not yet verified on arrival</div></div>
 </div>
 
 <div class="sec-banner">MEPS COMPLIANCE REGISTER</div>
@@ -141,9 +141,9 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
   <input type="text" id="mps-search" placeholder="Search equipment / supplier / purchase ref…" oninput="MPS.onSearch(this.value)">
   <select id="mps-result-filter" onchange="MPS.onResultFilter(this.value)">
     <option value="">All results</option>
-    <option value="Approved">Approved</option>
-    <option value="Not Approved">Not Approved</option>
-    <option value="N/A — Below Threshold">N/A — Below Threshold</option>
+    <option value="Accepted">Accepted</option>
+    <option value="Not Accepted">Not Accepted</option>
+    <option value="N/A — Outside MEPS Range">N/A — Outside MEPS Range</option>
   </select>
 </div>
 <div class="aiw-toolbar" style="border-top:none">
@@ -171,7 +171,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
 
   var MEPS = { tabKey:'meps', idCol:'Equipment Ref' };
   var STATUS_COL = 'Record Status';
-  var THRESHOLD_KW = 7.5;
+  var THRESHOLD_KW_MIN = 0.75;
+  var THRESHOLD_KW_MAX = 375;
   var EFF_CLASSES = ['IE3','IE4','IE2','Not Rated / Unknown'];
 
   var _cache = null, _selected = null;
@@ -187,23 +188,30 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
   function mEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
 
-  /* MEPS rule, kept in one place: a motor at or above the threshold
-     must be IE3 or IE4 to be Approved; below the threshold the rule
-     simply doesn't apply (N/A, not a pass). No 90-day/performance-vs-
-     nameplate step — dropped per Issam (voice, 2026-11-01): ISO 50001
-     §8.3 only asks for evidence the criteria were applied at
-     purchase, not a post-installation study. */
+  /* MEPS rule, kept in one place: a motor from 0.75 kW up to 375 kW
+     must be IE3 or IE4 to be Accepted; outside that range the rule
+     simply doesn't apply (N/A, not a pass). Range and required class
+     per Issam, citing SASO (voice, 2026-11-04) — not independently
+     verified against the SASO document itself. No 90-day/performance-
+     vs-nameplate step — dropped per Issam (voice, 2026-11-01): ISO
+     50001 §8.3 only asks for evidence the criteria were applied at
+     purchase, not a post-installation study.
+     Computed live from Motor Rating (kW) and Declared Efficiency
+     Class every time — never read back from a stored "MEPS Required"
+     / "Compliance Result" cell, so the register and its KPI cards
+     can't drift out of sync with whatever text happens to be sitting
+     in the sheet. */
   function mepsRequired(kw){
     var n = parseFloat(kw);
-    return !isNaN(n) && n >= THRESHOLD_KW;
+    return !isNaN(n) && n >= THRESHOLD_KW_MIN && n <= THRESHOLD_KW_MAX;
   }
   function complianceResult(kw, effClass){
-    if (!mepsRequired(kw)) return 'N/A — Below Threshold';
-    return (effClass === 'IE3' || effClass === 'IE4') ? 'Approved' : 'Not Approved';
+    if (!mepsRequired(kw)) return 'N/A — Outside MEPS Range';
+    return (effClass === 'IE3' || effClass === 'IE4') ? 'Accepted' : 'Not Accepted';
   }
   function resultBadgeClass(result){
-    if (result === 'Approved') return 'kc-grn';
-    if (result === 'Not Approved') return 'kc-red';
+    if (result === 'Accepted') return 'kc-grn';
+    if (result === 'Not Accepted') return 'kc-red';
     return 'kc-blue';
   }
 
@@ -237,9 +245,10 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
   }
 
   /* ── Filtering ────────────────────────────────────────────────── */
+  function liveResult(r){ return complianceResult(r['Motor Rating (kW)'], r['Declared Efficiency Class']); }
   function matchesFilters(r){
     var f = _filters;
-    if (f.result && r['Compliance Result'] !== f.result) return false;
+    if (f.result && liveResult(r) !== f.result) return false;
     if (f.search){
       var hay = ((r['Equipment Description']||'')+' '+(r['Supplier']||'')+' '+(r['Purchase Ref']||'')).toLowerCase();
       if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
@@ -254,9 +263,10 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
     setTxt('mps-kpi-total', all.length);
     var approved = 0, notApproved = 0, pending = 0;
     all.forEach(function(r){
-      if (r['Compliance Result'] === 'Approved') approved++;
-      if (r['Compliance Result'] === 'Not Approved') notApproved++;
-      if (r['Compliance Result'] === 'Approved' && String(r['Verified At Goods Receipt']||'').toLowerCase() !== 'yes') pending++;
+      var res = liveResult(r);
+      if (res === 'Accepted') approved++;
+      if (res === 'Not Accepted') notApproved++;
+      if (res === 'Accepted' && String(r['Verified At Goods Receipt']||'').toLowerCase() !== 'yes') pending++;
     });
     setTxt('mps-kpi-approved', approved);
     setTxt('mps-kpi-notapproved', notApproved);
@@ -278,6 +288,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
     tbody.innerHTML = list.map(function(r){
       var sel = _selected === r['Equipment Ref'];
       var grCls = String(r['Verified At Goods Receipt']||'').toLowerCase()==='yes' ? 'kc-grn' : 'kc-amb';
+      var reqLive = mepsRequired(r['Motor Rating (kW)']);
+      var resultLive = liveResult(r);
       return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="MPS.select(\'' + mEsc(r['Equipment Ref']) + '\')">'
         + '<td>' + mEsc(r['Purchase Ref']) + '</td>'
         + '<td>' + mEsc(r['Date']) + '</td>'
@@ -285,8 +297,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
         + '<td>' + mEsc(r['Motor Rating (kW)']) + '</td>'
         + '<td>' + mEsc(r['Supplier']) + '</td>'
         + '<td>' + mEsc(r['Declared Efficiency Class']) + '</td>'
-        + '<td>' + (String(r['MEPS Required']).toLowerCase()==='yes' ? 'Yes' : 'No') + '</td>'
-        + '<td><span class="badge ' + resultBadgeClass(r['Compliance Result']) + '">' + mEsc(r['Compliance Result']) + '</span></td>'
+        + '<td>' + (reqLive ? 'Yes' : 'No') + '</td>'
+        + '<td><span class="badge ' + resultBadgeClass(resultLive) + '">' + mEsc(resultLive) + '</span></td>'
         + '<td><span class="badge ' + grCls + '">' + (r['Verified At Goods Receipt'] || 'Pending') + '</span></td>'
         + '</tr>';
     }).join('');
@@ -358,10 +370,10 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
     var result = complianceResult(kw, eff);
     var banner = document.getElementById('mps-result-banner');
     if (!banner) return;
-    var cls = result === 'Approved' ? 'approved' : (result === 'Not Approved' ? 'notapproved' : 'na');
-    var msg = result === 'Approved' ? '✅ APPROVED TO BUY — meets MEPS (' + eff + ', ' + kw + ' kW)'
-      : (result === 'Not Approved' ? '❌ NOT APPROVED — ' + (eff||'efficiency class not set') + ' does not meet the required IE3/IE4 for a ' + kw + ' kW motor. Do not purchase — ask the supplier for an IE3/IE4 option.'
-      : 'ℹ️ N/A — ' + (kw||'0') + ' kW is below the 7.5 kW MEPS threshold. No efficiency class requirement applies.');
+    var cls = result === 'Accepted' ? 'accepted' : (result === 'Not Accepted' ? 'notaccepted' : 'na');
+    var msg = result === 'Accepted' ? '✅ ACCEPTED TO BUY — meets MEPS (' + eff + ', ' + kw + ' kW)'
+      : (result === 'Not Accepted' ? '❌ NOT ACCEPTED — ' + (eff||'efficiency class not set') + ' does not meet the required IE3 for a ' + kw + ' kW motor. Do not purchase — ask the supplier for an IE3 or better option.'
+      : 'ℹ️ N/A — ' + (kw||'0') + ' kW is outside the 0.75–375 kW MEPS range. No efficiency class requirement applies.');
     banner.className = 'mps-result-banner ' + cls;
     banner.textContent = msg;
   }
@@ -415,12 +427,13 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
   function printSlip(purchaseRef){
     var lines = getRecs().filter(function(r){ return r['Purchase Ref'] === purchaseRef; });
     if (!lines.length) return;
-    var anyNotApproved = lines.some(function(r){ return r['Compliance Result']==='Not Approved'; });
-    var overall = anyNotApproved ? 'NOT APPROVED — one or more lines below required efficiency' : 'APPROVED TO PURCHASE';
+    var anyNotApproved = lines.some(function(r){ return liveResult(r)==='Not Accepted'; });
+    var overall = anyNotApproved ? 'NOT ACCEPTED — one or more lines below required efficiency' : 'ACCEPTED TO PURCHASE';
     var rows = lines.map(function(r){
+      var reqLive = mepsRequired(r['Motor Rating (kW)']) ? 'Yes' : 'No';
       return '<tr><td>'+mEsc(r['Equipment Description'])+'</td><td>'+mEsc(r['Motor Rating (kW)'])+'</td>'
         + '<td>'+mEsc(r['Declared Efficiency Class'])+'</td><td>'+mEsc(r['Certificate Ref'])+'</td>'
-        + '<td>'+mEsc(r['MEPS Required'])+'</td><td>'+mEsc(r['Compliance Result'])+'</td></tr>';
+        + '<td>'+mEsc(reqLive)+'</td><td>'+mEsc(liveResult(r))+'</td></tr>';
     }).join('');
     /* keep the slip to one printed page even with many equipment lines
        under one Purchase Ref — shrink type/spacing instead of splitting pages */
