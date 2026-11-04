@@ -323,7 +323,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
       + '<div class="mps-modal">'
       + '<div class="mps-modal-hd"><span>' + (isEdit?'Edit Equipment Line':'New Equipment Line — Pre-Purchase Slip') + '</span><button onclick="MPS.closeModal()">✕</button></div>'
       + '<div class="mps-modal-bd">'
-      + '<div class="mps-field full"><label>Purchase Ref (PO / contract no. — reuse the same ref for multiple equipment lines under one order, e.g. a furnace rebuild)</label><input type="text" id="mps-f-pref" value="' + mEsc(r['Purchase Ref']||'') + '"' + (isEdit?' readonly':'') + ' placeholder="e.g. PO-2026-0145"></div>'
+      + '<div class="mps-field full"><label>Purchase Reference (PO or PR number — reuse the same reference for multiple equipment lines under one order, e.g. a furnace rebuild)</label><input type="text" id="mps-f-pref" value="' + mEsc(r['Purchase Ref']||'') + '" placeholder="e.g. PO-2026-0145 or PR-2026-0145"></div>'
+      + (isEdit ? '<div class="hint" style="margin:-6px 0 8px">Editing this moves only THIS equipment line to the new reference — other lines sharing the old reference are unaffected.</div>' : '')
       + '<div class="mps-field"><label>Date</label><input type="date" id="mps-f-date" value="' + mEsc(r['Date']||'') + '"' + (isEdit?' readonly':'') + '></div>'
       + '<div class="mps-field"><label>Supplier</label><input type="text" id="mps-f-supplier" value="' + mEsc(r['Supplier']||'') + '"' + (isEdit?' readonly':'') + '></div>'
       + '<div class="mps-field full"><label>Equipment Description</label><input type="text" id="mps-f-equip" value="' + mEsc(r['Equipment Description']||'') + '"' + (isEdit?' readonly':'') + ' placeholder="e.g. Compressed air compressor, Unit 3"></div>'
@@ -368,8 +369,11 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
   function save(existingId){
     var isEdit = !!existingId;
     if (isEdit){
+      var newPref = document.getElementById('mps-f-pref').value;
+      if (!newPref){ alert('Purchase Reference is required.'); return; }
       var rec = {
         'Equipment Ref': existingId,
+        'Purchase Ref': newPref,
         'Verified At Goods Receipt': document.getElementById('mps-f-gr').value,
         'Installation Date': document.getElementById('mps-f-instdate').value,
         'Remarks': document.getElementById('mps-f-remarks').value,
@@ -399,7 +403,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
       'Record Status': 'Active'
     };
     if (!rec['Purchase Ref'] || !rec['Date'] || !rec['Equipment Description'] || !rec['Supplier'] || kw===''){
-      alert('Purchase Ref, Date, Equipment Description, Supplier and Motor Rating are all required.');
+      alert('Purchase Reference, Date, Equipment Description, Supplier and Motor Rating are all required.');
       return;
     }
     postJSON('create', { tab: MEPS.tabKey }, rec).then(function(){ closeModal(); loadAll(); });
