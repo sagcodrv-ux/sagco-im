@@ -87,10 +87,6 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
 .fec-field textarea{min-height:48px;resize:vertical}
 .fec-field .hint{font-size:10px;color:var(--fec-text-dim);margin-top:3px;line-height:1.5}
 .fec-modal-ft{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--fec-border);flex-wrap:wrap}
-.fec-mode-pick{display:flex;gap:10px;margin-bottom:4px}
-.fec-mode-pick label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;text-transform:none;
-  background:var(--fec-bg3);border:1px solid var(--fec-border);border-radius:8px;padding:8px 12px;cursor:pointer;flex:1}
-.fec-mode-pick input{width:auto}
 .fec-progress-banner{border-radius:8px;padding:9px 13px;font-size:11px;font-weight:600;margin:10px 0;text-align:center}
 .fec-progress-banner.open{background:rgba(232,179,57,.15);color:var(--fec-amb);border:1px solid rgba(232,179,57,.4)}
 .fec-progress-banner.ready{background:rgba(79,203,158,.15);color:var(--fec-grn);border:1px solid rgba(79,203,158,.4)}
@@ -108,7 +104,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
 </head><body><div class="fec-dark-wrap">
 <div class="back-row"><a href="oc02-environment.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
 
-<div class="req-text">Furnace Energy Consumption — fuel-to-output tracking per furnace, separate from the Furnace Monitoring Logs (temperatures and process readings). <strong>One record per furnace per month.</strong> It can be filled in two ways: <strong>Daily</strong> — add a line each day with liters consumed and tons of glass melted, and the month's totals build up as days are added; or <strong>Bulk</strong> — type the month's total liters and total melted tons directly, in one go. The entry mode is fixed once the record is created. A Daily-mode month can only be closed once the number of daily lines matches the actual number of days in that month (28–31, including leap years); a Bulk-mode month closes as soon as both totals are entered. All figures use <strong>heavy fuel oil only</strong> and <strong>melted glass</strong> (not packed). The page calculates liters per tonne, kilocalories per kilogram melted, and the greenhouse gas rate per tonne melted.</div>
+<div class="req-text">Furnace Energy Consumption — fuel-to-output tracking per furnace, separate from the Furnace Monitoring Logs (temperatures and process readings). <strong>One record per furnace per month</strong>, filled in <strong>day by day</strong>: add a line each day with liters consumed and tons of glass melted, and the month's totals build up as days are added — this gives real visibility into how each furnace behaves day to day, not just a single monthly figure. A day can only be added within that record's own month. The month can only be closed once the number of daily lines matches the actual number of days in that month (28–31, including leap years). All figures use <strong>heavy fuel oil only</strong> and <strong>melted glass</strong> (not packed). The page calculates liters per tonne, kilocalories per kilogram melted, and the greenhouse gas rate per tonne melted.</div>
 
 <div class="sec-banner">FURNACE ENERGY — QUICK STATUS</div>
 <div class="kpi-grid" style="margin-bottom:14px">
@@ -140,10 +136,10 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
 <div class="fec-table-wrap">
   <table>
     <thead><tr>
-      <th>Furnace</th><th>Month</th><th>Mode</th><th>Status</th><th>Total Liters</th><th>Melted (t)</th>
+      <th>Furnace</th><th>Month</th><th>Status</th><th>Total Liters</th><th>Melted (t)</th>
       <th>L / t</th><th>kcal/kg Melted</th><th>CO₂e (t)</th><th>CO₂e / t Melted</th>
     </tr></thead>
-    <tbody id="fec-tbody"><tr><td colspan="10" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
+    <tbody id="fec-tbody"><tr><td colspan="9" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
   </table>
 </div>
 
@@ -169,7 +165,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
   var _cache = null, _selected = null, _lastEditedId = null;
   var _filters = { furnace:'', status:'' };
   var _formDaily = [];   // working copy of daily lines while the modal is open
-  var _formMode = null;  // 'Daily' | 'Bulk' — for the open modal
+
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
   function currentUserName(){
@@ -193,6 +189,16 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
     var y = parseInt(parts[0],10), m = parseInt(parts[1],10);
     if (!y || !m) return 30;
     return new Date(y, m, 0).getDate(); // handles Feb 28/29 automatically
+  }
+
+  /* First and last valid date (YYYY-MM-DD) for a record's own month —
+     used both as the date picker's min/max (so a day outside the
+     month can't even be selected) and as a backup check in
+     addDailyLine (Issam, 2026-11-04: "the date to be selected... it
+     should not be some other record aside from that month"). */
+  function monthDateBounds(monthStr){
+    var last = daysInMonth(monthStr);
+    return { min: monthStr + '-01', max: monthStr + '-' + String(last).padStart(2,'0') };
   }
 
   function parseDailyJSON(s){
@@ -271,7 +277,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
     var tbody = document.getElementById('fec-tbody');
     setTxt('fec-count-sub', list.length + ' of ' + all.length + ' records shown');
     if (!list.length){
-      tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><strong>No records match these filters</strong>Use "+ New Month" to start a furnace-month record.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><strong>No records match these filters</strong>Use "+ New Month" to start a furnace-month record.</td></tr>';
       updateButtons();
       return;
     }
@@ -287,7 +293,6 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
       return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="FEC.select(\'' + mEsc(r['Record ID']) + '\')">'
         + '<td>' + mEsc(r['Furnace']) + '</td>'
         + '<td>' + mEsc(r['Month']) + '</td>'
-        + '<td>' + mEsc(r['Entry Mode']) + '</td>'
         + '<td><span class="badge ' + statusCls + '">' + mEsc(r['Status']) + '</span></td>'
         + '<td>' + fmt(r['Total Liters']) + '</td>'
         + '<td>' + fmt(r['Total Melted Tons'],1) + '</td>'
@@ -309,11 +314,14 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
   function render(){ renderKPIs(); renderTable(); }
 
   /* ── Add/Edit Modal ──────────────────────────────────────────────
-     New = pick Furnace + Month + Entry Mode, then the same modal
-     shows the right entry UI. Entry Mode is locked once a record is
-     first saved — switching modes mid-month would mix two different
-     ways of counting the same figures. */
-  function closeModal(){ document.getElementById('fec-modal-root').innerHTML = ''; _formDaily = []; _formMode = null; _lastEditedId = null; }
+     New = pick Furnace + Month, then straight into the daily-entry
+     form. Bulk entry (type one total for the whole month) was removed
+     2026-11-04 (Issam, voice): "not practical" — he wants day-by-day
+     visibility into how each furnace behaves, not a single monthly
+     figure. 'Entry Mode' is still written as 'Daily' on every new
+     record for backward column compatibility with any old row, but
+     the page itself no longer branches on it anywhere. */
+  function closeModal(){ document.getElementById('fec-modal-root').innerHTML = ''; _formDaily = []; _lastEditedId = null; }
 
   function openAdd(){
     var html = ''
@@ -324,13 +332,6 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
       + '<div class="fec-row2">'
       + '<div class="fec-field"><label>Furnace</label><select id="fec-new-furnace">' + FURNACES.map(function(f){ return '<option value="'+f+'">'+f+'</option>'; }).join('') + '</select></div>'
       + '<div class="fec-field"><label>Month</label><input type="month" id="fec-new-month" value="' + currentMonthStr() + '"></div>'
-      + '</div>'
-      + '<div class="fec-field"><label>Entry Mode</label>'
-      + '<div class="fec-mode-pick">'
-      + '<label><input type="radio" name="fec-new-mode" value="Daily" checked> Daily — add one line per day</label>'
-      + '<label><input type="radio" name="fec-new-mode" value="Bulk"> Bulk — enter the month\'s totals directly</label>'
-      + '</div>'
-      + '<div class="hint">This can\'t be changed once the record is created.</div>'
       + '</div>'
       + '</div>'
       + '<div class="fec-modal-ft">'
@@ -343,7 +344,6 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
   function createRecord(){
     var furnace = document.getElementById('fec-new-furnace').value;
     var month = document.getElementById('fec-new-month').value;
-    var mode = document.querySelector('input[name="fec-new-mode"]:checked').value;
     if (!month){ alert('Pick a month first.'); return; }
     var id = recordId(month, furnace);
     if (getRecs().some(function(r){ return r['Record ID'] === id; })){
@@ -357,8 +357,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
       'Record ID': id,
       'Furnace': furnace,
       'Month': month,
-      'Entry Mode': mode,
-      'Daily Entries (JSON)': mode === 'Daily' ? '[]' : '',
+      'Entry Mode': 'Daily',
+      'Daily Entries (JSON)': '[]',
       'Total Liters': 0,
       'Total Melted Tons': 0,
       'Days Logged': 0,
@@ -387,13 +387,17 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
 
   function openEdit(r){
     _lastEditedId = r['Record ID'];
-    _formMode = r['Entry Mode'];
-    _formDaily = _formMode === 'Daily' ? parseDailyJSON(r['Daily Entries (JSON)']) : [];
+    /* Every record is Daily-only since 2026-11-04 (Issam, voice: bulk
+       entry "is not practical" — removed). A record from before that
+       change stored as 'Bulk' is read as Daily anyway, same as any
+       new record — parseDailyJSON returns [] safely if the JSON
+       column was actually left blank by the old Bulk path. */
+    _formDaily = parseDailyJSON(r['Daily Entries (JSON)']);
     var isClosed = r['Status'] === 'Closed';
     var html = ''
       + '<div class="fec-overlay" onclick="if(event.target===this) FEC.closeModal()">'
       + '<div class="fec-modal">'
-      + '<div class="fec-modal-hd"><span>' + mEsc(r['Furnace']) + ' — ' + mEsc(r['Month']) + ' (' + mEsc(r['Entry Mode']) + ')</span><button onclick="FEC.closeModal()">✕</button></div>'
+      + '<div class="fec-modal-hd"><span>' + mEsc(r['Furnace']) + ' — ' + mEsc(r['Month']) + '</span><button onclick="FEC.closeModal()">✕</button></div>'
       + '<div class="fec-modal-bd" id="fec-edit-body"></div>'
       + '<div class="fec-modal-ft" id="fec-edit-footer"></div>'
       + '</div></div>';
@@ -409,61 +413,38 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
     var r = currentEditingRec();
     var body = document.getElementById('fec-edit-body');
     var footer = document.getElementById('fec-edit-footer');
-    var totalLiters, totalTons, daysLogged, daysTotal = daysInMonth(r['Month']);
+    var daysTotal = daysInMonth(r['Month']);
 
-    if (_formMode === 'Daily'){
-      totalLiters = sumDaily(_formDaily, 'liters');
-      totalTons = sumDaily(_formDaily, 'tons');
-      daysLogged = _formDaily.length;
-    } else {
-      var bulkLitersEl = document.getElementById('fec-bulk-liters');
-      var bulkTonsEl = document.getElementById('fec-bulk-tons');
-      totalLiters = parseFloat(bulkLitersEl ? bulkLitersEl.value : r['Total Liters']) || 0;
-      totalTons = parseFloat(bulkTonsEl ? bulkTonsEl.value : r['Total Melted Tons']) || 0;
-      daysLogged = null;
-    }
+    var totalLiters = sumDaily(_formDaily, 'liters');
+    var totalTons = sumDaily(_formDaily, 'tons');
+    var daysLogged = _formDaily.length;
     var d = computeDerived(totalLiters, totalTons);
-    var canClose = _formMode === 'Daily' ? (daysLogged === daysTotal && daysTotal > 0) : (totalLiters > 0 && totalTons > 0);
+    var canClose = (daysLogged === daysTotal && daysTotal > 0);
 
-    var progressHtml;
-    if (isClosed){
-      progressHtml = '<div class="fec-progress-banner closed">✔ CLOSED by ' + mEsc(r['Closed By']||'') + ' on ' + mEsc(r['Closed Date']||'') + '</div>';
-    } else if (_formMode === 'Daily'){
-      progressHtml = '<div class="fec-progress-banner ' + (canClose?'ready':'open') + '">'
+    var progressHtml = isClosed
+      ? '<div class="fec-progress-banner closed">✔ CLOSED by ' + mEsc(r['Closed By']||'') + ' on ' + mEsc(r['Closed Date']||'') + '</div>'
+      : '<div class="fec-progress-banner ' + (canClose?'ready':'open') + '">'
         + (canClose ? '✅ All ' + daysTotal + ' days logged — ready to close' : daysLogged + ' of ' + daysTotal + ' days logged — keep adding daily lines, or close once complete')
         + '</div>';
-    } else {
-      progressHtml = '<div class="fec-progress-banner ' + (canClose?'ready':'open') + '">'
-        + (canClose ? '✅ Totals entered — ready to close' : 'Enter both totals below to close this month')
-        + '</div>';
-    }
 
-    var entryHtml;
-    if (_formMode === 'Daily'){
-      var sorted = _formDaily.slice().sort(function(a,b){ return String(a.date).localeCompare(String(b.date)); });
-      var rows = sorted.map(function(line){
-        var realIdx = _formDaily.indexOf(line);
-        return '<tr><td>' + mEsc(line.date) + '</td><td>' + fmt(line.liters) + '</td><td>' + fmt(line.tons,1) + '</td>'
-          + '<td>' + (isClosed ? '' : '<button class="fec-mini-btn" onclick="FEC.removeDailyLine(' + realIdx + ')">✕</button>') + '</td></tr>';
-      }).join('');
-      entryHtml = ''
-        + '<table class="fec-daily-tbl"><thead><tr><th>Date</th><th>Liters</th><th>Melted (t)</th><th></th></tr></thead>'
-        + '<tbody>' + (rows || '<tr><td colspan="4" style="text-align:center;color:var(--fec-text-dim)">No daily lines yet</td></tr>') + '</tbody></table>'
-        + (isClosed ? '' : ''
-          + '<div class="fec-row2" style="margin-top:8px">'
-          + '<div class="fec-field"><label>Date</label><input type="date" id="fec-day-date"></div>'
-          + '<div></div>'
-          + '<div class="fec-field"><label>Liters Consumed</label><input type="number" step="any" id="fec-day-liters"></div>'
-          + '<div class="fec-field"><label>Melted (t)</label><input type="number" step="any" id="fec-day-tons"></div>'
-          + '</div>'
-          + '<button class="aiw-btn aiw-btn-add" onclick="FEC.addDailyLine()">+ Add Day</button>');
-    } else {
-      entryHtml = ''
-        + '<div class="fec-row2">'
-        + '<div class="fec-field"><label>Total Liters Consumed</label><input type="number" step="any" id="fec-bulk-liters" value="' + mEsc(totalLiters||'') + '"' + (isClosed?' readonly':' oninput="FEC.onBulkChange()"') + '></div>'
-        + '<div class="fec-field"><label>Total Melted (t)</label><input type="number" step="any" id="fec-bulk-tons" value="' + mEsc(totalTons||'') + '"' + (isClosed?' readonly':' oninput="FEC.onBulkChange()"') + '></div>'
-        + '</div>';
-    }
+    var sorted = _formDaily.slice().sort(function(a,b){ return String(a.date).localeCompare(String(b.date)); });
+    var rows = sorted.map(function(line){
+      var realIdx = _formDaily.indexOf(line);
+      return '<tr><td>' + mEsc(line.date) + '</td><td>' + fmt(line.liters) + '</td><td>' + fmt(line.tons,1) + '</td>'
+        + '<td>' + (isClosed ? '' : '<button class="fec-mini-btn" onclick="FEC.removeDailyLine(' + realIdx + ')">✕</button>') + '</td></tr>';
+    }).join('');
+    var monthBounds = monthDateBounds(r['Month']);
+    var entryHtml = ''
+      + '<table class="fec-daily-tbl"><thead><tr><th>Date</th><th>Liters</th><th>Melted (t)</th><th></th></tr></thead>'
+      + '<tbody>' + (rows || '<tr><td colspan="4" style="text-align:center;color:var(--fec-text-dim)">No daily lines yet</td></tr>') + '</tbody></table>'
+      + (isClosed ? '' : ''
+        + '<div class="fec-row2" style="margin-top:8px">'
+        + '<div class="fec-field"><label>Date</label><input type="date" id="fec-day-date" min="'+monthBounds.min+'" max="'+monthBounds.max+'"></div>'
+        + '<div></div>'
+        + '<div class="fec-field"><label>Liters Consumed</label><input type="number" step="any" id="fec-day-liters"></div>'
+        + '<div class="fec-field"><label>Melted (t)</label><input type="number" step="any" id="fec-day-tons"></div>'
+        + '</div>'
+        + '<button class="aiw-btn aiw-btn-add" onclick="FEC.addDailyLine()">+ Add Day</button>');
 
     var resultsHtml = ''
       + '<table class="fec-sum-tbl">'
@@ -493,6 +474,15 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
     var liters = document.getElementById('fec-day-liters').value;
     var tons = document.getElementById('fec-day-tons').value;
     if (!date || liters==='' || tons===''){ alert('Date, liters and melted tons are all required for a daily line.'); return; }
+    // Backup to the date picker's own min/max — belt-and-braces in
+    // case a date ever reaches here some other way (pasted, or a
+    // browser that ignores the input's min/max).
+    var r = currentEditingRec();
+    var bounds = monthDateBounds(r['Month']);
+    if (date < bounds.min || date > bounds.max){
+      alert('This record is for ' + r['Month'] + '. Pick a date between ' + bounds.min + ' and ' + bounds.max + '.');
+      return;
+    }
     if (_formDaily.some(function(l){ return l.date === date; })){ alert('A line for ' + date + ' already exists. Remove it first if you need to correct it.'); return; }
     _formDaily.push({ date:date, liters:parseFloat(liters), tons:parseFloat(tons) });
     renderEditBody(false);
@@ -501,24 +491,12 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
     _formDaily.splice(idx,1);
     renderEditBody(false);
   }
-  function onBulkChange(){
-    renderEditBody(false);
-  }
-
   function buildSaveRec(id){
     var r = currentEditingRec();
-    var totalLiters, totalTons, daysLogged;
-    var dailyJSON = '';
-    if (_formMode === 'Daily'){
-      totalLiters = sumDaily(_formDaily, 'liters');
-      totalTons = sumDaily(_formDaily, 'tons');
-      daysLogged = _formDaily.length;
-      dailyJSON = JSON.stringify(_formDaily);
-    } else {
-      totalLiters = parseFloat(document.getElementById('fec-bulk-liters').value) || 0;
-      totalTons = parseFloat(document.getElementById('fec-bulk-tons').value) || 0;
-      daysLogged = '';
-    }
+    var totalLiters = sumDaily(_formDaily, 'liters');
+    var totalTons = sumDaily(_formDaily, 'tons');
+    var daysLogged = _formDaily.length;
+    var dailyJSON = JSON.stringify(_formDaily);
     var d = computeDerived(totalLiters, totalTons);
     return {
       'Record ID': id,
@@ -566,7 +544,6 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--fec-border);color:var(--
     openEditSelected: openEditSelected,
     addDailyLine: addDailyLine,
     removeDailyLine: removeDailyLine,
-    onBulkChange: onBulkChange,
     saveProgress: saveProgress,
     closeMonth: closeMonth,
     reopenMonth: reopenMonth,
