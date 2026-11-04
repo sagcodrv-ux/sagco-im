@@ -51,6 +51,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .chm-dark-wrap .sec-banner{background:var(--chw-bg2);color:var(--chw-gold-lt);padding:8px 14px;
   font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
   border-radius:8px 8px 0 0;border:1px solid var(--chw-border-gold);border-bottom:none}
+.chm-dark-wrap .chm-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 0}
+.chm-dark-wrap .chm-tab{font-size:11px;font-weight:700;padding:9px 14px;border-radius:8px 8px 0 0;
+  border:1px solid var(--chw-border-gold);border-bottom:none;background:var(--chw-bg2);
+  color:var(--chw-text-muted);cursor:pointer}
+.chm-dark-wrap .chm-tab.active{background:var(--chw-bg3);color:var(--chw-gold-lt)}
+.chm-dark-wrap .chm-panel{display:none}
+.chm-dark-wrap .chm-panel.active{display:block}
 .chm-dark-wrap .kpi-grid{display:grid;gap:14px}
 .chm-dark-wrap .kpi-card{background:var(--chw-bg2);border:1px solid var(--chw-border);
   border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
@@ -139,17 +146,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <div class="kpi-card kc-amb chw-clickable" onclick="CHM.masterCardClick('legacy')" title="Click to view items needing an updated SDS"><div class="kpi-lbl">Legacy / Needs Update</div><div class="kpi-val" id="chm-kpi-legacy">—</div><div class="kpi-sub">Document on file, pre-GHS or not classified</div></div>
   <div class="kpi-card kc-red chw-clickable" onclick="CHM.masterCardClick('pending')" title="Click to view items with no SDS at all"><div class="kpi-lbl">SDS Pending</div><div class="kpi-val" id="chm-kpi-pending">—</div><div class="kpi-sub">No SDS supplied yet</div></div>
 </div>
-<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+<div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:14px">
   <div class="kpi-card kc-red chw-clickable" onclick="CHM.masterCardClick('danger')" title="Click to view Danger-signal-word items"><div class="kpi-lbl">Signal Word: Danger</div><div class="kpi-val" id="chm-kpi-danger">—</div><div class="kpi-sub">Highest-severity classified items</div></div>
   <div class="kpi-card kc-amb"><div class="kpi-lbl">Signal Word: Warning</div><div class="kpi-val" id="chm-kpi-warning">—</div><div class="kpi-sub">Lower-severity classified items</div></div>
-  <div class="kpi-card kc-blue chw-clickable" onclick="CHM.logCardClick('all')" title="Click to view the SDS review log"><div class="kpi-lbl">SDS Reviews Logged</div><div class="kpi-val" id="chm-kpi-reviews">—</div><div class="kpi-sub">All-time review events</div></div>
 </div>
 
 <div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:18px">
   <div class="chart-card"><div class="chart-title">SDS Status Across the 40 Items<span class="chart-sub">Current GHS / Legacy — Needs Update / SDS Pending</span></div><div class="chart-wrap"><canvas id="chmStatusChart"></canvas></div></div>
 </div>
 
-<div class="sec-banner">1. CHEMICAL INVENTORY — Stores master list (OL_100126)</div>
+<div class="chm-tabs">
+  <div class="chm-tab active" data-tab="master" onclick="CHM.switchTab('master')">Chemical Inventory</div>
+  <div class="chm-tab" data-tab="stock" onclick="CHM.switchTab('stock')">Monthly Stock Count</div>
+  <div class="chm-tab" data-tab="storage" onclick="CHM.switchTab('storage')">Storage Conditions</div>
+  <div class="chm-tab" data-tab="spill" onclick="CHM.switchTab('spill')">Spill Records</div>
+</div>
+
+<div class="chm-panel active" id="chm-panel-master">
+<div class="sec-banner">CHEMICAL INVENTORY — Stores master list (OL_100126)</div>
 <div class="chw-toolbar">
   <input type="text" id="chm-master-search" placeholder="Search item code / description / supplier…" oninput="CHM.onMasterSearch(this.value)">
   <select id="chm-master-status-filter" onchange="CHM.onMasterStatusFilter(this.value)">
@@ -165,31 +179,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <span style="margin-left:auto;font-size:10px;color:var(--chw-text-dim)" id="chm-master-count-sub"></span>
 </div>
 <div class="chw-table-wrap"><div id="live-table-master"><div class="empty-state"><strong>Loading…</strong></div></div></div>
-
-<div class="sec-banner">2. SDS REVIEW LOG — one row per safety-data-sheet review event</div>
-<div class="chw-toolbar">
-  <input type="text" id="chm-log-search" placeholder="Search Review Ref / Item Code…" oninput="CHM.onLogSearch(this.value)">
-  <button class="chw-btn chw-btn-add" id="chm-log-btn-new" onclick="CHM.openLogAdd()">+ New Review</button>
-  <button class="chw-btn" id="chm-log-btn-edit" disabled onclick="CHM.openLogEditSelected()">Open / Edit</button>
-  <button class="chw-btn" id="chm-log-btn-sds" disabled onclick="CHM.openLogSdsDocument()" title="Opens the same SDS document as the Chemical Inventory row for this item — attaching one here updates that row too">📄 SDS Document</button>
-  <button class="chw-btn chw-btn-esc" id="chm-log-btn-esc" disabled onclick="CHM.escalateLogSelected()">⚡ Escalate to Action</button>
-  <button class="chw-btn" id="chm-log-btn-remove" disabled onclick="CHM.removeLogSelected()">Remove</button>
-  <span style="margin-left:auto;font-size:10px;color:var(--chw-text-dim)" id="chm-log-count-sub"></span>
 </div>
-<div class="chw-table-wrap"><div id="live-table-log"><div class="empty-state"><strong>Loading…</strong></div></div></div>
 
-<div class="sec-banner" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-  <span id="chm-dash-title">3. DASHBOARD — calculated summary, by store location (for TÜV / EcoVadis / Management Review)</span>
-  <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <button class="chw-btn chw-btn-add" id="chm-dash-btn-loc" onclick="CHM.setDashView('location')">By Location</button>
-    <button class="chw-btn" id="chm-dash-btn-item" onclick="CHM.setDashView('item')">By Item</button>
-    <button class="chw-btn" id="chm-dash-btn-print" onclick="CHM.printDashboard()">🖨 Print Report</button>
-  </span>
-</div>
-<div class="flag-text" style="margin-top:14px" id="chm-dash-hint">Use this view to decide where GHS hazard signage and PPE postings are most urgently needed — any location showing a "Danger" worst-case signal word, or any "SDS Pending" items, should be prioritised for supplier SDS follow-up.</div>
-<div class="chw-table-wrap" style="border-top:1px solid var(--chw-border-gold)"><div id="chm-dashboard-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
-
-<div class="sec-banner">4. MONTHLY STOCK COUNT — one snapshot record per month, full item list</div>
+<div class="chm-panel" id="chm-panel-stock">
+<div class="sec-banner">MONTHLY STOCK COUNT — one snapshot record per month, full item list</div>
 <div class="flag-text" style="margin-top:14px">Each month's record is a point-in-time snapshot of every item's stock quantity. Browse previous months from the dropdown below. Starting a new month pre-fills the current Chemical Inventory item list automatically, so any item added since the last count is included going forward — past months are never rewritten.</div>
 <div class="chw-toolbar" style="border-top:1px solid var(--chw-border-gold)">
   <select id="chm-stock-month-select" onchange="CHM.onStockMonthChange(this.value)"><option value="">No records yet</option></select>
@@ -199,8 +192,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <span style="margin-left:auto;font-size:10px;color:var(--chw-text-dim)" id="chm-stock-count-sub"></span>
 </div>
 <div class="chw-table-wrap"><div id="chm-stock-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+</div>
 
-<div class="sec-banner" id="storage-conditions">5. STORAGE CONDITIONS — periodic chemical storage area inspections (OC-02, Sh.46)</div>
+<div class="chm-panel" id="chm-panel-storage">
+<div class="sec-banner" id="storage-conditions">STORAGE CONDITIONS — periodic chemical storage area inspections (OC-02, Sh.46)</div>
 <div class="flag-text" style="margin-top:14px">⚠ <strong>New section, this session — sheet tabs not yet created:</strong> this reads/writes Google Sheet tab <code>chemical_storage_conditions</code> → <code>Chemical Storage Conditions</code>, which does not exist in the live spreadsheet yet. Create the tab (header row: Inspection Ref, Date, Location/Store, Inspector, <code>Item-1…Item-10</code>, Exceptions, Record Status) and redeploy the Apps Script before this section will load or save real data. Covers the Chemical Storage &amp; Spills programme (Sh.46, companion to <code>L4-ENV-PR-05-CL-01</code>) — routine inspection of how chemicals are stored, as distinct from the Spill Records log below which covers actual spill events. This page's access gate is currently Safety (SHEE)/Managers/CEO — confirm whether Environment Department staff should also see these two sections, and add their department value to the check if so.</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:0">
   <div class="kpi-card kc-nvy"><div class="kpi-lbl">Inspections Logged</div><div class="kpi-val" id="chm-sto-kpi-total">—</div><div class="kpi-sub">All time</div></div>
@@ -216,8 +211,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <span style="margin-left:auto;font-size:10px;color:var(--chw-text-dim)" id="chm-sto-count-sub"></span>
 </div>
 <div class="chw-table-wrap"><div id="chm-sto-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+</div>
 
-<div class="sec-banner" id="spill-records">6. SPILL RECORDS — any chemical spill, site-wide (OC-02, Sh.46)</div>
+<div class="chm-panel" id="chm-panel-spill">
+<div class="sec-banner" id="spill-records">SPILL RECORDS — any chemical spill, site-wide (OC-02, Sh.46)</div>
 <div class="flag-text" style="margin-top:14px">⚠ <strong>New section, this session — sheet tab not yet created:</strong> this reads/writes Google Sheet tab <code>chemical_spill_records</code> → <code>Chemical Spill Records</code>, which does not exist in the live spreadsheet yet. Create the tab and redeploy the Apps Script before this section will load or save real data. Log any chemical spill here, from any source on site — fuel-tanker-delivery spills have their own dedicated record in the Fuel Delivery Spill Prevention register and are not duplicated here.</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:0">
   <div class="kpi-card kc-nvy"><div class="kpi-lbl">Spills Logged</div><div class="kpi-val" id="chm-spl-kpi-total">—</div><div class="kpi-sub">All time</div></div>
@@ -233,6 +230,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <span style="margin-left:auto;font-size:10px;color:var(--chw-text-dim)" id="chm-spl-count-sub"></span>
 </div>
 <div class="chw-table-wrap"><div id="chm-spl-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+</div>
 
 <div id="chm-modal-root"></div>
 
@@ -240,7 +238,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 (function(){
 
   var MASTER  = { tabKey:'chemical_inv', containerId:'live-table-master', idCol:'Item Code' };
-  var LOG     = { tabKey:'chemical_sds_log', containerId:'live-table-log', idCol:'Review Ref' };
   var STOCK   = { tabKey:'chemical_stock_monthly', containerId:'chm-stock-table', idCol:'Month' };
   var STORAGE = { tabKey:'chemical_storage_conditions', containerId:'chm-sto-table', idCol:'Inspection Ref' };
   var SPILL   = { tabKey:'chemical_spill_records', containerId:'chm-spl-table', idCol:'Spill Ref' };
@@ -272,10 +269,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return 'Pass';
   }
 
-  var _masterCache = null, _logCache = null, _stockCache = null, _stoCache = null, _splCache = null;
-  var _masterSelected = null, _logSelected = null, _stockSelectedMonth = null, _stoSelected = null, _splSelected = null;
+  var _masterCache = null, _stockCache = null, _stoCache = null, _splCache = null;
+  var _masterSelected = null, _stockSelectedMonth = null, _stoSelected = null, _splSelected = null;
   var _masterFilters = { search:'', special:null, status:'' };
-  var _logFilters = { search:'', special:null };
   var _stoFilters = { search:'' };
   var _splFilters = { search:'' };
   var _charts = { status:null };
@@ -307,23 +303,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function chmEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
 
-  // Review Refs follow the same <PREFIX>-<year>-<seq> convention used
-  // by Round IDs on oh-surveillance.html.
-  function nextReviewRef(cache){
-    var year = new Date().getFullYear();
-    if (!cache || !cache.headers || !cache.rows) return 'CHM-REV-' + year + '-01';
-    var idIdx = colIdx(cache.headers, LOG.idCol);
-    if (idIdx < 0) return 'CHM-REV-' + year + '-01';
-    var maxN = 0;
-    cache.rows.forEach(function(r){
-      var v = String(r[idIdx]||'').trim();
-      var m = v.match(/^CHM-REV-(\d{4})-(\d+)$/);
-      if (m && parseInt(m[1],10) === year){ var n = parseInt(m[2],10); if (n > maxN) maxN = n; }
-    });
-    var numStr = String(maxN + 1); while (numStr.length < 2) numStr = '0' + numStr;
-    return 'CHM-REV-' + year + '-' + numStr;
-  }
-
   function postJSON(action, params, body){
     var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
     return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
@@ -342,13 +321,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         }
         _masterCache = data;
       }).catch(function(){ _masterCache = null; }),
-      loadTab(LOG.tabKey).then(function(data){
-        if (data && data.headers && data.rows){
-          var si = colIdx(data.headers, STATUS_COL);
-          if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
-        }
-        _logCache = data;
-      }).catch(function(){ _logCache = null; }),
       loadTab(STOCK.tabKey).then(function(data){
         if (data && data.headers && data.rows){
           var si = colIdx(data.headers, STATUS_COL);
@@ -377,10 +349,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (!_masterCache || !_masterCache.headers || !_masterCache.rows) return [];
     return _masterCache.rows.map(function(r){ return recFromRow(_masterCache.headers, r); });
   }
-  function getLogRecs(){
-    if (!_logCache || !_logCache.headers || !_logCache.rows) return [];
-    return _logCache.rows.map(function(r){ return recFromRow(_logCache.headers, r); });
-  }
   function getStockRecs(){
     if (!_stockCache || !_stockCache.headers || !_stockCache.rows) return [];
     return _stockCache.rows.map(function(r){ return recFromRow(_stockCache.headers, r); });
@@ -400,7 +368,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   /* ── KPIs + chart ─────────────────────────────────────────────── */
   function render(){
-    var masterRecs = getMasterRecs(), logRecs = getLogRecs();
+    var masterRecs = getMasterRecs();
 
     setTxt('chm-kpi-total', masterRecs.length);
     var currentN = masterRecs.filter(function(m){ return m['SDS Status']==='Current GHS'; }).length;
@@ -413,12 +381,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     setTxt('chm-kpi-pending', pendingN);
     setTxt('chm-kpi-danger', dangerN);
     setTxt('chm-kpi-warning', warningN);
-    setTxt('chm-kpi-reviews', logRecs.length);
 
     renderChart(currentN, legacyN, pendingN);
     renderMasterTable(masterRecs);
-    renderLogTable(logRecs);
-    renderDashboard(masterRecs, logRecs);
     renderStockSection(getStockRecs());
     renderStoSection(getStoRecs());
     renderSplSection(getSplRecs());
@@ -647,242 +612,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         root.innerHTML=''; loadAll();
       }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
     }
-  }
-
-  /* ── SDS Review Log table ────────────────────────────────────── */
-  function filteredLog(recs){
-    var f = _logFilters;
-    return recs.filter(function(r){
-      if (f.search){
-        var hay = ((r['Review Ref']||'')+' '+(r['Item Code']||'')).toLowerCase();
-        if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
-      }
-      if (f.special === 'needsaction' && !(r['Outcome']==='Needs Update' || r['Outcome']==='Pending – Not Supplied')) return false;
-      return true;
-    });
-  }
-  function renderLogTable(recs){
-    var list = filteredLog(recs);
-    var el = document.getElementById(LOG.containerId);
-    setTxt('chm-log-count-sub', list.length + ' of ' + recs.length + ' reviews shown');
-    if (!list.length){
-      el.innerHTML = '<div class="empty-state"><strong>No reviews logged yet</strong>Log the first SDS review to get started.</div>';
-      updateLogButtons();
-      return;
-    }
-    list.sort(function(a,b){ return String(b['Review Ref']||'').localeCompare(String(a['Review Ref']||'')); });
-    var rows = list.map(function(r){
-      var sel = _logSelected === r['Review Ref'];
-      var m = masterByCode(r['Item Code']);
-      var outcomeBadge = r['Outcome']==='Current' ? '<span class="badge kc-grn">Current</span>'
-        : (r['Outcome']==='Needs Update' ? '<span class="badge kc-amb">Needs Update</span>'
-          : (r['Outcome']==='Pending – Not Supplied' ? '<span class="badge kc-red">Pending – Not Supplied</span>'
-            : (r['Outcome']==='Closed' ? '<span class="badge kc-purple">Closed (Action verified)</span>' : '<span class="badge kc-dim">'+chmEsc(r['Outcome'])+'</span>')));
-      return '<tr class="chw-row' + (sel?' chw-sel':'') + '" onclick="CHM.selectLog(\'' + chmEsc(r['Review Ref']) + '\')">'
-        + '<td>' + chmEsc(r['Review Ref']) + '</td>'
-        + '<td>' + chmEsc(r['Item Code']) + (m ? ' <span style="color:var(--chw-text-dim)">(' + chmEsc(m['Description']) + ')</span>' : '') + '</td>'
-        + '<td>' + chmEsc(r['Review Date']) + '</td>'
-        + '<td>' + chmEsc(r['Reviewer']) + '</td>'
-        + '<td>' + outcomeBadge + '</td>'
-        + '<td>' + chmEsc(r['Notes']) + '</td>'
-        + '<td>' + (r['Action Reference'] ? '✓ ' + chmEsc(r['Action Reference']) : '—') + '</td>'
-      + '</tr>';
-    }).join('');
-    el.innerHTML = '<table class="chw-tbl"><thead><tr><th>Review Ref</th><th>Item Code</th><th>Review Date</th><th>Reviewer</th><th>Outcome</th><th>Notes</th><th>Action Ref.</th></tr></thead><tbody>' + rows + '</tbody></table>';
-    updateLogButtons();
-  }
-  function updateLogButtons(){
-    var r = getSelectedLog();
-    document.getElementById('chm-log-btn-edit').disabled = !r;
-    document.getElementById('chm-log-btn-sds').disabled = !r;
-    document.getElementById('chm-log-btn-remove').disabled = !r || !can('delete');
-    document.getElementById('chm-log-btn-esc').disabled = !r || !(r['Outcome']==='Needs Update' || r['Outcome']==='Pending – Not Supplied') || !!r['Action Reference'];
-  }
-  function getSelectedLog(){
-    if (!_logCache || !_logSelected) return null;
-    var idIdx = colIdx(_logCache.headers, LOG.idCol);
-    var row = _logCache.rows.find(function(r){ return String(r[idIdx]) === String(_logSelected); });
-    return row ? recFromRow(_logCache.headers, row) : null;
-  }
-
-  var OUTCOME_OPTS = ['Current','Needs Update','Pending – Not Supplied'];
-  function buildLogModal(existingRec){
-    var root = document.getElementById('chm-modal-root');
-    var isEdit = !!existingRec;
-    var reviewRef = isEdit ? existingRec['Review Ref'] : nextReviewRef(_logCache);
-    var itemOpts = getMasterOptions();
-    var selectedCode = existingRec ? existingRec['Item Code'] : '';
-    var itemSelectOpts = '<option value="">-- select item --</option>' + itemOpts.map(function(o){
-      return '<option value="'+chmEsc(o.code)+'"'+(o.code===selectedCode?' selected':'')+'>'+chmEsc(o.label)+'</option>';
-    }).join('');
-    var outcomeOpts = OUTCOME_OPTS.map(function(o){ return '<option value="'+o+'"'+((existingRec&&existingRec['Outcome']===o)?' selected':'')+'>'+o+'</option>'; }).join('');
-    root.innerHTML = '<div class="chw-modal-bg" id="chm-bg"><div class="chw-modal">'
-      + '<h3>' + (isEdit?'Edit':'New') + ' SDS Review — ' + chmEsc(reviewRef) + '</h3>'
-      + '<div class="chw-modal-hdr-grid">'
-        + '<div><label>Item</label><select id="chm-l-item">' + itemSelectOpts + '</select></div>'
-        + '<div><label>Review Date</label><input type="date" id="chm-l-date" value="' + chmEsc(existingRec?existingRec['Review Date']:new Date().toISOString().slice(0,10)) + '"></div>'
-        + '<div><label>Reviewer</label><input type="text" id="chm-l-reviewer" value="' + chmEsc(existingRec?existingRec['Reviewer']:'') + '"></div>'
-        + '<div><label>Outcome</label><select id="chm-l-outcome">' + outcomeOpts + '</select></div>'
-      + '</div>'
-      + '<div class="chw-field" style="margin-bottom:14px"><label>Notes</label><textarea id="chm-l-notes" rows="2" style="width:100%;background:var(--chw-bg3);border:1px solid var(--chw-border);color:var(--chw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + chmEsc(existingRec?existingRec['Notes']:'') + '</textarea></div>'
-      + '<div class="chw-note">If the outcome is "Needs Update" or "Pending – Not Supplied", update the item\'s own SDS Status in the inventory above too, then use "Escalate to Action" here to chase the supplier.</div>'
-      + '<div class="chw-modal-actions"><button class="chw-btn" id="chm-l-cancel">Cancel</button><button class="chw-btn chw-btn-add" id="chm-l-save">Save</button></div>'
-    + '</div></div>';
-    document.getElementById('chm-l-cancel').onclick = function(){ root.innerHTML=''; };
-    document.getElementById('chm-bg').onclick = function(e){ if (e.target.id==='chm-bg') root.innerHTML=''; };
-    document.getElementById('chm-l-save').onclick = function(){ saveLog(reviewRef, isEdit); };
-  }
-  function saveLog(reviewRef, isEdit){
-    var root = document.getElementById('chm-modal-root');
-    var btn = document.getElementById('chm-l-save'); btn.disabled = true;
-    var reenable = function(){ if (btn) btn.disabled = false; };
-    var itemSel = document.getElementById('chm-l-item');
-    var code = itemSel.value;
-    if (!code){ alert('Select an item.'); reenable(); return; }
-    var values = {
-      'Review Ref': reviewRef,
-      'Item Code': code,
-      'Review Date': document.getElementById('chm-l-date').value,
-      'Reviewer': document.getElementById('chm-l-reviewer').value.trim(),
-      'Outcome': document.getElementById('chm-l-outcome').value,
-      'Notes': document.getElementById('chm-l-notes').value.trim()
-    };
-    if (isEdit){
-      postJSON('update', {tab: LOG.tabKey, idCol: LOG.idCol, id: reviewRef}, values).then(function(res){
-        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
-        root.innerHTML=''; loadAll();
-      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
-    } else {
-      values[STATUS_COL] = 'Active';
-      postJSON('write', {tab: LOG.tabKey}, [values]).then(function(res){
-        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
-        root.innerHTML=''; loadAll();
-      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
-    }
-  }
-
-  /* ── Dashboard — computed only, grouped by store Location. ─────
-     Flags which physical areas have the highest-severity signal word
-     present and how many items there still have no SDS, so GHS
-     signage/PPE postings can be prioritised by location. ─────────── */
-  var SEVERITY_RANK = { 'Danger':3, 'Warning':2, 'Not Classified':1, '—':0 };
-  var _dashView = 'location'; // 'location' | 'item'
-  var _dashMasterRecs = [], _dashLogRecs = [];
-  function setDashView(v){
-    _dashView = v;
-    var locBtn = document.getElementById('chm-dash-btn-loc'), itemBtn = document.getElementById('chm-dash-btn-item');
-    if (locBtn) locBtn.className = 'chw-btn' + (v==='location' ? ' chw-btn-add' : '');
-    if (itemBtn) itemBtn.className = 'chw-btn' + (v==='item' ? ' chw-btn-add' : '');
-    var title = document.getElementById('chm-dash-title'), hint = document.getElementById('chm-dash-hint');
-    if (title) title.textContent = v==='item'
-      ? '3. DASHBOARD — calculated summary, by item (for TÜV / EcoVadis / Management Review)'
-      : '3. DASHBOARD — calculated summary, by store location (for TÜV / EcoVadis / Management Review)';
-    if (hint) hint.textContent = v==='item'
-      ? 'One row per chemical item, showing its own SDS status, signal word and most recent review — use this to check a single item\'s GHS status without opening the full inventory table above.'
-      : 'Use this view to decide where GHS hazard signage and PPE postings are most urgently needed — any location showing a "Danger" worst-case signal word, or any "SDS Pending" items, should be prioritised for supplier SDS follow-up.';
-    renderDashboard(_dashMasterRecs, _dashLogRecs);
-  }
-  function renderDashboard(masterRecs, logRecs){
-    _dashMasterRecs = masterRecs || _dashMasterRecs;
-    _dashLogRecs = logRecs || _dashLogRecs;
-    if (_dashView === 'item') return renderDashboardByItem(_dashMasterRecs, _dashLogRecs);
-    return renderDashboardByLocation(_dashMasterRecs);
-  }
-  function renderDashboardByItem(masterRecs, logRecs){
-    var el = document.getElementById('chm-dashboard-table');
-    if (!masterRecs.length){
-      el.innerHTML = '<div class="empty-state"><strong>No items yet</strong>Add inventory items above to see the summary.</div>';
-      return;
-    }
-    var list = masterRecs.slice().sort(function(a,b){ return String(a['Item Code']||'').localeCompare(String(b['Item Code']||'')); });
-    var rows = list.map(function(m){
-      var code = m['Item Code'];
-      var reviews = (logRecs||[]).filter(function(r){ return r['Item Code'] === code; });
-      reviews.sort(function(a,b){ return String(b['Review Date']||'').localeCompare(String(a['Review Date']||'')); });
-      var last = reviews.length ? reviews[0] : null;
-      var lastOutcome = last ? sdsBadge(last['Outcome']==='Current' ? 'Current GHS' : (last['Outcome']==='Needs Update' ? 'Legacy – Needs Update' : '')) : '<span class="badge kc-dim">No review logged</span>';
-      var lastDate = last ? chmEsc(last['Review Date']) : '—';
-      var flag = m['SDS Status']==='SDS Pending' ? '<span class="badge kc-red">SDS follow-up needed</span>'
-        : (m['SDS Status']==='Legacy – Needs Update' ? '<span class="badge kc-amb">Update needed</span>' : '<span class="badge kc-grn">OK</span>');
-      return '<tr>'
-        + '<td>' + chmEsc(code) + '</td>'
-        + '<td>' + chmEsc(m['Description']) + '</td>'
-        + '<td>' + chmEsc(m['Location']||'—') + '</td>'
-        + '<td>' + sdsBadge(m['SDS Status']) + '</td>'
-        + '<td>' + signalBadge(m['Signal Word']) + '</td>'
-        + '<td>' + lastOutcome + '</td>'
-        + '<td>' + lastDate + '</td>'
-        + '<td>' + flag + '</td>'
-      + '</tr>';
-    }).join('');
-    el.innerHTML = '<table class="chw-tbl"><thead><tr><th>Item Code</th><th>Description</th><th>Location</th><th>SDS Status</th><th>Signal Word</th><th>Last Review Outcome</th><th>Last Review Date</th><th>Follow-up</th></tr></thead><tbody>' + rows + '</tbody></table>';
-  }
-  function renderDashboardByLocation(masterRecs){
-    var el = document.getElementById('chm-dashboard-table');
-    if (!masterRecs.length){
-      el.innerHTML = '<div class="empty-state"><strong>No items yet</strong>Add inventory items above to see the summary.</div>';
-      return;
-    }
-    var byLoc = {};
-    masterRecs.forEach(function(m){
-      var loc = m['Location'] || '(no location recorded)';
-      if (!byLoc[loc]) byLoc[loc] = [];
-      byLoc[loc].push(m);
-    });
-    var locs = Object.keys(byLoc).sort();
-    var rows = locs.map(function(loc){
-      var items = byLoc[loc];
-      var current = items.filter(function(m){ return m['SDS Status']==='Current GHS'; }).length;
-      var legacy  = items.filter(function(m){ return m['SDS Status']==='Legacy – Needs Update'; }).length;
-      var pending = items.filter(function(m){ return m['SDS Status']==='SDS Pending'; }).length;
-      var worst = items.reduce(function(w,m){ var sw=m['Signal Word']||'—'; return (SEVERITY_RANK[sw]||0) > (SEVERITY_RANK[w]||0) ? sw : w; }, '—');
-      var worstBadge = signalBadge(worst==='—'?'':worst);
-      var flag = pending>0 ? '<span class="badge kc-red">SDS follow-up needed</span>' : (legacy>0 ? '<span class="badge kc-amb">Update needed</span>' : '<span class="badge kc-grn">OK</span>');
-      return '<tr>'
-        + '<td>' + chmEsc(loc) + '</td>'
-        + '<td>' + items.length + '</td>'
-        + '<td>' + current + '</td>'
-        + '<td>' + legacy + '</td>'
-        + '<td>' + pending + '</td>'
-        + '<td>' + worstBadge + '</td>'
-        + '<td>' + flag + '</td>'
-      + '</tr>';
-    }).join('');
-    el.innerHTML = '<table class="chw-tbl"><thead><tr><th>Store Location</th><th>Items</th><th>Current GHS</th><th>Legacy / Needs Update</th><th>SDS Pending</th><th>Worst Signal Word Present</th><th>Signage/PPE Priority</th></tr></thead><tbody>' + rows + '</tbody></table>';
-  }
-
-  // Opens a clean, print-ready copy of the Dashboard table only in a
-  // new window and triggers the browser's print dialog — same pattern
-  // as oh-surveillance.html's printDashboard().
-  function printDashboard(){
-    var tableHtml = document.getElementById('chm-dashboard-table').innerHTML;
-    if (!tableHtml || /empty-state/.test(tableHtml)){ alert('Nothing to print yet — the dashboard has no items.'); return; }
-    var now = new Date();
-    var stamp = now.toISOString().slice(0,10) + ' ' + now.toTimeString().slice(0,5);
-    var w = window.open('', '_blank', 'width=1100,height=800');
-    if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print.'); return; }
-    w.document.write(
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Chemical Inventory Dashboard — ' + stamp + '</title>' +
-      '<style>' +
-      'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px}' +
-      'h1{font-size:18px;margin:0 0 2px}' +
-      '.sub{font-size:11px;color:#555;margin:0 0 14px}' +
-      '.priv{font-size:10px;color:#7a5b00;border:1px solid #d8b24a;background:#fff8e6;padding:8px 10px;margin-bottom:14px;border-radius:4px}' +
-      'table{border-collapse:collapse;width:100%;font-size:10px}' +
-      'th,td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}' +
-      'th{background:#eee;font-weight:bold}' +
-      '.badge{padding:1px 6px;border-radius:3px;font-size:9px;font-weight:bold;display:inline-block;border:1px solid #999}' +
-      '@media print{.noprint{display:none}}' +
-      '</style></head><body>' +
-      '<h1>SAGCO — Chemical Inventory (GHS) — Dashboard Summary</h1>' +
-      '<p class="sub">Generated ' + stamp + ' &middot; by ' + (_dashView==='item' ? 'item' : 'store location') + ' &middot; for TÜV / EcoVadis / Management Review</p>' +
-      '<div class="priv">SCOPE: covers exactly the 40 items on the OL_100126 Stores stock sheet. Any row flagged "SDS Pending" or "Legacy – Needs Update" should be chased with the supplier before this report is treated as a complete GHS compliance record.</div>' +
-      tableHtml +
-      '<div class="noprint" style="margin-top:16px"><button onclick="window.print()">Print</button></div>' +
-      '</body></html>'
-    );
-    w.document.close();
-    w.onload = function(){ w.focus(); w.print(); };
   }
 
   /* ── Monthly Stock Count — one record per month, holding a full
@@ -1337,9 +1066,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
   }
 
+  /* ── Tabs ─────────────────────────────────────────────────────── */
+  function switchTab(name){
+    document.querySelectorAll('.chm-tab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-tab')===name); });
+    document.querySelectorAll('.chm-panel').forEach(function(p){ p.classList.toggle('active', p.id==='chm-panel-'+name); });
+  }
+
   window.CHM = {
-    printDashboard: printDashboard,
-    setDashView: setDashView,
+    switchTab: switchTab,
     onStockMonthChange: function(v){ _stockSelectedMonth = v; render(); },
     openStockAdd: function(){ if (can('add')) buildStockModal(null); },
     openStockEditSelected: function(){
@@ -1361,11 +1095,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     },
     onMasterSearch: function(v){ _masterFilters.search = v; render(); },
     onMasterStatusFilter: function(v){ _masterFilters.status = v; render(); },
-    onLogSearch: function(v){ _logFilters.search = v; render(); },
     masterCardClick: function(name){ _masterFilters.special = (name==='total') ? null : name; render(); },
-    logCardClick: function(name){ _logFilters.special = (name==='all') ? null : name; render(); },
     selectMaster: function(id){ _masterSelected = (_masterSelected!==null && String(_masterSelected)===String(id)) ? null : id; render(); },
-    selectLog: function(id){ _logSelected = (_logSelected!==null && String(_logSelected)===String(id)) ? null : id; render(); },
     openMasterAdd: function(){ if (can('add')) buildMasterModal(null); },
     openMasterEditSelected: function(){ var m=getSelectedMaster(); if(!m) return alert('Select a row first.'); buildMasterModal(m); },
     openSdsDocument: function(){ var m=getSelectedMaster(); if(!m) return alert('Select a row first.'); buildSdsDocModal(m); },
@@ -1377,40 +1108,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (r && r.status==='error'){ alert('Remove failed: '+(r.message||'unknown error')); return; }
         _masterSelected = null; loadAll();
       }).catch(function(){ alert('Could not remove — check your connection.'); });
-    },
-    openLogAdd: function(){ if (can('add')) buildLogModal(null); },
-    openLogEditSelected: function(){ var r=getSelectedLog(); if(!r) return alert('Select a row first.'); buildLogModal(r); },
-    openLogSdsDocument: function(){
-      var r = getSelectedLog(); if(!r) return alert('Select a row first.');
-      var m = masterByCode(r['Item Code']);
-      if (!m) return alert('The item linked to this review (' + r['Item Code'] + ') was not found in the Chemical Inventory — it may have been removed.');
-      buildSdsDocModal(m);
-    },
-    removeLogSelected: function(){
-      if (!can('delete')) return;
-      var r = getSelectedLog(); if(!r) return alert('Select a row first.');
-      if (!confirm('Remove review ' + r['Review Ref'] + '? It will be hidden here but kept in the sheet for audit history.')) return;
-      postJSON('update', {tab: LOG.tabKey, idCol: LOG.idCol, id: r['Review Ref']}, {'Record Status':'Removed'}).then(function(res){
-        if (res && res.status==='error'){ alert('Remove failed: '+(res.message||'unknown error')); return; }
-        _logSelected = null; loadAll();
-      }).catch(function(){ alert('Could not remove — check your connection.'); });
-    },
-    // Escalates an SDS review whose outcome needs supplier follow-up
-    // (never a physical-safety emergency — this chases paperwork) to
-    // the Action Register, same sessionStorage + URL hand-off as
-    // every other source on this portal.
-    escalateLogSelected: function(){
-      var r = getSelectedLog(); if(!r) return alert('Select a row first.');
-      if (!(r['Outcome']==='Needs Update' || r['Outcome']==='Pending – Not Supplied')) return alert('This review does not need supplier follow-up — nothing to escalate.');
-      if (r['Action Reference']) return alert('This review was already escalated — see Action Register record ' + r['Action Reference'] + '.');
-      var m = masterByCode(r['Item Code']);
-      var ctx = {
-        entryId: r['Review Ref'],
-        description: 'Chemical Inventory SDS Review ' + r['Review Ref'] + ' (' + r['Item Code'] + (m ? ' — ' + m['Description'] : '') + ') — ' + r['Outcome'] + ' — supplier SDS follow-up required',
-        date: new Date().toISOString().slice(0,10)
-      };
-      try { sessionStorage.setItem('incomingChemicalSdsContext', JSON.stringify(ctx)); } catch(e){}
-      window.open('action-register.html?fromChemicalSds=' + encodeURIComponent(r['Review Ref']) + '&lane=ACT', '_blank');
     },
     onStoSearch: function(v){ _stoFilters.search = v; render(); },
     selectSto: function(id){ _stoSelected = (_stoSelected!==null && String(_stoSelected)===String(id)) ? null : id; render(); },
@@ -1440,17 +1137,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
   };
 
-  // Deep link from the Action Register's Source column —
-  // ?entry=<Review Ref> jumps straight to and opens that review.
-  function handleDeepLink(){
-    var entryId = new URLSearchParams(window.location.search).get('entry');
-    if (!entryId) return;
-    _logSelected = entryId;
-    render();
-    CHM.openLogEditSelected();
+  // Other pages link straight into a section via #storage-conditions /
+  // #spill-records (e.g. oc02-scopes.html) — now that those sections
+  // live inside tabs, the matching tab needs to be switched to active
+  // on load, or the link would land on a panel that's hidden.
+  function handleHashTab(){
+    var hash = (window.location.hash || '').replace('#','');
+    if (hash === 'storage-conditions') switchTab('storage');
+    else if (hash === 'spill-records') switchTab('spill');
   }
   document.addEventListener('DOMContentLoaded', function(){
-    setTimeout(function(){ loadAll().then(handleDeepLink); }, 100);
+    handleHashTab();
+    setTimeout(function(){ loadAll(); }, 100);
   });
 })();
 </script>
