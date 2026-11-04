@@ -611,7 +611,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   function removeMonthlyRow(idx){
     var row = _monthlyState.rows[idx];
     if (!row.recordId){ _monthlyState.rows.splice(idx,1); renderMonthlyGrid(); return; }
-    postJSON('update', { tab: SCRAP.tabKey, id: row.recordId }, { 'Record ID': row.recordId, 'Record Status':'Removed' })
+    postJSON('update', { tab: SCRAP.tabKey, idCol: SCRAP.idCol, id: row.recordId }, { 'Record ID': row.recordId, 'Record Status':'Removed' })
       .then(function(){ _monthlyState.rows.splice(idx,1); loadAll().then(function(){ if (_monthlyState) renderMonthlyGrid(); }); });
   }
 
@@ -640,7 +640,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
       // blanked a required field), pull it back to Removed rather than
       // leave a half-filled record live.
       if (row.recordId){
-        postJSON('update', { tab: SCRAP.tabKey, id: row.recordId }, { 'Record ID': row.recordId, 'Record Status':'Removed' }).then(function(){ row.recordId = null; });
+        postJSON('update', { tab: SCRAP.tabKey, idCol: SCRAP.idCol, id: row.recordId }, { 'Record ID': row.recordId, 'Record Status':'Removed' }).then(function(){ row.recordId = null; });
       }
       return;
     }
@@ -648,7 +648,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
       'Quantity': row.qty, 'Unit': row.unit, 'Remarks': row.remarks||'', 'Record Status':'Draft' };
     if (row.recordId){
       rec['Record ID'] = row.recordId;
-      postJSON('update', { tab: SCRAP.tabKey, id: row.recordId }, rec).then(function(){ loadAll(); });
+      postJSON('update', { tab: SCRAP.tabKey, idCol: SCRAP.idCol, id: row.recordId }, rec).then(function(){ loadAll(); });
     } else {
       var newId = nextRecordIdLocal();
       row.recordId = newId;
@@ -667,7 +667,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     var pending = draftRecs.map(function(r){
       var rec = {}; Object.keys(r).forEach(function(k){ rec[k] = r[k]; });
       rec['Record Status'] = 'Active';
-      return postJSON('update', { tab: SCRAP.tabKey, id: r['Record ID'] }, rec);
+      return postJSON('update', { tab: SCRAP.tabKey, idCol: SCRAP.idCol, id: r['Record ID'] }, rec);
     });
     Promise.all(pending).then(function(){ loadAll().then(function(){ renderMonthlyModal(month); }); });
   }
@@ -682,7 +682,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     var pending = activeRecs.map(function(r){
       var rec = {}; Object.keys(r).forEach(function(k){ rec[k] = r[k]; });
       rec['Record Status'] = 'Draft';
-      return postJSON('update', { tab: SCRAP.tabKey, id: r['Record ID'] }, rec);
+      return postJSON('update', { tab: SCRAP.tabKey, idCol: SCRAP.idCol, id: r['Record ID'] }, rec);
     });
     Promise.all(pending).then(function(){ loadAll().then(function(){ renderMonthlyModal(month); }); });
   }
@@ -770,7 +770,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     if (!r) return;
     var newStatus = String(r['Status']||'Active').toLowerCase()==='inactive' ? 'Active' : 'Inactive';
     var rec = {}; rec[idCol] = id; rec['Status'] = newStatus;
-    postJSON('update', { tab: tab, id: id }, rec).then(function(){ loadMasters().then(function(){ renderMasterModal(kind); }); });
+    postJSON('update', { tab: tab, idCol: idCol, id: id }, rec).then(function(){ loadMasters().then(function(){ renderMasterModal(kind); }); });
   }
 
   /* ── Public API ───────────────────────────────────────────────── */

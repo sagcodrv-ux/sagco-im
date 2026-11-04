@@ -522,7 +522,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
 
   function saveProgress(id){
     var rec = buildSaveRec(id);
-    postJSON('update', { tab: ENI_TAB.tabKey, id:id }, rec).then(function(){ closeModal(); loadAll(); });
+    postJSON('update', { tab: ENI_TAB.tabKey, idCol: ENI_TAB.idCol, id:id }, rec).then(function(){ closeModal(); loadAll(); });
   }
   function closeMonth(id){
     if (!confirm('Close this month? The record will be locked; a Manager or Superadmin can reopen it later if needed.')) return;
@@ -530,12 +530,12 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
     rec['Status'] = 'Closed';
     rec['Closed By'] = currentUserName();
     rec['Closed Date'] = new Date().toISOString().slice(0,10);
-    postJSON('update', { tab: ENI_TAB.tabKey, id:id }, rec).then(function(){ closeModal(); loadAll(); });
+    postJSON('update', { tab: ENI_TAB.tabKey, idCol: ENI_TAB.idCol, id:id }, rec).then(function(){ closeModal(); loadAll(); });
   }
   function reopenMonth(id){
     if (!can('safety.edit')) return;
     if (!confirm('Reopen this month for editing?')) return;
-    postJSON('update', { tab: ENI_TAB.tabKey, id:id }, { 'Record ID':id, 'Status':'Open', 'Closed By':'', 'Closed Date':'' })
+    postJSON('update', { tab: ENI_TAB.tabKey, idCol: ENI_TAB.idCol, id:id }, { 'Record ID':id, 'Status':'Open', 'Closed By':'', 'Closed Date':'' })
       .then(function(){ closeModal(); loadAll(); });
   }
 
@@ -557,7 +557,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--eni-border);color:var(--
     removeSelected: function(){
       if (!_selected || !can('safety.edit')) return;
       if (!confirm('Remove this month\'s energy invoices record?')) return;
-      postJSON('update', { tab: ENI_TAB.tabKey, id:_selected }, { 'Record ID':_selected, 'Record Status':'Removed' })
+      postJSON('update', { tab: ENI_TAB.tabKey, idCol: ENI_TAB.idCol, id:_selected }, { 'Record ID':_selected, 'Record Status':'Removed' })
         .then(function(){ _selected=null; loadAll(); });
     },
     closeModal: closeModal

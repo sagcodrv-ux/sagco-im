@@ -27,7 +27,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   --wq-text:rgba(255,255,255,.92); --wq-text-muted:rgba(255,255,255,.55);
   --wq-text-dim:rgba(255,255,255,.35); --wq-border:rgba(255,255,255,.08);
   --wq-border-gold:rgba(201,168,76,.35);
-  --wq-grn:#4FCB9E; --wq-red:#F0685C;
+  --wq-grn:#4FCB9E; --wq-red:#F0685C; --wq-amber:#E0A93E;
   background:var(--wq-bg); color:var(--wq-text); margin:0; padding:24px; min-height:100vh;
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
 }
@@ -51,7 +51,15 @@ tbody tr{cursor:pointer}
 tbody tr:hover td{background:rgba(255,255,255,.03)}
 .wq-pill{display:inline-block;padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700}
 .wq-pill.ok{background:rgba(79,203,158,.18);color:var(--wq-grn)}
+.wq-pill.warn{background:rgba(224,169,62,.18);color:var(--wq-amber)}
 .wq-pill.alert{background:rgba(240,104,92,.18);color:var(--wq-red)}
+.wq-kpis{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.wq-kpi{flex:1;min-width:110px;background:var(--wq-bg2);border:1px solid var(--wq-border);border-radius:10px;padding:10px 12px;cursor:pointer}
+.wq-kpi .n{font-size:20px;font-weight:700;color:var(--wq-gold-lt)}
+.wq-kpi .l{font-size:9.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--wq-text-dim);margin-top:2px}
+.wq-kpi.wq-kpi-active{border-color:var(--wq-gold);box-shadow:0 0 0 1px var(--wq-gold) inset}
+.wq-out-warn{border-color:var(--wq-amber)!important;background:rgba(224,169,62,.08)!important}
+.wq-alert-box.warn{background:rgba(224,169,62,.12);color:var(--wq-amber);border:1px solid rgba(224,169,62,.35)}
 .wq-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;align-items:flex-start;justify-content:center;padding:30px 14px;overflow-y:auto}
 .wq-modal-bg.active{display:flex}
 .wq-modal{background:var(--wq-bg2);border:1px solid var(--wq-border-gold);border-radius:12px;padding:20px;max-width:640px;width:100%}
@@ -72,7 +80,16 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
 </head><body><div class="wq-dark-wrap">
 <div class="back-row"><a href="oc02-scopes.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
 
-<div class="req-text">Water Quality Lab Register — the Water half of the planned "Water &amp; Waste Data" scope item; Air Emissions is still to be built separately. <strong>One record per lab test</strong>, entered by the Environmental team. The specification shown for every parameter is Kindasa Laboratory's own min/max, exactly as printed on their Potable Water Analysis Customer report. Each row's in/out-of-spec status is <strong>computed live from whatever is currently stored</strong> — it is never saved as a fixed pass/fail, so correcting a value updates the flag by itself.</div>
+<div class="req-text">Water Quality Lab Register — the Water half of the planned "Water &amp; Waste Data" scope item; Air Emissions is now live separately. <strong>One record per lab test</strong>, entered by the Environmental team. The specification shown for every parameter is Kindasa Laboratory's own min/max, exactly as printed on their Potable Water Analysis Customer report. Each row's in/out-of-spec status is <strong>computed live from whatever is currently stored</strong> — it is never saved as a fixed pass/fail, so correcting a value updates the flag by itself.</div>
+
+<div class="req-text"><strong>Kindasa Spec Thresholds:</strong> pH 8.00–8.40 &nbsp;•&nbsp; Conductivity 350–530 µS/cm &nbsp;•&nbsp; TDS 190–295 mg/l &nbsp;•&nbsp; Turbidity &lt;1 NTU &nbsp;•&nbsp; Residual Chlorine 0.20–0.40 mg/l &nbsp;•&nbsp; Total Hardness 10.0–25.0 mg/l &nbsp;•&nbsp; Total Iron &lt;0.05 mg/l &nbsp;•&nbsp; Nitrate &lt;0.5 mg/l &nbsp;•&nbsp; Nitrite &lt;0.05 mg/l &nbsp;•&nbsp; Bacteria/Coliform/Fecal Coliform: ND. A reading inside the range but within 20% of either edge (or, for the four ceiling-only parameters, within 20% of the upper limit) shows as a <span class="wq-pill warn" style="padding:1px 6px">Warning</span> even though it still passes — the same 80% rule used on the Air Emissions page.</div>
+
+<div class="wq-kpis">
+  <div class="wq-kpi" id="wq-kpi-card-total" onclick="WQ.setStatusFilter(null)"><div class="n" id="wq-kpi-total">0</div><div class="l">Total Records</div></div>
+  <div class="wq-kpi" id="wq-kpi-card-warn" onclick="WQ.setStatusFilter('warn')"><div class="n" id="wq-kpi-warn" style="color:var(--wq-amber)">0</div><div class="l">Warnings (&ge;80%)</div></div>
+  <div class="wq-kpi" id="wq-kpi-card-alert" onclick="WQ.setStatusFilter('alert')"><div class="n" id="wq-kpi-alert" style="color:var(--wq-red)">0</div><div class="l">Out of Spec</div></div>
+</div>
+<div class="wq-spec" id="wq-filter-note" style="display:none;margin:-6px 0 10px;font-size:11px">Showing only <span id="wq-filter-note-word"></span> records — click the card again, or "Total Records", to clear. <span style="text-decoration:underline;cursor:pointer" onclick="WQ.setStatusFilter(null)">Clear filter</span></div>
 
 <div class="wq-toolbar">
   <div style="font-size:11px;color:var(--wq-text-muted)" id="wq-count"></div>
@@ -183,31 +200,84 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
     }).catch(function(){ _records = []; render(); });
   }
 
+  /* How close a reading sits to breaching its spec, as a 0–100+ %:
+     - Ceiling-only params (lt:true — Turbidity, Total Iron, Nitrate,
+       Nitrite) only have a meaningful upper bound; the floor of 0 is
+       not a real constraint, so proximity is just value/max.
+     - Dual-bound params (pH, Conductivity, TDS, Residual Chlorine,
+       Total Hardness) have a real min AND max, so proximity is how
+       far the reading sits from the midpoint, relative to the half-
+       width of the band — this treats "close to the floor" and
+       "close to the ceiling" the same way, since either breaches the
+       spec. Returns null when the value can't be computed. */
+  function proximityPct(v, spec){
+    if (spec.lt) return spec.max>0 ? (v/spec.max)*100 : null;
+    var half = (spec.max - spec.min) / 2;
+    if (half<=0) return null;
+    var mid = (spec.min + spec.max) / 2;
+    return (Math.abs(v-mid)/half)*100;
+  }
+
   /* ── Live spec check — recomputed from whatever is currently in the
-     record, never stored. Returns { ok:boolean, outParams:[names] } */
+     record, never stored. Returns { ok, outParams, warnParams, cls }.
+     cls is the record's overall status: 'alert' (something out of
+     spec) beats 'warn' (nothing out, but something within 20% of an
+     edge) beats 'ok'. Microbiological fields are binary (ND or not)
+     and never produce a warning — there's no meaningful "closeness"
+     to a detection result. */
   function checkSpec(rec){
-    var out = [];
+    var out = [], warn = [];
     Object.keys(SPECS).forEach(function(name){
       var v = parseFloat(rec[name]);
       if (isNaN(v)) return; // no value entered yet — nothing to flag
       var spec = SPECS[name];
-      if (v < spec.min || v > spec.max) out.push(name);
+      if (v < spec.min || v > spec.max){ out.push(name); return; }
+      var pct = proximityPct(v, spec);
+      if (pct!=null && pct>=80) warn.push(name);
     });
     MICRO_FIELDS.forEach(function(name){
       var v = (rec[name]||'').toString().trim();
       if (!v) return;
       if (v.toUpperCase() !== 'ND') out.push(name);
     });
-    return { ok: out.length===0, outParams: out };
+    var cls = out.length>0 ? 'alert' : (warn.length>0 ? 'warn' : 'ok');
+    return { ok: out.length===0, outParams: out, warnParams: warn, cls: cls };
   }
 
+  /* ── Status-card filter — click Warnings or Out of Spec to narrow
+     the table to just that status across the whole register; KPI
+     counts themselves always reflect every record, filter or not. */
+  var _statusFilter = null; // null | 'warn' | 'alert'
+  function setStatusFilter(which){
+    _statusFilter = (_statusFilter===which) ? null : which;
+    document.getElementById('wq-kpi-card-warn').classList.toggle('wq-kpi-active', _statusFilter==='warn');
+    document.getElementById('wq-kpi-card-alert').classList.toggle('wq-kpi-active', _statusFilter==='alert');
+    var note = document.getElementById('wq-filter-note');
+    if (_statusFilter){
+      note.style.display = '';
+      document.getElementById('wq-filter-note-word').textContent = _statusFilter==='warn' ? 'Warning' : 'Out of Spec';
+    } else {
+      note.style.display = 'none';
+    }
+    render();
+  }
+
+  var _kpiTotal=0, _kpiWarn=0, _kpiAlert=0;
   function render(){
-    document.getElementById('wq-count').textContent = _records.length + ' record' + (_records.length===1?'':'s');
-    document.getElementById('wq-tbody').innerHTML = _records.map(function(rec){
+    _kpiTotal=0; _kpiWarn=0; _kpiAlert=0;
+    var shown = 0;
+    var rowsHtml = _records.map(function(rec){
       var c = checkSpec(rec);
-      var statusHtml = c.ok
-        ? '<span class="wq-pill ok">In Spec</span>'
-        : '<span class="wq-pill alert" title="' + vEsc(c.outParams.join(', ')) + '">Out: ' + vEsc(c.outParams.join(', ')) + '</span>';
+      _kpiTotal++;
+      if (c.cls==='warn') _kpiWarn++;
+      if (c.cls==='alert') _kpiAlert++;
+      if (_statusFilter && c.cls!==_statusFilter) return '';
+      shown++;
+      var statusHtml = c.cls==='alert'
+        ? '<span class="wq-pill alert" title="' + vEsc(c.outParams.join(', ')) + '">Out: ' + vEsc(c.outParams.join(', ')) + '</span>'
+        : c.cls==='warn'
+          ? '<span class="wq-pill warn" title="' + vEsc(c.warnParams.join(', ')) + '">Warning: ' + vEsc(c.warnParams.join(', ')) + '</span>'
+          : '<span class="wq-pill ok">In Spec</span>';
       return '<tr onclick="WQ.openEdit(\'' + rec['Record ID'] + '\')">'
         + '<td>' + vEsc(rec['Collection Date']) + '</td>'
         + '<td>' + fmt(rec['pH']) + '</td>'
@@ -218,6 +288,11 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
         + '<td>' + statusHtml + '</td>'
         + '</tr>';
     }).join('');
+    document.getElementById('wq-count').textContent = shown + ' of ' + _records.length + ' record' + (_records.length===1?'':'s');
+    document.getElementById('wq-tbody').innerHTML = rowsHtml;
+    document.getElementById('wq-kpi-total').textContent = _kpiTotal;
+    document.getElementById('wq-kpi-warn').textContent = _kpiWarn;
+    document.getElementById('wq-kpi-alert').textContent = _kpiAlert;
   }
 
   /* ── Modal ────────────────────────────────────────────────────── */
@@ -262,12 +337,16 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
     var rec = formToRec();
     var c = checkSpec(rec);
     Object.keys(SPECS).concat(MICRO_FIELDS).forEach(function(k){
-      document.getElementById(FIELD_IDS[k]).classList.toggle('wq-out', c.outParams.indexOf(k)>=0);
+      var el = document.getElementById(FIELD_IDS[k]);
+      el.classList.toggle('wq-out', c.outParams.indexOf(k)>=0);
+      el.classList.toggle('wq-out-warn', c.warnParams.indexOf(k)>=0);
     });
     var el = document.getElementById('wq-modal-alert');
-    el.innerHTML = c.ok
-      ? '<div class="wq-alert-box ok">All entered parameters are within Kindasa spec.</div>'
-      : '<div class="wq-alert-box bad">Out of spec: ' + vEsc(c.outParams.join(', ')) + '</div>';
+    el.innerHTML = c.cls==='alert'
+      ? '<div class="wq-alert-box bad">Out of spec: ' + vEsc(c.outParams.join(', ')) + '</div>'
+      : c.cls==='warn'
+        ? '<div class="wq-alert-box warn">Within 20% of its spec edge: ' + vEsc(c.warnParams.join(', ')) + '</div>'
+        : '<div class="wq-alert-box ok">All entered parameters are within Kindasa spec.</div>';
   }
 
   function nextRecordId(collectionDate){ return 'WQ-' + (collectionDate || 'NEW') + '-' + Date.now(); }
@@ -279,12 +358,13 @@ tbody tr:hover td{background:rgba(255,255,255,.03)}
     rec['Record ID'] = existingId || nextRecordId(rec['Collection Date']);
     rec['Entered By'] = currentUserName();
     rec['Record Status'] = 'Active';
-    var op = existingId ? postJSON('update', { tab: TAB, id: existingId }, rec) : postJSON('create', { tab: TAB }, rec);
+    var op = existingId ? postJSON('update', { tab: TAB, idCol: 'Record ID', id: existingId }, rec) : postJSON('create', { tab: TAB }, rec);
     op.then(loadAll).then(closeModal);
   }
 
   window.WQ = { openNew:openNew, openEdit:openEdit, closeModal:closeModal, save:save, recompute:recompute,
-    checkSpec: checkSpec, _internal: { getRecords:function(){return _records;}, loadAll: loadAll } };
+    checkSpec: checkSpec, setStatusFilter: setStatusFilter, render: render,
+    _internal: { getRecords:function(){return _records;}, loadAll: loadAll } };
 
   if (typeof IMS_AUTH !== 'undefined'){
     IMS_AUTH.init({ onReady: function(){ loadAll(); } });
