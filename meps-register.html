@@ -93,6 +93,12 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
 .mps-field input,.mps-field select,.mps-field textarea{width:100%;background:var(--mps-bg3);
   border:1px solid var(--mps-border);color:var(--mps-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
 .mps-field textarea{min-height:56px;resize:vertical}
+.mps-attach-list{display:flex;flex-direction:column;gap:4px;margin:6px 0}
+.mps-attach-item{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:var(--mps-bg3);border:1px solid var(--mps-border);border-radius:6px;padding:5px 9px;font-size:11px}
+.mps-attach-item a{color:var(--mps-gold-lt);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mps-attach-item button{background:none;border:none;color:var(--mps-red);cursor:pointer;font-size:11px;font-weight:700;padding:0 2px}
+.mps-attach-status{font-size:10px;color:var(--mps-text-dim);margin-top:4px}
 .mps-modal-ft{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--mps-border)}
 .mps-result-banner{grid-column:1/-1;border-radius:8px;padding:10px 14px;font-size:12px;font-weight:700;text-align:center}
 .mps-result-banner.accepted{background:rgba(79,203,158,.15);color:var(--mps-grn);border:1px solid rgba(79,203,158,.4)}
@@ -126,7 +132,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
 </head><body><div class="mps-dark-wrap">
 <div class="back-row"><a href="oc02-environment.html" class="back-link">← OC-02 Environment &amp; Energy</a></div>
 
-<div class="req-text">MEPS Compliance Register — Minimum Energy Performance Standards (SASO/SEEC): any electrical motor rated from <strong>0.75 kW up to 375 kW</strong> must meet a minimum efficiency class of <strong>IE3</strong> (IE3 or IE4) before purchase or installation, per SASO. Evidence of this check is required under <strong>ISO 50001 §8.3</strong> (Design &amp; Procurement). <strong>Pre-Purchase Slip:</strong> before buying, log the equipment here — the page checks it against the MEPS range and tells you whether it's accepted to buy; print the slip to attach to the purchase order. <strong>Register:</strong> every slip becomes a row here; after delivery, use "Open / Edit" to record whether it was verified at goods receipt. <strong>One Purchase Ref can cover several equipment lines</strong> — e.g. a single furnace-rebuild contract with many motors — "🖨 Print Slip" prints all lines under one Purchase Ref together.</div>
+<div class="req-text">MEPS Compliance Register — Minimum Energy Performance Standards (SASO/SEEC): any electrical motor rated from <strong>0.75 kW up to 375 kW</strong> must meet a minimum efficiency class of <strong>IE3</strong> (IE3 or IE4) before purchase or installation, per SASO. Evidence of this check is required under <strong>ISO 50001 §8.3</strong> (Design &amp; Procurement). <strong>Pre-Purchase Slip:</strong> before buying, log the equipment here — the page checks it against the MEPS range and tells you whether it's accepted to buy; print the slip to attach to the purchase order. A <strong>Slip Ref</strong> (e.g. MEPS-2026-014) is assigned automatically on save, so the check is on record even if there's <strong>no Purchase Reference yet</strong> — leave that field blank and add it later once the PO exists. <strong>Enclosed Documents</strong> (datasheet, efficiency certificate, etc.) can be attached to each equipment line — they belong to that line only, never shared with another line even under the same Purchase Ref. <strong>Register:</strong> every slip becomes a row here; after delivery, use "Open / Edit" to record whether it was verified at goods receipt. <strong>One Purchase Ref can cover several equipment lines</strong> — e.g. a single furnace-rebuild contract with many motors — "🖨 Print Slip" prints all lines under one Purchase Ref together.</div>
 
 <div class="sec-banner">MEPS — QUICK STATUS</div>
 <div class="kpi-grid" style="margin-bottom:14px">
@@ -138,7 +144,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
 
 <div class="sec-banner">MEPS COMPLIANCE REGISTER</div>
 <div class="aiw-toolbar" style="border-top:1px solid var(--mps-border-gold)">
-  <input type="text" id="mps-search" placeholder="Search equipment / supplier / purchase ref…" oninput="MPS.onSearch(this.value)">
+  <input type="text" id="mps-search" placeholder="Search equipment / supplier / purchase ref / slip ref…" oninput="MPS.onSearch(this.value)">
   <select id="mps-result-filter" onchange="MPS.onResultFilter(this.value)">
     <option value="">All results</option>
     <option value="Accepted">Accepted</option>
@@ -156,10 +162,10 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
 <div class="mps-table-wrap">
   <table>
     <thead><tr>
-      <th>Purchase Ref</th><th>Date</th><th>Equipment</th><th>Motor (kW)</th><th>Supplier</th>
+      <th>Slip Ref</th><th>Purchase Ref</th><th>Date</th><th>Equipment</th><th>Motor (kW)</th><th>Supplier</th>
       <th>Efficiency Class</th><th>MEPS Req.</th><th>Result</th><th>Goods-Receipt</th>
     </tr></thead>
-    <tbody id="mps-tbody"><tr><td colspan="9" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
+    <tbody id="mps-tbody"><tr><td colspan="10" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
   </table>
 </div>
 
@@ -177,8 +183,17 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
 
   var _cache = null, _selected = null;
   var _filters = { search:'', result:'' };
+  var _formAttach = [];   // enclosed documents for the equipment line currently open in the modal — [{name,url,fileId,mimeType}]
+  var _formRef = '';      // this line's own Slip Ref (Equipment Ref), fixed the moment the modal opens, used as the upload docId
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
+    var s = IMS_AUTH.getSession();
+    var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    return (u && u.name) || (s && s.username) || '';
+  }
+  function parseJSONArr(s){ if(!s) return []; try{ var a=JSON.parse(s); return Array.isArray(a)?a:[]; } catch(e){ return []; } }
   function colIdx(headers, name){
     var out = -1;
     (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
@@ -250,7 +265,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
     var f = _filters;
     if (f.result && liveResult(r) !== f.result) return false;
     if (f.search){
-      var hay = ((r['Equipment Description']||'')+' '+(r['Supplier']||'')+' '+(r['Purchase Ref']||'')).toLowerCase();
+      var hay = ((r['Equipment Description']||'')+' '+(r['Supplier']||'')+' '+(r['Purchase Ref']||'')+' '+(r['Equipment Ref']||'')).toLowerCase();
       if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
     }
     return true;
@@ -280,7 +295,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
     var tbody = document.getElementById('mps-tbody');
     setTxt('mps-count-sub', list.length + ' of ' + all.length + ' lines shown');
     if (!list.length){
-      tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><strong>No records match these filters</strong>Use "+ New Equipment Line" to log a purchase before buying it.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><strong>No records match these filters</strong>Use "+ New Equipment Line" to log a purchase before buying it.</td></tr>';
       updateButtons();
       return;
     }
@@ -291,7 +306,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
       var reqLive = mepsRequired(r['Motor Rating (kW)']);
       var resultLive = liveResult(r);
       return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="MPS.select(\'' + mEsc(r['Equipment Ref']) + '\')">'
-        + '<td>' + mEsc(r['Purchase Ref']) + '</td>'
+        + '<td>' + mEsc(r['Equipment Ref']) + (parseJSONArr(r['Attachments (JSON)']).length ? ' <span title="' + parseJSONArr(r['Attachments (JSON)']).length + ' document(s) enclosed">📎' + parseJSONArr(r['Attachments (JSON)']).length + '</span>' : '') + '</td>'
+        + '<td>' + (r['Purchase Ref'] ? mEsc(r['Purchase Ref']) : '<span style="color:var(--mps-text-dim)">— none yet</span>') + '</td>'
         + '<td>' + mEsc(r['Date']) + '</td>'
         + '<td style="white-space:normal;max-width:220px">' + mEsc(r['Equipment Description']) + '</td>'
         + '<td>' + mEsc(r['Motor Rating (kW)']) + '</td>'
@@ -326,6 +342,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
   function openForm(existing){
     var r = existing || {};
     var isEdit = !!existing;
+    _formRef = isEdit ? r['Equipment Ref'] : nextEquipmentRef();
+    _formAttach = isEdit ? parseJSONArr(r['Attachments (JSON)']) : [];
     var effOpts = EFF_CLASSES.map(function(c){
       return '<option value="'+c+'"'+(r['Declared Efficiency Class']===c?' selected':'')+'>'+c+'</option>';
     }).join('');
@@ -335,7 +353,9 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
       + '<div class="mps-modal">'
       + '<div class="mps-modal-hd"><span>' + (isEdit?'Edit Equipment Line':'New Equipment Line — Pre-Purchase Slip') + '</span><button onclick="MPS.closeModal()">✕</button></div>'
       + '<div class="mps-modal-bd">'
-      + '<div class="mps-field full"><label>Purchase Reference (PO or PR number — reuse the same reference for multiple equipment lines under one order, e.g. a furnace rebuild)</label><input type="text" id="mps-f-pref" value="' + mEsc(r['Purchase Ref']||'') + '" placeholder="e.g. PO-2026-0145 or PR-2026-0145"></div>'
+      + '<div class="mps-field"><label>Slip Ref</label><input type="text" value="' + mEsc(_formRef) + '" readonly></div>'
+      + (isEdit ? '' : '<div class="hint" style="margin:0 0 8px">This Slip Ref is assigned now and fixed — it proves this efficiency check was done even before there is a purchase reference.</div>')
+      + '<div class="mps-field full"><label>Purchase Reference (optional — leave blank if not bought yet; the slip is still valid, traced by its own Slip Ref. Reuse the same reference for multiple equipment lines under one order, e.g. a furnace rebuild)</label><input type="text" id="mps-f-pref" value="' + mEsc(r['Purchase Ref']||'') + '" placeholder="e.g. PO-2026-0145 or PR-2026-0145 — leave blank if none yet"></div>'
       + (isEdit ? '<div class="hint" style="margin:-6px 0 8px">Editing this moves only THIS equipment line to the new reference — other lines sharing the old reference are unaffected.</div>' : '')
       + '<div class="mps-field"><label>Date</label><input type="date" id="mps-f-date" value="' + mEsc(r['Date']||'') + '"' + (isEdit?' readonly':'') + '></div>'
       + '<div class="mps-field"><label>Supplier</label><input type="text" id="mps-f-supplier" value="' + mEsc(r['Supplier']||'') + '"' + (isEdit?' readonly':'') + '></div>'
@@ -343,6 +363,11 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
       + '<div class="mps-field"><label>Motor Rating (kW)</label><input type="number" step="any" id="mps-f-kw" value="' + mEsc(r['Motor Rating (kW)']||'') + '"' + (isEdit?' readonly':' oninput="MPS.recomputeResult()"') + '></div>'
       + '<div class="mps-field"><label>Declared Efficiency Class</label><select id="mps-f-eff"' + (isEdit?' disabled':' onchange="MPS.recomputeResult()"') + '>' + effOpts + '</select></div>'
       + '<div class="mps-field full"><label>Certificate Ref</label><input type="text" id="mps-f-cert" value="' + mEsc(r['Certificate Ref']||'') + '"' + (isEdit?' readonly':'') + '></div>'
+      + '<div class="mps-field full"><label>Enclosed Documents (datasheet, efficiency certificate, etc. — belongs only to this equipment line)</label>'
+      + '<div id="mps-attach-list" class="mps-attach-list"></div>'
+      + '<label class="aiw-btn" style="display:inline-block;cursor:pointer">📎 Attach Document(s)<input type="file" accept="application/pdf,image/*" multiple style="display:none" id="mps-f-file" onchange="MPS.onFilesSelected(event)"></label>'
+      + '<span class="mps-attach-status" id="mps-attach-status"></span>'
+      + '</div>'
       + (isEdit ? '' : '<div class="mps-field full"><label>Approved By (Procurement Manager)</label><input type="text" id="mps-f-approver" value=""></div>')
       + '<div class="mps-result-banner" id="mps-result-banner"></div>'
       + (isEdit
@@ -359,6 +384,61 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
       + '</div></div></div>';
     document.getElementById('mps-modal-root').innerHTML = html;
     recomputeResult();
+    renderAttachList();
+  }
+
+  /* ── Enclosed documents — belong to this equipment LINE only, stored
+     in its own Attachments (JSON) cell, never shared with another line
+     even under the same Purchase Ref (Issam, voice, 2026-11-05). Same
+     Drive upload endpoint as energy-invoices.html / chemical-
+     inventory.html. Uploaded immediately on selection and held in
+     _formAttach until Save writes the full list to the row. */
+  function renderAttachList(){
+    var box = document.getElementById('mps-attach-list');
+    if (!box) return;
+    if (!_formAttach.length){ box.innerHTML = '<div style="font-size:10.5px;color:var(--mps-text-dim)">No documents enclosed yet.</div>'; return; }
+    box.innerHTML = _formAttach.map(function(a, i){
+      return '<div class="mps-attach-item"><a href="' + mEsc(a.url) + '" target="_blank">📄 ' + mEsc(a.name) + '</a>'
+        + '<button onclick="MPS.removeAttachment(' + i + ')" title="Remove">✕</button></div>';
+    }).join('');
+  }
+
+  function onFilesSelected(evt){
+    var files = evt.target.files ? Array.prototype.slice.call(evt.target.files) : [];
+    if (!files.length) return;
+    var statusEl = document.getElementById('mps-attach-status');
+    var username = currentUserName() || 'unknown';
+    var remaining = files.length;
+    statusEl.textContent = 'Uploading ' + remaining + ' file' + (remaining>1?'s':'') + '…';
+    files.forEach(function(file){
+      var reader = new FileReader();
+      reader.onload = function(){
+        var dataUrl = reader.result;
+        var commaIdx = dataUrl.indexOf(',');
+        var base64 = commaIdx >= 0 ? dataUrl.substring(commaIdx+1) : dataUrl;
+        var docId = _formRef + '-attach-' + Date.now() + '-' + Math.floor(Math.random()*1000);
+        fetch(SHEETS_URL, {
+          method:'POST',
+          body: JSON.stringify({ action:'uploadFilePicker', docId: docId, fileName: file.name, mimeType: file.type || 'application/octet-stream', b64: base64, username: username })
+        }).then(function(r){ return r.json(); }).then(function(res){
+          remaining--;
+          if (!res || res.ok === false){
+            statusEl.textContent = 'Upload failed for ' + file.name + (res && res.error ? ': '+res.error : '') + ' — try again.';
+          } else {
+            _formAttach.push({ name: file.name, url: res.webViewLink || res.previewLink || '', fileId: res.fileId || '', mimeType: file.type || '' });
+            renderAttachList();
+            statusEl.textContent = remaining > 0 ? ('Uploading ' + remaining + ' more…') : ('✓ ' + _formAttach.length + ' document' + (_formAttach.length>1?'s':'') + ' enclosed');
+          }
+        }).catch(function(){ remaining--; statusEl.textContent = 'Upload failed for ' + file.name + ' — try again.'; });
+      };
+      reader.readAsDataURL(file);
+    });
+    evt.target.value = '';
+  }
+
+  function removeAttachment(idx){
+    _formAttach.splice(idx, 1);
+    renderAttachList();
   }
 
   function recomputeResult(){
@@ -382,13 +462,13 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
     var isEdit = !!existingId;
     if (isEdit){
       var newPref = document.getElementById('mps-f-pref').value;
-      if (!newPref){ alert('Purchase Reference is required.'); return; }
       var rec = {
         'Equipment Ref': existingId,
         'Purchase Ref': newPref,
         'Verified At Goods Receipt': document.getElementById('mps-f-gr').value,
         'Installation Date': document.getElementById('mps-f-instdate').value,
         'Remarks': document.getElementById('mps-f-remarks').value,
+        'Attachments (JSON)': JSON.stringify(_formAttach),
       };
       postJSON('update', { tab: MEPS.tabKey, idCol: MEPS.idCol, id: existingId }, rec).then(function(){ closeModal(); loadAll(); });
       return;
@@ -398,7 +478,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
     var req = mepsRequired(kw);
     var result = complianceResult(kw, eff);
     var rec = {
-      'Equipment Ref': nextEquipmentRef(),
+      'Equipment Ref': _formRef,
       'Purchase Ref': document.getElementById('mps-f-pref').value,
       'Date': document.getElementById('mps-f-date').value,
       'Equipment Description': document.getElementById('mps-f-equip').value,
@@ -412,10 +492,11 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
       'Verified At Goods Receipt': '',
       'Installation Date': '',
       'Remarks': document.getElementById('mps-f-remarks').value,
+      'Attachments (JSON)': JSON.stringify(_formAttach),
       'Record Status': 'Active'
     };
-    if (!rec['Purchase Ref'] || !rec['Date'] || !rec['Equipment Description'] || !rec['Supplier'] || kw===''){
-      alert('Purchase Reference, Date, Equipment Description, Supplier and Motor Rating are all required.');
+    if (!rec['Date'] || !rec['Equipment Description'] || !rec['Supplier'] || kw===''){
+      alert('Date, Equipment Description, Supplier and Motor Rating are all required. Purchase Reference may be left blank if not bought yet.');
       return;
     }
     postJSON('create', { tab: MEPS.tabKey }, rec).then(function(){ closeModal(); loadAll(); });
@@ -424,14 +505,26 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
   /* ── Printable Slip — groups every line under one Purchase Ref,
      so a multi-motor order (e.g. a furnace rebuild) prints as a
      single slip rather than one per motor. ──────────────────────── */
-  function printSlip(purchaseRef){
-    var lines = getRecs().filter(function(r){ return r['Purchase Ref'] === purchaseRef; });
+  function printSlip(selectedRec){
+    /* Every line already carries its own Slip Ref (the "Equipment Ref",
+       e.g. MEPS-2026-014) assigned the moment it's saved — so the check
+       is on record and traceable whether or not a Purchase Ref exists
+       yet. A Purchase Ref, when present, still groups every equipment
+       line under one order (e.g. a furnace rebuild) onto a single slip;
+       with no Purchase Ref, the slip stands on its own, identified only
+       by its Slip Ref. */
+    var pref = selectedRec['Purchase Ref'];
+    var lines = pref
+      ? getRecs().filter(function(r){ return r['Purchase Ref'] === pref; })
+      : [selectedRec];
     if (!lines.length) return;
     var anyNotApproved = lines.some(function(r){ return liveResult(r)==='Not Accepted'; });
     var overall = anyNotApproved ? 'NOT ACCEPTED — one or more lines below required efficiency' : 'ACCEPTED TO PURCHASE';
     var rows = lines.map(function(r){
       var reqLive = mepsRequired(r['Motor Rating (kW)']) ? 'Yes' : 'No';
-      return '<tr><td>'+mEsc(r['Equipment Description'])+'</td><td>'+mEsc(r['Motor Rating (kW)'])+'</td>'
+      var docs = parseJSONArr(r['Attachments (JSON)']);
+      var docsNote = docs.length ? ('<div style="font-size:8.5px;color:#555;margin-top:2px">📎 Enclosed: ' + docs.map(function(d){ return mEsc(d.name); }).join(', ') + '</div>') : '';
+      return '<tr><td>'+mEsc(r['Equipment Ref'])+'</td><td>'+mEsc(r['Equipment Description'])+docsNote+'</td><td>'+mEsc(r['Motor Rating (kW)'])+'</td>'
         + '<td>'+mEsc(r['Declared Efficiency Class'])+'</td><td>'+mEsc(r['Certificate Ref'])+'</td>'
         + '<td>'+mEsc(reqLive)+'</td><td>'+mEsc(liveResult(r))+'</td></tr>';
     }).join('');
@@ -439,12 +532,15 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
        under one Purchase Ref — shrink type/spacing instead of splitting pages */
     var n = lines.length;
     var slipStyle = n > 14 ? 'font-size:8px' : (n > 8 ? 'font-size:9.5px' : '');
+    var subHeading = pref
+      ? 'MEPS Pre-Purchase Compliance Slip — Purchase Ref ' + mEsc(pref)
+      : 'MEPS Pre-Purchase Compliance Slip — Slip Ref ' + mEsc(selectedRec['Equipment Ref']) + ' (no purchase reference yet)';
     var html = ''
       + '<div class="slip" style="'+slipStyle+'">'
       + '<h2>SAUDI ARABIAN GLASS COMPANY</h2>'
-      + '<div class="sub">MEPS Pre-Purchase Compliance Slip — Purchase Ref ' + mEsc(purchaseRef) + '</div>'
+      + '<div class="sub">' + subHeading + '</div>'
       + '<table><tr><th>Date</th><td>'+mEsc(lines[0]['Date'])+'</td><th>Supplier</th><td>'+mEsc(lines[0]['Supplier'])+'</td></tr></table>'
-      + '<table><thead><tr><th>Equipment</th><th>Motor (kW)</th><th>Efficiency Class</th><th>Certificate Ref</th><th>MEPS Req.</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table>'
+      + '<table><thead><tr><th>Slip Ref</th><th>Equipment</th><th>Motor (kW)</th><th>Efficiency Class</th><th>Certificate Ref</th><th>MEPS Req.</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table>'
       + '<div class="result-line">' + overall + '</div>'
       + '<div class="sig-row">'
       + '<div class="sig-box">Prepared By<br>(Procurement)</div>'
@@ -468,6 +564,8 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
       if (r) openForm(r);
     },
     recomputeResult: recomputeResult,
+    onFilesSelected: onFilesSelected,
+    removeAttachment: removeAttachment,
     removeSelected: function(){
       if (!_selected || !can('safety.edit')) return;
       if (!confirm('Remove this equipment line?')) return;
@@ -477,7 +575,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
     printSlipSelected: function(){
       if (!_selected) return;
       var r = getRecs().filter(function(x){ return x['Equipment Ref'] === _selected; })[0];
-      if (r) printSlip(r['Purchase Ref']);
+      if (r) printSlip(r);
     },
     closeModal: closeModal,
     save: save
