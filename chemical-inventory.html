@@ -772,7 +772,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     root.innerHTML = '<div class="chw-modal-bg" id="chm-bg"><div class="chw-modal" style="max-width:720px">'
       + '<h3>' + (isEdit?'Edit':'New') + ' Monthly Stock Count' + (isEdit ? ' — ' + monthLabel(monthVal) : '') + '</h3>'
       + '<div class="chw-modal-hdr-grid" style="grid-template-columns:repeat(2,1fr)">'
-        + '<div><label>Month</label><input type="month" id="chm-stock-month" value="' + chmEsc(monthVal) + '"' + (isEdit?' readonly':'') + '></div>'
+        + (isEdit
+            ? '<div><label>Month</label><div id="chm-stock-month-display" style="background:var(--chw-bg3);border:1px solid var(--chw-border);color:var(--chw-text);border-radius:7px;padding:7px 9px;font-size:12px;font-weight:600">' + chmEsc(monthLabel(monthVal)) + '</div><input type="hidden" id="chm-stock-month" value="' + chmEsc(monthVal) + '"></div>'
+            : '<div><label>Month</label><input type="month" id="chm-stock-month" value="' + chmEsc(monthVal) + '"></div>')
         + '<div><label>Recorded By</label><input type="text" id="chm-stock-by" value="' + chmEsc(isEdit?existingRec['Recorded By']:'') + '"></div>'
       + '</div>'
       + '<div class="chw-note">This is a point-in-time snapshot — every item currently in the Chemical Inventory is listed below, pre-filled with its last known quantity. Correct each quantity to this month\'s actual count, then Save. Saving does not change past months, and any item added to the Chemical Inventory after this record was created will appear (flagged "New") the next time you open it.</div>'
@@ -784,14 +786,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     + '</div></div>';
     document.getElementById('chm-stock-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('chm-bg').onclick = function(e){ if (e.target.id==='chm-bg') root.innerHTML=''; };
-    document.getElementById('chm-stock-save').onclick = function(){ saveStock(isEdit, baseItems); };
+    document.getElementById('chm-stock-save').onclick = function(){ saveStock(isEdit, baseItems, monthVal); };
   }
-  function saveStock(isEdit, baseItems){
+  function saveStock(isEdit, baseItems, defaultMonth){
     var root = document.getElementById('chm-modal-root');
     var btn = document.getElementById('chm-stock-save'); btn.disabled = true;
     var reenable = function(){ if (btn) btn.disabled = false; };
-    var monthVal = document.getElementById('chm-stock-month').value;
-    if (!monthVal){ alert('Select a month.'); reenable(); return; }
+    // The Month field should never block Save: on edit it is locked to the
+    // record being edited (see buildStockModal), and on "+ New Month" it
+    // defaults to the month the page already proposed. Either way, if the
+    // on-screen field comes back empty for any reason, fall back to that
+    // known-good value instead of stopping the user with an error.
+    var monthVal = document.getElementById('chm-stock-month').value || defaultMonth;
     if (!isEdit && _stockCache && _stockCache.headers && _stockCache.rows){
       var idIdx = colIdx(_stockCache.headers, STOCK.idCol);
       var exists = idIdx >= 0 && _stockCache.rows.some(function(r){ return String(r[idIdx]) === String(monthVal); });
@@ -804,7 +810,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var values = {
       'Month': monthVal,
       'Record Date': new Date().toISOString().slice(0,10),
-      'Recorded By': document.getElementById('chm-stock-by').value.trim(),
+      'Recorded By': document.getElementById('chm-stock-by').value.trim() || ((typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getCurrentUserName) ? (IMS_AUTH.getCurrentUserName() || '') : ''),
       'Items JSON': JSON.stringify(finalItems),
       'Notes': document.getElementById('chm-stock-notes').value.trim()
     };
