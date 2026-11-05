@@ -762,7 +762,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
     baseItems.sort(function(a,b){ return String(a['Item Code']||'').localeCompare(String(b['Item Code']||'')); });
     var itemRowsHtml = baseItems.map(function(it, i){
-      return '<tr' + (it._isNew ? ' style="background:rgba(232,179,57,.08)"' : '') + '>'
+      var searchHay = ((it['Item Code']||'')+' '+(it['Description']||'')+' '+(it['Location']||'')).toLowerCase().replace(/"/g,'');
+      return '<tr' + (it._isNew ? ' style="background:rgba(232,179,57,.08)"' : '') + ' data-chm-search="' + chmEsc(searchHay) + '">'
         + '<td>' + chmEsc(it['Item Code']) + (it._isNew ? ' <span class="badge kc-amb">New — not yet counted</span>' : '') + '</td>'
         + '<td>' + chmEsc(it['Description']) + '</td>'
         + '<td>' + chmEsc(it['Location']) + '</td>'
@@ -778,26 +779,45 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         + '<div><label>Recorded By</label><input type="text" id="chm-stock-by" value="' + chmEsc(isEdit?existingRec['Recorded By']:'') + '"></div>'
       + '</div>'
       + '<div class="chw-note">This is a point-in-time snapshot — every item currently in the Chemical Inventory is listed below, pre-filled with its last known quantity. Correct each quantity to this month\'s actual count, then Save. Saving does not change past months, and any item added to the Chemical Inventory after this record was created will appear (flagged "New") the next time you open it.</div>'
+      + '<input type="text" id="chm-stock-search" placeholder="Search item code / description / location…" oninput="CHM.filterStockRows(this.value)" style="width:100%;background:var(--chw-bg3);border:1px solid var(--chw-border);color:var(--chw-text);border-radius:7px;padding:7px 9px;font-size:12px;margin-bottom:8px;box-sizing:border-box">'
       + '<div style="max-height:340px;overflow:auto;border:1px solid var(--chw-border);border-radius:8px;margin-bottom:14px">'
-        + '<table class="chw-tbl" style="width:100%"><thead><tr><th>Item Code</th><th>Description</th><th>Location</th><th>Quantity</th></tr></thead><tbody>' + itemRowsHtml + '</tbody></table>'
+        + '<table class="chw-tbl" style="width:100%"><thead><tr><th>Item Code</th><th>Description</th><th>Location</th><th>Quantity</th></tr></thead><tbody id="chm-stock-tbody">' + itemRowsHtml + '</tbody></table>'
       + '</div>'
+      + '<div id="chm-stock-nomatch" class="chw-note" style="display:none">No items match that search.</div>'
       + '<div class="chw-field" style="margin-bottom:14px"><label>Notes</label><textarea id="chm-stock-notes" rows="2" style="width:100%;background:var(--chw-bg3);border:1px solid var(--chw-border);color:var(--chw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + chmEsc(isEdit?existingRec['Notes']:'') + '</textarea></div>'
       + '<div class="chw-modal-actions"><button class="chw-btn" id="chm-stock-cancel">Cancel</button><button class="chw-btn chw-btn-add" id="chm-stock-save">Save</button></div>'
     + '</div></div>';
     document.getElementById('chm-stock-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('chm-bg').onclick = function(e){ if (e.target.id==='chm-bg') root.innerHTML=''; };
-    document.getElementById('chm-stock-save').onclick = function(){ saveStock(isEdit, baseItems, monthVal); };
+    document.getElementById('chm-stock-save').onclick = function(){ saveStock(isEdit, baseItems); };
   }
-  function saveStock(isEdit, baseItems, defaultMonth){
+
+  /* Filters the item rows inside the Monthly Stock Count modal (both
+     "+ New Month" and "Open / Edit") by item code / description /
+     location, without removing any row from the DOM — a quantity the
+     user already typed into a hidden row stays exactly as typed and
+     is still read and saved normally, since the <input> itself is
+     only hidden, never destroyed (Issam, voice, 2026-11-05). */
+  function filterStockRows(q){
+    var tbody = document.getElementById('chm-stock-tbody');
+    if (!tbody) return;
+    var needle = String(q||'').trim().toLowerCase();
+    var anyVisible = false;
+    Array.prototype.forEach.call(tbody.querySelectorAll('tr'), function(tr){
+      var hay = tr.getAttribute('data-chm-search') || '';
+      var match = !needle || hay.indexOf(needle) >= 0;
+      tr.style.display = match ? '' : 'none';
+      if (match) anyVisible = true;
+    });
+    var nomatch = document.getElementById('chm-stock-nomatch');
+    if (nomatch) nomatch.style.display = anyVisible ? 'none' : '';
+  }
+  function saveStock(isEdit, baseItems){
     var root = document.getElementById('chm-modal-root');
     var btn = document.getElementById('chm-stock-save'); btn.disabled = true;
     var reenable = function(){ if (btn) btn.disabled = false; };
-    // The Month field should never block Save: on edit it is locked to the
-    // record being edited (see buildStockModal), and on "+ New Month" it
-    // defaults to the month the page already proposed. Either way, if the
-    // on-screen field comes back empty for any reason, fall back to that
-    // known-good value instead of stopping the user with an error.
-    var monthVal = document.getElementById('chm-stock-month').value || defaultMonth;
+    var monthVal = document.getElementById('chm-stock-month').value;
+    if (!monthVal){ alert('Select a month.'); reenable(); return; }
     if (!isEdit && _stockCache && _stockCache.headers && _stockCache.rows){
       var idIdx = colIdx(_stockCache.headers, STOCK.idCol);
       var exists = idIdx >= 0 && _stockCache.rows.some(function(r){ return String(r[idIdx]) === String(monthVal); });
@@ -810,7 +830,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var values = {
       'Month': monthVal,
       'Record Date': new Date().toISOString().slice(0,10),
-      'Recorded By': document.getElementById('chm-stock-by').value.trim() || ((typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getCurrentUserName) ? (IMS_AUTH.getCurrentUserName() || '') : ''),
+      'Recorded By': document.getElementById('chm-stock-by').value.trim(),
       'Items JSON': JSON.stringify(finalItems),
       'Notes': document.getElementById('chm-stock-notes').value.trim()
     };
@@ -1080,6 +1100,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   window.CHM = {
     switchTab: switchTab,
+    filterStockRows: filterStockRows,
     onStockMonthChange: function(v){ _stockSelectedMonth = v; render(); },
     openStockAdd: function(){ if (can('add')) buildStockModal(null); },
     openStockEditSelected: function(){
