@@ -56,6 +56,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 .wmw-dark-wrap .stream-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px;
   background:var(--wmw-bg2);border:1px solid var(--wmw-border-gold);border-top:none;border-radius:0 0 10px 10px}
 .wmw-dark-wrap .stream-card{background:var(--wmw-bg3);border:1px solid var(--wmw-border);border-radius:10px;padding:10px 12px}
+.wmw-dark-wrap .wmw-stream-clickable{cursor:pointer;transition:border-color .15s,background .15s}
+.wmw-dark-wrap .wmw-stream-clickable:hover{border-color:var(--wmw-border-gold)}
+.wmw-dark-wrap .wmw-stream-clickable.wmw-stream-active{border-color:var(--wmw-gold);background:rgba(201,168,76,.12)}
+.wmw-dark-wrap .wmw-stream-count{color:var(--wmw-gold-lt);font-weight:600}
 .wmw-dark-wrap .stream-name{font-size:11.5px;font-weight:700;color:var(--wmw-text);margin-bottom:4px}
 .wmw-dark-wrap .stream-note{font-size:10px;color:var(--wmw-text-dim);line-height:1.5}
 .wmw-dark-wrap .aiw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
@@ -146,19 +150,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   <div class="kpi-card kc-nvy"><div class="kpi-lbl">Records Logged</div><div class="kpi-val" id="wmw-kpi-total">—</div><div class="kpi-sub" id="wmw-kpi-total-sub">All time</div></div>
   <div class="kpi-card kc-blue"><div class="kpi-lbl">Food Waste Trips (YTD)</div><div class="kpi-val" id="wmw-kpi-trips">—</div><div class="kpi-sub">2 × 2-yard containers, Jan–Aug 2026</div></div>
   <div class="kpi-card kc-amb"><div class="kpi-lbl">Waste Disposal Cost (YTD)</div><div class="kpi-val" id="wmw-kpi-cost">—</div><div class="kpi-sub">SAR, incl. VAT</div></div>
-  <div class="kpi-card kc-grn"><div class="kpi-lbl">Waste Streams Live</div><div class="kpi-val">3 <span style="font-size:12px;color:var(--wmw-text-dim)">of 8</span></div><div class="kpi-sub">General Waste · Food Waste · Hazardous/Chemical</div></div>
+  <div class="kpi-card kc-grn"><div class="kpi-lbl">Waste Streams</div><div class="kpi-val">3</div><div class="kpi-sub">General Waste · Food Waste · Hazardous/Chemical</div></div>
 </div>
 
-<div class="sec-banner">WASTE STREAMS AT SAGCO <span style="font-weight:400;color:var(--wmw-text-dim);text-transform:none;letter-spacing:0">— proposed taxonomy, for Issam's review</span></div>
-<div class="stream-grid">
-  <div class="stream-card"><div class="stream-name">🗑 General Waste <span class="badge kc-grn" style="margin-left:4px">LIVE</span></div><div class="stream-note">Domestic/office waste, HSE-FRM-07, by Unit (1/2, 3/4, 5)</div></div>
-  <div class="stream-card"><div class="stream-name">🍽 Food Waste <span class="badge kc-grn" style="margin-left:4px">LIVE</span></div><div class="stream-note">Canteen, Modern Riyada contractor, 16 records migrated</div></div>
-  <div class="stream-card"><div class="stream-name">🔷 Cullet / Glass Scrap <span class="badge kc-dim" style="margin-left:4px">PROPOSED</span></div><div class="stream-note">Internal recycling — SEA register tracks ≥75% target</div></div>
-  <div class="stream-card"><div class="stream-name">☣ Hazardous / Chemical <span class="badge kc-grn" style="margin-left:4px">LIVE</span></div><div class="stream-note">Environmental Horizons Co., per-event manifests + invoices — 11 lines migrated</div></div>
-  <div class="stream-card"><div class="stream-name">🔩 Scrap Metal <span class="badge kc-dim" style="margin-left:4px">PROPOSED</span></div><div class="stream-note">Maintenance/fabrication offcuts</div></div>
-  <div class="stream-card"><div class="stream-name">📦 Wood / Packaging <span class="badge kc-dim" style="margin-left:4px">PROPOSED</span></div><div class="stream-note">Pallets, cardboard, plastic wrap</div></div>
-  <div class="stream-card"><div class="stream-name">🛢 Used Oil / Oily Waste <span class="badge kc-dim" style="margin-left:4px">PROPOSED</span></div><div class="stream-note">Machinery/generators — links to Oil Leakage Inspection form</div></div>
-  <div class="stream-card"><div class="stream-name">💻 E-Waste <span class="badge kc-dim" style="margin-left:4px">PROPOSED</span></div><div class="stream-note">IT/control-system electronics</div></div>
+<div class="sec-banner">WASTE STREAMS AT SAGCO <span style="font-weight:400;color:var(--wmw-text-dim);text-transform:none;letter-spacing:0">— click a card to filter the register below</span></div>
+<div class="stream-grid" id="wmw-stream-cards">
+  <div class="stream-card wmw-stream-clickable" data-stream="" onclick="WMW.filterByStream('')"><div class="stream-name">📋 All Streams</div><div class="stream-note wmw-stream-count">— records</div></div>
+  <div class="stream-card wmw-stream-clickable" data-stream="General Waste" onclick="WMW.filterByStream('General Waste')"><div class="stream-name">🗑 General Waste</div><div class="stream-note wmw-stream-count">— records</div></div>
+  <div class="stream-card wmw-stream-clickable" data-stream="Food Waste" onclick="WMW.filterByStream('Food Waste')"><div class="stream-name">🍽 Food Waste</div><div class="stream-note wmw-stream-count">— records</div></div>
+  <div class="stream-card wmw-stream-clickable" data-stream="Hazardous / Chemical Waste" onclick="WMW.filterByStream('Hazardous / Chemical Waste')"><div class="stream-name">☣ Hazardous / Chemical</div><div class="stream-note wmw-stream-count">— records</div></div>
 </div>
 
 <div class="sec-banner" style="margin-top:14px">WASTE MANAGEMENT REGISTER</div>
@@ -168,12 +168,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     <option value="">All streams</option>
     <option value="General Waste">General Waste</option>
     <option value="Food Waste">Food Waste</option>
-    <option value="Cullet / Glass Scrap">Cullet / Glass Scrap</option>
     <option value="Hazardous / Chemical Waste">Hazardous / Chemical Waste</option>
-    <option value="Scrap Metal">Scrap Metal</option>
-    <option value="Wood / Pallet & Packaging">Wood / Pallet &amp; Packaging</option>
-    <option value="Used Oil / Oily Waste">Used Oil / Oily Waste</option>
-    <option value="E-Waste">E-Waste</option>
   </select>
   <input type="date" id="wmw-date-from" onchange="WMW.onDateFrom(this.value)" title="From date">
   <input type="date" id="wmw-date-to" onchange="WMW.onDateTo(this.value)" title="To date">
@@ -189,10 +184,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 <div class="wmw-table-wrap">
   <table>
     <thead><tr>
-      <th>Date</th><th>Waste Stream</th><th>Location/Unit</th><th>Contractor</th>
-      <th>Invoice/Ref No.</th><th>Qty</th><th>Unit</th><th>Amount (SAR)</th><th>Received/Signed By</th><th>Remarks</th>
+      <th>Date</th><th>Waste Stream</th><th>Waste Material</th><th>Location/Unit</th>
+      <th>Invoicing Vendor</th><th>On-Site Contractor</th><th>Invoice/Ref No.</th>
+      <th>Service Note Ref.</th><th>Manifest No.</th><th>Container</th>
+      <th>Qty</th><th>Unit</th><th>Amount (SAR)</th><th>📎</th><th>Remarks</th>
     </tr></thead>
-    <tbody id="wmw-tbody"><tr><td colspan="10" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
+    <tbody id="wmw-tbody"><tr><td colspan="15" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
   </table>
 </div>
 
@@ -204,8 +201,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 
   var WASTE = { tabKey:'waste_management', idCol:'Record ID' };
   var STATUS_COL = 'Record Status';
-  var STREAMS = ["General Waste","Food Waste","Cullet / Glass Scrap","Hazardous / Chemical Waste",
-                 "Scrap Metal","Wood / Pallet & Packaging","Used Oil / Oily Waste","E-Waste"];
+  /* Trimmed to the 3 live streams only (Issam, voice, 2026-11-06) — the
+     5 proposed streams (Cullet/Glass Scrap, Scrap Metal, Wood/Pallet &
+     Packaging, Used Oil/Oily Waste, E-Waste) had no cards, no data, and
+     no process behind them; removed from the form so nobody can pick a
+     stream that isn't actually tracked. */
+  var STREAMS = ["General Waste","Food Waste","Hazardous / Chemical Waste"];
   var UNITS = ["Trips","EACH","kg","Tonnes","m³","Drums","Bags","Box","PCS","L"];
   /* Controlled Waste Material list (Issam, voice, 2026-11-06) — one row per
      material per pickup, so no row is ever blank and each material can be
@@ -329,7 +330,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     var tbody = document.getElementById('wmw-tbody');
     setTxt('wmw-count-sub', list.length + ' of ' + all.length + ' records shown');
     if (!list.length){
-      tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><strong>No records match these filters</strong>Try widening the date range or clearing filters.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="15" class="empty-state"><strong>No records match these filters</strong>Try widening the date range or clearing filters.</td></tr>';
       updateButtons();
       return;
     }
@@ -337,17 +338,23 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     tbody.innerHTML = list.map(function(r){
       var sel = _selected === r['Record ID'];
       var streamBadgeClass = r['Waste Stream']==='Food Waste' ? 'kc-blue' : (r['Waste Stream']==='General Waste' ? 'kc-grn' : 'kc-amb');
+      var docCount = parseJSONArr(r['Attachments (JSON)']).length;
       return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="WMW.select(\'' + wEsc(r['Record ID']) + '\')">'
         + '<td>' + wEsc(r['Date']) + '</td>'
         + '<td><span class="badge ' + streamBadgeClass + '">' + wEsc(r['Waste Stream']) + '</span></td>'
+        + '<td>' + wEsc(r['Waste Material']) + '</td>'
         + '<td>' + wEsc(r['Location/Unit']) + '</td>'
         + '<td>' + wEsc(r['Contractor']) + '</td>'
-        + '<td>' + wEsc(r['Invoice/Ref No.']) + (parseJSONArr(r['Attachments (JSON)']).length ? ' <span title="' + parseJSONArr(r['Attachments (JSON)']).length + ' document(s) enclosed">📎' + parseJSONArr(r['Attachments (JSON)']).length + '</span>' : '') + '</td>'
+        + '<td>' + wEsc(r['On-Site Contractor']) + '</td>'
+        + '<td>' + wEsc(r['Invoice/Ref No.']) + '</td>'
+        + '<td>' + wEsc(r['Service Note Ref.']) + '</td>'
+        + '<td>' + wEsc(r['Manifest No.']) + '</td>'
+        + '<td>' + wEsc(r['Container Size']) + '</td>'
         + '<td>' + wEsc(r['Quantity']) + '</td>'
         + '<td>' + wEsc(r['Unit']) + '</td>'
         + '<td>' + wEsc(r['Amount (SAR)']) + '</td>'
-        + '<td>' + wEsc(r['Received/Signed By']) + '</td>'
-        + '<td style="white-space:normal;max-width:220px">' + wEsc(r['Remarks']) + '</td>'
+        + '<td>' + (docCount ? ('📎' + docCount) : '—') + '</td>'
+        + '<td style="white-space:normal;max-width:200px">' + wEsc(r['Remarks']) + '</td>'
         + '</tr>';
     }).join('');
     updateButtons();
@@ -361,7 +368,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     if (slipBtn) slipBtn.disabled = !hasSel;
   }
 
-  function render(){ renderKPIs(); renderTable(); }
+  /* ── Stream filter cards — each card is a shortcut for the same
+     stream dropdown (Issam, voice, 2026-11-06); the two always agree. ── */
+  function renderStreamCards(){
+    var all = getRecs();
+    var counts = {};
+    all.forEach(function(r){ var s = r['Waste Stream']||''; counts[s] = (counts[s]||0) + 1; });
+    Array.prototype.forEach.call(document.querySelectorAll('#wmw-stream-cards .stream-card'), function(card){
+      var stream = card.getAttribute('data-stream');
+      var n = stream ? (counts[stream]||0) : all.length;
+      var countEl = card.querySelector('.wmw-stream-count');
+      if (countEl) countEl.textContent = n + ' record' + (n===1?'':'s');
+      card.classList.toggle('wmw-stream-active', _filters.stream === stream);
+    });
+  }
+
+  function render(){ renderKPIs(); renderTable(); renderStreamCards(); }
 
   /* ── Modal ────────────────────────────────────────────────────── */
   function closeModal(){ document.getElementById('wmw-modal-root').innerHTML = ''; }
@@ -588,7 +610,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 
   window.WMW = {
     onSearch: function(v){ _filters.search = v; renderTable(); },
-    onStreamFilter: function(v){ _filters.stream = v; renderTable(); },
+    onStreamFilter: function(v){ _filters.stream = v; renderTable(); renderStreamCards(); },
+    filterByStream: function(stream){
+      _filters.stream = stream;
+      var sel = document.getElementById('wmw-stream-filter');
+      if (sel) sel.value = stream;
+      renderTable();
+      renderStreamCards();
+    },
     onDateFrom: function(v){ _filters.dateFrom = v; renderTable(); },
     onDateTo: function(v){ _filters.dateTo = v; renderTable(); },
     select: function(id){ _selected = (_selected === id) ? null : id; renderTable(); },
