@@ -98,7 +98,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .chm-dark-wrap .chw-btn:disabled{opacity:.4;cursor:not-allowed}
 .chm-dark-wrap .chw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--chw-grn)}
 .chm-dark-wrap .chw-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--chw-amb)}
-.chm-dark-wrap .chw-table-wrap{border:1px solid var(--chw-border-gold);border-top:none;max-height:420px;overflow:auto}
+.chm-dark-wrap .chw-table-wrap{border:1px solid var(--chw-border-gold);border-top:none;overflow:auto}
+/* top horizontal scrollbar, mirrors the table-wrap's own scrollLeft — Issam, voice, 2026-11-06 */
+.ims-xscroll-top{overflow-x:auto;overflow-y:hidden;height:14px;border:1px solid var(--chw-border-gold);border-bottom:none;
+  border-radius:10px 10px 0 0;background:var(--chw-bg3)}
+.ims-xscroll-top-inner{height:1px}
 .chm-dark-wrap table.chw-tbl{width:100%;border-collapse:collapse;font-size:11px}
 .chm-dark-wrap table.chw-tbl th{position:sticky;top:0;background:var(--chw-bg3);color:var(--chw-gold-lt);
   text-align:left;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--chw-border-gold);white-space:nowrap}
@@ -132,6 +136,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   border:1px solid var(--chw-border);color:var(--chw-text);border-radius:7px}
 .chw-chk-row select.chw-chk-no{border-color:var(--chw-red);color:var(--chw-red)}
 .chw-chk-row select.chw-chk-blank{border-color:var(--chw-amb)}
+
+/* ── Monthly Stock Count — printable report ──────────────────────
+   Hidden on screen; shown only inside the browser's print dialog,
+   same off-screen/on-print pattern as meps-register.html's slip. */
+.chm-print-wrap{display:none}
+@media print{
+  body *{visibility:hidden}
+  .chm-print-wrap, .chm-print-wrap *{visibility:visible}
+  .chm-print-wrap{display:block !important;position:absolute;left:0;top:0;width:100%;color:#000;background:#fff;padding:8px}
+  .chm-print-wrap .rpt{border:2px solid #000;padding:14px;max-width:760px;margin:0 auto}
+  .chm-print-wrap h2{text-align:center;margin:0 0 3px;font-size:16px}
+  .chm-print-wrap .sub{text-align:center;font-size:11px;margin-bottom:10px;color:#333}
+  .chm-print-wrap table{width:100%;border-collapse:collapse;font-size:10px;margin:7px 0}
+  .chm-print-wrap td,.chm-print-wrap th{border:1px solid #000;padding:3px 5px;text-align:left}
+  .chm-print-wrap table th{color:#000;font-weight:700}
+  .chm-print-wrap table td{color:#333}
+  .chm-print-wrap .sig-row{display:flex;justify-content:space-between;margin-top:26px}
+  .chm-print-wrap .sig-box{width:30%;text-align:center;border-top:1px solid #000;padding-top:4px;font-size:10px;color:#333}
+}
 </style>
 </head><body><div class="chm-dark-wrap">
 <div class="back-row"><a href="proc-c8.html" class="back-link">← L2-IMS-800-P-05</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div>
@@ -189,6 +212,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <button class="chw-btn chw-btn-add" id="chm-stock-btn-new" onclick="CHM.openStockAdd()">+ New Month</button>
   <button class="chw-btn" id="chm-stock-btn-edit" disabled onclick="CHM.openStockEditSelected()">Open / Edit</button>
   <button class="chw-btn" id="chm-stock-btn-remove" disabled onclick="CHM.removeStockSelected()">Remove</button>
+  <button class="chw-btn" id="chm-stock-btn-print" disabled onclick="CHM.printStockSelected()">🖨 Print Report</button>
   <span style="margin-left:auto;font-size:10px;color:var(--chw-text-dim)" id="chm-stock-count-sub"></span>
 </div>
 <div class="chw-table-wrap"><div id="chm-stock-table"><div class="empty-state"><strong>Loading…</strong></div></div></div>
@@ -233,6 +257,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 </div>
 
 <div id="chm-modal-root"></div>
+<div id="chm-print-root" class="chm-print-wrap"></div>
 
 <script>
 (function(){
@@ -671,13 +696,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   }
   function renderStockSection(stockRecs){
     var sel = document.getElementById('chm-stock-month-select');
-    var editBtn = document.getElementById('chm-stock-btn-edit'), remBtn = document.getElementById('chm-stock-btn-remove');
+    var editBtn = document.getElementById('chm-stock-btn-edit'), remBtn = document.getElementById('chm-stock-btn-remove'), prtBtn = document.getElementById('chm-stock-btn-print');
     var sorted = sortedStockRecs(stockRecs);
     if (!sorted.length){
       sel.innerHTML = '<option value="">No records yet</option>';
       document.getElementById('chm-stock-table').innerHTML = '<div class="empty-state"><strong>No monthly stock counts yet</strong>Click "+ New Month" to start the first one, pre-filled from the current Chemical Inventory.</div>';
       setTxt('chm-stock-count-sub', '0 months recorded');
-      editBtn.disabled = true; remBtn.disabled = true;
+      editBtn.disabled = true; remBtn.disabled = true; if (prtBtn) prtBtn.disabled = true;
       return;
     }
     if (!_stockSelectedMonth || !sorted.some(function(r){ return r['Month']===_stockSelectedMonth; })) _stockSelectedMonth = sorted[0]['Month'];
@@ -688,7 +713,51 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var idx = sorted.findIndex(function(r){ return r['Month']===_stockSelectedMonth; });
     editBtn.disabled = false;
     remBtn.disabled = !can('delete');
+    if (prtBtn) prtBtn.disabled = false;
     renderStockTable(sorted[idx], sorted[idx+1]);
+  }
+
+  /* ── Monthly Stock Count — printable report, same item list and
+     vs-previous-month delta already shown on screen (renderStockTable
+     above), laid out as a signable one-page report (Issam, voice,
+     2026-11-05). ──────────────────────────────────────────────────── */
+  function printStockReport(rec, prevRec){
+    var items = parseStockItems(rec);
+    var prevItems = prevRec ? parseStockItems(prevRec) : [];
+    var prevByCode = {};
+    prevItems.forEach(function(it){ prevByCode[it['Item Code']] = it['Qty']; });
+    var list = items.slice().sort(function(a,b){ return String(a['Item Code']||'').localeCompare(String(b['Item Code']||'')); });
+    var rows = list.map(function(it){
+      var qty = it['Qty'];
+      var prevQty = prevByCode.hasOwnProperty(it['Item Code']) ? prevByCode[it['Item Code']] : null;
+      var delta = '—';
+      var qn = parseFloat(qty), pn = parseFloat(prevQty);
+      if (prevQty !== null && prevQty !== '' && qty !== '' && qty != null && !isNaN(qn) && !isNaN(pn)){
+        var d = qn - pn;
+        delta = d > 0 ? ('+' + d) : (d < 0 ? String(d) : 'no change');
+      } else if (prevQty === null) {
+        delta = 'new item';
+      }
+      return '<tr><td>' + chmEsc(it['Item Code']) + '</td><td>' + chmEsc(it['Description']) + '</td>'
+        + '<td>' + chmEsc(it['Location']) + '</td><td>' + chmEsc(qty) + ' ' + chmEsc(it['UOM']) + '</td>'
+        + '<td>' + chmEsc(delta) + '</td></tr>';
+    }).join('');
+    var today = new Date().toISOString().slice(0,10);
+    var html = ''
+      + '<div class="rpt">'
+      + '<h2>SAUDI ARABIAN GLASS COMPANY</h2>'
+      + '<div class="sub">Chemical Inventory — Monthly Stock Count Report — ' + chmEsc(monthLabel(rec['Month'])) + '</div>'
+      + '<table><tr><th>Month</th><td>' + chmEsc(monthLabel(rec['Month'])) + '</td><th>Recorded By</th><td>' + chmEsc(rec['Recorded By']||'') + '</td><th>Printed On</th><td>' + chmEsc(today) + '</td></tr></table>'
+      + '<table><thead><tr><th>Item Code</th><th>Description</th><th>Location</th><th>Quantity</th><th>vs Previous Month</th></tr></thead><tbody>' + rows + '</tbody></table>'
+      + (rec['Notes'] ? '<div style="font-size:10.5px;margin-top:6px"><b>Notes:</b> ' + chmEsc(rec['Notes']) + '</div>' : '')
+      + '<div class="sig-row">'
+      + '<div class="sig-box">Prepared By</div>'
+      + '<div class="sig-box">Reviewed By</div>'
+      + '<div class="sig-box">Date</div>'
+      + '</div>'
+      + '</div>';
+    document.getElementById('chm-print-root').innerHTML = html;
+    window.print();
   }
   function renderStockTable(rec, prevRec){
     var el = document.getElementById('chm-stock-table');
@@ -1102,6 +1171,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     switchTab: switchTab,
     filterStockRows: filterStockRows,
     onStockMonthChange: function(v){ _stockSelectedMonth = v; render(); },
+    printStockSelected: function(){
+      if (!_stockSelectedMonth) return alert('Select a month first.');
+      var sorted = sortedStockRecs(getStockRecs());
+      var idx = sorted.findIndex(function(r){ return r['Month']===_stockSelectedMonth; });
+      if (idx < 0) return alert('Select a month first.');
+      printStockReport(sorted[idx], sorted[idx+1]);
+    },
     openStockAdd: function(){ if (can('add')) buildStockModal(null); },
     openStockEditSelected: function(){
       if (!_stockSelectedMonth) return alert('Select a month first.');
@@ -1202,6 +1278,59 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   }
   if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
   IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+<script>
+/* ── Top scrollbar + frozen header + viewport-fit height for wide
+   register tables (Issam, voice, 2026-11-06). chemical-inventory.html
+   has 4 separate .chw-table-wrap sections whose inner <table> is
+   re-created on every render, so each is watched independently via
+   MutationObserver rather than grabbed once at load. ── */
+(function(){
+  function enhance(wrap){
+    if (!wrap || wrap._imsEnhanced) return;
+    wrap._imsEnhanced = true;
+    var top = document.createElement('div');
+    top.className = 'ims-xscroll-top';
+    var inner = document.createElement('div');
+    inner.className = 'ims-xscroll-top-inner';
+    top.appendChild(inner);
+    wrap.parentNode.insertBefore(top, wrap);
+    var state = { table: null, ro: null };
+    function syncInner(){ inner.style.width = (state.table ? state.table.scrollWidth : 0) + 'px'; }
+    function stickify(table){
+      Array.prototype.forEach.call(table.querySelectorAll('thead th'), function(th){
+        th.style.position = 'sticky'; th.style.top = '0'; th.style.zIndex = '5';
+      });
+    }
+    function rebind(){
+      var t = wrap.querySelector('table');
+      if (t === state.table) return;
+      if (state.ro) state.ro.disconnect();
+      state.table = t;
+      if (!t) return;
+      stickify(t);
+      if (window.ResizeObserver){ state.ro = new ResizeObserver(syncInner); state.ro.observe(t); }
+      syncInner();
+    }
+    new MutationObserver(rebind).observe(wrap, { childList: true, subtree: true });
+    rebind();
+    var syncing = false;
+    top.addEventListener('scroll', function(){ if (syncing) return; syncing = true; wrap.scrollLeft = top.scrollLeft; syncing = false; });
+    wrap.addEventListener('scroll', function(){ if (syncing) return; syncing = true; top.scrollLeft = wrap.scrollLeft; syncing = false; });
+    function fitHeight(){
+      var rect = wrap.getBoundingClientRect();
+      var available = window.innerHeight - rect.top - 16;
+      wrap.style.maxHeight = Math.max(200, available) + 'px';
+    }
+    var ticking = false;
+    function onScrollOrResize(){ if (ticking) return; ticking = true; requestAnimationFrame(function(){ fitHeight(); ticking = false; }); }
+    fitHeight();
+    window.addEventListener('resize', onScrollOrResize);
+    window.addEventListener('scroll', onScrollOrResize, { passive: true });
+  }
+  function run(){ Array.prototype.forEach.call(document.querySelectorAll('.chw-table-wrap'), enhance); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
 })();
 </script>
 
