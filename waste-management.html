@@ -153,10 +153,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 <div class="flag-text">⚠ <strong>Correction (06 Nov 2026):</strong> the Waste Material and Amount (SAR) fields were not showing on the Print Slip for most records. Checked against the original source documents: Amount was always present, but Waste Material was genuinely blank for every General Waste and Food Waste row (now filled with the one controlled value each stream's form actually supports — a finer split isn't in the source data). Hazardous Waste's 3 events were originally recorded as one row each with several materials joined in a single cell, which meant no single Waste Material value could show; each invoice is itemised with its own real per-line pricing, so each event is now one row <em>per invoice line item</em> (11 rows total), with that line's own real Amount — each event's lines re-checked to sum back exactly to its invoice total. A transport/logistics charge on an invoice is flagged as "Other" rather than assigned a waste type.</div>
 
 <div class="sec-banner">WASTE MANAGEMENT — QUICK STATUS</div>
-<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
   <div class="kpi-card kc-nvy"><div class="kpi-lbl">Records Logged</div><div class="kpi-val" id="wmw-kpi-total">—</div><div class="kpi-sub" id="wmw-kpi-total-sub">All time</div></div>
   <div class="kpi-card kc-blue"><div class="kpi-lbl">Food Waste Trips (YTD)</div><div class="kpi-val" id="wmw-kpi-trips">—</div><div class="kpi-sub">2 × 2-yard containers, Jan–Aug 2026</div></div>
-  <div class="kpi-card kc-amb"><div class="kpi-lbl">Waste Disposal Cost (YTD)</div><div class="kpi-val" id="wmw-kpi-cost">—</div><div class="kpi-sub">SAR, incl. VAT</div></div>
   <div class="kpi-card kc-grn"><div class="kpi-lbl">Waste Streams</div><div class="kpi-val">3</div><div class="kpi-sub">General Waste · Food Waste · Hazardous/Chemical</div></div>
 </div>
 
@@ -170,7 +169,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 
 <div class="sec-banner" style="margin-top:14px">WASTE MANAGEMENT REGISTER</div>
 <div class="aiw-toolbar" style="border-top:1px solid var(--wmw-border-gold)">
-  <input type="text" id="wmw-search" placeholder="Search contractor / location…" oninput="WMW.onSearch(this.value)">
+  <input type="text" id="wmw-search" placeholder="Search anything…" oninput="WMW.onSearch(this.value)">
   <select id="wmw-stream-filter" onchange="WMW.onStreamFilter(this.value)">
     <option value="">All streams</option>
     <option value="General Waste">General Waste</option>
@@ -307,7 +306,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     if (f.dateFrom && String(r['Date']) < f.dateFrom) return false;
     if (f.dateTo && String(r['Date']) > f.dateTo) return false;
     if (f.search){
-      var hay = ((r['Contractor']||'')+' '+(r['Location/Unit']||'')).toLowerCase();
+      /* search every field, not just Contractor/Location (Issam, voice, 2026-11-06) */
+      var hay = Object.keys(r).map(function(k){ return r[k]; }).join(' ').toLowerCase();
       if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
     }
     return true;
@@ -319,15 +319,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     var all = getRecs();
     setTxt('wmw-kpi-total', all.length);
     setTxt('wmw-kpi-total-sub', all.length ? 'All time' : 'No records yet');
-    var trips = 0, cost = 0;
+    var trips = 0;
     all.forEach(function(r){
       if (r['Waste Stream'] === 'Food Waste'){
         var q = parseFloat(r['Quantity']); if (!isNaN(q)) trips += q;
-        var a = parseFloat(r['Amount (SAR)']); if (!isNaN(a)) cost += a;
       }
     });
     setTxt('wmw-kpi-trips', trips || 0);
-    setTxt('wmw-kpi-cost', 'SAR ' + cost.toLocaleString(undefined,{minimumFractionDigits:0}));
   }
 
   /* ── Register table ───────────────────────────────────────────── */
