@@ -363,12 +363,12 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
       + '<div class="mps-field"><label>Motor Rating (kW)</label><input type="number" step="any" id="mps-f-kw" value="' + mEsc(r['Motor Rating (kW)']||'') + '"' + (isEdit?' readonly':' oninput="MPS.recomputeResult()"') + '></div>'
       + '<div class="mps-field"><label>Declared Efficiency Class</label><select id="mps-f-eff"' + (isEdit?' disabled':' onchange="MPS.recomputeResult()"') + '>' + effOpts + '</select></div>'
       + '<div class="mps-field full"><label>Certificate Ref</label><input type="text" id="mps-f-cert" value="' + mEsc(r['Certificate Ref']||'') + '"' + (isEdit?' readonly':'') + '></div>'
-      + '<div class="mps-field full"><label>Enclosed Documents (datasheet, efficiency certificate, etc. — belongs only to this equipment line)</label>'
+      + '<div class="mps-field full"><label>Enclosed Documents * (required — datasheet, efficiency certificate, etc., proving the efficiency class check; belongs only to this equipment line)</label>'
       + '<div id="mps-attach-list" class="mps-attach-list"></div>'
       + '<label class="aiw-btn" style="display:inline-block;cursor:pointer">📎 Attach Document(s)<input type="file" accept="application/pdf,image/*" multiple style="display:none" id="mps-f-file" onchange="MPS.onFilesSelected(event)"></label>'
       + '<span class="mps-attach-status" id="mps-attach-status"></span>'
       + '</div>'
-      + (isEdit ? '' : '<div class="mps-field full"><label>Approved By (Procurement Manager)</label><input type="text" id="mps-f-approver" value=""></div>')
+
       + '<div class="mps-result-banner" id="mps-result-banner"></div>'
       + (isEdit
         ? '<div class="mps-field"><label>Verified At Goods Receipt</label><select id="mps-f-gr"><option value="">Pending</option><option value="Yes"'+(r['Verified At Goods Receipt']==='Yes'?' selected':'')+'>Yes</option><option value="No"'+(r['Verified At Goods Receipt']==='No'?' selected':'')+'>No — returned to supplier</option></select></div>'
@@ -461,6 +461,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
   function save(existingId){
     var isEdit = !!existingId;
     if (isEdit){
+      if (!_formAttach.length){ alert('At least one enclosed document is required — attach the datasheet or efficiency certificate before saving.'); return; }
       var newPref = document.getElementById('mps-f-pref').value;
       var rec = {
         'Equipment Ref': existingId,
@@ -488,7 +489,7 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
       'Certificate Ref': document.getElementById('mps-f-cert').value,
       'MEPS Required': req ? 'Yes' : 'No',
       'Compliance Result': result,
-      'Approved By': document.getElementById('mps-f-approver').value,
+      'Approved By': '',
       'Verified At Goods Receipt': '',
       'Installation Date': '',
       'Remarks': document.getElementById('mps-f-remarks').value,
@@ -497,6 +498,10 @@ tbody td{padding:7px 10px;border-bottom:1px solid var(--mps-border);color:var(--
     };
     if (!rec['Date'] || !rec['Equipment Description'] || !rec['Supplier'] || kw===''){
       alert('Date, Equipment Description, Supplier and Motor Rating are all required. Purchase Reference may be left blank if not bought yet.');
+      return;
+    }
+    if (!_formAttach.length){
+      alert('At least one enclosed document is required — attach the datasheet or efficiency certificate before saving.');
       return;
     }
     postJSON('create', { tab: MEPS.tabKey }, rec).then(function(){ closeModal(); loadAll(); });
