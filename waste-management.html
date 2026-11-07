@@ -187,15 +187,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   <button class="aiw-btn" id="wmw-btn-slip" disabled onclick="WMW.printSlipSelected()">🖨 Print Slip</button>
   <span style="margin-left:auto;font-size:10px;color:var(--wmw-text-dim)" id="wmw-count-sub"></span>
 </div>
+<div style="font-size:9.5px;color:var(--wmw-text-dim);padding:4px 14px;background:var(--wmw-bg2);border:1px solid var(--wmw-border-gold);border-top:none;border-bottom:none" id="wmw-diag-sub">
+  Diagnostic: checking live sheet connection…
+</div>
 <div class="wmw-table-wrap">
   <table>
     <thead><tr>
-      <th>Date</th><th>Waste Stream</th><th>Waste Material</th><th>Location/Unit</th>
+      <th>Record ID</th><th>Date</th><th>Waste Stream</th><th>Waste Material</th><th>Location/Unit</th>
       <th>Invoicing Vendor</th><th>On-Site Contractor</th><th>Invoice/Ref No.</th>
       <th>Service Note Ref.</th><th>Manifest No.</th><th>Container</th>
       <th>Qty</th><th>Unit</th><th>Amount (SAR)</th><th>📎</th>
     </tr></thead>
-    <tbody id="wmw-tbody"><tr><td colspan="14" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
+    <tbody id="wmw-tbody"><tr><td colspan="15" class="empty-state"><strong>Loading…</strong></td></tr></tbody>
   </table>
 </div>
 
@@ -330,7 +333,26 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     return data;
   }
   function loadAll(){
-    return loadTab(WASTE.tabKey).then(function(data){ _cache = filterActive(data); }).catch(function(){ _cache = null; }).then(render);
+    return loadTab(WASTE.tabKey).then(function(data){ _cache = filterActive(data); }).catch(function(){ _cache = null; }).then(render).then(renderDiag);
+  }
+  /* Diagnostic line — shows exactly which live sheet tab was reached,
+     how many columns it returned, and whether "Waste Material" is one
+     of them, so a reading problem (wrong sheet/stale data) is visible
+     on the page itself rather than requiring a manual JSON check
+     (Issam, voice, 2026-11-07). */
+  function renderDiag(){
+    var el = document.getElementById('wmw-diag-sub');
+    if (!el) return;
+    if (!_cache || !_cache.headers){
+      el.textContent = 'Diagnostic: could not read the live sheet — check SHEETS_URL / network.';
+      return;
+    }
+    var hasMaterial = _cache.headers.indexOf('Waste Material') >= 0;
+    var hasAmount = _cache.headers.indexOf('Amount (SAR)') >= 0;
+    el.innerHTML = 'Diagnostic: reading sheet tab <b>' + wEsc(_cache.sheet || WASTE.tabKey) + '</b> · '
+      + _cache.headers.length + ' columns received · ' + (_cache.rowCount != null ? _cache.rowCount : getRecs().length) + ' active records · '
+      + '"Waste Material" column ' + (hasMaterial ? '<b style="color:var(--wmw-grn)">found</b>' : '<b style="color:var(--wmw-red)">NOT FOUND</b>')
+      + ' · "Amount (SAR)" column ' + (hasAmount ? '<b style="color:var(--wmw-grn)">found</b>' : '<b style="color:var(--wmw-red)">NOT FOUND</b>');
   }
   function getRecs(){ if (!_cache || !_cache.headers || !_cache.rows) return []; return _cache.rows.map(function(r){ return recFromRow(_cache.headers, r); }); }
 
@@ -374,7 +396,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     setTxt('wmw-count-sub', list.length + ' of ' + all.length + ' records shown'
       + (incomplete ? ' · ⚠ ' + incomplete + ' missing Material/Amount' : ''));
     if (!list.length){
-      tbody.innerHTML = '<tr><td colspan="14" class="empty-state"><strong>No records match these filters</strong>Try widening the date range or clearing filters.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="15" class="empty-state"><strong>No records match these filters</strong>Try widening the date range or clearing filters.</td></tr>';
       updateButtons();
       return;
     }
@@ -384,6 +406,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
       var streamBadgeClass = r['Waste Stream']==='Food Waste' ? 'kc-blue' : (r['Waste Stream']==='General Waste' ? 'kc-grn' : 'kc-amb');
       var docCount = parseJSONArr(r['Attachments (JSON)']).length;
       return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="WMW.select(\'' + wEsc(r['Record ID']) + '\')">'
+        + '<td style="font-weight:700;color:var(--wmw-gold-lt)">' + wCell(r['Record ID']) + '</td>'
         + '<td>' + wCell(r['Date']) + '</td>'
         + '<td><span class="badge ' + streamBadgeClass + '">' + wEsc(r['Waste Stream']) + '</span></td>'
         + '<td>' + wCellFlag(r['Waste Material']) + '</td>'
