@@ -144,6 +144,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .hs-dark-wrap .hs-field .hs-hint{font-size:9px;color:var(--hsw-text-dim);margin-top:3px;display:block}
 .hs-dark-wrap .hs-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .hs-dark-wrap .hs-modal-actions .hs-btn-cancel{background:var(--hsw-bg3)}
+/* ── Heat Stress form, sectioned to match the printed WBGT record's own
+   3 sections (Issam, voice, 2026-11-07): wide modal, 2-column grid, a
+   shaded sub-heading per section, and colour-coded Yes/No rows for the
+   4 action checkboxes — same visual language as the LOTO Job form. ── */
+.hs-dark-wrap .hs-modal.wide{width:780px}
+.hs-dark-wrap .hs-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.hs-dark-wrap .hs-modal-grid .full{grid-column:1/-1}
+.hs-dark-wrap .hs-sub-hd{grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--hsw-gold-lt);border-top:1px solid var(--hsw-border);padding-top:10px;margin-top:2px}
+.hs-dark-wrap .hs-chk-group{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;background:var(--hsw-bg3);
+  border:1px solid var(--hsw-border);border-radius:10px;padding:10px 12px;margin-top:2px}
+.hs-dark-wrap .hs-chk-row{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;
+  padding:5px 0;border-bottom:1px solid var(--hsw-border)}
+.hs-dark-wrap .hs-chk-row:last-child{border-bottom:none}
+.hs-dark-wrap .hs-chk-text{font-size:11.5px;color:var(--hsw-text-muted);flex:1;min-width:220px;line-height:1.4}
+.hs-dark-wrap .hs-chk-row select{width:auto;min-width:90px;flex-shrink:0;font-size:11px;padding:6px 8px;
+  border:1px solid var(--hsw-border);border-radius:6px;background:var(--hsw-bg2);color:var(--hsw-text);font-family:inherit}
+.hs-dark-wrap .hs-chk-row select.hs-chk-yes{border-color:var(--hsw-amb);color:var(--hsw-amb)}
+.hs-dark-wrap .hs-zone-hint{grid-column:1/-1;font-size:10.5px;color:var(--hsw-text-dim);margin-top:-4px}
 .hs-dark-wrap .hs-sec-toggle{cursor:pointer;user-select:none}
 .hs-dark-wrap .hs-sec-toggle:hover{opacity:.9}
 .hs-dark-wrap .hs-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px;color:var(--hsw-gold-lt)}
@@ -254,7 +273,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         'Corrective Action Required (Y/N)': YESNO,
         'Status': ['Open','Closed']
       },
-      textareaFields: ['Work-Rest Regime Applied','Controls Applied','Escalation Trigger','Proposed Corrective Action','Remarks']
+      textareaFields: ['Work-Rest Regime Applied','Controls Applied','Escalation Trigger','Proposed Corrective Action','Remarks'],
+      // Sections mirror the printed WBGT record's own 3 sections exactly
+      // (Issam, voice, 2026-11-07), so the screen form and the paper
+      // record match. The 4 fields in chkFields render as colour-coded
+      // Yes/No rows, same treatment as the printed checkboxes.
+      sections: [
+        { title: 'Section 1 — Reading', fields: ['Log ID','Date','Time of Reading','Area / Zone Monitored','WBGT Reading (°C)','WBGT Zone','Recorded By'] },
+        { title: 'Section 2 — Work-Rest Decision & Controls', fields: ['Work-Rest Regime Applied','Controls Applied','Escalation Trigger'],
+          chkFields: ['Non-Essential Tasks Postponed (Y/N)','Medical Monitoring Triggered (Y/N)','SHEE Head Notified (Y/N)','Operations Suspended (Y/N)'] },
+        { title: 'Section 3 — Findings and Corrective Action', fields: ['Proposed Corrective Action','Responsible Person','Target Close Date','Status','Remarks','Action Reference'],
+          chkFields: ['Corrective Action Required (Y/N)'] }
+      ]
     }
   };
   var _filters = {};
@@ -749,7 +779,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var cfg = TABLES[tKeyName];
     var selFields = cfg.selectFields || {};
     var taFields = cfg.textareaFields || [];
-    var fieldsHtml = fields.map(function(f, fi){
+    function renderOneField(f, fi){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
       if (selFields[f]){
@@ -777,9 +807,49 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       }
       var hint = (f === 'WBGT Reading (°C)') ? '<span class="hs-hint">Entering a reading auto-fills Zone, Work-Rest Regime, Controls and Escalation Trigger below — still editable.</span>' : '';
       return '<div class="hs-field"><label>'+f+'</label><input type="'+inputType+'"'+stepAttr+' data-field="'+f+'" value="'+vEsc+'"'+(suggestions.length?' list="'+dlId+'"':'')+'>'+dlHtml+hint+'</div>';
-    }).join('');
+    }
+    function renderChkField(f){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var opts = selFields[f] || YESNO;
+      var optsHtml = opts.map(function(o){
+        return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+      }).join('');
+      var cls = String(v).trim().toLowerCase() === 'yes' ? ' class="hs-chk-yes"' : '';
+      return '<div class="hs-chk-row"><div class="hs-chk-text">'+f+'</div><select data-field="'+f+'"'+cls+' onchange="this.className=this.value.toLowerCase()===\'yes\'?\'hs-chk-yes\':\'\'">'
+        + '<option value=""'+(v?'':' selected')+'>— Select —</option>' + optsHtml + '</select></div>';
+    }
+    /* Form-style layout: when a table defines sections, fields group
+       under shaded sub-headings in a 2-column grid inside a wide modal
+       — the printed WBGT record's own 3 sections, mirrored exactly
+       (Issam, voice, 2026-11-07). Any field in `fields` not listed in a
+       section's own fields/chkFields is appended under "Other", so
+       nothing is ever silently dropped. Falls back to the plain list
+       when a table has no sections defined. */
+    var useSections = !!(cfg.sections && cfg.sections.length);
+    var fieldsHtml;
+    if (useSections){
+      var placed = {};
+      var groups = cfg.sections.map(function(sec){
+        var present = (sec.fields||[]).filter(function(f){ return fields.indexOf(f) > -1; });
+        var chkPresent = (sec.chkFields||[]).filter(function(f){ return fields.indexOf(f) > -1; });
+        present.forEach(function(f){ placed[f] = true; });
+        chkPresent.forEach(function(f){ placed[f] = true; });
+        if (!present.length && !chkPresent.length) return '';
+        var body = present.map(function(f){
+          var html = renderOneField(f, fields.indexOf(f));
+          return (taFields.indexOf(f) > -1) ? html.replace('class="hs-field"', 'class="hs-field full"') : html;
+        }).join('');
+        if (chkPresent.length) body += '<div class="hs-chk-group full">' + chkPresent.map(renderChkField).join('') + '</div>';
+        return '<div class="hs-sub-hd">'+sec.title+'</div>' + body;
+      }).join('');
+      var leftovers = fields.filter(function(f){ return !placed[f]; });
+      if (leftovers.length) groups += '<div class="hs-sub-hd">Other</div>' + leftovers.map(function(f){ return renderOneField(f, fields.indexOf(f)); }).join('');
+      fieldsHtml = '<div class="hs-modal-grid">' + groups + '</div>';
+    } else {
+      fieldsHtml = fields.map(renderOneField).join('');
+    }
 
-    root.innerHTML = '<div class="hs-modal-bg" id="hs-modal-bg"><div class="hs-modal">' +
+    root.innerHTML = '<div class="hs-modal-bg" id="hs-modal-bg"><div class="hs-modal'+(useSections?' wide':'')+'">' +
       '<h3>'+title+'</h3>' + fieldsHtml +
       '<div id="hs-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
       '<div class="hs-modal-actions"><button class="hs-btn hs-btn-cancel" id="hs-modal-cancel">Cancel</button>' +
