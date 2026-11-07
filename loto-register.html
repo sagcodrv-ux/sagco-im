@@ -934,10 +934,53 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return values;
   }
 
+  /* ── PTW Number lookup for the LOTO Job form (Issam, voice,
+     2026-11-07) — pulls real permit numbers from the PTW Register
+     sheet (tab 'ptw_register', not one of this page's own 4 tables)
+     so the person picks one instead of retyping it. Typing a number
+     that isn't in the list is still allowed — a permit may not be
+     entered yet — this only offers a shortcut, it never blocks entry.
+     "Open" is judged by Permit Valid To (today or later, or blank —
+     a permit with no end date entered isn't treated as expired) and
+     by Record Status not being "Removed"; Status itself is free text
+     on the PTW page, so it isn't used as the filter. Fetched once and
+     cached for the session. */
+  var _ptwOpenPermits = null, _ptwFetchPromise = null;
+  function loadOpenPTWPermits(){
+    if (_ptwOpenPermits) return Promise.resolve(_ptwOpenPermits);
+    if (_ptwFetchPromise) return _ptwFetchPromise;
+    _ptwFetchPromise = fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
+      if (!data || !data.headers || !data.rows) { _ptwOpenPermits = []; return _ptwOpenPermits; }
+      var h = data.headers;
+      var numIdx = colIdx(h, 'Permit #'), validToIdx = colIdx(h, 'Permit Valid To'), statusColIdx = colIdx(h, 'Record Status');
+      var today = new Date(); today.setHours(0,0,0,0);
+      var seen = {}; var out = [];
+      data.rows.forEach(function(row){
+        if (statusColIdx >= 0 && String(row[statusColIdx]||'').trim().toLowerCase() === 'removed') return;
+        var num = numIdx >= 0 ? String(row[numIdx]||'').trim() : '';
+        if (!num || seen[num]) return;
+        if (validToIdx >= 0){
+          var vt = String(row[validToIdx]||'').trim();
+          if (vt){ var d = new Date(vt); if (!isNaN(d.getTime()) && d < today) return; /* expired — leave out */ }
+        }
+        seen[num] = true; out.push(num);
+      });
+      _ptwOpenPermits = out;
+      return out;
+    }).catch(function(){ _ptwOpenPermits = []; return []; });
+    return _ptwFetchPromise;
+  }
+
   function showLotoAddModal(cfg, initial){
     var root = document.getElementById('lt-modal-root');
     var jobFieldsHtml = LOTO_JOB_INFO_FIELDS.map(function(f, fi){
       if (f === 'Description of Work') return lotoTextareaHtml(f, initial[f], true);
+      if (f === 'PTW Number'){
+        var pv = initial[f] == null ? '' : String(initial[f]).replace(/"/g,'&quot;');
+        return '<div class="lt-field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ltw-text-dim)">(pick an open permit, or type one not yet in the list)</span></label>'
+          + '<input type="text" data-field="PTW Number" value="'+pv+'" list="lt-dl-ptw-open" placeholder="Loading open permits…">'
+          + '<datalist id="lt-dl-ptw-open"></datalist></div>';
+      }
       return lotoFieldHtml(f, initial[f], 'register', fi);
     }).join('');
     var checklistHtml = LOTO_PRE_CHECKLIST.map(function(f, i){ return lotoChkRowHtml(f, i, initial[f]); }).join('');
@@ -958,6 +1001,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       + '<div class="lt-modal-actions"><button class="lt-btn lt-btn-cancel" id="lt-modal-cancel">Cancel</button>'
       + '<button class="lt-btn lt-btn-add" id="lt-modal-save">Save</button></div>'
       + '</div></div>';
+
+    loadOpenPTWPermits().then(function(nums){
+      var dl = document.getElementById('lt-dl-ptw-open');
+      var inp = root.querySelector('[data-field="PTW Number"]');
+      if (!dl || !inp) return; // modal may have closed before the fetch returned
+      dl.innerHTML = nums.map(function(n){ return '<option value="'+String(n).replace(/"/g,'&quot;')+'">'; }).join('');
+      inp.placeholder = nums.length ? (nums.length + ' open permit' + (nums.length===1?'':'s') + ' available') : 'No open permits found — type the permit number';
+    });
 
     document.getElementById('lt-modal-cancel').onclick = function(){ root.innerHTML = ''; };
     document.getElementById('lt-modal-bg').onclick = function(e){ if (e.target.id === 'lt-modal-bg') root.innerHTML = ''; };
