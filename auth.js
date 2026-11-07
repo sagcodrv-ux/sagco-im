@@ -206,13 +206,22 @@
       var pw = (document.getElementById('auth-pw').value||'');
       var err = document.getElementById('auth-err');
       var btn = document.getElementById('auth-btn');
+      /* Fix (Issam, voice, 2026-11-07): every 'show the error' line below
+         used to set style.display='' (empty string). That just removes
+         any inline override and falls back to the stylesheet's own
+         #auth-err{display:none} — so the error box was NEVER actually
+         visible, on any page, for any failure (missing fields, missing
+         data.js, wrong password, unreachable server). A login attempt
+         that failed looked exactly like a dead button: brief 'Signing
+         in...', then silently back to normal, no message at all. Now
+         set to 'block' explicitly wherever an error is meant to show. */
       err.style.display = 'none';
 
-      if (!un || !pw) { err.textContent='Please enter your username and password.'; err.style.display=''; return; }
+      if (!un || !pw) { err.textContent='Please enter your username and password.'; err.style.display='block'; return; }
 
       if (typeof SHEETS_URL === 'undefined') {
         err.textContent = 'Cannot reach the login server (data.js not loaded on this page). Contact the IMS Administrator.';
-        err.style.display = '';
+        err.style.display = 'block';
         return;
       }
 
@@ -261,7 +270,7 @@
             btn.textContent = origLabel;
             var msg = (result && result.message) || 'Login failed. Please try again.';
             err.textContent = msg;
-            err.style.display = '';
+            err.style.display = 'block';
             auditLog('LOGIN_FAIL', msg + ' (' + un + ')', null);
             return;
           }
@@ -299,7 +308,7 @@
           btn.disabled = false;
           btn.textContent = origLabel;
           err.textContent = 'Could not reach the login server: ' + netErr + '. Check your connection and try again.';
-          err.style.display = '';
+          err.style.display = 'block';
         });
     }
 
