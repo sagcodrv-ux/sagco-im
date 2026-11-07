@@ -159,13 +159,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   border:1px solid var(--ltw-border);border-radius:6px;background:var(--ltw-bg2);color:var(--ltw-text);font-family:inherit}
 .lt-dark-wrap .lt-chk-row select.lt-chk-no{border-color:var(--ltw-red);color:var(--ltw-red)}
 .lt-dark-wrap .lt-chk-row select.lt-chk-blank{border-color:var(--ltw-amb)}
-.lt-dark-wrap .lt-energy-table{grid-column:1/-1;width:100%;border-collapse:collapse;font-size:11px;margin-top:2px}
+.lt-dark-wrap .lt-energy-table-wrap{grid-column:1/-1;overflow-x:auto;margin-top:2px}
+.lt-dark-wrap .lt-energy-table{width:100%;min-width:460px;border-collapse:collapse;font-size:11px}
 .lt-dark-wrap .lt-energy-table th{background:var(--ltw-bg3);color:var(--ltw-gold-lt);text-align:left;
   padding:6px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--ltw-border-gold)}
 .lt-dark-wrap .lt-energy-table td{padding:5px 6px;border-bottom:1px solid var(--ltw-border);vertical-align:middle}
 .lt-dark-wrap .lt-energy-table td.lt-energy-name{font-weight:700;color:var(--ltw-text);white-space:nowrap}
 .lt-dark-wrap .lt-energy-table input,.lt-dark-wrap .lt-energy-table select{width:100%;padding:5px 7px;font-size:11px;
   border:1px solid var(--ltw-border);border-radius:6px;background:var(--ltw-bg2);color:var(--ltw-text);font-family:inherit;box-sizing:border-box}
+/* Phone-width fallback (Issam, voice, 2026-11-07): the 2-column field
+   grid and the chk-rows both get cramped once the modal shrinks to fit
+   a phone screen — same treatment as the PTW form's checkbox grid. */
+@media (max-width:480px){
+  .lt-dark-wrap .lt-modal{width:100%;max-width:100vw;border-radius:0;max-height:100vh;height:100vh}
+  .lt-dark-wrap .lt-modal-grid{grid-template-columns:1fr}
+  .lt-dark-wrap .lt-field input,.lt-dark-wrap .lt-field select,.lt-dark-wrap .lt-field textarea{font-size:16px;padding:9px 10px}
+  .lt-dark-wrap .lt-chk-row{flex-direction:column;align-items:stretch;gap:6px}
+  .lt-dark-wrap .lt-chk-row select{width:100%;min-width:0;font-size:16px;padding:9px 10px}
+}
 .lt-dark-wrap .lt-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
   margin-top:10px;max-height:340px;overflow-y:auto}
 .lt-dark-wrap .lt-photo-item{position:relative;border:1px solid var(--ltw-border);border-radius:8px;
@@ -954,7 +965,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   function lotoEnergyTableHtml(initial){
     var rows = LOTO_ENERGY_TYPES.map(function(e){ return lotoEnergyRowHtml(e, initial); }).join('');
-    return '<table class="lt-energy-table"><thead><tr><th>Energy Source</th><th>Isolation Point / ID</th><th>Isolated?</th><th>Lock / Tag No.</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    // Wrapped so it scrolls sideways on a phone instead of squeezing 4
+    // columns into a narrow modal (Issam, voice, 2026-11-07) — same
+    // fix as the top-scrollbar registers, just local to this one table.
+    return '<div class="lt-energy-table-wrap"><table class="lt-energy-table"><thead><tr><th>Energy Source</th><th>Isolation Point / ID</th><th>Isolated?</th><th>Lock / Tag No.</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
 
   function collectLotoModalValues(root){
@@ -1000,26 +1014,34 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return _ptwFetchPromise;
   }
 
+  /* Shared by both the Add and Edit forms, so the PTW dropdown and the
+     Authorised Person list behave identically everywhere — Edit used
+     to fall back to the plain generic field (no live suggestions),
+     which is why it only ever showed whatever was already typed into
+     that one record, not the full current list (Issam, voice,
+     2026-11-07). */
+  function lotoJobInfoFieldHtml(f, fi, initial){
+    if (f === 'Description of Work') return lotoTextareaHtml(f, initial[f], true);
+    if (f === 'PTW Number'){
+      var pv = initial[f] == null ? '' : String(initial[f]).replace(/"/g,'&quot;');
+      return '<div class="lt-field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ltw-text-dim)">(pick an open permit, or type one not yet in the list)</span></label>'
+        + '<input type="text" data-field="PTW Number" value="'+pv+'" list="lt-dl-ptw-open" placeholder="Loading open permits…">'
+        + '<datalist id="lt-dl-ptw-open"></datalist></div>';
+    }
+    if (f === 'Authorized LOTO Person'){
+      var av = initial[f] == null ? '' : String(initial[f]).replace(/"/g,'&quot;');
+      var people = getActiveAuthorisedPersons();
+      return '<div class="lt-field"><label>Authorized LOTO Person <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ltw-text-dim)">('
+        + (people.length ? people.length + ' active authorised person' + (people.length===1?'':'s') : 'none active on the list yet — type the name')
+        + ')</span></label><input type="text" data-field="Authorized LOTO Person" value="'+av+'" list="lt-dl-auth-people">'
+        + '<datalist id="lt-dl-auth-people">' + people.map(function(n){ return '<option value="'+String(n).replace(/"/g,'&quot;')+'">'; }).join('') + '</datalist></div>';
+    }
+    return lotoFieldHtml(f, initial[f], 'register', fi);
+  }
+
   function showLotoAddModal(cfg, initial){
     var root = document.getElementById('lt-modal-root');
-    var jobFieldsHtml = LOTO_JOB_INFO_FIELDS.map(function(f, fi){
-      if (f === 'Description of Work') return lotoTextareaHtml(f, initial[f], true);
-      if (f === 'PTW Number'){
-        var pv = initial[f] == null ? '' : String(initial[f]).replace(/"/g,'&quot;');
-        return '<div class="lt-field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ltw-text-dim)">(pick an open permit, or type one not yet in the list)</span></label>'
-          + '<input type="text" data-field="PTW Number" value="'+pv+'" list="lt-dl-ptw-open" placeholder="Loading open permits…">'
-          + '<datalist id="lt-dl-ptw-open"></datalist></div>';
-      }
-      if (f === 'Authorized LOTO Person'){
-        var av = initial[f] == null ? '' : String(initial[f]).replace(/"/g,'&quot;');
-        var people = getActiveAuthorisedPersons();
-        return '<div class="lt-field"><label>Authorized LOTO Person <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ltw-text-dim)">('
-          + (people.length ? people.length + ' active authorised person' + (people.length===1?'':'s') : 'none active on the list yet — type the name')
-          + ')</span></label><input type="text" data-field="Authorized LOTO Person" value="'+av+'" list="lt-dl-auth-people">'
-          + '<datalist id="lt-dl-auth-people">' + people.map(function(n){ return '<option value="'+String(n).replace(/"/g,'&quot;')+'">'; }).join('') + '</datalist></div>';
-      }
-      return lotoFieldHtml(f, initial[f], 'register', fi);
-    }).join('');
+    var jobFieldsHtml = LOTO_JOB_INFO_FIELDS.map(function(f, fi){ return lotoJobInfoFieldHtml(f, fi, initial); }).join('');
     var checklistHtml = LOTO_PRE_CHECKLIST.map(function(f, i){ return lotoChkRowHtml(f, i, initial[f]); }).join('');
     var signoffHtml = LOTO_PRE_SIGNOFF_FIELDS.map(function(f, fi){ return lotoFieldHtml(f, initial[f], 'register', 100+fi); }).join('');
 
@@ -1094,6 +1116,86 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         return;
       }
       values['Status'] = 'Closed';
+      var saveBtn = document.getElementById('lt-modal-save');
+      saveBtn.disabled = true;
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+        if (res && res.status === 'error'){
+          alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+          saveBtn.disabled = false;
+          return;
+        }
+        root.innerHTML = ''; reloadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); saveBtn.disabled = false; });
+    };
+  }
+
+  /* ── LOTO Job — full Edit modal (Issam, voice, 2026-11-07). Edit
+     previously fell back to the old plain field-list modal, with no
+     live PTW/Authorised-Person suggestions and no sections — this
+     gives Edit the same look and the same live data as Add, covering
+     every stage at once (Job Info, Energy Isolation, Pre-Task, Post-
+     Task, Remarks/Signatures/Photos, and Status) since an existing
+     record may need correcting at any stage, open or already closed. */
+  function showLotoEditModal(cfg, idVal, initial){
+    var root = document.getElementById('lt-modal-root');
+    var jobFieldsHtml = LOTO_JOB_INFO_FIELDS.map(function(f, fi){ return lotoJobInfoFieldHtml(f, fi, initial); }).join('');
+    var preChecklistHtml = LOTO_PRE_CHECKLIST.map(function(f, i){ return lotoChkRowHtml(f, i, initial[f]); }).join('');
+    var preSignoffHtml = LOTO_PRE_SIGNOFF_FIELDS.map(function(f, fi){ return lotoFieldHtml(f, initial[f], 'register', 100+fi); }).join('');
+    var postChecklistHtml = LOTO_POST_CHECKLIST.map(function(f, i){ return lotoChkRowHtml(f, i, initial[f]); }).join('');
+    var postSignoffHtml = LOTO_POST_SIGNOFF_FIELDS.map(function(f, fi){ return lotoFieldHtml(f, initial[f], 'register', 200+fi); }).join('');
+    var remarksHtml = lotoTextareaHtml('Final Remarks', initial['Final Remarks'], true)
+      + lotoTextareaHtml('Signatures', initial['Signatures'], true)
+      + lotoTextareaHtml('Photos', initial['Photos'], true);
+    var statusVal = initial['Status'] || '';
+    var statusHtml = '<div class="lt-field"><label>Status</label><select data-field="Status">'
+      + ['', 'Open', 'Closed'].map(function(o){ return '<option value="'+o+'"'+(statusVal===o?' selected':'')+'>'+(o||'— Select —')+'</option>'; }).join('')
+      + '</select></div>';
+
+    root.innerHTML = '<div class="lt-modal-bg" id="lt-modal-bg"><div class="lt-modal wide">'
+      + '<h3>Edit LOTO Job — ' + idVal + '</h3>'
+      + '<div class="lt-modal-grid">'
+      + '<div class="lt-sub-hd" style="border-top:none;padding-top:0">Job Information</div>'
+      + jobFieldsHtml
+      + '<div class="lt-sub-hd">Energy Isolation Details</div>'
+      + lotoEnergyTableHtml(initial)
+      + '<div class="lt-sub-hd">Pre-Task Verification</div>'
+      + '<div class="lt-chk-group">' + preChecklistHtml + '</div>'
+      + preSignoffHtml
+      + '<div class="lt-sub-hd">Post-Task Verification <span style="font-weight:400;color:var(--ltw-text-dim);text-transform:none;letter-spacing:0">(leave blank until reinstatement — all 8 must be Yes to close)</span></div>'
+      + '<div class="lt-chk-group">' + postChecklistHtml + '</div>'
+      + postSignoffHtml
+      + '<div class="lt-sub-hd">Remarks, Signatures &amp; Photos Log</div>'
+      + remarksHtml
+      + '<div class="lt-sub-hd">Record Status</div>'
+      + statusHtml
+      + '</div>'
+      + '<div id="lt-modal-save-status" style="font-size:10px;min-height:14px;margin-top:8px"></div>'
+      + '<div class="lt-modal-actions"><button class="lt-btn lt-btn-cancel" id="lt-modal-cancel">Cancel</button>'
+      + '<button class="lt-btn lt-btn-add" id="lt-modal-save">Save</button></div>'
+      + '</div></div>';
+
+    loadOpenPTWPermits().then(function(nums){
+      var dl = document.getElementById('lt-dl-ptw-open');
+      var inp = root.querySelector('[data-field="PTW Number"]');
+      if (!dl || !inp) return;
+      dl.innerHTML = nums.map(function(n){ return '<option value="'+String(n).replace(/"/g,'&quot;')+'">'; }).join('');
+      inp.placeholder = nums.length ? (nums.length + ' open permit' + (nums.length===1?'':'s') + ' available') : 'No open permits found — type the permit number';
+    });
+
+    document.getElementById('lt-modal-cancel').onclick = function(){ root.innerHTML = ''; };
+    document.getElementById('lt-modal-bg').onclick = function(e){ if (e.target.id === 'lt-modal-bg') root.innerHTML = ''; };
+    document.getElementById('lt-modal-save').onclick = function(){
+      var values = collectLotoModalValues(root);
+      // Closing from Edit goes through the same "every post-task check
+      // must be Yes" gate as the dedicated Continue flow — correcting a
+      // record here shouldn't be a back door around that requirement.
+      if (values['Status'] === 'Closed'){
+        var missing = LOTO_POST_CHECKLIST.filter(function(f){ return String(values[f]||'').trim().toLowerCase() !== 'yes'; });
+        if (missing.length){
+          alert('Status can\'t be set to Closed yet — the following reinstatement checks must be confirmed as "Yes" first:\n\n- ' + missing.join('\n- '));
+          return;
+        }
+      }
       var saveBtn = document.getElementById('lt-modal-save');
       saveBtn.disabled = true;
       postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
@@ -1707,6 +1809,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (!row) return alert('Record not found — try refreshing.');
       var initial = {};
       data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      // LOTO Job's Edit gets the same wide, sectioned, live-suggestion
+      // form as Add/Continue (Issam, voice, 2026-11-07); other LOTO
+      // tables keep the generic modal (already sectioned since the
+      // earlier form-format change).
+      if (tKeyName === 'register'){ showLotoEditModal(cfg, idVal, initial); return; }
       showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
         postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
           if (res && res.status === 'error'){
