@@ -120,8 +120,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
      (Issam, voice, 2026-11-06). Force plain black-on-white here instead. */
   body *{visibility:hidden}
   .wmw-table-wrap, .wmw-table-wrap *{visibility:visible}
-  .wmw-table-wrap{position:absolute;left:0;top:0;width:100%;background:#fff !important}
+  .wmw-table-wrap{position:absolute;left:0;top:0;width:100%;background:#fff !important;
+    /* The on-screen max-height/scroll (added for the sticky header,
+       06 Nov 2026) is a screen-only convenience — printed with it in
+       place would clip the register to one scrolled screenful and
+       leave a cut-off scrollbar in the output. Reset to natural flow
+       here, so every row prints across as many pages as needed and no
+       scrollbar artifact appears (Issam, voice, 2026-11-07). */
+    max-height:none !important;overflow:visible !important}
+  .ims-xscroll-top{display:none !important}
   .wmw-table-wrap table,.wmw-table-wrap th,.wmw-table-wrap td{color:#000 !important;background:#fff !important;border-color:#000 !important}
+  .wmw-table-wrap thead{display:table-header-group} /* repeats the header row on every printed page */
   /* Print Slip — same hidden-until-print pattern as meps-register.html
      and chemical-inventory.html's printed outputs (Issam, voice,
      2026-11-06), kept entirely separate from Print Register above:
@@ -180,7 +189,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   <button class="aiw-btn aiw-btn-add" id="wmw-btn-new" onclick="WMW.openAdd()">+ New Record</button>
   <button class="aiw-btn" id="wmw-btn-edit" disabled onclick="WMW.openEditSelected()">Open / Edit</button>
   <button class="aiw-btn" id="wmw-btn-remove" disabled onclick="WMW.removeSelected()">Remove</button>
-  <button class="aiw-btn" onclick="window.print()">🖨 Print Register</button>
+  <button class="aiw-btn" onclick="WMW.printRegister()">🖨 Print Register</button>
   <button class="aiw-btn" id="wmw-btn-slip" disabled onclick="WMW.printSlipSelected()">🖨 Print Slip</button>
   <span style="margin-left:auto;font-size:10px;color:var(--wmw-text-dim)" id="wmw-count-sub"></span>
 </div>
@@ -627,6 +636,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     });
   }
 
+  /* ── Print Register — landscape, with every row (not just what fits
+     the on-screen scroll height). The Print Slip stays portrait, so
+     this injects a one-off @page rule just for this print call rather
+     than setting page size globally (Issam, voice, 2026-11-07). ── */
+  function printRegister(){
+    var style = document.getElementById('wmw-page-style');
+    if (!style){
+      style = document.createElement('style');
+      style.id = 'wmw-page-style';
+      document.head.appendChild(style);
+    }
+    style.textContent = '@page{size:landscape;margin:10mm}';
+    window.print();
+    window.addEventListener('afterprint', function cleanup(){
+      style.textContent = '';
+      window.removeEventListener('afterprint', cleanup);
+    });
+  }
+
   /* ── Public API ───────────────────────────────────────────────── */
   /* ── Print Slip — one pickup, every material line sharing the same
      Invoice/Ref No. grouped onto one slip (same grouping pattern as
@@ -698,6 +726,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
         .then(function(){ _selected = null; loadAll(); });
     },
     closeModal: closeModal,
+    printRegister: printRegister,
     save: save,
     onFilesSelected: onFilesSelected,
     removeAttachment: removeAttachment,
