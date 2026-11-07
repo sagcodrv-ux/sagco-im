@@ -263,6 +263,41 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
   }
   function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
   function wEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  /* Table-cell version of wEsc — shows a visible dash for a genuinely
+     empty cell instead of blank whitespace, so "nothing here" is never
+     mistaken for "the page failed to load this" (Issam, voice,
+     2026-11-07). Used only for read-only table/slip display, never for
+     form inputs, where an empty field should stay empty to edit. */
+  function wCell(v){ var s = String(v==null?'':v).trim(); return s === '' ? '<span style="color:var(--wmw-text-dim)">—</span>' : wEsc(s); }
+  /* Same as wCell, but for the two fields whose absence has repeatedly
+     been mistaken for a page bug this session (Waste Material, Amount)
+     — a blank one is flagged amber so an incomplete row is obvious
+     straight from the table, no need to open it to find out (Issam,
+     voice, 2026-11-07). */
+  function wCellFlag(v){
+    var s = String(v==null?'':v).trim();
+    return s === '' ? '<span style="color:var(--wmw-amb);font-weight:700" title="Empty on the live sheet — not a page bug">⚠ —</span>' : wEsc(s);
+  }
+
+  /* ── Full Sheet Data — every column actually on the live sheet for
+     this record, read straight off _cache.headers rather than this
+     form's own fixed field list. Nothing can be silently missed: a
+     column the form has no dedicated input for still shows up here,
+     and a genuinely empty cell is labelled "— empty —" rather than
+     left looking like a display bug (Issam, voice, 2026-11-07). ── */
+  function rawDataSection(r){
+    if (!_cache || !_cache.headers || !_cache.headers.length) return '';
+    var rowsHtml = _cache.headers.map(function(h){
+      var v = r[h];
+      var s = String(v==null?'':v).trim();
+      var shown = s === '' ? '<span style="color:var(--wmw-amb)">— empty on the sheet —</span>' : wEsc(s);
+      return '<tr><td style="font-weight:700;color:var(--wmw-gold-lt);white-space:nowrap;vertical-align:top;padding-right:10px">' + wEsc(h) + '</td><td style="word-break:break-word">' + shown + '</td></tr>';
+    }).join('');
+    return '<div class="wmw-field full"><details>'
+      + '<summary style="cursor:pointer;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--wmw-text-dim)">Full Sheet Data — every column on the live sheet for this record (click to expand)</summary>'
+      + '<table style="width:100%;margin-top:8px;font-size:11px;border-collapse:collapse">' + rowsHtml + '</table>'
+      + '</details></div>';
+  }
   function setTxt(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
 
   function nextRecordId(cache, prefix, idCol){
@@ -333,7 +368,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
     var all = getRecs();
     var list = filteredRecs();
     var tbody = document.getElementById('wmw-tbody');
-    setTxt('wmw-count-sub', list.length + ' of ' + all.length + ' records shown');
+    var incomplete = list.filter(function(r){
+      return !String(r['Waste Material']||'').trim() || !String(r['Amount (SAR)']||'').trim();
+    }).length;
+    setTxt('wmw-count-sub', list.length + ' of ' + all.length + ' records shown'
+      + (incomplete ? ' · ⚠ ' + incomplete + ' missing Material/Amount' : ''));
     if (!list.length){
       tbody.innerHTML = '<tr><td colspan="14" class="empty-state"><strong>No records match these filters</strong>Try widening the date range or clearing filters.</td></tr>';
       updateButtons();
@@ -345,20 +384,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
       var streamBadgeClass = r['Waste Stream']==='Food Waste' ? 'kc-blue' : (r['Waste Stream']==='General Waste' ? 'kc-grn' : 'kc-amb');
       var docCount = parseJSONArr(r['Attachments (JSON)']).length;
       return '<tr class="aiw-row' + (sel?' aiw-sel':'') + '" onclick="WMW.select(\'' + wEsc(r['Record ID']) + '\')">'
-        + '<td>' + wEsc(r['Date']) + '</td>'
+        + '<td>' + wCell(r['Date']) + '</td>'
         + '<td><span class="badge ' + streamBadgeClass + '">' + wEsc(r['Waste Stream']) + '</span></td>'
-        + '<td>' + wEsc(r['Waste Material']) + '</td>'
-        + '<td>' + wEsc(r['Location/Unit']) + '</td>'
-        + '<td>' + wEsc(r['Contractor']) + '</td>'
-        + '<td>' + wEsc(r['On-Site Contractor']) + '</td>'
-        + '<td>' + wEsc(r['Invoice/Ref No.']) + '</td>'
-        + '<td>' + wEsc(r['Service Note Ref.']) + '</td>'
-        + '<td>' + wEsc(r['Manifest No.']) + '</td>'
-        + '<td>' + wEsc(r['Container Size']) + '</td>'
-        + '<td>' + wEsc(r['Quantity']) + '</td>'
-        + '<td>' + wEsc(r['Unit']) + '</td>'
-        + '<td>' + wEsc(r['Amount (SAR)']) + '</td>'
-        + '<td>' + (docCount ? ('📎' + docCount) : '—') + '</td>'
+        + '<td>' + wCellFlag(r['Waste Material']) + '</td>'
+        + '<td>' + wCell(r['Location/Unit']) + '</td>'
+        + '<td>' + wCell(r['Contractor']) + '</td>'
+        + '<td>' + wCell(r['On-Site Contractor']) + '</td>'
+        + '<td>' + wCell(r['Invoice/Ref No.']) + '</td>'
+        + '<td>' + wCell(r['Service Note Ref.']) + '</td>'
+        + '<td>' + wCell(r['Manifest No.']) + '</td>'
+        + '<td>' + wCell(r['Container Size']) + '</td>'
+        + '<td>' + wCell(r['Quantity']) + '</td>'
+        + '<td>' + wCell(r['Unit']) + '</td>'
+        + '<td>' + wCellFlag(r['Amount (SAR)']) + '</td>'
+        + '<td>' + (docCount ? ('📎' + docCount) : '<span style="color:var(--wmw-text-dim)">—</span>') + '</td>'
         + '</tr>';
     }).join('');
     updateButtons();
@@ -430,6 +469,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
       + '<label class="aiw-btn" style="display:inline-block;cursor:pointer">📎 Attach Document(s)<input type="file" accept="application/pdf,image/*" multiple style="display:none" id="wmw-f-file" onchange="WMW.onFilesSelected(event)"></label>'
       + '<span class="wmw-attach-status" id="wmw-attach-status"></span>'
       + '</div>'
+      + (isEdit ? rawDataSection(r) : '')
       + '</div>'
       + '<div class="wmw-modal-ft">'
       + '<button class="aiw-btn" onclick="WMW.closeModal()">Cancel</button>'
@@ -580,7 +620,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
       : [selectedRec];
     if (!lines.length) return;
     var rows = lines.map(function(r){
-      return '<tr><td>' + wEsc(r['Waste Material']) + '</td><td>' + wEsc(r['Quantity']) + '</td><td>' + wEsc(r['Unit']) + '</td><td>' + wEsc(r['Amount (SAR)']) + '</td></tr>';
+      return '<tr><td>' + wCell(r['Waste Material']) + '</td><td>' + wCell(r['Quantity']) + '</td><td>' + wCell(r['Unit']) + '</td><td>' + wCell(r['Amount (SAR)']) + '</td></tr>';
     }).join('');
     var allDocs = [];
     lines.forEach(function(r){ parseJSONArr(r['Attachments (JSON)']).forEach(function(d){ allDocs.push(d); }); });
