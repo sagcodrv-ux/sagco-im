@@ -285,6 +285,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
                'Corrective Action Required (Y/N)','Proposed Corrective Action',
                'Responsible Person','Target Close Date',
                'Status','Remarks','Action Reference'],
+      // The Add/Edit form only ever offers this trimmed set — see the
+      // comment above `sections` below for why the other four are left
+      // out of the form entirely. They're still part of `fields` above
+      // so the row's own "expand for all fields" detail view can still
+      // show them read-only once escalation has filled them in.
+      formFields: ['Log ID','Date','Time of Reading','Area / Zone Monitored','WBGT Reading (°C)','WBGT Zone',
+               'Work-Rest Regime Applied','Controls Applied','Escalation Trigger',
+               'Non-Essential Tasks Postponed (Y/N)','Medical Monitoring Triggered (Y/N)',
+               'SHEE Head Notified (Y/N)','Operations Suspended (Y/N)','Recorded By',
+               'Corrective Action Required (Y/N)','Status','Remarks'],
       selectFields: {
         'WBGT Zone': ['Normal','Yellow','Amber','Orange','Red'],
         'Non-Essential Tasks Postponed (Y/N)': YESNO,
@@ -299,11 +309,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // (Issam, voice, 2026-11-07), so the screen form and the paper
       // record match. The 4 fields in chkFields render as colour-coded
       // Yes/No rows, same treatment as the printed checkboxes.
+      //
+      // Proposed Corrective Action / Responsible Person / Target Close
+      // Date / Action Reference are deliberately left OUT of this form
+      // entirely (Issam, voice, 2026-11-07) — they duplicate what the
+      // Action Register already owns once a record is escalated, and
+      // Action Reference specifically is never hand-typed, only written
+      // by the escalation hand-off itself. Section 3 is just the Yes/No
+      // trigger plus Status and Remarks; the detail lives in one place,
+      // the Action Register, not two.
       sections: [
         { title: 'Section 1 — Reading', fields: ['Log ID','Date','Time of Reading','Area / Zone Monitored','WBGT Reading (°C)','WBGT Zone','Recorded By'] },
         { title: 'Section 2 — Work-Rest Decision & Controls', fields: ['Work-Rest Regime Applied','Controls Applied','Escalation Trigger'],
           chkFields: ['Non-Essential Tasks Postponed (Y/N)','Medical Monitoring Triggered (Y/N)','SHEE Head Notified (Y/N)','Operations Suspended (Y/N)'] },
-        { title: 'Section 3 — Findings and Corrective Action', fields: ['Proposed Corrective Action','Responsible Person','Target Close Date','Status','Remarks','Action Reference'],
+        { title: 'Section 3 — Findings', fields: ['Status','Remarks'],
           chkFields: ['Corrective Action Required (Y/N)'] }
       ]
     }
@@ -442,15 +461,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           + pfCb('Operations suspended', pfYes(rec['Operations Suspended (Y/N)']))
         + '</div></div>'
 
-      + '<div class="pf-section"><div class="pf-section-title">Section 3 — Findings and Corrective Action</div>'
+      + '<div class="pf-section"><div class="pf-section-title">Section 3 — Findings</div>'
         + '<div class="pf-check-row">' + pfCb('Corrective action required', carRequired) + '</div>'
         + (carRequired ?
-            '<div class="pf-field"><span class="pf-label">Proposed corrective action:</span><span class="pf-value">'+pfEsc(rec['Proposed Corrective Action'])+'</span></div>'
-            + '<div class="pf-grid3">'
-              + pfField('Responsible Person', rec['Responsible Person'])
-              + pfField('Target Close Date', rec['Target Close Date'])
-              + pfField('Action Reference', rec['Action Reference'])
-            + '</div>'
+            (String(rec['Action Reference']||'').trim()
+              ? '<div class="pf-field"><span class="pf-label">Escalated — see Action Register record:</span><span class="pf-value">'+pfEsc(rec['Action Reference'])+'</span><br><span style="font-size:8px;color:#666">The corrective action plan, owner and due date are tracked there, not duplicated here.</span></div>'
+              : '<div class="pf-field"><span class="pf-label" style="color:#A6600A">⚠ Not yet escalated to the Action Register.</span></div>')
           : '')
         + '<div class="pf-grid2" style="margin-top:4px">' + pfField('Status', rec['Status']) + '</div>'
         + '<div class="pf-field" style="margin-top:2px"><span class="pf-label">Remarks:</span><span class="pf-value">'+pfEsc(rec['Remarks'])+'</span></div></div>'
@@ -1022,7 +1038,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var initial = {};
       var suggestedId = nextSequentialId(tKeyName);
       if (suggestedId) initial[cfg.idCol] = suggestedId;
-      showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
+      showModal(tKeyName, 'Add ' + cfg.label, cfg.formFields || cfg.fields, initial, function(values, close){
         values[STATUS_COL] = 'Active';
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
           close(); reloadAll();
@@ -1095,7 +1111,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (!row) return alert('Record not found — try refreshing.');
       var initial = {};
       data.headers.forEach(function(h,i){ initial[h] = row[i]; });
-      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+      var modalTitle = 'Edit ' + cfg.label + ' — ' + idVal;
+      if (String(initial['Action Reference']||'').trim()){
+        modalTitle += ' (escalated → ' + initial['Action Reference'] + ')';
+      }
+      showModal(tKeyName, modalTitle, cfg.formFields || cfg.fields, initial, function(values, close){
         postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
           if (res && res.status === 'error'){
             alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
