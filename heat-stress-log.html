@@ -187,11 +187,23 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .hs-dark-wrap .hs-filter-select{padding:6px 8px;font-size:12px;border:1px solid var(--hsw-border);
   border-radius:8px;font-family:inherit;max-width:220px;background:var(--hsw-bg3);color:var(--hsw-text)}
 .hs-dark-wrap .hs-filter-status{font-size:10px;color:var(--hsw-text-muted);margin-left:auto}
-.hs-dark-wrap .tbl-wrap{overflow-x:auto}
+.hs-dark-wrap .tbl-wrap{overflow:auto}
 .hs-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
 .hs-dark-wrap .tbl-stripe th{text-align:left;color:var(--hsw-gold-lt);font-weight:700;font-size:10px;
   text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--hsw-border-gold);
-  background:var(--hsw-bg3);white-space:nowrap}
+  background:var(--hsw-bg3);white-space:nowrap;position:sticky;top:0;z-index:5}
+/* top horizontal scrollbar, mirrors the table-wrap's own scrollLeft —
+   Issam, voice, 2026-11-07 (same fix already on waste-management.html,
+   loto-register.html, scrap-sales.html, chemical-inventory.html,
+   meps-register.html). */
+.ims-xscroll-top{overflow-x:auto;overflow-y:hidden;height:14px;border:1px solid var(--hsw-border-gold);border-bottom:none;
+  border-radius:10px 10px 0 0;background:var(--hsw-bg3)}
+.ims-xscroll-top-inner{height:1px}
+/* Diagnostic line — shows exactly what the live fetch for this table
+   returned, so "a record isn't showing" is never a guess (Issam, voice,
+   2026-11-07; same pattern as waste-management.html's diagnostic). */
+.hs-dark-wrap .hs-diag-sub{font-size:9.5px;color:var(--hsw-text-dim);padding:4px 14px;background:var(--hsw-bg2);
+  border:1px solid var(--hsw-border-gold);border-top:none}
 .hs-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--hsw-border);color:var(--hsw-text)}
 .hs-dark-wrap .tbl-stripe tbody tr:nth-child(odd) td{background:var(--hsw-bg2)}
 .hs-dark-wrap .tbl-stripe tbody tr:nth-child(even) td{background:#101d3a}
@@ -557,6 +569,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         '<button class="hs-btn" onclick="HS.clearFilters(\''+tKeyName+'\')">Clear</button>' +
         '<span class="hs-filter-status" id="hs-filter-status-'+tKeyName+'"></span>' +
       '</div>' +
+      '<div class="hs-diag-sub" id="hs-diag-sub-'+tKeyName+'"></div>' +
       '<div class="hs-table-area" id="hs-table-area-'+tKeyName+'"></div>';
     renderTableArea(tKeyName);
   }
@@ -588,6 +601,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var data = _cache[tKeyName];
     var areaEl = document.getElementById('hs-table-area-' + tKeyName);
     var statusEl = document.getElementById('hs-filter-status-' + tKeyName);
+    var diagEl = document.getElementById('hs-diag-sub-' + tKeyName);
+    if (diagEl){
+      if (!data || !data.headers){
+        diagEl.textContent = 'Diagnostic: could not read the live sheet — check SHEETS_URL / network.';
+      } else {
+        diagEl.textContent = 'Diagnostic: reading sheet tab ' + (data.sheet || cfg.tabKey) + ' · '
+          + data.headers.length + ' columns received · ' + data.rows.length + ' row(s) returned (including any Removed).';
+      }
+    }
     if (!data || !areaEl) return;
 
     var statusIdx = colIdx(data.headers, STATUS_COL);
@@ -1187,6 +1209,63 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   }
   if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
   IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+<script>
+/* ── Top scrollbar + frozen header + viewport-fit height for the Heat
+   Stress table (Issam, voice, 2026-11-07). Same fix already applied to
+   waste-management.html, loto-register.html, scrap-sales.html,
+   chemical-inventory.html, meps-register.html. Targets .hs-table-area
+   (the stable container) rather than the inner .tbl-wrap, since that
+   inner div is destroyed and recreated by renderTableArea() on every
+   refresh — a MutationObserver on the stable outer container re-finds
+   the <table> each time instead. */
+(function(){
+  function enhance(wrap){
+    if (!wrap || wrap._imsEnhanced) return;
+    wrap._imsEnhanced = true;
+    var top = document.createElement('div');
+    top.className = 'ims-xscroll-top';
+    var inner = document.createElement('div');
+    inner.className = 'ims-xscroll-top-inner';
+    top.appendChild(inner);
+    wrap.parentNode.insertBefore(top, wrap);
+    var state = { table: null, ro: null };
+    function syncInner(){ inner.style.width = (state.table ? state.table.scrollWidth : 0) + 'px'; }
+    function rebind(){
+      var t = wrap.querySelector('table');
+      if (t === state.table) return;
+      if (state.ro) state.ro.disconnect();
+      state.table = t;
+      if (!t) return;
+      if (window.ResizeObserver){ state.ro = new ResizeObserver(syncInner); state.ro.observe(t); }
+      syncInner();
+    }
+    new MutationObserver(rebind).observe(wrap, { childList: true, subtree: true });
+    rebind();
+    var syncing = false;
+    top.addEventListener('scroll', function(){ if (syncing) return; syncing = true; wrap.scrollLeft = top.scrollLeft; syncing = false; });
+    wrap.addEventListener('scroll', function(){ if (syncing) return; syncing = true; top.scrollLeft = wrap.scrollLeft; syncing = false; });
+    function fitHeight(){
+      var rect = wrap.getBoundingClientRect();
+      var available = window.innerHeight - rect.top - 16;
+      wrap.style.maxHeight = Math.max(200, available) + 'px';
+      wrap.style.overflow = 'auto';
+    }
+    var ticking = false;
+    function onScrollOrResize(){ if (ticking) return; ticking = true; requestAnimationFrame(function(){ fitHeight(); ticking = false; }); }
+    fitHeight();
+    window.addEventListener('resize', onScrollOrResize);
+    window.addEventListener('scroll', onScrollOrResize, { passive: true });
+  }
+  function run(){ Array.prototype.forEach.call(document.querySelectorAll('.hs-table-area'), enhance); }
+  // .hs-table-area doesn't exist in the static markup — renderShell()
+  // only injects it once the live fetch for that table resolves — so a
+  // one-time DOMContentLoaded scan would find nothing. Watch the whole
+  // body for it appearing instead; enhance() is a no-op on a wrap it's
+  // already handled, so repeated calls here are harmless.
+  new MutationObserver(run).observe(document.body, { childList: true, subtree: true });
+  run();
 })();
 </script>
 
