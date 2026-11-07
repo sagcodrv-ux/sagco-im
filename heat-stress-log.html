@@ -163,6 +163,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   border:1px solid var(--hsw-border);border-radius:6px;background:var(--hsw-bg2);color:var(--hsw-text);font-family:inherit}
 .hs-dark-wrap .hs-chk-row select.hs-chk-yes{border-color:var(--hsw-amb);color:var(--hsw-amb)}
 .hs-dark-wrap .hs-zone-hint{grid-column:1/-1;font-size:10.5px;color:var(--hsw-text-dim);margin-top:-4px}
+.hs-dark-wrap .hs-chk-badge{font-size:10px;font-weight:700;margin-left:4px}
+.hs-dark-wrap .hs-chk-row .hs-hint{display:block;margin-top:2px}
 .hs-dark-wrap .hs-sec-toggle{cursor:pointer;user-select:none}
 .hs-dark-wrap .hs-sec-toggle:hover{opacity:.9}
 .hs-dark-wrap .hs-chevron{display:inline-block;transition:transform .15s;font-size:9px;margin-right:4px;color:var(--hsw-gold-lt)}
@@ -221,12 +223,31 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // page. If that table is ever revised, update it there first, then
   // mirror the change here.
   var ZONE_TABLE = [
-    { max: 28,       zone: 'Normal', regime: 'Full shift permitted', controls: 'Normal PPE', trigger: '—' },
-    { max: 30,       zone: 'Yellow', regime: '50 min work / 10 min rest', controls: 'Monitor hydration — 250ml water/20 min', trigger: 'Notify SHEE Head if ambient exceeds 30°C at 09:00' },
-    { max: 32,       zone: 'Amber',  regime: '45 min work / 15 min rest', controls: 'PPE weight reduction; cool rest area mandatory', trigger: 'Daily WBGT reading at 06:00 and 12:00' },
-    { max: 35,       zone: 'Orange', regime: '30 min work / 30 min rest; non-essential tasks postponed', controls: 'Medical monitoring; heat symptoms awareness briefing', trigger: 'SHEE Head approval for continued operations' },
-    { max: Infinity, zone: 'Red',    regime: 'Outdoor and uncooled indoor work suspended', controls: 'Emergency cooling available on site', trigger: 'Plant Manager + SHEE Head joint decision to suspend' }
+    { max: 28,       zone: 'Normal', regime: 'Full shift permitted', controls: 'Normal PPE', trigger: '—',
+      required: [] },
+    { max: 30,       zone: 'Yellow', regime: '50 min work / 10 min rest', controls: 'Monitor hydration — 250ml water/20 min', trigger: 'Notify SHEE Head if ambient exceeds 30°C at 09:00',
+      required: [] },
+    { max: 32,       zone: 'Amber',  regime: '45 min work / 15 min rest', controls: 'PPE weight reduction; cool rest area mandatory', trigger: 'Daily WBGT reading at 06:00 and 12:00',
+      required: [] },
+    { max: 35,       zone: 'Orange', regime: '30 min work / 30 min rest; non-essential tasks postponed', controls: 'Medical monitoring; heat symptoms awareness briefing', trigger: 'SHEE Head approval for continued operations',
+      /* Issam, voice, 2026-11-07: this zone's own regime/controls/trigger
+         text above already says non-essential tasks postponed, medical
+         monitoring, and SHEE Head approval — these three are not
+         independent checklist items, they're what Orange itself
+         requires. Derived from the existing text, not a separate guess. */
+      required: ['Non-Essential Tasks Postponed (Y/N)','Medical Monitoring Triggered (Y/N)','SHEE Head Notified (Y/N)'] },
+    { max: Infinity, zone: 'Red',    regime: 'Outdoor and uncooled indoor work suspended', controls: 'Emergency cooling available on site', trigger: 'Plant Manager + SHEE Head joint decision to suspend',
+      /* Red carries everything Orange does, plus the suspension itself
+         — the joint Plant Manager + SHEE Head decision has no field of
+         its own yet, so it's asked for in Remarks (see the Operations
+         Suspended row's hint) rather than inventing new sheet columns
+         without confirming with Issam first. */
+      required: ['Non-Essential Tasks Postponed (Y/N)','Medical Monitoring Triggered (Y/N)','SHEE Head Notified (Y/N)','Operations Suspended (Y/N)'] }
   ];
+  function requiredActionsForZone(zone){
+    var row = ZONE_TABLE.filter(function(z){ return z.zone === zone; })[0];
+    return row ? row.required : [];
+  }
   function zoneRowFor(reading){
     var v = parseFloat(reading);
     if (isNaN(v)) return null;
@@ -815,8 +836,35 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
       }).join('');
       var cls = String(v).trim().toLowerCase() === 'yes' ? ' class="hs-chk-yes"' : '';
-      return '<div class="hs-chk-row"><div class="hs-chk-text">'+f+'</div><select data-field="'+f+'"'+cls+' onchange="this.className=this.value.toLowerCase()===\'yes\'?\'hs-chk-yes\':\'\'">'
+      /* The four actions are an escalation ladder, not independent
+         checkboxes — which ones are actually required depends on the
+         WBGT Zone (Issam, voice, 2026-11-07). data-chk-field marks the
+         row so refreshRequiredBadges() can find and update it live as
+         the zone changes, including via the WBGT-reading auto-fill. */
+      var hint = (f === 'Operations Suspended (Y/N)')
+        ? '<span class="hs-hint">If Yes, name the Plant Manager and SHEE Head who made the joint decision in Remarks below — Red requires both.</span>'
+        : '';
+      return '<div class="hs-chk-row" data-chk-field="'+f+'"><div class="hs-chk-text">'+f+'<span class="hs-chk-badge" data-chk-badge></span>'+hint+'</div>'
+        + '<select data-field="'+f+'"'+cls+' onchange="this.className=this.value.toLowerCase()===\'yes\'?\'hs-chk-yes\':\'\'">'
         + '<option value=""'+(v?'':' selected')+'>— Select —</option>' + optsHtml + '</select></div>';
+    }
+    /* Re-reads the current WBGT Zone value and marks each of the 4
+       action rows as required or not-required-at-this-zone — called
+       once on open and again whenever the zone changes, manually or
+       via the reading auto-fill. */
+    function refreshRequiredBadges(){
+      if (tKeyName !== 'log') return;
+      var zoneEl = root.querySelector('[data-field="WBGT Zone"]');
+      var zone = zoneEl ? zoneEl.value : '';
+      var required = requiredActionsForZone(zone);
+      root.querySelectorAll('[data-chk-field]').forEach(function(row){
+        var f = row.getAttribute('data-chk-field');
+        var badge = row.querySelector('[data-chk-badge]');
+        if (!badge) return;
+        if (!zone){ badge.textContent = ''; return; }
+        badge.textContent = required.indexOf(f) > -1 ? ' — REQUIRED at ' + zone : ' — not required at ' + zone;
+        badge.style.color = required.indexOf(f) > -1 ? 'var(--hsw-amb)' : 'var(--hsw-text-dim)';
+      });
     }
     /* Form-style layout: when a table defines sections, fields group
        under shaded sub-headings in a 2-column grid inside a wide modal
@@ -872,8 +920,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           if (regimeField) regimeField.value = zr.regime;
           if (controlsField) controlsField.value = zr.controls;
           if (triggerField) triggerField.value = zr.trigger;
+          refreshRequiredBadges();
         });
       }
+      // The Zone select can also be changed by hand (e.g. correcting an
+      // edge-case reading) — the required-action badges need to follow
+      // that too, not just the auto-fill from a typed reading.
+      if (zoneSelect) zoneSelect.addEventListener('change', refreshRequiredBadges);
+      refreshRequiredBadges();
     }
 
     document.getElementById('hs-modal-cancel').onclick = function(){ root.innerHTML=''; };
@@ -882,6 +936,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('hs-modal-save').onclick = function(){
       var values = {};
       root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      // The 4 actions are tied to the zone, not independent boxes — a
+      // required one that isn't Yes needs an explanation, so a Red
+      // reading can't quietly go out with "Operations Suspended: No"
+      // and nothing said about why (Issam, voice, 2026-11-07).
+      if (tKeyName === 'log'){
+        var required = requiredActionsForZone(values['WBGT Zone']);
+        var notDone = required.filter(function(f){ return String(values[f]||'').trim().toLowerCase() !== 'yes'; });
+        if (notDone.length && !String(values['Remarks']||'').trim()){
+          alert('At the ' + values['WBGT Zone'] + ' zone, these are required but not confirmed as Yes:\n\n- ' + notDone.join('\n- ')
+            + '\n\nIf that\'s correct, explain why in Remarks before saving (for example, a reason the action genuinely didn\'t apply).');
+          return;
+        }
+      }
       var saveBtn = document.getElementById('hs-modal-save');
       saveBtn.disabled = true;
       window._hsReenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
