@@ -474,6 +474,35 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // Employee Name/ID for a device from the Authorised Persons list
   // rather than only this table's own history), otherwise from the
   // field's own column.
+  /* Authorised LOTO Persons who may currently perform isolations: Status
+     Active and Certificate Expiry Date not in the past (blank expiry is
+     not treated as expired). Read from the already-loaded 'auth' table,
+     so the LOTO Job form only offers people who are really authorised
+     (Issam, voice, 2026-11-07). Returns names; the Employee ID is
+     appended in brackets to tell two people with the same name apart. */
+  function getActiveAuthorisedPersons(){
+    var data = _cache['auth'];
+    if (!data || !data.headers || !data.rows) return [];
+    var nameIdx = colIdx(data.headers, 'Employee Name'), idIdx = colIdx(data.headers, 'Employee ID');
+    var stIdx = colIdx(data.headers, 'Status'), expIdx = colIdx(data.headers, 'Certificate Expiry Date');
+    var recIdx = colIdx(data.headers, 'Record Status');
+    if (nameIdx < 0) return [];
+    var today = new Date(); today.setHours(0,0,0,0);
+    var out = [], seen = {};
+    data.rows.forEach(function(r){
+      if (recIdx >= 0 && String(r[recIdx]||'').trim().toLowerCase() === 'removed') return;
+      if (stIdx >= 0 && String(r[stIdx]||'').trim().toLowerCase() !== 'active') return;
+      if (expIdx >= 0){
+        var e = String(r[expIdx]||'').trim();
+        if (e){ var d = new Date(e); if (!isNaN(d.getTime()) && d < today) return; }
+      }
+      var nm = String(r[nameIdx]||'').trim();
+      if (!nm || seen[nm]) return;
+      seen[nm] = true; out.push(nm);
+    });
+    out.sort();
+    return out;
+  }
   function getSuggestions(tKeyName, fieldName){
     var cfg = TABLES[tKeyName];
     var sourceTable = (cfg.crossRef && cfg.crossRef[fieldName]) ? cfg.crossRef[fieldName] : tKeyName;
@@ -980,6 +1009,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         return '<div class="lt-field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ltw-text-dim)">(pick an open permit, or type one not yet in the list)</span></label>'
           + '<input type="text" data-field="PTW Number" value="'+pv+'" list="lt-dl-ptw-open" placeholder="Loading open permits…">'
           + '<datalist id="lt-dl-ptw-open"></datalist></div>';
+      }
+      if (f === 'Authorized LOTO Person'){
+        var av = initial[f] == null ? '' : String(initial[f]).replace(/"/g,'&quot;');
+        var people = getActiveAuthorisedPersons();
+        return '<div class="lt-field"><label>Authorized LOTO Person <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ltw-text-dim)">('
+          + (people.length ? people.length + ' active authorised person' + (people.length===1?'':'s') : 'none active on the list yet — type the name')
+          + ')</span></label><input type="text" data-field="Authorized LOTO Person" value="'+av+'" list="lt-dl-auth-people">'
+          + '<datalist id="lt-dl-auth-people">' + people.map(function(n){ return '<option value="'+String(n).replace(/"/g,'&quot;')+'">'; }).join('') + '</datalist></div>';
       }
       return lotoFieldHtml(f, initial[f], 'register', fi);
     }).join('');
@@ -1536,6 +1573,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var initial = {};
       var suggestedId = nextSequentialId(tKeyName);
       if (suggestedId) initial[cfg.idCol] = suggestedId;
+      // A new record's own Status select otherwise starts on the blank
+      // "— Select —" option, and if the person doesn't touch it, it
+      // saves as an empty string. That's invisible the moment someone
+      // has clicked a KPI card that filters this table down to one
+      // specific Status (e.g. "Active") — the new row is there on the
+      // sheet, just filtered out, which looked exactly like "only the
+      // original example shows" for Authorised Persons (Issam, voice,
+      // 2026-11-07). Pre-filling a sensible default closes that gap at
+      // the source; clearing the filter below (after save) closes it
+      // for every other field, not just Status.
+      if (cfg.selectFields && cfg.selectFields['Status'] && !cfg.hasStages){
+        var opts = cfg.selectFields['Status'];
+        initial['Status'] = opts.indexOf('Active') > -1 ? 'Active' : opts[0];
+      }
       // LOTO Job gets the fuel-spill-style wide checklist modal
       // (Issam, voice, 2026-11-07); other LOTO tables (devices, auth,
       // audit) keep the original generic modal, unchanged.
@@ -1546,7 +1597,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         values[STATUS_COL] = 'Active';
         if (cfg.hasStages) values['Status'] = 'Open'; // reinstatement is completed later via Continue
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
-          close(); reloadAll();
+          close();
+          // Clear any active filter on this table so the record just
+          // added is guaranteed to be visible — a sticky filter from a
+          // previously-clicked KPI card (e.g. category:'Active') could
+          // otherwise hide a new row whose filtered field doesn't
+          // happen to match, with no indication anything is wrong.
+          _filters[tKeyName] = {search:'', category:'', special:null};
+          reloadAll();
         }).catch(function(){ alert('Could not save — check your connection.'); if (window._ltReenableModalSave) window._ltReenableModalSave(); });
       });
     },
