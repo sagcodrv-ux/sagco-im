@@ -107,7 +107,28 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .ppw-dark-wrap .ppw-btn:disabled{opacity:.4;cursor:not-allowed}
 .ppw-dark-wrap .ppw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--ppw-grn)}
 .ppw-dark-wrap .ppw-btn-esc{background:rgba(232,179,57,.15);border-color:rgba(232,179,57,.4);color:var(--ppw-amb)}
-.ppw-dark-wrap .ppw-table-wrap{border:1px solid var(--ppw-border-gold);border-top:none;max-height:420px;overflow:auto}
+.ppw-dark-wrap .ppw-table-wrap{border:1px solid var(--ppw-border-gold);border-top:none;max-height:226px;overflow:auto}
+/* ~7 rows visible before it scrolls internally (Issam, voice,
+   2026-11-07) — header row is already position:sticky below, so it
+   stays put while scrolling. */
+/* ── Tab bar (Issam, voice, 2026-11-07): the page's three logs plus
+   the new Shoes Received log are now one at a time behind tabs —
+   Bulk Issuance, Individual Issuance, Shoes Stock, Shoes Received, in
+   that order — instead of all four stacked on the page at once. ── */
+.ppw-dark-wrap .ppw-tabbar{display:flex;gap:4px;margin-top:16px;border-bottom:1px solid var(--ppw-border-gold);flex-wrap:wrap}
+.ppw-dark-wrap .ppw-tab{font-size:11.5px;font-weight:700;padding:9px 16px;border:1px solid var(--ppw-border-gold);
+  border-bottom:none;border-radius:8px 8px 0 0;background:var(--ppw-bg2);color:var(--ppw-text-muted);
+  cursor:pointer;margin-bottom:-1px}
+.ppw-dark-wrap .ppw-tab.active{background:var(--ppw-bg3);color:var(--ppw-gold-lt);border-color:var(--ppw-gold)}
+.ppw-dark-wrap .ppw-tab:hover:not(.active){color:var(--ppw-text)}
+.ppw-dark-wrap .ppw-stock-detail{border:1px solid var(--ppw-border-gold);border-top:none;padding:12px 14px;
+  background:var(--ppw-bg2);font-size:11px}
+.ppw-dark-wrap .ppw-stock-detail h4{font-size:10px;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--ppw-gold-lt);margin:10px 0 6px}
+.ppw-dark-wrap .ppw-stock-detail h4:first-child{margin-top:0}
+.ppw-dark-wrap .ppw-stock-detail table{width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:4px}
+.ppw-dark-wrap .ppw-stock-detail th{text-align:left;color:var(--ppw-text-muted);font-weight:600;padding:3px 8px 3px 0}
+.ppw-dark-wrap .ppw-stock-detail td{padding:3px 8px 3px 0;color:var(--ppw-text)}
 .ppw-dark-wrap table.ppw-tbl{width:100%;border-collapse:collapse;font-size:11px}
 .ppw-dark-wrap table.ppw-tbl th{position:sticky;top:0;background:var(--ppw-bg3);color:var(--ppw-gold-lt);
   text-align:left;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--ppw-border-gold);white-space:nowrap}
@@ -135,8 +156,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 </head><body><div class="ppw-dark-wrap">
 <div class="back-row"><a href="ppe-register.html" class="back-link">← PPE Compliance Register</a><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a></div>
 <div class="req-text">L4-SHEE-PR-03-R-01/02 · ISO 45001 §8.1 — PPE Programme (PR-03) · MHRSD Safety Regulations — tracks every PPE issuance event (who received what, when, how much) and keeps a running stock balance for Safety Shoes, the one PPE line whose quantity is not already managed in the ERP.</div>
-<div class="scope-text"><strong>SCOPE</strong> — general PPE (gloves, ear plugs, hair nets, masks, uniforms, etc.) already has its quantity managed in the ERP Stores system; this register does <strong>not</strong> duplicate that — it only logs each issuance event, as a durable record of who got what. <strong>Safety Shoes are the one exception</strong>: because shoes are issued individually and worn out over time, the portal tracks a real running balance here (baseline quantity, issued, remaining) the way general PPE does not need.</div>
-<div class="flag-text">⚠ Source: HSE_Department.xlsm (PPEsStoreCode / PPEs / ShoesSizes / MR tabs) and the "15. PPE Register" 2026 folder (PPE Issuance Log.xlsx — "Dept. Monthly distrub" and "PPEs" sheets), migrated Jan–Sep 2026. <strong>Open item for Issam:</strong> the Safety Shoes baseline quantities below are read from the ERP's "Count" column as of 18-Oct-2026 (the file's last-saved date) — <em>after</em> every 2026 shoe issuance already in this log. That means Issued/Remaining below only count issuances dated <em>after</em> 18-Oct-2026 going forward; the historical Jan–Sep rows are kept for reference but are not re-subtracted from the baseline. If the ERP Count is actually a start-of-year figure instead, tell me and the math flips. Also unresolved: the "Staff" shoe category in the issuance log has two candidate ERP SKUs (lace-type vs. slip-on) — see the Notes column in section 1.</div>
+<div class="scope-text"><strong>SCOPE</strong> — general PPE (gloves, ear plugs, hair nets, masks, uniforms, etc.) already has its quantity managed in the ERP Stores system; this register does <strong>not</strong> duplicate that — it only logs each issuance event, as a durable record of who got what. <strong>Safety Shoes are the one exception</strong>: because shoes are issued individually and worn out over time, the portal tracks a real running balance here (baseline quantity, received, issued, remaining) the way general PPE does not need.</div>
 
 <div class="sec-banner">PPE ISSUANCE — QUICK STATUS</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
@@ -146,54 +166,96 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <div class="kpi-card kc-amb"><div class="kpi-lbl">Individual Issuance Events</div><div class="kpi-val" id="ppw-kpi-indiv-count">—</div><div class="kpi-sub">Shoes / Ear Muffs / Glasses</div></div>
 </div>
 
-<div class="sec-banner">1. SAFETY SHOES STOCK — baseline + running remaining</div>
-<div class="flag-text" style="margin-top:14px">The only PPE line this portal tracks quantity for. Baseline Qty and Baseline Date come from the ERP; Issued counts only issuance dated after the baseline; Remaining = Baseline − Issued. Select a row and click "Correct Baseline" if the ERP figure or date needs adjusting — never edit this by editing individual issuance rows.</div>
-<div class="ppw-toolbar" style="border-top:1px solid var(--ppw-border-gold)">
-  <button class="ppw-btn" id="ppw-stock-btn-edit" disabled onclick="PPW.openStockEditSelected()">Correct Baseline</button>
-  <span style="margin-left:auto;font-size:10px;color:var(--ppw-text-dim)" id="ppw-stock-count-sub"></span>
+<!-- Tabs, in Issam's order: Bulk Issuance, Individual Issuance, Shoes
+     Stock, Shoes Received (voice, 2026-11-07). Bulk opens by default. -->
+<div class="ppw-tabbar">
+  <button class="ppw-tab active" id="ppw-tab-bulk" onclick="PPW.switchTab('bulk')">Bulk Issuance</button>
+  <button class="ppw-tab" id="ppw-tab-indiv" onclick="PPW.switchTab('indiv')">Individual Issuance</button>
+  <button class="ppw-tab" id="ppw-tab-stock" onclick="PPW.switchTab('stock')">Shoes Stock</button>
+  <button class="ppw-tab" id="ppw-tab-received" onclick="PPW.switchTab('received')">Shoes Received</button>
 </div>
-<div class="ppw-table-wrap"><div id="live-table-shoes-stock"><div class="empty-state"><strong>Loading…</strong></div></div></div>
 
-<div class="sec-banner">2. PPE ISSUANCE LOG — DEPARTMENT / BULK DISTRIBUTION (general PPE)</div>
-<div class="ppw-toolbar" style="border-top:1px solid var(--ppw-border-gold)">
-  <input type="text" id="ppw-dept-search" placeholder="Search item / description / dept…" oninput="PPW.onDeptSearch(this.value)">
-  <button class="ppw-btn ppw-btn-add" id="ppw-dept-btn-new" onclick="PPW.openDeptAdd()">+ New Distribution</button>
-  <button class="ppw-btn" id="ppw-dept-btn-edit" disabled onclick="PPW.openDeptEditSelected()">Open / Edit</button>
-  <button class="ppw-btn" id="ppw-dept-btn-remove" disabled onclick="PPW.removeDeptSelected()">Remove</button>
-  <span style="margin-left:auto;font-size:10px;color:var(--ppw-text-dim)" id="ppw-dept-count-sub"></span>
+<div class="ppw-tabpanel" id="ppw-tabpanel-bulk">
+  <div class="sec-banner">PPE ISSUANCE LOG — DEPARTMENT / BULK DISTRIBUTION (general PPE)</div>
+  <div class="ppw-toolbar" style="border-top:1px solid var(--ppw-border-gold)">
+    <input type="text" id="ppw-dept-search" placeholder="Search item / description / dept…" oninput="PPW.onDeptSearch(this.value)">
+    <button class="ppw-btn ppw-btn-add" id="ppw-dept-btn-new" onclick="PPW.openDeptAdd()">+ New Distribution</button>
+    <button class="ppw-btn" id="ppw-dept-btn-edit" disabled onclick="PPW.openDeptEditSelected()">Open / Edit</button>
+    <button class="ppw-btn" id="ppw-dept-btn-remove" disabled onclick="PPW.removeDeptSelected()">Remove</button>
+    <span style="margin-left:auto;font-size:10px;color:var(--ppw-text-dim)" id="ppw-dept-count-sub"></span>
+  </div>
+  <div class="ppw-table-wrap"><div id="live-table-dept"><div class="empty-state"><strong>Loading…</strong></div></div></div>
 </div>
-<div class="ppw-table-wrap"><div id="live-table-dept"><div class="empty-state"><strong>Loading…</strong></div></div></div>
 
-<div class="sec-banner">3. PPE ISSUANCE LOG — INDIVIDUAL (Safety Shoes / Ear Muffs / Safety Glass)</div>
-<div class="ppw-toolbar" style="border-top:1px solid var(--ppw-border-gold)">
-  <input type="text" id="ppw-indiv-search" placeholder="Search employee / ID / dept…" oninput="PPW.onIndivSearch(this.value)">
-  <select id="ppw-indiv-type-filter" onchange="PPW.onIndivTypeFilter(this.value)">
-    <option value="">All PPE types</option>
-    <option value="Safety Shoes">Safety Shoes</option>
-    <option value="Ear Muffs">Ear Muffs</option>
-    <option value="Safety Glass">Safety Glass</option>
-  </select>
-  <button class="ppw-btn ppw-btn-add" id="ppw-indiv-btn-new" onclick="PPW.openIndivAdd()">+ New Issuance</button>
-  <button class="ppw-btn" id="ppw-indiv-btn-edit" disabled onclick="PPW.openIndivEditSelected()">Open / Edit</button>
-  <button class="ppw-btn" id="ppw-indiv-btn-remove" disabled onclick="PPW.removeIndivSelected()">Remove</button>
-  <span style="margin-left:auto;font-size:10px;color:var(--ppw-text-dim)" id="ppw-indiv-count-sub"></span>
+<div class="ppw-tabpanel" id="ppw-tabpanel-indiv" style="display:none">
+  <div class="sec-banner">PPE ISSUANCE LOG — INDIVIDUAL (Safety Shoes / Ear Muffs / Safety Glass)</div>
+  <div class="ppw-toolbar" style="border-top:1px solid var(--ppw-border-gold)">
+    <input type="text" id="ppw-indiv-search" placeholder="Search employee / ID / dept…" oninput="PPW.onIndivSearch(this.value)">
+    <select id="ppw-indiv-type-filter" onchange="PPW.onIndivTypeFilter(this.value)">
+      <option value="">All PPE types</option>
+      <option value="Safety Shoes">Safety Shoes</option>
+      <option value="Ear Muffs">Ear Muffs</option>
+      <option value="Safety Glass">Safety Glass</option>
+    </select>
+    <button class="ppw-btn ppw-btn-add" id="ppw-indiv-btn-new" onclick="PPW.openIndivAdd()">+ New Issuance</button>
+    <button class="ppw-btn" id="ppw-indiv-btn-edit" disabled onclick="PPW.openIndivEditSelected()">Open / Edit</button>
+    <button class="ppw-btn" id="ppw-indiv-btn-remove" disabled onclick="PPW.removeIndivSelected()">Remove</button>
+    <span style="margin-left:auto;font-size:10px;color:var(--ppw-text-dim)" id="ppw-indiv-count-sub"></span>
+  </div>
+  <div class="ppw-table-wrap"><div id="live-table-indiv"><div class="empty-state"><strong>Loading…</strong></div></div></div>
 </div>
-<div class="ppw-table-wrap"><div id="live-table-indiv"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+<div class="ppw-tabpanel" id="ppw-tabpanel-stock" style="display:none">
+  <div class="sec-banner">SAFETY SHOES STOCK — baseline + running remaining</div>
+  <div class="flag-text" style="margin-top:14px">⚠ Source: HSE_Department.xlsm (PPEsStoreCode / PPEs / ShoesSizes / MR tabs) and the "15. PPE Register" 2026 folder (PPE Issuance Log.xlsx — "Dept. Monthly distrub" and "PPEs" sheets), migrated Jan–Sep 2026. <strong>Open item for Issam:</strong> the Safety Shoes baseline quantities below are read from the ERP's "Count" column as of 18-Oct-2026 (the file's last-saved date) — <em>after</em> every 2026 shoe issuance already in this log. That means Received/Issued/Remaining below only count events dated <em>after</em> 18-Oct-2026 going forward; the historical Jan–Sep rows are kept for reference but are not re-subtracted from the baseline. If the ERP Count is actually a start-of-year figure instead, tell me and the math flips. Also unresolved: the "Staff" shoe category in the issuance log has two candidate ERP SKUs (lace-type vs. slip-on) — see the Notes column below.</div>
+  <div class="flag-text">Remaining = Baseline + Received − Issued (all three only counting events dated after the baseline date). Select a row and click "Correct Baseline" if the ERP figure or date needs adjusting — never edit this by editing issuance or reception rows. Click a row to see its individual receptions and issuances below the table.</div>
+  <div class="ppw-toolbar" style="border-top:1px solid var(--ppw-border-gold)">
+    <button class="ppw-btn" id="ppw-stock-btn-edit" disabled onclick="PPW.openStockEditSelected()">Correct Baseline</button>
+    <span style="margin-left:auto;font-size:10px;color:var(--ppw-text-dim)" id="ppw-stock-count-sub"></span>
+  </div>
+  <div class="ppw-table-wrap"><div id="live-table-shoes-stock"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+  <div id="ppw-stock-detail"></div>
+</div>
+
+<div class="ppw-tabpanel" id="ppw-tabpanel-received" style="display:none">
+  <div class="sec-banner">SAFETY SHOES — MATERIAL RECEPTION LOG</div>
+  <div class="flag-text" style="margin-top:14px">Every delivery of Safety Shoes stock into store, by SKU. Only receptions dated after a SKU's Baseline Date count toward its Remaining figure on the Shoes Stock tab — see the note there.</div>
+  <div class="ppw-toolbar" style="border-top:1px solid var(--ppw-border-gold)">
+    <input type="text" id="ppw-recv-search" placeholder="Search item code / reference…" oninput="PPW.onRecvSearch(this.value)">
+    <button class="ppw-btn ppw-btn-add" id="ppw-recv-btn-new" onclick="PPW.openRecvAdd()">+ Add Received Stock</button>
+    <button class="ppw-btn" id="ppw-recv-btn-edit" disabled onclick="PPW.openRecvEditSelected()">Open / Edit</button>
+    <button class="ppw-btn" id="ppw-recv-btn-remove" disabled onclick="PPW.removeRecvSelected()">Remove</button>
+    <span style="margin-left:auto;font-size:10px;color:var(--ppw-text-dim)" id="ppw-recv-count-sub"></span>
+  </div>
+  <div class="ppw-table-wrap"><div id="live-table-received"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+</div>
 
 <div id="ppw-modal-root"></div>
 
 <script>
 (function(){
 
-  var STOCK = { tabKey:'ppe_shoes_stock',    containerId:'live-table-shoes-stock', idCol:'Item Code' };
-  var DEPT  = { tabKey:'ppe_issuance_dept',  containerId:'live-table-dept',        idCol:'Record ID' };
-  var INDIV = { tabKey:'ppe_issuance_indiv', containerId:'live-table-indiv',       idCol:'Record ID' };
+  var STOCK    = { tabKey:'ppe_shoes_stock',    containerId:'live-table-shoes-stock', idCol:'Item Code' };
+  var DEPT     = { tabKey:'ppe_issuance_dept',  containerId:'live-table-dept',        idCol:'Record ID' };
+  var INDIV    = { tabKey:'ppe_issuance_indiv', containerId:'live-table-indiv',       idCol:'Record ID' };
+  // New tab (Issam, voice, 2026-11-07): Safety Shoes material receptions,
+  // kept as its own log rather than inside the Shoes Stock summary, so a
+  // delivery is recorded the same deliberate way an issuance is. Needs a
+  // matching sheet tab named ppe_shoes_received on the live spreadsheet
+  // with headers: Record ID, Date, Item Code, Qty Received, Delivery
+  // Ref, Received By, Record Status — the generic read/write/update
+  // actions this page already uses for every other tab work against any
+  // sheet tab by name, so no separate Apps Script change is needed,
+  // just that one new sheet tab.
+  var RECEIVED = { tabKey:'ppe_shoes_received', containerId:'live-table-received',    idCol:'Record ID' };
   var STATUS_COL = 'Record Status';
 
-  var _stockCache = null, _deptCache = null, _indivCache = null;
-  var _stockSelected = null, _deptSelected = null, _indivSelected = null;
+  var _stockCache = null, _deptCache = null, _indivCache = null, _receivedCache = null;
+  var _stockSelected = null, _deptSelected = null, _indivSelected = null, _recvSelected = null;
   var _deptFilters = { search:'' };
   var _indivFilters = { search:'', type:'' };
+  var _recvFilters = { search:'' };
+  var _activeTab = 'bulk';
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
   function colIdx(headers, name){
@@ -234,7 +296,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return Promise.all([
       loadTab(STOCK.tabKey).then(function(data){ _stockCache = filterActive(data); }).catch(function(){ _stockCache = null; }),
       loadTab(DEPT.tabKey).then(function(data){ _deptCache = filterActive(data); }).catch(function(){ _deptCache = null; }),
-      loadTab(INDIV.tabKey).then(function(data){ _indivCache = filterActive(data); }).catch(function(){ _indivCache = null; })
+      loadTab(INDIV.tabKey).then(function(data){ _indivCache = filterActive(data); }).catch(function(){ _indivCache = null; }),
+      // A brand-new sheet tab may not exist yet on an older spreadsheet
+      // copy — treat a failed/empty read as "no receptions logged yet"
+      // rather than breaking the rest of the page.
+      loadTab(RECEIVED.tabKey).then(function(data){ _receivedCache = filterActive(data); }).catch(function(){ _receivedCache = null; })
     ]).then(render);
   }
   function filterActive(data){
@@ -248,6 +314,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function getStockRecs(){ if (!_stockCache || !_stockCache.headers || !_stockCache.rows) return []; return _stockCache.rows.map(function(r){ return recFromRow(_stockCache.headers, r); }); }
   function getDeptRecs(){ if (!_deptCache || !_deptCache.headers || !_deptCache.rows) return []; return _deptCache.rows.map(function(r){ return recFromRow(_deptCache.headers, r); }); }
   function getIndivRecs(){ if (!_indivCache || !_indivCache.headers || !_indivCache.rows) return []; return _indivCache.rows.map(function(r){ return recFromRow(_indivCache.headers, r); }); }
+  function getReceivedRecs(){ if (!_receivedCache || !_receivedCache.headers || !_receivedCache.rows) return []; return _receivedCache.rows.map(function(r){ return recFromRow(_receivedCache.headers, r); }); }
 
   // Issued-after-baseline: counts individual-issuance rows for this
   // Item Code dated strictly after the stock row's own Baseline Date —
@@ -262,14 +329,30 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       return !isNaN(rd.getTime()) && rd > bd;
     }).length;
   }
+  // Received-after-baseline (Issam, voice, 2026-11-07): same "only
+  // count it if it's dated after the baseline" rule as issuance above,
+  // so a delivery already folded into the ERP's baseline count isn't
+  // added a second time. Sums Qty Received rather than counting rows,
+  // since one reception can be many pairs at once.
+  function receivedAfterBaseline(code, baselineDate){
+    if (!code || !baselineDate) return 0;
+    var bd = new Date(baselineDate);
+    if (isNaN(bd.getTime())) return 0;
+    return getReceivedRecs().filter(function(r){
+      if (r['Item Code'] !== code) return false;
+      var rd = new Date(r['Date']);
+      return !isNaN(rd.getTime()) && rd > bd;
+    }).reduce(function(sum, r){ return sum + (parseFloat(r['Qty Received']) || 0); }, 0);
+  }
 
   function render(){
-    var stockRecs = getStockRecs(), deptRecs = getDeptRecs(), indivRecs = getIndivRecs();
+    var stockRecs = getStockRecs(), deptRecs = getDeptRecs(), indivRecs = getIndivRecs(), receivedRecs = getReceivedRecs();
 
     var totalRemaining = 0;
     stockRecs.forEach(function(s){
       var issued = issuedAfterBaseline(s['Item Code'], s['Baseline Date']);
-      var remaining = (parseFloat(s['Baseline Qty']) || 0) - issued;
+      var received = receivedAfterBaseline(s['Item Code'], s['Baseline Date']);
+      var remaining = (parseFloat(s['Baseline Qty']) || 0) + received - issued;
       totalRemaining += remaining;
     });
     var shoesIssued2026 = indivRecs.filter(function(r){ return r['PPE Type'] === 'Safety Shoes'; }).length;
@@ -281,6 +364,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     renderStockTable(stockRecs);
     renderDeptTable(deptRecs);
     renderIndivTable(indivRecs);
+    renderRecvTable(receivedRecs);
+    renderStockDetail();
   }
 
   /* ── Section 1: Safety Shoes Stock ───────────────────────────── */
@@ -295,8 +380,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var rows = recs.map(function(s){
       var sel = _stockSelected === s['Item Code'];
       var issued = issuedAfterBaseline(s['Item Code'], s['Baseline Date']);
+      var received = receivedAfterBaseline(s['Item Code'], s['Baseline Date']);
       var baseline = parseFloat(s['Baseline Qty']) || 0;
-      var remaining = baseline - issued;
+      var remaining = baseline + received - issued;
       var remBadge = remaining <= 15 ? '<span class="badge kc-red">' + remaining + ' — low</span>'
         : (remaining <= 50 ? '<span class="badge kc-amb">' + remaining + '</span>' : '<span class="badge kc-grn">' + remaining + '</span>');
       return '<tr class="ppw-row' + (sel?' ppw-sel':'') + '" onclick="PPW.selectStock(\'' + ppEsc(s['Item Code']) + '\')">'
@@ -304,13 +390,43 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         + '<td>' + ppEsc(s['Description']) + '</td>'
         + '<td>' + ppEsc(baseline) + '</td>'
         + '<td>' + ppEsc(s['Baseline Date']) + '</td>'
+        + '<td>' + received + '</td>'
         + '<td>' + issued + '</td>'
         + '<td>' + remBadge + '</td>'
-        + '<td style="font-size:10px;color:var(--ppw-text-dim);max-width:260px">' + ppEsc(s['Notes']) + '</td>'
+        + '<td style="font-size:10px;color:var(--ppw-text-dim);max-width:220px">' + ppEsc(s['Notes']) + '</td>'
       + '</tr>';
     }).join('');
-    el.innerHTML = '<table class="ppw-tbl"><thead><tr><th>Item Code</th><th>Description</th><th>Baseline Qty</th><th>Baseline Date</th><th>Issued (since)</th><th>Remaining</th><th>Notes</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    el.innerHTML = '<table class="ppw-tbl"><thead><tr><th>Item Code</th><th>Description</th><th>Baseline Qty</th><th>Baseline Date</th><th>Received (since)</th><th>Issued (since)</th><th>Remaining</th><th>Notes</th></tr></thead><tbody>' + rows + '</tbody></table>';
     updateStockButtons();
+  }
+  // Detail panel below the Shoes Stock table (Issam, voice,
+  // 2026-11-07): clicking a stock row shows every reception and every
+  // issuance behind that SKU's running balance, so "what made up this
+  // number" is one click away instead of having to cross-reference the
+  // other two tabs by hand. Clicking the same row again (toggled by
+  // selectStock) clears the selection and this panel goes empty.
+  function renderStockDetail(){
+    var el = document.getElementById('ppw-stock-detail');
+    if (!el) return;
+    var s = getSelectedStock();
+    if (!s){ el.innerHTML = ''; return; }
+    var code = s['Item Code'];
+    var recvRows = getReceivedRecs().filter(function(r){ return r['Item Code'] === code; })
+      .sort(function(a,b){ return String(b['Date']||'').localeCompare(String(a['Date']||'')); });
+    var issRows = getIndivRecs().filter(function(r){ return r['Item Code'] === code; })
+      .sort(function(a,b){ return String(b['Date']||'').localeCompare(String(a['Date']||'')); });
+    var recvHtml = recvRows.length
+      ? '<table><thead><tr><th>Date</th><th>Qty</th><th>Reference</th><th>Received By</th></tr></thead><tbody>' +
+        recvRows.map(function(r){ return '<tr><td>'+ppEsc(r['Date'])+'</td><td>'+ppEsc(r['Qty Received'])+'</td><td>'+ppEsc(r['Delivery Ref'])+'</td><td>'+ppEsc(r['Received By'])+'</td></tr>'; }).join('') +
+        '</tbody></table>'
+      : '<div style="color:var(--ppw-text-dim);font-size:10.5px">No receptions logged for this SKU.</div>';
+    var issHtml = issRows.length
+      ? '<table><thead><tr><th>Date</th><th>Employee</th><th>Dept.</th></tr></thead><tbody>' +
+        issRows.map(function(r){ return '<tr><td>'+ppEsc(r['Date'])+'</td><td>'+ppEsc(r['Employee Name'])+'</td><td>'+ppEsc(r['Dept.'])+'</td></tr>'; }).join('') +
+        '</tbody></table>'
+      : '<div style="color:var(--ppw-text-dim);font-size:10.5px">No issuance logged against this SKU.</div>';
+    el.className = 'ppw-stock-detail';
+    el.innerHTML = '<h4>Receptions — ' + ppEsc(code) + '</h4>' + recvHtml + '<h4>Issuances — ' + ppEsc(code) + '</h4>' + issHtml;
   }
   function updateStockButtons(){
     var s = getSelectedStock();
@@ -334,7 +450,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         + '<div><label>Baseline Date</label><input type="date" id="ppw-s-date" value="' + ppEsc(rec['Baseline Date']) + '"></div>'
       + '</div>'
       + '<div class="ppw-field" style="margin-bottom:14px"><label>Notes</label><textarea id="ppw-s-notes" rows="3" style="width:100%;background:var(--ppw-bg3);border:1px solid var(--ppw-border);color:var(--ppw-text);border-radius:7px;padding:7px 9px;font-size:12px">' + ppEsc(rec['Notes']) + '</textarea></div>'
-      + '<div class="ppw-note">Changing the baseline date resets which individual issuance rows count toward "Issued since" — only issuance dated strictly after this date will be subtracted from the quantity above.</div>'
+      + '<div class="ppw-note">Changing the baseline date resets which issuance AND reception rows count toward "Issued (since)" and "Received (since)" — only rows dated strictly after this date are added or subtracted from the quantity above.</div>'
       + '<div class="ppw-modal-actions"><button class="ppw-btn" id="ppw-s-cancel">Cancel</button><button class="ppw-btn ppw-btn-add" id="ppw-s-save">Save</button></div>'
     + '</div></div>';
     document.getElementById('ppw-s-cancel').onclick = function(){ root.innerHTML=''; };
@@ -571,6 +687,108 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
   }
 
+  /* ── Section 4: Safety Shoes material reception log ──────────────
+     New tab (Issam, voice, 2026-11-07), mirroring the Dept/bulk log's
+     own pattern — a separate deliberate record of each delivery into
+     store, rather than folded into the Shoes Stock summary itself. */
+  function filteredRecv(recs){
+    var f = _recvFilters;
+    return recs.filter(function(r){
+      if (f.search){
+        var hay = ((r['Item Code']||'')+' '+(r['Delivery Ref']||'')+' '+(r['Received By']||'')).toLowerCase();
+        if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+      }
+      return true;
+    });
+  }
+  function renderRecvTable(recs){
+    var list = filteredRecv(recs);
+    var el = document.getElementById(RECEIVED.containerId);
+    if (!el) return;
+    setTxt('ppw-recv-count-sub', list.length + ' of ' + recs.length + ' receptions shown');
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No receptions logged yet</strong>Log the first delivery to get started.</div>';
+      updateRecvButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(b['Date']||'').localeCompare(String(a['Date']||'')); });
+    var rows = list.map(function(r){
+      var sel = _recvSelected === r['Record ID'];
+      return '<tr class="ppw-row' + (sel?' ppw-sel':'') + '" onclick="PPW.selectRecv(\'' + ppEsc(r['Record ID']) + '\')">'
+        + '<td>' + ppEsc(r['Date']) + '</td>'
+        + '<td>' + ppEsc(r['Item Code']) + '</td>'
+        + '<td>' + ppEsc(r['Qty Received']) + '</td>'
+        + '<td>' + ppEsc(r['Delivery Ref']) + '</td>'
+        + '<td>' + ppEsc(r['Received By']) + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="ppw-tbl"><thead><tr><th>Date</th><th>Item Code</th><th>Qty Received</th><th>Delivery Ref</th><th>Received By</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateRecvButtons();
+  }
+  function updateRecvButtons(){
+    var r = getSelectedRecv();
+    document.getElementById('ppw-recv-btn-edit').disabled = !r;
+    document.getElementById('ppw-recv-btn-remove').disabled = !r || !can('delete');
+  }
+  function getSelectedRecv(){
+    if (!_receivedCache || !_recvSelected) return null;
+    var idIdx = colIdx(_receivedCache.headers, RECEIVED.idCol);
+    var row = _receivedCache.rows.find(function(r){ return String(r[idIdx]) === String(_recvSelected); });
+    return row ? recFromRow(_receivedCache.headers, row) : null;
+  }
+  function buildRecvModal(existingRec){
+    var root = document.getElementById('ppw-modal-root');
+    var isEdit = !!existingRec;
+    var rid = isEdit ? existingRec['Record ID'] : nextRecordId(_receivedCache, 'PPR', RECEIVED.idCol);
+    var shoeOpts = '<option value="">-- select SKU --</option>' + getStockOptions().map(function(o){
+      return '<option value="'+ppEsc(o.code)+'"'+((existingRec&&existingRec['Item Code']===o.code)?' selected':'')+'>'+ppEsc(o.label)+'</option>';
+    }).join('');
+    root.innerHTML = '<div class="ppw-modal-bg" id="ppw-bg"><div class="ppw-modal">'
+      + '<h3>' + (isEdit?'Edit':'Add') + ' Received Stock' + (isEdit?' — '+ppEsc(rid):'') + '</h3>'
+      + '<div class="ppw-modal-hdr-grid">'
+        + '<div><label>Date</label><input type="date" id="ppw-r-date" value="' + ppEsc(existingRec?existingRec['Date']:new Date().toISOString().slice(0,10)) + '"></div>'
+        + '<div><label>ERP SKU (Item Code)</label><select id="ppw-r-code">' + shoeOpts + '</select></div>'
+        + '<div><label>Qty Received</label><input type="number" step="any" id="ppw-r-qty" value="' + ppEsc(existingRec?existingRec['Qty Received']:'') + '"></div>'
+        + '<div><label>Delivery Ref <span style="opacity:.6;text-transform:none">(optional)</span></label><input type="text" id="ppw-r-ref" value="' + ppEsc(existingRec?existingRec['Delivery Ref']:'') + '"></div>'
+        + '<div><label>Received By</label><input type="text" id="ppw-r-by" value="' + ppEsc(existingRec?existingRec['Received By']:'') + '"></div>'
+      + '</div>'
+      + '<div class="ppw-note">Only counts toward that SKU\'s Remaining balance on the Shoes Stock tab if dated after that SKU\'s Baseline Date.</div>'
+      + '<div class="ppw-modal-actions"><button class="ppw-btn" id="ppw-r-cancel">Cancel</button><button class="ppw-btn ppw-btn-add" id="ppw-r-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('ppw-r-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('ppw-bg').onclick = function(e){ if (e.target.id==='ppw-bg') root.innerHTML=''; };
+    document.getElementById('ppw-r-save').onclick = function(){ saveRecv(isEdit, rid); };
+  }
+  function saveRecv(isEdit, rid){
+    var root = document.getElementById('ppw-modal-root');
+    var btn = document.getElementById('ppw-r-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    var code = document.getElementById('ppw-r-code').value;
+    if (!code){ alert('ERP SKU is required.'); reenable(); return; }
+    var qty = document.getElementById('ppw-r-qty').value;
+    if (!qty || isNaN(parseFloat(qty))){ alert('Qty Received is required.'); reenable(); return; }
+    var values = {
+      'Record ID': rid,
+      'Date': document.getElementById('ppw-r-date').value,
+      'Item Code': code,
+      'Qty Received': qty,
+      'Delivery Ref': document.getElementById('ppw-r-ref').value.trim(),
+      'Received By': document.getElementById('ppw-r-by').value.trim()
+    };
+    if (isEdit){
+      postJSON('update', {tab: RECEIVED.tabKey, idCol: RECEIVED.idCol, id: rid}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: RECEIVED.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
+
   /* ── Public API ───────────────────────────────────────────────── */
   window.PPW = {
     selectStock: function(id){ _stockSelected = (_stockSelected!==null && String(_stockSelected)===String(id)) ? null : id; render(); },
@@ -607,6 +825,32 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (res && res.status==='error'){ alert('Remove failed: '+(res.message||'unknown error')); return; }
         _indivSelected = null; loadAll();
       }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+
+    onRecvSearch: function(v){ _recvFilters.search = v; render(); },
+    selectRecv: function(id){ _recvSelected = (_recvSelected!==null && String(_recvSelected)===String(id)) ? null : id; render(); },
+    openRecvAdd: function(){ if (can('add')) buildRecvModal(null); },
+    openRecvEditSelected: function(){ var r=getSelectedRecv(); if(!r) return alert('Select a row first.'); buildRecvModal(r); },
+    removeRecvSelected: function(){
+      if (!can('delete')) return;
+      var r = getSelectedRecv(); if(!r) return alert('Select a row first.');
+      if (!confirm('Remove this reception record (' + r['Record ID'] + ')? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: RECEIVED.tabKey, idCol: RECEIVED.idCol, id: r['Record ID']}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status==='error'){ alert('Remove failed: '+(res.message||'unknown error')); return; }
+        _recvSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+
+    // Tabs (Issam, voice, 2026-11-07): one panel visible at a time,
+    // in the order Bulk → Individual → Shoes Stock → Shoes Received.
+    switchTab: function(tab){
+      _activeTab = tab;
+      ['bulk','indiv','stock','received'].forEach(function(t){
+        var panel = document.getElementById('ppw-tabpanel-' + t);
+        var btn = document.getElementById('ppw-tab-' + t);
+        if (panel) panel.style.display = (t === tab) ? '' : 'none';
+        if (btn) btn.classList.toggle('active', t === tab);
+      });
     }
   };
 
