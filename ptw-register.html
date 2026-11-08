@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="style.css">
 <script src="auth.js"></script><script src="data.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
 /* This page no longer has the sidebar/topbar shell, so override the
    parts of style.css's body rule that assumed .content was the only
@@ -93,15 +94,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <div class="kpi-card kc-red ptw-clickable" onclick="PTW.cardClick('unauthorized')" title="Click to view permits issued by someone not on the Authorized Issuers list"><div class="kpi-lbl">Unauthorized Issuer</div><div class="kpi-val" id="ptw-kpi-unauth">—</div><div class="kpi-sub">Issuer not on Authorized list</div></div>
 </div>
 
-<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
+<div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:14px">
   <div class="chart-card">
     <div class="chart-title">Monthly Permit Volume<span class="chart-sub">permits raised, by month</span></div>
     <div class="chart-wrap"><canvas id="ptwVolumeChart"></canvas></div>
     <div id="ptw-volume-caption" class="chart-sub" style="display:block;margin-top:6px;text-align:center"></div>
   </div>
+</div>
+<div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:18px">
   <div class="chart-card">
-    <div class="chart-title">Permits by Work Involved<span class="chart-sub">breakdown by work type</span></div>
-    <div class="chart-wrap"><canvas id="ptwWorkTypeChart"></canvas></div>
+    <div class="chart-title">Permits by Work Involved<span class="chart-sub">breakdown by work type — click a bar to filter the register below</span></div>
+    <!-- Height is set by JS to fit however many work types exist (see
+         renderCharts), instead of a fixed box too short to read once
+         there are more than a handful of categories (Issam, voice,
+         2026-11-07). -->
+    <div class="chart-wrap" id="ptw-worktype-wrap" style="height:220px"><canvas id="ptwWorkTypeChart"></canvas></div>
   </div>
 </div>
 
@@ -159,20 +166,36 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .ptw-dark-wrap .ptw-cb-item{display:flex;align-items:center;gap:6px;font-size:11px;
   color:var(--pdw-text);cursor:pointer;padding:2px 0}
 .ptw-dark-wrap .ptw-cb-item input[type="checkbox"]{width:auto;margin:0;cursor:pointer;flex-shrink:0}
+.ptw-dark-wrap .ptw-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.ptw-dark-wrap .ptw-modal-actions .ptw-btn-cancel{background:var(--pdw-bg3)}
+/* ── PTW Add/Edit form, sectioned to follow HSE-FRM-01's own layout
+   (Issam, voice, 2026-11-07): wide modal on desktop, 2-column grid,
+   shaded sub-headings — same visual language as the LOTO Job and Heat
+   Stress forms. ── */
+.ptw-dark-wrap .ptw-modal.wide{width:820px;max-width:92vw}
+.ptw-dark-wrap .ptw-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.ptw-dark-wrap .ptw-modal-grid .full{grid-column:1/-1}
+.ptw-dark-wrap .ptw-sub-hd{grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--pdw-gold-lt);border-top:1px solid var(--pdw-border);padding-top:10px;margin-top:2px}
+.ptw-dark-wrap .ptw-sub-hd:first-child{border-top:none;padding-top:0;margin-top:0}
 /* Phone-width fallback (Issam, voice, 2026-11-07): single column so
    longer checkbox labels (PPE items, hazards) wrap cleanly instead of
    cramming into a half-width column, and each tap target stays full
-   width and easy to hit with a thumb. */
+   width and easy to hit with a thumb. Placed AFTER the base
+   .ptw-modal-grid rule above — same selector specificity, so source
+   order decides, and this has to come later to actually win on a
+   narrow screen (an earlier version of this block sat above the base
+   rule and was silently always overridden by it, on every screen
+   size). */
 @media (max-width:480px){
   .ptw-dark-wrap .ptw-modal{width:100%;max-width:100vw;border-radius:0;max-height:100vh;height:100vh}
+  .ptw-dark-wrap .ptw-modal-grid{grid-template-columns:1fr}
   .ptw-dark-wrap .ptw-cb-grid{grid-template-columns:1fr}
   .ptw-dark-wrap .ptw-cb-item{padding:7px 0;font-size:12.5px}
   /* 16px, not smaller — iOS Safari auto-zooms the whole page on focus
      for any input under 16px, which is jarring on a form this long. */
   .ptw-dark-wrap .ptw-field input,.ptw-dark-wrap .ptw-field textarea{font-size:16px;padding:9px 10px}
 }
-.ptw-dark-wrap .ptw-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
-.ptw-dark-wrap .ptw-modal-actions .ptw-btn-cancel{background:var(--pdw-bg3)}
 /* Photo evidence gallery — thumbnail grid with hover-delete, inside the
    same modal shell used for Add/Edit. */
 .ptw-dark-wrap .ptw-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
@@ -215,7 +238,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   border-radius:8px;font-family:inherit;max-width:220px;background:var(--pdw-bg3);color:var(--pdw-text)}
 .ptw-dark-wrap .ptw-filter-status{font-size:10px;color:var(--pdw-text-muted);margin-left:auto}
 
-.ptw-dark-wrap .tbl-wrap{overflow-x:auto}
+.ptw-dark-wrap .tbl-wrap{overflow:auto;max-height:400px}
+/* ~10 rows visible before the table scrolls internally, instead of
+   growing the whole page taller and taller (Issam, voice, 2026-11-07).
+   Paired with the sticky header below, so the column titles stay put
+   while scrolling. */
 /* Thin scroll strip mirrored above the table — same scrollbar, just
    reachable without scrolling past every row first. Height is just
    enough to show a scrollbar track/thumb; the spacer inside gives it
@@ -224,7 +251,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .ptw-dark-wrap .ptw-topscroll{overflow-x:auto;overflow-y:hidden;height:14px;margin-bottom:2px;display:none}
 .ptw-dark-wrap .ptw-topscroll-spacer{height:1px}
 .ptw-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
-.ptw-dark-wrap .tbl-stripe th{text-align:left;color:var(--pdw-gold-lt);font-weight:700;font-size:10px;
+.ptw-dark-wrap .tbl-stripe th{position:sticky;top:0;z-index:5;text-align:left;color:var(--pdw-gold-lt);font-weight:700;font-size:10px;
   text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--pdw-border-gold);
   background:var(--pdw-bg3);white-space:nowrap}
 .ptw-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--pdw-border);color:var(--pdw-text)}
@@ -343,7 +370,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         'PPE Required': PTW_PPE.map(function(p){ return p[0]; }),
         'Service Isolation': PTW_ISOLATION.map(function(i){ return i[0]; })
       },
-      filterField: 'Area'
+      filterField: 'Area',
+      // Sections mirror the paper permit, HSE-FRM-01, section by
+      // section (Issam, voice, 2026-11-07), so the screen form and the
+      // printed permit read the same way. A field not present on the
+      // live sheet yet (see optionalFields above) simply doesn't
+      // appear — its section still renders fine with what's left.
+      sections: [
+        { title: 'Permit Header', fields: ['Permit ID','Permit #','Date','Area','Location','Work Involved','Name of Project / Job','Contracting Company'] },
+        { title: 'Work Details', fields: ['Description of Work','Number of Workers'] },
+        { title: 'Equipment, Hazards & Precautions', fields: ['Equipment & Tools','Potential Hazards','Safety Precautions','PPE Required'] },
+        { title: 'Service Isolation', fields: ['Service Isolation'] },
+        { title: 'Permit Authorization', fields: ['Permit Issuer - Name','Permit Issuer - Dept.','Permit Receiver - Name','Permit Controller','Unit Manager','Permit Valid From','Permit Valid To'] },
+        { title: 'Status & Remarks', fields: ['Status','Remarks'] }
+      ]
     },
     issuers: {
       label: 'Issuer', tabKey: 'ptw_authorized_issuers', containerId: 'live-table-issuers',
@@ -1057,28 +1097,72 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (capElEmpty) capElEmpty.textContent = '';
     }
 
-    // Chart 2: Permits by Work Involved (bar)
+    // Chart 2: Permits by Work Involved (bar) — rebuilt 2026-11-07
+    // (Issam, voice): the fixed 220px box was unreadable once there
+    // were more than 4-5 work types — labels and bars got cramped.
+    // Now the card's height grows with the number of categories, each
+    // bar shows its count AND share of the total, and clicking a bar
+    // filters the register below to that exact work type.
     var workIdx = colIdx(reg.headers, 'Work Involved');
     var workCounts = {};
+    var totalWithWork = 0;
     visibleRows.forEach(function(r){
       var w = workIdx >= 0 ? String(r[workIdx]||'').trim() : '';
       if (!w) return;
       workCounts[w] = (workCounts[w] || 0) + 1;
+      totalWithWork++;
     });
     var sortedWork = Object.keys(workCounts).sort(function(a,b){ return workCounts[b]-workCounts[a]; });
+    var wrapEl = document.getElementById('ptw-worktype-wrap');
+    if (wrapEl){
+      // ~30px per bar reads comfortably at this font size; floor of
+      // 220px so a handful of categories doesn't look sparse, no
+      // ceiling — if there are 40 work types, the card is tall and the
+      // page scrolls, which beats squeezing every bar unreadably thin.
+      wrapEl.style.height = Math.max(220, sortedWork.length * 30 + 40) + 'px';
+    }
     if (window.Chart && sortedWork.length){
+      var dataLabelsPlugin = window.ChartDataLabels;
       _charts.worktype = new Chart(document.getElementById('ptwWorkTypeChart'), {
         type: 'bar',
         data: { labels: sortedWork, datasets: [{
           label: 'Permits', data: sortedWork.map(function(w){ return workCounts[w]; }),
           backgroundColor: BLUE, borderRadius: 4
         }]},
+        plugins: dataLabelsPlugin ? [dataLabelsPlugin] : [],
         options: { responsive:true, maintainAspectRatio:false, indexAxis: 'y',
+          onClick: function(evt, elements){
+            if (!elements || !elements.length) return;
+            var idx = elements[0].index;
+            var workType = sortedWork[idx];
+            if (!workType) return;
+            // Drill into the register below: reuse the search box
+            // (searches every column already, including Work Involved)
+            // rather than a separate filter control.
+            if (!_filters['register']) _filters['register'] = {search:'', category:'', special:null};
+            _filters['register'].search = workType;
+            renderTableArea('register');
+            var registerContainer = document.getElementById(TABLES['register'].containerId);
+            var searchInput = registerContainer ? registerContainer.querySelector('.ptw-search-input') : null;
+            if (searchInput) searchInput.value = workType;
+            if (registerContainer) registerContainer.scrollIntoView({ behavior:'smooth', block:'start' });
+          },
+          onHover: function(evt, elements){ evt.native.target.style.cursor = (elements && elements.length) ? 'pointer' : 'default'; },
           scales: {
             x: { beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } },
             y: { ticks:{ color:TICK }, grid:{ color:GRID } }
           },
-          plugins: { legend: { display:false } } }
+          plugins: {
+            legend: { display:false },
+            datalabels: dataLabelsPlugin ? {
+              anchor:'end', align:'end', color:TICK, font:{ size:10, weight:'600' },
+              formatter: function(value){
+                var pct = totalWithWork ? Math.round((value/totalWithWork)*100) : 0;
+                return value + ' (' + pct + '%)';
+              }
+            } : undefined
+          }
+        }
       });
     }
   }
@@ -1109,7 +1193,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var root = document.getElementById('ptw-modal-root');
     var cfg = TABLES[tKeyName];
     var cbGroups = cfg.checkboxGroupFields || {};
-    var fieldsHtml = fields.map(function(f, fi){
+    function renderOneField(f, fi){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
 
@@ -1126,7 +1210,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             '<input type="checkbox" id="'+cbId+'" data-cbgroup="'+String(f).replace(/"/g,'&quot;')+'" data-cbval="'+String(opt).replace(/"/g,'&quot;')+'"' + (checked?' checked':'') + '>' +
             '<span>'+opt+'</span></label>';
         }).join('');
-        return '<div class="ptw-field"><label>'+f+'</label><div class="ptw-cb-grid">'+boxesHtml+'</div></div>';
+        return '<div class="ptw-field full"><label>'+f+'</label><div class="ptw-cb-grid">'+boxesHtml+'</div></div>';
       }
 
       var suggestions = getSuggestions(tKeyName, f);
@@ -1143,10 +1227,34 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // and matches how people naturally expect to pick a date.
       var isDateField = /date$/i.test(f.trim());
       var inputType = isDateField ? 'date' : 'text';
-      return '<div class="ptw-field"><label>'+f+'</label>' +
+      var isLong = f === 'Description of Work';
+      return '<div class="ptw-field'+(isLong?' full':'')+'"><label>'+f+'</label>' +
         '<input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
         dlHtml + '</div>';
-    }).join('');
+    }
+    // Form-style layout: when a table defines sections, fields group
+    // under shaded sub-headings in a 2-column grid inside a wide modal
+    // — follows HSE-FRM-01's own section order exactly (Issam, voice,
+    // 2026-11-07). Any field in `fields` not listed in a section is
+    // appended under "Other", so nothing is ever silently dropped.
+    // Falls back to the plain list when a table (e.g. issuers) has no
+    // sections defined.
+    var useSections = !!(cfg.sections && cfg.sections.length);
+    var fieldsHtml;
+    if (useSections){
+      var placed = {};
+      var groups = cfg.sections.map(function(sec){
+        var present = sec.fields.filter(function(f){ return fields.indexOf(f) > -1; });
+        present.forEach(function(f){ placed[f] = true; });
+        if (!present.length) return '';
+        return '<div class="ptw-sub-hd">'+sec.title+'</div>' + present.map(function(f){ return renderOneField(f, fields.indexOf(f)); }).join('');
+      }).join('');
+      var leftovers = fields.filter(function(f){ return !placed[f]; });
+      if (leftovers.length) groups += '<div class="ptw-sub-hd">Other</div>' + leftovers.map(function(f){ return renderOneField(f, fields.indexOf(f)); }).join('');
+      fieldsHtml = '<div class="ptw-modal-grid">' + groups + '</div>';
+    } else {
+      fieldsHtml = fields.map(renderOneField).join('');
+    }
     // Photo evidence can now be attached right on the Add/Edit form
     // itself (register table only), instead of requiring a separate trip
     // through the toolbar's Photos button afterward. Files selected here
@@ -1170,7 +1278,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       '</div>';
     }
 
-    root.innerHTML = '<div class="ptw-modal-bg" id="ptw-modal-bg"><div class="ptw-modal">' +
+    root.innerHTML = '<div class="ptw-modal-bg" id="ptw-modal-bg"><div class="ptw-modal'+(useSections?' wide':'')+'">' +
       '<h3>'+title+'</h3>' + fieldsHtml + photoFieldHtml +
       '<div id="ptw-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
       '<div class="ptw-modal-actions"><button class="ptw-btn ptw-btn-cancel" id="ptw-modal-cancel">Cancel</button>' +
