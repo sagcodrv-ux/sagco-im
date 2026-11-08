@@ -94,21 +94,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <div class="kpi-card kc-red ptw-clickable" onclick="PTW.cardClick('unauthorized')" title="Click to view permits issued by someone not on the Authorized Issuers list"><div class="kpi-lbl">Unauthorized Issuer</div><div class="kpi-val" id="ptw-kpi-unauth">—</div><div class="kpi-sub">Issuer not on Authorized list</div></div>
 </div>
 
-<div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:14px">
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin-bottom:18px">
   <div class="chart-card">
     <div class="chart-title">Monthly Permit Volume<span class="chart-sub">permits raised, by month</span></div>
     <div class="chart-wrap"><canvas id="ptwVolumeChart"></canvas></div>
     <div id="ptw-volume-caption" class="chart-sub" style="display:block;margin-top:6px;text-align:center"></div>
   </div>
-</div>
-<div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:18px">
   <div class="chart-card">
-    <div class="chart-title">Permits by Work Involved<span class="chart-sub">breakdown by work type — click a bar to filter the register below</span></div>
-    <!-- Height is set by JS to fit however many work types exist (see
-         renderCharts), instead of a fixed box too short to read once
-         there are more than a handful of categories (Issam, voice,
-         2026-11-07). -->
-    <div class="chart-wrap" id="ptw-worktype-wrap" style="height:220px"><canvas id="ptwWorkTypeChart"></canvas></div>
+    <div class="chart-title">Permits by Work Involved<span class="chart-sub">top types · click a bar to filter below</span></div>
+    <!-- Back to sitting beside Monthly Volume at a fixed, modest height
+         (Issam, voice, 2026-11-07) — the earlier full-width, grow-with-
+         category-count version took over the whole page. To stay
+         readable in this small a box regardless of how many distinct
+         work types exist, the chart itself now only shows the fewest
+         top types that cover ~80% of all permits (capped at 7 bars
+         either way), rolling everything smaller into one "Other" bar. */ -->
+    <div class="chart-wrap"><canvas id="ptwWorkTypeChart"></canvas></div>
   </div>
 </div>
 
@@ -1098,11 +1099,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
 
     // Chart 2: Permits by Work Involved (bar) — rebuilt 2026-11-07
-    // (Issam, voice): the fixed 220px box was unreadable once there
-    // were more than 4-5 work types — labels and bars got cramped.
-    // Now the card's height grows with the number of categories, each
-    // bar shows its count AND share of the total, and clicking a bar
-    // filters the register below to that exact work type.
+    // (Issam, voice). First pass made this card full-width and grow
+    // with the category count — too much space. Back now to sitting
+    // beside Monthly Volume at a fixed, modest height. To stay
+    // readable in that small a box no matter how many distinct work
+    // types exist, only the fewest top types that together cover
+    // ~80% of all permits are shown as their own bars (capped at 7
+    // either way, so one long tail of 1-permit types can't force 20
+    // bars); everything else rolls into a single "Other" bar. Each
+    // bar still shows its count and share of the total, and clicking
+    // a named bar filters the register below to that work type —
+    // clicking "Other" clears the filter instead, since it's a mix.
     var workIdx = colIdx(reg.headers, 'Work Involved');
     var workCounts = {};
     var totalWithWork = 0;
@@ -1113,20 +1120,29 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       totalWithWork++;
     });
     var sortedWork = Object.keys(workCounts).sort(function(a,b){ return workCounts[b]-workCounts[a]; });
-    var wrapEl = document.getElementById('ptw-worktype-wrap');
-    if (wrapEl){
-      // ~30px per bar reads comfortably at this font size; floor of
-      // 220px so a handful of categories doesn't look sparse, no
-      // ceiling — if there are 40 work types, the card is tall and the
-      // page scrolls, which beats squeezing every bar unreadably thin.
-      wrapEl.style.height = Math.max(220, sortedWork.length * 30 + 40) + 'px';
+    var TOP_CAP = 7;
+    var shownWork = [];
+    var cumCount = 0;
+    for (var swi = 0; swi < sortedWork.length; swi++){
+      if (shownWork.length >= TOP_CAP) break;
+      if (shownWork.length > 0 && totalWithWork > 0 && (cumCount/totalWithWork) >= 0.8) break;
+      shownWork.push(sortedWork[swi]);
+      cumCount += workCounts[sortedWork[swi]];
     }
-    if (window.Chart && sortedWork.length){
+    var otherWork = sortedWork.slice(shownWork.length);
+    var otherCount = otherWork.reduce(function(sum,w){ return sum + workCounts[w]; }, 0);
+    var chartLabels = shownWork.slice();
+    var chartCounts = shownWork.map(function(w){ return workCounts[w]; });
+    if (otherCount > 0){
+      chartLabels.push('Other (' + otherWork.length + ' type' + (otherWork.length===1?'':'s') + ')');
+      chartCounts.push(otherCount);
+    }
+    if (window.Chart && chartLabels.length){
       var dataLabelsPlugin = window.ChartDataLabels;
       _charts.worktype = new Chart(document.getElementById('ptwWorkTypeChart'), {
         type: 'bar',
-        data: { labels: sortedWork, datasets: [{
-          label: 'Permits', data: sortedWork.map(function(w){ return workCounts[w]; }),
+        data: { labels: chartLabels, datasets: [{
+          label: 'Permits', data: chartCounts,
           backgroundColor: BLUE, borderRadius: 4
         }]},
         plugins: dataLabelsPlugin ? [dataLabelsPlugin] : [],
@@ -1134,11 +1150,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           onClick: function(evt, elements){
             if (!elements || !elements.length) return;
             var idx = elements[0].index;
-            var workType = sortedWork[idx];
-            if (!workType) return;
+            var isOtherBar = (otherCount > 0 && idx === chartLabels.length - 1);
+            if (!isOtherBar && !shownWork[idx]) return;
+            var workType = isOtherBar ? '' : shownWork[idx];
             // Drill into the register below: reuse the search box
             // (searches every column already, including Work Involved)
-            // rather than a separate filter control.
+            // rather than a separate filter control. Clicking "Other"
+            // clears the search instead, since it covers several types.
             if (!_filters['register']) _filters['register'] = {search:'', category:'', special:null};
             _filters['register'].search = workType;
             renderTableArea('register');
@@ -1150,12 +1168,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           onHover: function(evt, elements){ evt.native.target.style.cursor = (elements && elements.length) ? 'pointer' : 'default'; },
           scales: {
             x: { beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } },
-            y: { ticks:{ color:TICK }, grid:{ color:GRID } }
+            y: { ticks:{ color:TICK, font:{ size:9 } }, grid:{ color:GRID } }
           },
           plugins: {
             legend: { display:false },
             datalabels: dataLabelsPlugin ? {
-              anchor:'end', align:'end', color:TICK, font:{ size:10, weight:'600' },
+              anchor:'end', align:'end', color:TICK, font:{ size:9, weight:'600' },
               formatter: function(value){
                 var pct = totalWithWork ? Math.round((value/totalWithWork)*100) : 0;
                 return value + ' (' + pct + '%)';
