@@ -784,6 +784,39 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   /* ── Modal (shared by Add + Edit) — same shell as loto-register.html,
      extended with <select> rendering for selectFields and <textarea>
      for textareaFields. ─────────────────────────────────────────── */
+  /* PTW Number lookup for the Entry Log form (Issam, voice, 2026-11-07)
+     — same pattern already built for the LOTO Job form: pulls real
+     permit numbers from the PTW Register sheet (tab 'ptw_register', a
+     different table from this page's own two) so the person picks one
+     instead of retyping it. Typing a number not in the list is still
+     allowed. "Open" = Permit Valid To today or later, or blank, and
+     Record Status not "Removed". Fetched once and cached per page load. */
+  var _ptwOpenPermits = null, _ptwFetchPromise = null;
+  function loadOpenPTWPermits(){
+    if (_ptwOpenPermits) return Promise.resolve(_ptwOpenPermits);
+    if (_ptwFetchPromise) return _ptwFetchPromise;
+    _ptwFetchPromise = fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
+      if (!data || !data.headers || !data.rows) { _ptwOpenPermits = []; return _ptwOpenPermits; }
+      var h = data.headers;
+      var numIdx = colIdx(h, 'Permit #'), validToIdx = colIdx(h, 'Permit Valid To'), statusColIdx = colIdx(h, 'Record Status');
+      var today = new Date(); today.setHours(0,0,0,0);
+      var seen = {}; var out = [];
+      data.rows.forEach(function(row){
+        if (statusColIdx >= 0 && String(row[statusColIdx]||'').trim().toLowerCase() === 'removed') return;
+        var num = numIdx >= 0 ? String(row[numIdx]||'').trim() : '';
+        if (!num || seen[num]) return;
+        if (validToIdx >= 0){
+          var vt = String(row[validToIdx]||'').trim();
+          if (vt){ var d = new Date(vt); if (!isNaN(d.getTime()) && d < today) return; }
+        }
+        seen[num] = true; out.push(num);
+      });
+      _ptwOpenPermits = out;
+      return out;
+    }).catch(function(){ _ptwOpenPermits = []; return []; });
+    return _ptwFetchPromise;
+  }
+
   function showModal(tKeyName, title, fields, initialValues, onSubmit){
     var root = document.getElementById('cs-modal-root');
     var cfg = TABLES[tKeyName];
@@ -792,6 +825,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var fieldsHtml = fields.map(function(f, fi){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
+      if (f === 'PTW Number'){
+        return '<div class="cs-field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(pick an open permit, or type one not yet in the list)</span></label>'
+          + '<input type="text" data-field="PTW Number" value="'+vEsc+'" list="cs-dl-ptw-open" placeholder="Loading open permits…"><datalist id="cs-dl-ptw-open"></datalist></div>';
+      }
       if (selFields[f]){
         var optsHtml = '<option value=""></option>' + selFields[f].map(function(o){
           return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
@@ -824,6 +861,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
     document.getElementById('cs-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('cs-modal-bg').onclick = function(e){ if(e.target.id==='cs-modal-bg') root.innerHTML=''; };
+
+    if (fields.indexOf('PTW Number') > -1){
+      loadOpenPTWPermits().then(function(nums){
+        var inp = root.querySelector('[data-field="PTW Number"]');
+        var dl = document.getElementById('cs-dl-ptw-open');
+        if (!inp || !dl) return;
+        inp.placeholder = nums.length ? 'Type or pick a permit number' : 'No open permits found — type one';
+        dl.innerHTML = nums.map(function(n){ return '<option value="'+String(n).replace(/"/g,'&quot;')+'">'; }).join('');
+      });
+    }
 
     document.getElementById('cs-modal-save').onclick = function(){
       var values = {};
@@ -899,12 +946,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       set[key] = !set[key];
       renderTableArea(tKeyName);
     },
-    openAdd: function(tKeyName){
+    openAdd: function(tKeyName, extraInitial){
       var cfg = TABLES[tKeyName];
       if (!can('add')) return;
       var initial = {};
       var suggestedId = nextSequentialId(tKeyName);
       if (suggestedId) initial[cfg.idCol] = suggestedId;
+      if (extraInitial) Object.keys(extraInitial).forEach(function(k){ initial[k] = extraInitial[k]; });
       showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
         values[STATUS_COL] = 'Active';
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
@@ -1010,10 +1058,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // record's full details (not just a highlighted row), same as the
   // LOTO Station Audit hand-off.
   function handleConfinedSpaceDeepLink(){
-    var entryId = new URLSearchParams(window.location.search).get('entry');
-    if (!entryId) return;
-    CS.jumpTo('preentry');
-    CS.openEdit('preentry', entryId);
+    var params = new URLSearchParams(window.location.search);
+    var entryId = params.get('entry');
+    if (entryId){
+      CS.jumpTo('preentry');
+      CS.openEdit('preentry', entryId);
+      return;
+    }
+    // Arrived via the PTW Register's "Raise Confined Space Form" button
+    // (Issam, voice, 2026-11-07) — opens the Add form for the
+    // Pre-Entry/Atmospheric Test Record with that permit's number
+    // already filled in, instead of making the person retype it.
+    var ptwNum = params.get('ptw');
+    if (ptwNum){
+      CS.jumpTo('preentry');
+      CS.openAdd('preentry', {'PTW Number': ptwNum});
+    }
   }
   document.addEventListener('DOMContentLoaded', function(){
     setTimeout(function(){ loadAll().then(handleConfinedSpaceDeepLink); }, 100);

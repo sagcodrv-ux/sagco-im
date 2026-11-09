@@ -1669,12 +1669,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         .then(function(){ loadAndRenderPhotoGrid(idVal); })
         .catch(function(){ alert('Could not remove the photo — check your connection.'); });
     },
-    openAdd: function(tKeyName){
+    openAdd: function(tKeyName, extraInitial){
       var cfg = TABLES[tKeyName];
       if (!can('add')) return;
       var initial = {};
       var suggestedId = nextSequentialId(tKeyName);
       if (suggestedId) initial[cfg.idCol] = suggestedId;
+      if (extraInitial) Object.keys(extraInitial).forEach(function(k){ initial[k] = extraInitial[k]; });
       // A new record's own Status select otherwise starts on the blank
       // "— Select —" option, and if the person doesn't touch it, it
       // saves as an empty string. That's invisible the moment someone
@@ -1868,10 +1869,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // Audit section, and opens that exact record's full details (not
   // just a highlighted row), same as asked for the hand-off.
   function handleLotoAuditDeepLink(){
-    var auditId = new URLSearchParams(window.location.search).get('lotoAudit');
-    if (!auditId) return;
-    LT.jumpTo('audit');
-    LT.openEdit('audit', auditId);
+    var params = new URLSearchParams(window.location.search);
+    var auditId = params.get('lotoAudit');
+    if (auditId){
+      LT.jumpTo('audit');
+      LT.openEdit('audit', auditId);
+      return;
+    }
+    // Arrived via the PTW Register's "Raise LOTO Job" button (Issam,
+    // voice, 2026-11-07) — opens the Add form for the LOTO Job with
+    // that permit's number already filled in.
+    var ptwNum = params.get('ptw');
+    if (ptwNum){
+      LT.jumpTo('register');
+      LT.openAdd('register', {'PTW Number': ptwNum});
+    }
   }
   document.addEventListener('DOMContentLoaded', function(){
     setTimeout(function(){ loadAll().then(handleLotoAuditDeepLink); }, 100);

@@ -179,6 +179,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .ptw-dark-wrap .ptw-sub-hd{grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
   color:var(--pdw-gold-lt);border-top:1px solid var(--pdw-border);padding-top:10px;margin-top:2px}
 .ptw-dark-wrap .ptw-sub-hd:first-child{border-top:none;padding-top:0;margin-top:0}
+/* Linked Confined Space / LOTO panel (Issam, voice, 2026-11-07) */
+.ptw-dark-wrap .ptw-linked-panel{margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--pdw-border)}
+.ptw-dark-wrap .ptw-linked-row{display:flex;align-items:center;gap:10px;font-size:11.5px;margin-bottom:6px;flex-wrap:wrap}
+.ptw-dark-wrap .ptw-linked-row .ptw-btn{font-size:10.5px;padding:5px 10px;margin-left:auto}
 /* Phone-width fallback (Issam, voice, 2026-11-07): single column so
    longer checkbox labels (PPE items, hazards) wrap cleanly instead of
    cramming into a half-width column, and each tap target stays full
@@ -1207,6 +1211,94 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   }
 
   /* ── Modal (shared by Add + Edit) ───────────────────────────────────── */
+  /* ── Linked safety records: Confined Space entry + LOTO Job
+     (Issam, voice, 2026-11-07) — Step 1 of the approval-chain work.
+     A permit "needs" Confined Space when its Work Involved mentions
+     confined space; it "needs" LOTO when any Service Isolation item is
+     ticked. Both are things that already exist on the permit, so no
+     new field was added for them. Each linked page's own record links
+     back by PTW Number = this permit's Permit #, the same field LOTO's
+     Job form and the Confined Space Entry form already offer as a live
+     dropdown. "Completed" = that record's own Status is Closed, same
+     convention both pages already use.
+     Still pending (needs the Area Manager and Controller lists from
+     Issam before it can be built): the Submit-to-Area-Manager email,
+     the approval/reject screens, and gating Submit until these show
+     Completed. For now this panel is informational — it shows status
+     and lets you jump straight to raising or finishing the record, but
+     doesn't yet block anything. */
+  function permitNeedsConfinedSpace(rec){
+    return /confined/i.test(String(rec['Work Involved']||''));
+  }
+  function permitNeedsLoto(rec){
+    return !!String(rec['Service Isolation']||'').trim();
+  }
+  var _csEntryCache = null, _csEntryFetchPromise = null;
+  function loadCsEntryRecords(){
+    if (_csEntryCache) return Promise.resolve(_csEntryCache);
+    if (_csEntryFetchPromise) return _csEntryFetchPromise;
+    _csEntryFetchPromise = fetch(SHEETS_URL + '?tab=cs_entry&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _csEntryCache = (data && data.headers && data.rows) ? data : {headers:[],rows:[]};
+      return _csEntryCache;
+    }).catch(function(){ _csEntryCache = {headers:[],rows:[]}; return _csEntryCache; });
+    return _csEntryFetchPromise;
+  }
+  var _lotoJobCache = null, _lotoJobFetchPromise = null;
+  function loadLotoJobRecords(){
+    if (_lotoJobCache) return Promise.resolve(_lotoJobCache);
+    if (_lotoJobFetchPromise) return _lotoJobFetchPromise;
+    _lotoJobFetchPromise = fetch(SHEETS_URL + '?tab=loto_register&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _lotoJobCache = (data && data.headers && data.rows) ? data : {headers:[],rows:[]};
+      return _lotoJobCache;
+    }).catch(function(){ _lotoJobCache = {headers:[],rows:[]}; return _lotoJobCache; });
+    return _lotoJobFetchPromise;
+  }
+  function findLinkedRecord(data, permitNum){
+    if (!data || !data.headers || !data.rows || !permitNum) return null;
+    var numIdx = colIdx(data.headers, 'PTW Number');
+    var statusIdx = colIdx(data.headers, 'Status');
+    var recStatusIdx = colIdx(data.headers, 'Record Status');
+    var found = null;
+    data.rows.forEach(function(row){
+      if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+      if (numIdx >= 0 && String(row[numIdx]||'').trim() === String(permitNum).trim()){
+        found = { status: statusIdx >= 0 ? String(row[statusIdx]||'').trim() : '' };
+      }
+    });
+    return found;
+  }
+  function renderLinkedSafetyPanel(rootEl, rec){
+    var needsCs = permitNeedsConfinedSpace(rec);
+    var needsLoto = permitNeedsLoto(rec);
+    if (!needsCs && !needsLoto){ rootEl.innerHTML = ''; return; }
+    var permitNum = rec['Permit #'];
+    if (!permitNum){
+      rootEl.innerHTML = '<div class="ptw-note">Save this permit and give it a Permit # first, then reopen Edit to raise its linked Confined Space / LOTO records here.</div>';
+      return;
+    }
+    rootEl.innerHTML = '<div class="ptw-note">Checking linked Confined Space / LOTO records…</div>';
+    Promise.all([
+      needsCs ? loadCsEntryRecords() : Promise.resolve(null),
+      needsLoto ? loadLotoJobRecords() : Promise.resolve(null)
+    ]).then(function(results){
+      var csData = results[0], lotoData = results[1];
+      var rowsHtml = '';
+      if (needsCs){
+        var cs = csData ? findLinkedRecord(csData, permitNum) : null;
+        var csBadge = !cs ? '<span class="badge kc-red">Not raised</span>' : (cs.status === 'Closed' ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
+        rowsHtml += '<div class="ptw-linked-row"><strong>Confined Space Entry</strong> ' + csBadge +
+          '<button type="button" class="ptw-btn" onclick="window.open(\'confined-space.html?ptw='+encodeURIComponent(permitNum)+'\',\'_blank\')">' + (cs ? 'Open' : 'Raise') + ' Confined Space Form</button></div>';
+      }
+      if (needsLoto){
+        var lj = lotoData ? findLinkedRecord(lotoData, permitNum) : null;
+        var ljBadge = !lj ? '<span class="badge kc-red">Not raised</span>' : (lj.status === 'Closed' ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
+        rowsHtml += '<div class="ptw-linked-row"><strong>LOTO Job</strong> ' + ljBadge +
+          '<button type="button" class="ptw-btn" onclick="window.open(\'loto-register.html?ptw='+encodeURIComponent(permitNum)+'\',\'_blank\')">' + (lj ? 'Open' : 'Raise') + ' LOTO Job</button></div>';
+      }
+      rootEl.innerHTML = '<div class="ptw-linked-panel"><div class="ptw-sub-hd" style="border-top:none;padding-top:0;margin-top:0">Linked Safety Records</div>' + rowsHtml + '</div>';
+    });
+  }
+
   function showModal(tKeyName, title, fields, initialValues, onSubmit){
     var root = document.getElementById('ptw-modal-root');
     var cfg = TABLES[tKeyName];
@@ -1296,14 +1388,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       '</div>';
     }
 
+    // Linked Confined Space / LOTO panel — register only, and only
+    // when editing an existing permit (a brand-new permit has no
+    // Permit # yet to link against). See renderLinkedSafetyPanel above.
+    var linkedPanelHtml = (tKeyName === 'register' && initialValues) ? '<div id="ptw-linked-safety-root"></div>' : '';
+
     root.innerHTML = '<div class="ptw-modal-bg" id="ptw-modal-bg"><div class="ptw-modal'+(useSections?' wide':'')+'">' +
-      '<h3>'+title+'</h3>' + fieldsHtml + photoFieldHtml +
+      '<h3>'+title+'</h3>' + linkedPanelHtml + fieldsHtml + photoFieldHtml +
       '<div id="ptw-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
       '<div class="ptw-modal-actions"><button class="ptw-btn ptw-btn-cancel" id="ptw-modal-cancel">Cancel</button>' +
       '<button class="ptw-btn ptw-btn-add" id="ptw-modal-save">Save</button></div></div></div>';
 
     document.getElementById('ptw-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('ptw-modal-bg').onclick = function(e){ if(e.target.id==='ptw-modal-bg') root.innerHTML=''; };
+
+    if (tKeyName === 'register' && initialValues){
+      var linkedRoot = document.getElementById('ptw-linked-safety-root');
+      if (linkedRoot) renderLinkedSafetyPanel(linkedRoot, initialValues);
+    }
 
     // Staged photo files, picked but not yet uploaded. Re-picking the
     // file input replaces the whole staged batch (standard file-input
