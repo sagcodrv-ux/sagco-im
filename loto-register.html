@@ -977,17 +977,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return values;
   }
 
-  /* ── PTW Number lookup for the LOTO Job form (Issam, voice,
-     2026-11-07) — pulls real permit numbers from the PTW Register
-     sheet (tab 'ptw_register', not one of this page's own 4 tables)
-     so the person picks one instead of retyping it. Typing a number
-     that isn't in the list is still allowed — a permit may not be
-     entered yet — this only offers a shortcut, it never blocks entry.
-     "Open" is judged by Permit Valid To (today or later, or blank —
-     a permit with no end date entered isn't treated as expired) and
-     by Record Status not being "Removed"; Status itself is free text
-     on the PTW page, so it isn't used as the filter. Fetched once and
-     cached for the session. */
+  /* ── PTW link lookup for the LOTO Job form (Issam, voice, 2026-11-07,
+     updated 2026-11-08) — pulls real permit identifiers from the PTW
+     Register sheet (tab 'ptw_register', not one of this page's own 4
+     tables) so the person picks one instead of retyping it. Links on
+     Permit ID now, not the paper Permit # — Permit ID is always
+     present (auto-suggested the moment a permit is added), where
+     Permit # depends on someone copying it off the paper form. The
+     "PTW Number" field name here is unchanged; it's just now expected
+     to hold a Permit ID value for any newly-linked record. Typing a
+     value that isn't in the list is still allowed — a permit may not
+     be entered yet — this only offers a shortcut, it never blocks
+     entry. "Open" is judged by Permit Valid To (today or later, or
+     blank) and by Record Status not being "Removed"; Status itself is
+     free text on the PTW page, so it isn't used as the filter. Fetched
+     once and cached for the session. */
   var _ptwOpenPermits = null, _ptwFetchPromise = null;
   function loadOpenPTWPermits(){
     if (_ptwOpenPermits) return Promise.resolve(_ptwOpenPermits);
@@ -995,7 +999,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     _ptwFetchPromise = fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
       if (!data || !data.headers || !data.rows) { _ptwOpenPermits = []; return _ptwOpenPermits; }
       var h = data.headers;
-      var numIdx = colIdx(h, 'Permit #'), validToIdx = colIdx(h, 'Permit Valid To'), statusColIdx = colIdx(h, 'Record Status');
+      var numIdx = colIdx(h, 'Permit ID'), validToIdx = colIdx(h, 'Permit Valid To'), statusColIdx = colIdx(h, 'Record Status');
       var today = new Date(); today.setHours(0,0,0,0);
       var seen = {}; var out = [];
       data.rows.forEach(function(row){
@@ -1024,7 +1028,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (f === 'Description of Work') return lotoTextareaHtml(f, initial[f], true);
     if (f === 'PTW Number'){
       var pv = initial[f] == null ? '' : String(initial[f]).replace(/"/g,'&quot;');
-      return '<div class="lt-field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ltw-text-dim)">(pick an open permit, or type one not yet in the list)</span></label>'
+      return '<div class="lt-field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ltw-text-dim)">(the permit\'s Permit ID — pick an open one, or type one not yet in the list)</span></label>'
         + '<input type="text" data-field="PTW Number" value="'+pv+'" list="lt-dl-ptw-open" placeholder="Loading open permits…">'
         + '<datalist id="lt-dl-ptw-open"></datalist></div>';
     }
@@ -1877,12 +1881,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       return;
     }
     // Arrived via the PTW Register's "Raise LOTO Job" button (Issam,
-    // voice, 2026-11-07) — opens the Add form for the LOTO Job with
-    // that permit's number already filled in.
-    var ptwNum = params.get('ptw');
-    if (ptwNum){
+    // voice, 2026-11-07, updated 2026-11-08) — opens the Add form for
+    // the LOTO Job with that permit's Permit ID already filled in.
+    var permitId = params.get('permitId');
+    if (permitId){
       LT.jumpTo('register');
-      LT.openAdd('register', {'PTW Number': ptwNum});
+      LT.openAdd('register', {'PTW Number': permitId});
     }
   }
   document.addEventListener('DOMContentLoaded', function(){

@@ -784,13 +784,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   /* ── Modal (shared by Add + Edit) — same shell as loto-register.html,
      extended with <select> rendering for selectFields and <textarea>
      for textareaFields. ─────────────────────────────────────────── */
-  /* PTW Number lookup for the Entry Log form (Issam, voice, 2026-11-07)
-     — same pattern already built for the LOTO Job form: pulls real
-     permit numbers from the PTW Register sheet (tab 'ptw_register', a
-     different table from this page's own two) so the person picks one
-     instead of retyping it. Typing a number not in the list is still
-     allowed. "Open" = Permit Valid To today or later, or blank, and
-     Record Status not "Removed". Fetched once and cached per page load. */
+  /* PTW link lookup for the Entry Log form (Issam, voice, 2026-11-07,
+     updated 2026-11-08) — same pattern already built for the LOTO Job
+     form: pulls real permit identifiers from the PTW Register sheet
+     (tab 'ptw_register', a different table from this page's own two)
+     so the person picks one instead of retyping it. Links on Permit ID
+     now, not the paper Permit # — Permit ID is always present (auto-
+     suggested the moment a permit is added) and doesn't depend on
+     someone copying a number off the paper form. The "PTW Number"
+     field name here is unchanged (no sheet schema change); it's just
+     now expected to hold a Permit ID value for any newly-linked
+     record. Typing a value not in the list is still allowed. "Open" =
+     Permit Valid To today or later, or blank, and Record Status not
+     "Removed". Fetched once and cached per page load. */
   var _ptwOpenPermits = null, _ptwFetchPromise = null;
   function loadOpenPTWPermits(){
     if (_ptwOpenPermits) return Promise.resolve(_ptwOpenPermits);
@@ -798,7 +804,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     _ptwFetchPromise = fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
       if (!data || !data.headers || !data.rows) { _ptwOpenPermits = []; return _ptwOpenPermits; }
       var h = data.headers;
-      var numIdx = colIdx(h, 'Permit #'), validToIdx = colIdx(h, 'Permit Valid To'), statusColIdx = colIdx(h, 'Record Status');
+      var numIdx = colIdx(h, 'Permit ID'), validToIdx = colIdx(h, 'Permit Valid To'), statusColIdx = colIdx(h, 'Record Status');
       var today = new Date(); today.setHours(0,0,0,0);
       var seen = {}; var out = [];
       data.rows.forEach(function(row){
@@ -826,7 +832,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
       if (f === 'PTW Number'){
-        return '<div class="cs-field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(pick an open permit, or type one not yet in the list)</span></label>'
+        return '<div class="cs-field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(the permit\'s Permit ID — pick an open one, or type one not yet in the list)</span></label>'
           + '<input type="text" data-field="PTW Number" value="'+vEsc+'" list="cs-dl-ptw-open" placeholder="Loading open permits…"><datalist id="cs-dl-ptw-open"></datalist></div>';
       }
       if (selFields[f]){
@@ -1066,13 +1072,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       return;
     }
     // Arrived via the PTW Register's "Raise Confined Space Form" button
-    // (Issam, voice, 2026-11-07) — opens the Add form for the
-    // Pre-Entry/Atmospheric Test Record with that permit's number
-    // already filled in, instead of making the person retype it.
-    var ptwNum = params.get('ptw');
-    if (ptwNum){
+    // (Issam, voice, 2026-11-07, updated 2026-11-08) — opens the Add
+    // form for the Pre-Entry/Atmospheric Test Record with that
+    // permit's Permit ID already filled in, instead of making the
+    // person retype it.
+    var permitId = params.get('permitId');
+    if (permitId){
       CS.jumpTo('preentry');
-      CS.openAdd('preentry', {'PTW Number': ptwNum});
+      CS.openAdd('preentry', {'PTW Number': permitId});
     }
   }
   document.addEventListener('DOMContentLoaded', function(){

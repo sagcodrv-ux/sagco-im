@@ -1212,15 +1212,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   /* ── Modal (shared by Add + Edit) ───────────────────────────────────── */
   /* ── Linked safety records: Confined Space entry + LOTO Job
-     (Issam, voice, 2026-11-07) — Step 1 of the approval-chain work.
-     A permit "needs" Confined Space when its Work Involved mentions
-     confined space; it "needs" LOTO when any Service Isolation item is
-     ticked. Both are things that already exist on the permit, so no
-     new field was added for them. Each linked page's own record links
-     back by PTW Number = this permit's Permit #, the same field LOTO's
-     Job form and the Confined Space Entry form already offer as a live
-     dropdown. "Completed" = that record's own Status is Closed, same
-     convention both pages already use.
+     (Issam, voice, 2026-11-07 and 2026-11-08) — Step 1 of the
+     approval-chain work. A permit "needs" Confined Space when its
+     Work Involved mentions confined space; it "needs" LOTO when any
+     Service Isolation item is ticked. Both are things that already
+     exist on the permit, so no new field was added for them.
+     Linked by Permit ID, not Permit # (Issam, voice, 2026-11-08): the
+     paper permit number was the original link, but Issam wants new
+     linking to run on the portal's own Permit ID instead, keeping
+     Permit # only as an optional field until paper permits are phased
+     out. Permit ID is always present (auto-suggested the moment a
+     permit is added), where Permit # depends on someone copying it off
+     the paper form, so this is also simply more reliable. Each linked
+     page's own record still stores the matching value in its own
+     "PTW Number" column (no sheet schema change) — what changed is
+     which of the permit's own two fields gets written there and
+     matched against. Records linked by the old Permit # before this
+     change are left as they are; only new links use the Permit ID.
+     "Completed" = that record's own Status is Closed, same convention
+     both pages already use.
      Still pending (needs the Area Manager and Controller lists from
      Issam before it can be built): the Submit-to-Area-Manager email,
      the approval/reject screens, and gating Submit until these show
@@ -1271,9 +1281,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var needsCs = permitNeedsConfinedSpace(rec);
     var needsLoto = permitNeedsLoto(rec);
     if (!needsCs && !needsLoto){ rootEl.innerHTML = ''; return; }
-    var permitNum = rec['Permit #'];
-    if (!permitNum){
-      rootEl.innerHTML = '<div class="ptw-note">Save this permit and give it a Permit # first, then reopen Edit to raise its linked Confined Space / LOTO records here.</div>';
+    var permitId = rec['Permit ID'];
+    if (!permitId){
+      // Shouldn't happen in practice — Permit ID is auto-suggested the
+      // moment a permit is added — but kept as a safe fallback.
+      rootEl.innerHTML = '<div class="ptw-note">Save this permit first, then reopen Edit to raise its linked Confined Space / LOTO records here.</div>';
       return;
     }
     rootEl.innerHTML = '<div class="ptw-note">Checking linked Confined Space / LOTO records…</div>';
@@ -1284,16 +1296,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var csData = results[0], lotoData = results[1];
       var rowsHtml = '';
       if (needsCs){
-        var cs = csData ? findLinkedRecord(csData, permitNum) : null;
+        var cs = csData ? findLinkedRecord(csData, permitId) : null;
         var csBadge = !cs ? '<span class="badge kc-red">Not raised</span>' : (cs.status === 'Closed' ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Confined Space Entry</strong> ' + csBadge +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'confined-space.html?ptw='+encodeURIComponent(permitNum)+'\',\'_blank\')">' + (cs ? 'Open' : 'Raise') + ' Confined Space Form</button></div>';
+          '<button type="button" class="ptw-btn" onclick="window.open(\'confined-space.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (cs ? 'Open' : 'Raise') + ' Confined Space Form</button></div>';
       }
       if (needsLoto){
-        var lj = lotoData ? findLinkedRecord(lotoData, permitNum) : null;
+        var lj = lotoData ? findLinkedRecord(lotoData, permitId) : null;
         var ljBadge = !lj ? '<span class="badge kc-red">Not raised</span>' : (lj.status === 'Closed' ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>LOTO Job</strong> ' + ljBadge +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'loto-register.html?ptw='+encodeURIComponent(permitNum)+'\',\'_blank\')">' + (lj ? 'Open' : 'Raise') + ' LOTO Job</button></div>';
+          '<button type="button" class="ptw-btn" onclick="window.open(\'loto-register.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (lj ? 'Open' : 'Raise') + ' LOTO Job</button></div>';
       }
       rootEl.innerHTML = '<div class="ptw-linked-panel"><div class="ptw-sub-hd" style="border-top:none;padding-top:0;margin-top:0">Linked Safety Records</div>' + rowsHtml + '</div>';
     });
