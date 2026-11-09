@@ -349,7 +349,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
                'Name of Project / Job','Contracting Company','Description of Work','Number of Workers',
                'Equipment & Tools','Potential Hazards','Safety Precautions','PPE Required','Service Isolation',
                'Permit Issuer - Name','Permit Issuer - Dept.','Permit Receiver - Name',
-               'Permit Controller','Unit Manager','Permit Valid From','Permit Valid To','Status','Remarks'],
+               'Permit Controller','Unit Manager','Permit Valid From','Permit Valid To','Status','Remarks',
+               'Cancellation Reason','Cancelled By','Cancelled Date'],
       // All eleven below only appear in the Add/Edit form once the live
       // sheet actually has that column — matches HSE-FRM-01 paper form
       // fields that the digital register doesn't track yet. First batch
@@ -363,7 +364,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // below, rather than one column per individual checkbox.
       optionalFields: ['Name of Project / Job','Contracting Company','Number of Workers','Unit Manager',
                         'Permit Valid From','Permit Valid To',
-                        'Equipment & Tools','Potential Hazards','Safety Precautions','PPE Required','Service Isolation'],
+                        'Equipment & Tools','Potential Hazards','Safety Precautions','PPE Required','Service Isolation',
+                        // Approval chain, step 2a (Issam, voice,
+                        // 2026-11-08) — simplified to a single
+                        // Cancel action: the area manager either
+                        // approves or cancels outright, with a typed
+                        // reason kept on the permit. No reject-and-
+                        // resubmit path — a new job after a
+                        // cancellation gets a new Permit ID and new
+                        // linked forms, so nothing is ever left
+                        // sitting on hold. New columns on the sheet.
+                        'Cancellation Reason','Cancelled By','Cancelled Date'],
       // Fields rendered as a checkbox grid (not a text input) in the
       // Add/Edit modal. Options match HSE-FRM-01's own checkbox lists
       // verbatim (see PTW_EQUIPMENT etc. used by the print template) so
@@ -387,7 +398,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         { title: 'Equipment, Hazards & Precautions', fields: ['Equipment & Tools','Potential Hazards','Safety Precautions','PPE Required'] },
         { title: 'Service Isolation', fields: ['Service Isolation'] },
         { title: 'Permit Authorization', fields: ['Permit Issuer - Name','Permit Issuer - Dept.','Permit Receiver - Name','Permit Controller','Unit Manager','Permit Valid From','Permit Valid To'] },
-        { title: 'Status & Remarks', fields: ['Status','Remarks'] }
+        { title: 'Status & Remarks', fields: ['Status','Remarks'] },
+        // Only shows once a permit actually has these filled in — see
+        // the Cancel Permit button, which writes them. Nobody fills
+        // this in by hand on a live permit.
+        { title: 'Cancellation', fields: ['Cancellation Reason','Cancelled By','Cancelled Date'] }
       ]
     },
     issuers: {
@@ -1311,6 +1326,34 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     });
   }
 
+  // Cancel Permit (Issam, voice, 2026-11-08) — requires a typed reason,
+  // sets Status to Cancelled with who/when, then closes the modal and
+  // refreshes. Deliberately final: no un-cancel, no resubmit — a new
+  // job gets a new permit.
+  function cancelPermitFlow(permitId){
+    var reason = prompt('Reason for cancelling permit ' + permitId + ' (required):');
+    if (reason === null) return; // dialog dismissed, not confirmed
+    reason = reason.trim();
+    if (!reason){ alert('A reason is required to cancel a permit.'); return; }
+    var cancelledBy = prompt('Your name (recorded as who cancelled it):');
+    if (cancelledBy === null) return;
+    cancelledBy = cancelledBy.trim();
+    if (!cancelledBy){ alert('Your name is required to cancel a permit.'); return; }
+    if (!confirm('Cancel permit ' + permitId + '? This cannot be undone — a new permit would need a new Permit ID.')) return;
+    var cfg = TABLES['register'];
+    var today = new Date().toISOString().slice(0,10);
+    postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, {
+      'Status': 'Cancelled',
+      'Cancellation Reason': reason,
+      'Cancelled By': cancelledBy,
+      'Cancelled Date': today
+    }).then(function(res){
+      if (res && res.status === 'error'){ alert('Cancel failed: ' + (res.message||'unknown error')); return; }
+      document.getElementById('ptw-modal-root').innerHTML = '';
+      reloadTabAndDashboard('register');
+    }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+  }
+
   function showModal(tKeyName, title, fields, initialValues, onSubmit){
     var root = document.getElementById('ptw-modal-root');
     var cfg = TABLES[tKeyName];
@@ -1405,14 +1448,28 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // Permit # yet to link against). See renderLinkedSafetyPanel above.
     var linkedPanelHtml = (tKeyName === 'register' && initialValues) ? '<div id="ptw-linked-safety-root"></div>' : '';
 
+    // Cancel Permit (Issam, voice, 2026-11-08) — the area manager's
+    // only "no" action: a permit either gets approved or cancelled
+    // outright, never sent back to the issuer. Only offered on an
+    // existing, not-already-cancelled permit; a reason is required.
+    var showCancelBtn = tKeyName === 'register' && initialValues && initialValues['Permit ID'] &&
+      String(initialValues['Status']||'').trim().toLowerCase() !== 'cancelled';
+    var cancelBtnHtml = showCancelBtn ? '<button type="button" class="ptw-btn" id="ptw-modal-cancel-permit" style="background:var(--pdw-red);color:#fff;margin-right:auto">Cancel Permit</button>' : '';
+
     root.innerHTML = '<div class="ptw-modal-bg" id="ptw-modal-bg"><div class="ptw-modal'+(useSections?' wide':'')+'">' +
       '<h3>'+title+'</h3>' + linkedPanelHtml + fieldsHtml + photoFieldHtml +
       '<div id="ptw-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
-      '<div class="ptw-modal-actions"><button class="ptw-btn ptw-btn-cancel" id="ptw-modal-cancel">Cancel</button>' +
+      '<div class="ptw-modal-actions">' + cancelBtnHtml + '<button class="ptw-btn ptw-btn-cancel" id="ptw-modal-cancel">Cancel</button>' +
       '<button class="ptw-btn ptw-btn-add" id="ptw-modal-save">Save</button></div></div></div>';
 
     document.getElementById('ptw-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('ptw-modal-bg').onclick = function(e){ if(e.target.id==='ptw-modal-bg') root.innerHTML=''; };
+
+    if (showCancelBtn){
+      document.getElementById('ptw-modal-cancel-permit').onclick = function(){
+        cancelPermitFlow(initialValues['Permit ID']);
+      };
+    }
 
     if (tKeyName === 'register' && initialValues){
       var linkedRoot = document.getElementById('ptw-linked-safety-root');

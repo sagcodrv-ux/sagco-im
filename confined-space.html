@@ -823,6 +823,28 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return _ptwFetchPromise;
   }
 
+  // Cancelled-permit warning (Issam, voice, 2026-11-08): if this
+  // record's PTW Number (a Permit ID) belongs to a permit whose
+  // Status is now Cancelled, a banner says so when the record is
+  // opened — so a confined space entry doesn't get treated as live
+  // once the permit behind it no longer is. Separate fetch from
+  // loadOpenPTWPermits() above (that one only lists open, non-removed
+  // permits and wouldn't include a cancelled one).
+  function checkLinkedPermitStatus(permitId){
+    if (!permitId) return Promise.resolve(null);
+    return fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
+      if (!data || !data.headers || !data.rows) return null;
+      var idIdx = colIdx(data.headers, 'Permit ID'), statusIdx = colIdx(data.headers, 'Status');
+      var hit = null;
+      data.rows.forEach(function(row){
+        if (idIdx >= 0 && String(row[idIdx]||'').trim() === String(permitId).trim()){
+          hit = { status: statusIdx >= 0 ? String(row[statusIdx]||'').trim() : '' };
+        }
+      });
+      return hit;
+    }).catch(function(){ return null; });
+  }
+
   function showModal(tKeyName, title, fields, initialValues, onSubmit){
     var root = document.getElementById('cs-modal-root');
     var cfg = TABLES[tKeyName];
@@ -876,6 +898,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         inp.placeholder = nums.length ? 'Type or pick a permit number' : 'No open permits found — type one';
         dl.innerHTML = nums.map(function(n){ return '<option value="'+String(n).replace(/"/g,'&quot;')+'">'; }).join('');
       });
+      var existingPermitId = initialValues && initialValues['PTW Number'];
+      if (existingPermitId){
+        checkLinkedPermitStatus(existingPermitId).then(function(hit){
+          if (hit && String(hit.status).toLowerCase() === 'cancelled'){
+            var h3 = root.querySelector('.cs-modal h3');
+            if (h3){
+              var warn = document.createElement('div');
+              warn.className = 'cs-field';
+              warn.style.cssText = 'background:rgba(240,104,92,.15);border-left:3px solid #F0685C;border-radius:0 5px 5px 0;padding:8px 12px;font-size:11px;color:#F0685C;margin-bottom:10px';
+              warn.textContent = '⚠ This record is linked to permit ' + existingPermitId + ', which has been CANCELLED. Treat this entry as void unless it is reissued against a new permit.';
+              h3.insertAdjacentElement('afterend', warn);
+            }
+          }
+        });
+      }
     }
 
     document.getElementById('cs-modal-save').onclick = function(){

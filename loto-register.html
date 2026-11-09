@@ -993,6 +993,51 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
      free text on the PTW page, so it isn't used as the filter. Fetched
      once and cached for the session. */
   var _ptwOpenPermits = null, _ptwFetchPromise = null;
+  // Cancelled-permit warning (Issam, voice, 2026-11-08): if this LOTO
+  // Job's PTW Number (a Permit ID) belongs to a permit whose Status is
+  // now Cancelled, a banner says so when the job is opened. For LOTO
+  // specifically, if the job's own Status is still "Open" (meaning
+  // isolation was applied but reinstatement was never completed via
+  // Continue), the banner adds an explicit instruction, since that's
+  // the one case with real physical locks still on equipment.
+  function checkLinkedPermitStatus(permitId){
+    if (!permitId) return Promise.resolve(null);
+    return fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
+      if (!data || !data.headers || !data.rows) return null;
+      var idIdx = colIdx(data.headers, 'Permit ID'), statusIdx = colIdx(data.headers, 'Status');
+      var hit = null;
+      data.rows.forEach(function(row){
+        if (idIdx >= 0 && String(row[idIdx]||'').trim() === String(permitId).trim()){
+          hit = { status: statusIdx >= 0 ? String(row[statusIdx]||'').trim() : '' };
+        }
+      });
+      return hit;
+    }).catch(function(){ return null; });
+  }
+
+  // Inserts the cancelled-permit warning banner right after the modal's
+  // <h3>, if this job's linked permit turns out to be Cancelled. Shared
+  // by Add (in case someone raises against an already-cancelled permit
+  // by mistake), Continue and Edit. jobStatus is this LOTO record's own
+  // Status (undefined when adding a brand-new one) — "Open" means
+  // isolation has already been applied and not yet reinstated, so the
+  // wording is stronger in that case.
+  function insertCancelledPermitWarning(root, permitId, jobStatus){
+    if (!permitId) return;
+    checkLinkedPermitStatus(permitId).then(function(hit){
+      if (!hit || String(hit.status).toLowerCase() !== 'cancelled') return;
+      var h3 = root.querySelector('.lt-modal h3');
+      if (!h3) return;
+      var extra = (String(jobStatus||'').trim() === 'Open')
+        ? ' This job still shows Open — if locks have physically been applied, they must still be removed and the job formally closed via Continue before this permit is set aside.'
+        : '';
+      var warn = document.createElement('div');
+      warn.style.cssText = 'background:rgba(240,104,92,.15);border-left:3px solid #F0685C;border-radius:0 5px 5px 0;padding:8px 12px;font-size:11px;color:#F0685C;margin-bottom:10px';
+      warn.textContent = '⚠ This job is linked to permit ' + permitId + ', which has been CANCELLED.' + extra;
+      h3.insertAdjacentElement('afterend', warn);
+    });
+  }
+
   function loadOpenPTWPermits(){
     if (_ptwOpenPermits) return Promise.resolve(_ptwOpenPermits);
     if (_ptwFetchPromise) return _ptwFetchPromise;
@@ -1072,6 +1117,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       dl.innerHTML = nums.map(function(n){ return '<option value="'+String(n).replace(/"/g,'&quot;')+'">'; }).join('');
       inp.placeholder = nums.length ? (nums.length + ' open permit' + (nums.length===1?'':'s') + ' available') : 'No open permits found — type the permit number';
     });
+    insertCancelledPermitWarning(root, initial['PTW Number'], initial['Status']);
 
     document.getElementById('lt-modal-cancel').onclick = function(){ root.innerHTML = ''; };
     document.getElementById('lt-modal-bg').onclick = function(e){ if (e.target.id === 'lt-modal-bg') root.innerHTML = ''; };
@@ -1185,6 +1231,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       dl.innerHTML = nums.map(function(n){ return '<option value="'+String(n).replace(/"/g,'&quot;')+'">'; }).join('');
       inp.placeholder = nums.length ? (nums.length + ' open permit' + (nums.length===1?'':'s') + ' available') : 'No open permits found — type the permit number';
     });
+    insertCancelledPermitWarning(root, initial['PTW Number'], initial['Status']);
 
     document.getElementById('lt-modal-cancel').onclick = function(){ root.innerHTML = ''; };
     document.getElementById('lt-modal-bg').onclick = function(e){ if (e.target.id === 'lt-modal-bg') root.innerHTML = ''; };
