@@ -107,20 +107,40 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   </div>
 </div>
 
-<div class="fe-jumpbar">
-  <button class="fe-jump-btn" onclick="FE.jumpTo('master')">FE Master Inventory <span id="fe-count-master" class="fe-jump-count"></span></button>
-  <button class="fe-jump-btn" onclick="FE.jumpTo('inspection')">Monthly Inspection Log <span id="fe-count-inspection" class="fe-jump-count"></span></button>
-  <button class="fe-jump-btn" onclick="FE.jumpTo('service')">Annual Service Log <span id="fe-count-service" class="fe-jump-count"></span></button>
+<!-- Tabs, replacing the 3 stacked collapsible sections (Issam, voice,
+     2026-11-08): Inventory first, then Monthly Inspection, then
+     Annual Service. Inventory opens by default. -->
+<div class="fe-tabbar">
+  <button class="fe-tab active" id="fe-tab-master" onclick="FE.switchTab('master')">FE Master Inventory <span id="fe-count-master" class="fe-jump-count"></span></button>
+  <button class="fe-tab" id="fe-tab-inspection" onclick="FE.switchTab('inspection')">Monthly Inspection Log <span id="fe-count-inspection" class="fe-jump-count"></span></button>
+  <button class="fe-tab" id="fe-tab-service" onclick="FE.switchTab('service')">Annual Service Log <span id="fe-count-service" class="fe-jump-count"></span></button>
 </div>
 
-<div class="sec-banner fe-sec-toggle" id="fe-hdr-master" onclick="FE.toggle('master')"><span class="fe-chevron">▶</span> FE MASTER INVENTORY</div>
-<div id="live-table-master" class="fe-collapsible" style="margin-top:0"></div>
+<div class="fe-tabpanel" id="fe-tabpanel-master">
+  <div id="live-table-master" class="fe-open"></div>
+</div>
 
-<div class="sec-banner fe-sec-toggle" id="fe-hdr-inspection" style="margin-top:10px" onclick="FE.toggle('inspection')"><span class="fe-chevron">▶</span> FE MONTHLY INSPECTION LOG &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(one row per inspection event, appended — never overwritten)</span></div>
-<div id="live-table-inspection" class="fe-collapsible" style="margin-top:0"></div>
+<div class="fe-tabpanel" id="fe-tabpanel-inspection" style="display:none">
+  <!-- Progress board (Issam, voice, 2026-11-08): per-group inspected/total
+       for the selected month, so it's visible at a glance which plants
+       still need finishing before month end. Click a card to filter the
+       register below to that group and see exactly what's missing. -->
+  <div class="fe-plant-filterbar">
+    <label style="font-size:10px;color:var(--fdw-text-muted);font-weight:600">MONTH</label>
+    <input type="month" class="fe-month-picker" id="fe-progress-month" onchange="FE.onProgressMonthChange(this.value)">
+    <button class="fe-btn" onclick="FE.printMonthly()">🖨 Print Monthly Inspection Sheet</button>
+    <span style="font-size:10px;color:var(--fdw-text-dim);margin-left:auto" id="fe-progress-overdue-warn"></span>
+  </div>
+  <div class="fe-progress-board" id="fe-progress-board"></div>
+  <div id="fe-not-inspected-panel"></div>
+  <div style="font-weight:400;font-size:10px;opacity:.8;margin:10px 0 4px">One row per inspection event, appended — never overwritten.</div>
+  <div id="live-table-inspection" class="fe-open"></div>
+</div>
 
-<div class="sec-banner fe-sec-toggle" id="fe-hdr-service" style="margin-top:10px" onclick="FE.toggle('service')"><span class="fe-chevron">▶</span> FE ANNUAL SERVICE LOG &nbsp;<span style="font-weight:400;font-size:10px;opacity:.8">(3rd-party Civil-Defense-licensed contractor)</span></div>
-<div id="live-table-service" class="fe-collapsible" style="margin-top:0"></div>
+<div class="fe-tabpanel" id="fe-tabpanel-service" style="display:none">
+  <div style="font-weight:400;font-size:10px;opacity:.8;margin-bottom:4px">3rd-party Civil-Defense-licensed contractor.</div>
+  <div id="live-table-service" class="fe-open"></div>
+</div>
 
 <div style="margin-top:16px;font-size:10px;color:var(--fdw-text-dim);text-align:right" id="fe-live-ts"></div>
 <div id="fe-modal-root"></div>
@@ -192,6 +212,44 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   border:1px solid var(--fdw-border-gold);margin:6px 0}
 .fe-dark-wrap .fe-special-pill-x{cursor:pointer;opacity:.8}
 .fe-dark-wrap .fe-special-pill-x:hover{opacity:1}
+
+/* ── Tabs (Issam, voice, 2026-11-08): the 3 registers — Inventory,
+   Monthly Inspection, Annual Service — are now one at a time behind
+   tabs instead of 3 stacked collapsible sections. Same visual
+   language as the PPE Issuance page's tabs. ── */
+.fe-dark-wrap .fe-tabbar{display:flex;gap:4px;margin:14px 0 0;border-bottom:1px solid var(--fdw-border-gold);flex-wrap:wrap}
+.fe-dark-wrap .fe-tab{font-size:11.5px;font-weight:700;padding:9px 16px;border:1px solid var(--fdw-border-gold);
+  border-bottom:none;border-radius:8px 8px 0 0;background:var(--fdw-bg2);color:var(--fdw-text-muted);
+  cursor:pointer;margin-bottom:-1px;font-family:inherit}
+.fe-dark-wrap .fe-tab.active{background:var(--fdw-bg3);color:var(--fdw-gold-lt);border-color:var(--fdw-gold)}
+.fe-dark-wrap .fe-tab:hover:not(.active){color:var(--fdw-text)}
+.fe-dark-wrap .fe-tabpanel{background:var(--fdw-bg2);border:1px solid var(--fdw-border-gold);border-top:none;
+  border-radius:0 0 8px 8px;padding:10px 14px}
+
+/* ~8 rows visible before a table scrolls internally (Issam, voice,
+   2026-11-08), header frozen so the column titles stay put. */
+.fe-dark-wrap .tbl-wrap{overflow:auto;max-height:260px}
+.fe-dark-wrap .tbl-stripe th{position:sticky;top:0;z-index:5}
+
+/* ── Plant/Unit filter + progress board (Monthly Inspection tab) ── */
+.fe-dark-wrap .fe-plant-filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.fe-dark-wrap .fe-progress-board{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+  gap:10px;margin-bottom:14px}
+.fe-dark-wrap .fe-progress-card{background:var(--fdw-bg3);border:1px solid var(--fdw-border);border-radius:10px;
+  padding:10px 12px;cursor:pointer;transition:border-color .15s}
+.fe-dark-wrap .fe-progress-card:hover{border-color:var(--fdw-border-gold)}
+.fe-dark-wrap .fe-progress-card.selected{border-color:var(--fdw-gold);background:#1e2f58}
+.fe-dark-wrap .fe-progress-name{font-size:11px;font-weight:700;color:var(--fdw-text);margin-bottom:4px}
+.fe-dark-wrap .fe-progress-count{font-size:10px;color:var(--fdw-text-muted);margin-bottom:6px}
+.fe-dark-wrap .fe-progress-bar-track{height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+.fe-dark-wrap .fe-progress-bar-fill{height:100%;border-radius:3px}
+.fe-dark-wrap .fe-progress-bar-fill.grn{background:var(--fdw-grn)}
+.fe-dark-wrap .fe-progress-bar-fill.amb{background:var(--fdw-amb)}
+.fe-dark-wrap .fe-progress-bar-fill.red{background:var(--fdw-red)}
+.fe-dark-wrap .fe-month-picker{padding:6px 8px;font-size:12px;border:1px solid var(--fdw-border);
+  border-radius:8px;font-family:inherit;background:var(--fdw-bg3);color:var(--fdw-text)}
+.fe-dark-wrap .fe-not-inspected-panel{margin-top:8px;padding:10px 12px;background:var(--fdw-bg3);
+  border-radius:10px;border:1px solid var(--fdw-border)}
 </style>
 
 <script>
@@ -210,7 +268,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     master: {
       label: 'FE Unit', tabKey: 'fe_master', containerId: 'live-table-master',
       idCol: 'FE Code', idEditable: true,  // FE Code is user-typed on Add, not auto-generated
-      fields: ['FE Code','Location Code','Current Location','Agent','Capacity'],
+      // Plant + Unit added (Issam, voice, 2026-11-08): Plant groups the
+      // whole inventory the way the printed monthly sheets already do —
+      // ACL, SAGCO Acc., Marbael Acc., Plant 1, Plant 2, Store,
+      // Warehouse, Spare. Unit is the finer breakdown that only applies
+      // inside Plant 1 (Units 1/2, 3/4) and Plant 2 (Unit 5/6) — left
+      // blank for a shared/direct plant area or any other group.
+      fields: ['FE Code','Location Code','Current Location','Agent','Capacity','Plant','Unit'],
       filterField: 'Location Code'
     },
     inspection: {
@@ -228,13 +292,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       filterField: 'FE Code'
     }
   };
-  var _filters = {}; // tKeyName -> {search:'', category:'', special:null}
+  var _filters = {}; // tKeyName -> {search:'', category:'', special:null, plant:'', unit:''}
   var STATUS_COL = 'Record Status';
   var _cache = {}; // tableKeyName -> {headers, rows}
   var _charts = { coverage: null, expiry: null }; // Chart.js instances, destroyed/recreated on each dashboard render
   var _lastMonthYM = null; // most recent real inspection month (e.g. '2026-09'), set in renderDashboard, used by the "This Month's Coverage" card's drill-down click
   var _zoneList = [];                  // canonical Zones (Tier 1) values, loaded once
   var ZONE_FIELDS = ['Current Location']; // fields that should offer the controlled Zone list first
+
+  // Plant/Unit canonical lists (Issam, voice, 2026-11-08) — matches the
+  // groups your printed monthly sheets already use. Offered as a fixed
+  // list on Add/Edit regardless of what's already in the sheet, so a
+  // typo can't quietly create a new, slightly-different group name.
+  var PLANT_GROUPS = ['Plant 1','Plant 2','ACL','SAGCO Acc.','Marbael Acc.','Store','Warehouse','Spare','Unassigned'];
+  var UNIT_GROUPS = ['Unit 1/2','Unit 3/4','Unit 5/6'];
+  // Which units belong under which plant, for the Unit sub-filter
+  // (only Plant 1 and Plant 2 actually subdivide into units; every
+  // other group is a single flat area).
+  var PLANT_UNITS = { 'Plant 1': ['Unit 1/2','Unit 3/4'], 'Plant 2': ['Unit 5/6'] };
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
 
@@ -286,6 +361,32 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       .catch(function(){ _zoneList = []; }); // non-fatal: field just falls back to own-column values
   }
 
+  // Looks up an FE Code's Plant/Unit from the Master Inventory cache —
+  // used by the Inspection tab's Plant filter and by the progress
+  // board, since the inspection log itself only stores the FE Code
+  // (Issam, voice, 2026-11-08).
+  var _plantUnitByCode = null;
+  function rebuildPlantUnitIndex(){
+    _plantUnitByCode = {};
+    var m = _cache['master'];
+    if (!m || !m.headers || !m.rows) return;
+    var codeIdx = colIdx(m.headers, 'FE Code');
+    var plantIdx = colIdx(m.headers, 'Plant');
+    var unitIdx = colIdx(m.headers, 'Unit');
+    m.rows.forEach(function(r){
+      var code = codeIdx > -1 ? String(r[codeIdx]||'').trim() : '';
+      if (!code) return;
+      _plantUnitByCode[code] = {
+        plant: plantIdx > -1 ? String(r[plantIdx]||'').trim() : '',
+        unit: unitIdx > -1 ? String(r[unitIdx]||'').trim() : ''
+      };
+    });
+  }
+  function getPlantUnitForCode(code){
+    if (!_plantUnitByCode) rebuildPlantUnitIndex();
+    return _plantUnitByCode[code] || { plant: '', unit: '' };
+  }
+
   function colIdx(headers, name){
     var out = -1;
     (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
@@ -317,7 +418,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       return;
     }
     _cache[tKeyName] = data;
-    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+    if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null, plant:'', unit:''};
     var f = _filters[tKeyName];
 
     var toolbarHtml = '';
@@ -343,12 +444,34 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         ' <span class="fe-special-pill-x" onclick="FE.clearFilters(\''+tKeyName+'\')">✕</span></span>';
     }
 
+    // Plant + Unit filter (Issam, voice, 2026-11-08) — offered on both
+    // Inventory and Monthly Inspection. On Inventory it filters the
+    // unit's own Plant/Unit columns; on Inspection it joins each
+    // inspection row back to its FE Code's Plant/Unit in Master, since
+    // the inspection log itself doesn't repeat that column.
+    var plantFilterHtml = '';
+    if (tKeyName === 'master' || tKeyName === 'inspection'){
+      var unitOptsHtml = '';
+      if (f.plant && PLANT_UNITS[f.plant]){
+        unitOptsHtml = '<option value="">All Units</option>' + PLANT_UNITS[f.plant].map(function(u){
+          var sel = (u === f.unit) ? ' selected' : '';
+          return '<option value="'+u+'"'+sel+'>'+u+'</option>';
+        }).join('');
+      }
+      plantFilterHtml =
+        '<select class="fe-filter-select" onchange="FE.onPlantChange(\''+tKeyName+'\', this.value)">' +
+          '<option value="">All Plants/Groups</option>' +
+          PLANT_GROUPS.map(function(p){ var sel=(p===f.plant)?' selected':''; return '<option value="'+p+'"'+sel+'>'+p+'</option>'; }).join('') +
+        '</select>' +
+        (unitOptsHtml ? '<select class="fe-filter-select" onchange="FE.onUnitChange(\''+tKeyName+'\', this.value)">' + unitOptsHtml + '</select>' : '');
+    }
+
     var html =
       '<div class="fe-toolbar">' + toolbarHtml + '</div>' +
       specialPillHtml +
       '<div class="fe-filterbar">' +
         '<input type="text" class="fe-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="FE.onSearchInput(\''+tKeyName+'\', this.value)">' +
-        categoryHtml +
+        categoryHtml + plantFilterHtml +
         '<button class="fe-btn" onclick="FE.clearFilters(\''+tKeyName+'\')">Clear</button>' +
         '<span class="fe-filter-status" id="fe-filter-status-'+tKeyName+'"></span>' +
       '</div>' +
@@ -370,7 +493,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var amberIdx = cfg.amberCol ? colIdx(data.headers, cfg.amberCol) : -1;
     var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
     var showActions = can('edit') || can('delete');
-    var f = _filters[tKeyName] || {search:'', category:'', special:null};
+    var f = _filters[tKeyName] || {search:'', category:'', special:null, plant:'', unit:''};
     var searchLower = f.search.trim().toLowerCase();
 
     // 1. exclude soft-deleted
@@ -383,6 +506,30 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // 2. category filter (exact match)
     if (f.category && filterFieldIdx > -1){
       visibleRows = visibleRows.filter(function(r){ return String(r[filterFieldIdx]||'').trim() === f.category; });
+    }
+    // 2b. Plant/Unit filter (Issam, voice, 2026-11-08). Inventory
+    // filters its own Plant/Unit columns directly; Inspection has no
+    // Plant column of its own, so each row is joined back to Master
+    // by FE Code first.
+    if (f.plant && (tKeyName === 'master' || tKeyName === 'inspection')){
+      if (tKeyName === 'master'){
+        var plantIdx = colIdx(data.headers, 'Plant');
+        var unitIdx = colIdx(data.headers, 'Unit');
+        visibleRows = visibleRows.filter(function(r){
+          if (plantIdx > -1 && String(r[plantIdx]||'').trim() !== f.plant) return false;
+          if (f.unit && unitIdx > -1 && String(r[unitIdx]||'').trim() !== f.unit) return false;
+          return true;
+        });
+      } else {
+        var codeIdx3 = colIdx(data.headers, 'FE Code');
+        visibleRows = visibleRows.filter(function(r){
+          var code = codeIdx3 > -1 ? String(r[codeIdx3]||'').trim() : '';
+          var info = getPlantUnitForCode(code);
+          if (info.plant !== f.plant) return false;
+          if (f.unit && info.unit !== f.unit) return false;
+          return true;
+        });
+      }
     }
     // 3. free-text search (any column contains, case-insensitive)
     if (searchLower){
@@ -477,10 +624,255 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       });
   }
 
+  /* ── Monthly Inspection progress board (Issam, voice, 2026-11-08) ──
+     One card per Plant/Group, showing how many of its units have at
+     least one inspection logged for the selected month, out of its
+     total. Green = all done, amber = partly done, red = none yet.
+     Clicking a card filters the register below to that group and
+     opens the "not yet inspected" list for exactly that group+month,
+     so the inspector knows which units are still outstanding. */
+  var _progressSelectedPlant = null;
+  function getSelectedProgressMonth(){
+    var el = document.getElementById('fe-progress-month');
+    if (el && el.value) return el.value; // 'YYYY-MM'
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  }
+  function renderProgressBoard(){
+    var boardEl = document.getElementById('fe-progress-board');
+    if (!boardEl) return; // not on this tab yet
+    var monthEl = document.getElementById('fe-progress-month');
+    if (monthEl && !monthEl.value) monthEl.value = getSelectedProgressMonth();
+    var ym = getSelectedProgressMonth();
+
+    var m = _cache['master'];
+    var insp = _cache['inspection'];
+    if (!m || !m.headers || !m.rows){ boardEl.innerHTML = ''; return; }
+    var statusIdx = colIdx(m.headers, STATUS_COL);
+    var plantIdx = colIdx(m.headers, 'Plant');
+    var codeIdxM = colIdx(m.headers, 'FE Code');
+
+    // Which FE Codes have an inspection logged in the selected month
+    var inspectedThisMonth = {};
+    if (insp && insp.headers && insp.rows){
+      var codeIdxI = colIdx(insp.headers, 'FE Code');
+      var dateIdxI = colIdx(insp.headers, 'Inspection Date');
+      insp.rows.forEach(function(r){
+        var d = dateIdxI > -1 ? String(r[dateIdxI]||'').trim() : '';
+        if (d.indexOf(ym) === 0) { // 'YYYY-MM-DD'.indexOf('YYYY-MM') === 0
+          var code = codeIdxI > -1 ? String(r[codeIdxI]||'').trim() : '';
+          if (code) inspectedThisMonth[code] = true;
+        }
+      });
+    }
+
+    // Tally total + inspected per Plant group
+    var totals = {}, done = {};
+    PLANT_GROUPS.forEach(function(p){ totals[p] = 0; done[p] = 0; });
+    m.rows.forEach(function(r){
+      if (statusIdx > -1 && String(r[statusIdx]||'').trim().toLowerCase() === 'removed') return;
+      var plant = plantIdx > -1 ? String(r[plantIdx]||'').trim() : '';
+      if (!plant || totals[plant] === undefined) plant = 'Unassigned';
+      totals[plant] = (totals[plant]||0) + 1;
+      var code = codeIdxM > -1 ? String(r[codeIdxM]||'').trim() : '';
+      if (code && inspectedThisMonth[code]) done[plant] = (done[plant]||0) + 1;
+    });
+
+    boardEl.innerHTML = PLANT_GROUPS.map(function(p){
+      var total = totals[p] || 0;
+      var doneCount = done[p] || 0;
+      var pct = total ? Math.round((doneCount/total)*100) : 0;
+      var colorClass = total === 0 ? 'amb' : (pct >= 100 ? 'grn' : (pct > 0 ? 'amb' : 'red'));
+      var sel = (_progressSelectedPlant === p) ? ' selected' : '';
+      return '<div class="fe-progress-card'+sel+'" onclick="FE.onProgressCardClick(\''+p+'\')">' +
+        '<div class="fe-progress-name">' + p + '</div>' +
+        '<div class="fe-progress-count">' + doneCount + ' of ' + total + ' inspected' + (total===0?' (none on file)':'') + '</div>' +
+        '<div class="fe-progress-bar-track"><div class="fe-progress-bar-fill ' + colorClass + '" style="width:' + pct + '%"></div></div>' +
+      '</div>';
+    }).join('');
+
+    // Overdue warning: inside the last 5 days of the selected month
+    // (and only if it's the current month, not a past one being
+    // reviewed), list any group still below 100%.
+    var warnEl = document.getElementById('fe-progress-overdue-warn');
+    if (warnEl){
+      var now = new Date();
+      var nowYm = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+      var daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+      var daysLeft = daysInMonth - now.getDate();
+      if (ym === nowYm && daysLeft <= 5){
+        var incomplete = PLANT_GROUPS.filter(function(p){ return (totals[p]||0) > 0 && (done[p]||0) < (totals[p]||0); });
+        warnEl.textContent = incomplete.length
+          ? ('⚠ ' + daysLeft + ' day' + (daysLeft===1?'':'s') + ' left this month — not yet complete: ' + incomplete.join(', '))
+          : '✓ All groups complete for this month';
+        warnEl.style.color = incomplete.length ? 'var(--fdw-red)' : 'var(--fdw-grn)';
+      } else {
+        warnEl.textContent = '';
+      }
+    }
+    renderNotInspectedPanel(ym);
+  }
+  function renderNotInspectedPanel(ym){
+    var panelEl = document.getElementById('fe-not-inspected-panel');
+    if (!panelEl) return;
+    if (!_progressSelectedPlant){ panelEl.innerHTML = ''; return; }
+    var m = _cache['master'];
+    var insp = _cache['inspection'];
+    if (!m || !m.headers || !m.rows){ panelEl.innerHTML = ''; return; }
+    var statusIdx = colIdx(m.headers, STATUS_COL);
+    var plantIdx = colIdx(m.headers, 'Plant');
+    var codeIdxM = colIdx(m.headers, 'FE Code');
+    var locIdxM = colIdx(m.headers, 'Current Location');
+    var inspectedThisMonth = {};
+    if (insp && insp.headers && insp.rows){
+      var codeIdxI = colIdx(insp.headers, 'FE Code');
+      var dateIdxI = colIdx(insp.headers, 'Inspection Date');
+      insp.rows.forEach(function(r){
+        var d = dateIdxI > -1 ? String(r[dateIdxI]||'').trim() : '';
+        if (d.indexOf(ym) === 0){
+          var code = codeIdxI > -1 ? String(r[codeIdxI]||'').trim() : '';
+          if (code) inspectedThisMonth[code] = true;
+        }
+      });
+    }
+    var missing = [];
+    m.rows.forEach(function(r){
+      if (statusIdx > -1 && String(r[statusIdx]||'').trim().toLowerCase() === 'removed') return;
+      var plant = plantIdx > -1 ? String(r[plantIdx]||'').trim() : '';
+      if (!plant) plant = 'Unassigned';
+      if (plant !== _progressSelectedPlant) return;
+      var code = codeIdxM > -1 ? String(r[codeIdxM]||'').trim() : '';
+      if (code && !inspectedThisMonth[code]){
+        missing.push({ code: code, loc: locIdxM > -1 ? String(r[locIdxM]||'').trim() : '' });
+      }
+    });
+    if (!missing.length){
+      panelEl.innerHTML = '<div class="fe-not-inspected-panel"><strong style="color:var(--fdw-grn);font-size:11px">✓ ' + _progressSelectedPlant + ' — every unit inspected for ' + ym + '.</strong></div>';
+      return;
+    }
+    panelEl.innerHTML = '<div class="fe-not-inspected-panel"><strong style="font-size:11px;color:var(--fdw-gold-lt)">' +
+      _progressSelectedPlant + ' — ' + missing.length + ' unit' + (missing.length===1?'':'s') + ' not yet inspected for ' + ym + ':</strong>' +
+      '<div style="margin-top:6px;font-size:10.5px;color:var(--fdw-text-muted);max-height:120px;overflow:auto">' +
+      missing.map(function(x){ return x.code + (x.loc ? ' — ' + x.loc : ''); }).join('<br>') +
+      '</div></div>';
+  }
+
+  /* ── Print the Monthly Inspection Sheet for one group + month ──────
+     Laid out to match your own paper form exactly (Issam, voice,
+     2026-11-08): Location Code / FE Code / Agent / Capacity / Location
+     / Inspected / 3rd-party due date / Seal / Pin / Hose / Pressure /
+     Body / Handle / Notes, with an inspector sign-off line at the
+     bottom. Pulls the selected group's units from Master and, for any
+     unit already inspected in the selected month, fills in that
+     inspection's own Seal/Pin/Hose/Notes — a unit not yet inspected
+     prints with those columns blank, ready to fill in by hand or
+     after someone completes it on the page. */
+  function printMonthlyInspection(plant, ym){
+    var m = _cache['master'];
+    if (!m || !m.headers || !m.rows){ alert('Master Inventory hasn\'t loaded yet — try again in a moment.'); return; }
+    var statusIdx = colIdx(m.headers, STATUS_COL);
+    var plantIdx = colIdx(m.headers, 'Plant');
+    var codeIdx = colIdx(m.headers, 'FE Code');
+    var locCodeIdx = colIdx(m.headers, 'Location Code');
+    var locIdx = colIdx(m.headers, 'Current Location');
+    var agentIdx = colIdx(m.headers, 'Agent');
+    var capIdx = colIdx(m.headers, 'Capacity');
+
+    var insp = _cache['inspection'];
+    var lastInspByCode = {};
+    if (insp && insp.headers && insp.rows){
+      var iCodeIdx = colIdx(insp.headers, 'FE Code');
+      var iDateIdx = colIdx(insp.headers, 'Inspection Date');
+      var iSealIdx = colIdx(insp.headers, 'Anti-Tamper Seal');
+      var iPinIdx = colIdx(insp.headers, 'Pin');
+      var iHoseIdx = colIdx(insp.headers, 'Hose');
+      var iNotesIdx = colIdx(insp.headers, 'Notes');
+      var iInspectorIdx = colIdx(insp.headers, 'Inspector ID');
+      insp.rows.forEach(function(r){
+        var d = iDateIdx > -1 ? String(r[iDateIdx]||'').trim() : '';
+        if (d.indexOf(ym) !== 0) return;
+        var code = iCodeIdx > -1 ? String(r[iCodeIdx]||'').trim() : '';
+        if (!code) return;
+        // Keep the latest if a code was somehow inspected twice this month.
+        if (!lastInspByCode[code] || d >= lastInspByCode[code].date){
+          lastInspByCode[code] = {
+            date: d,
+            seal: iSealIdx>-1 ? r[iSealIdx] : '',
+            pin: iPinIdx>-1 ? r[iPinIdx] : '',
+            hose: iHoseIdx>-1 ? r[iHoseIdx] : '',
+            notes: iNotesIdx>-1 ? r[iNotesIdx] : '',
+            inspector: iInspectorIdx>-1 ? r[iInspectorIdx] : ''
+          };
+        }
+      });
+    }
+
+    var units = [];
+    m.rows.forEach(function(r){
+      if (statusIdx > -1 && String(r[statusIdx]||'').trim().toLowerCase() === 'removed') return;
+      var p = plantIdx > -1 ? String(r[plantIdx]||'').trim() : '';
+      if (!p) p = 'Unassigned';
+      if (p !== plant) return;
+      var code = codeIdx > -1 ? String(r[codeIdx]||'').trim() : '';
+      units.push({
+        locCode: locCodeIdx>-1 ? r[locCodeIdx] : '',
+        code: code,
+        agent: agentIdx>-1 ? r[agentIdx] : '',
+        cap: capIdx>-1 ? r[capIdx] : '',
+        loc: locIdx>-1 ? r[locIdx] : '',
+        insp: lastInspByCode[code] || null
+      });
+    });
+
+    var rowsHtml = units.map(function(u){
+      var i = u.insp;
+      return '<tr>' +
+        '<td>' + (u.locCode||'') + '</td>' +
+        '<td>' + u.code + '</td>' +
+        '<td>' + (u.agent||'') + '</td>' +
+        '<td>' + (u.cap||'') + '</td>' +
+        '<td>' + (u.loc||'') + '</td>' +
+        '<td>' + (i ? '✓ ' + i.date : '') + '</td>' +
+        '<td></td>' + // 3rd party due date — not tracked per-inspection; left for hand entry
+        '<td>' + (i && i.seal ? i.seal : '') + '</td>' +
+        '<td>' + (i && i.pin ? i.pin : '') + '</td>' +
+        '<td>' + (i && i.hose ? i.hose : '') + '</td>' +
+        '<td></td><td></td><td></td>' + // Pressure / Body / Handle — not yet separate columns in the inspection form
+        '<td>' + (i && i.notes ? i.notes : '') + '</td>' +
+      '</tr>';
+    }).join('');
+
+    var win = window.open('', '_blank');
+    win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>FE Monthly Inspection — ' + plant + ' — ' + ym + '</title>' +
+      '<style>' +
+      'body{font-family:Arial,sans-serif;font-size:11px;padding:20px;color:#111}' +
+      'h1{font-size:15px;margin:0 0 2px}' +
+      '.sub{font-size:11px;color:#444;margin-bottom:14px}' +
+      'table{width:100%;border-collapse:collapse}' +
+      'th,td{border:1px solid #333;padding:4px 6px;text-align:left;font-size:9.5px}' +
+      'th{background:#1a2a50;color:#fff}' +
+      '.sign-row{display:flex;justify-content:space-between;margin-top:30px;font-size:11px}' +
+      '.sign-line{border-top:1px solid #333;width:220px;padding-top:4px;text-align:center}' +
+      '@media print{body{padding:0}}' +
+      '</style></head><body>' +
+      '<h1>SAGCO IMS — Monthly Visual Inspection for Fire Extinguishers</h1>' +
+      '<div class="sub">Group: <strong>' + plant + '</strong> &nbsp;|&nbsp; Month: <strong>' + ym + '</strong> &nbsp;|&nbsp; Total FE = ' + units.length + '</div>' +
+      '<table><thead><tr><th>Location Code</th><th>FE Code</th><th>Agent</th><th>Capacity</th><th>Location</th>' +
+      '<th>Inspected</th><th>3rd Party Due Date</th><th>Seal</th><th>Pin</th><th>Hose</th><th>Pressure</th><th>Body</th><th>Handle</th><th>Notes</th></tr></thead>' +
+      '<tbody>' + rowsHtml + '</tbody></table>' +
+      '<div class="sign-row"><div class="sign-line">Inspector Name / Signature</div><div class="sign-line">Date</div></div>' +
+      '</body></html>');
+    win.document.close();
+    win.focus();
+    setTimeout(function(){ win.print(); }, 300);
+  }
+
   function loadAll(){
     var keys = Object.keys(TABLES);
+    _plantUnitByCode = null; // force a fresh Master→Plant/Unit index once the new data is in
     Promise.all(keys.map(loadTab).concat([loadZoneList()])).then(function(){
       renderDashboard();
+      renderProgressBoard();
     });
   }
 
@@ -659,18 +1051,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return (names[mi] || parts[1]) + ' ' + parts[0];
   }
 
-  function setExpanded(tKeyName, expanded){
-    var cfg = TABLES[tKeyName];
-    var el = document.getElementById(cfg.containerId);
-    var hdr = document.getElementById('fe-hdr-' + tKeyName);
-    var chev = hdr ? hdr.querySelector('.fe-chevron') : null;
-    if (expanded){
-      el.classList.add('fe-open');
-      if (chev) chev.style.transform = 'rotate(90deg)';
-    } else {
-      el.classList.remove('fe-open');
-      if (chev) chev.style.transform = 'rotate(0deg)';
-    }
+  // Tabs (Issam, voice, 2026-11-08), replacing the old collapsible
+  // sections this function used to expand/collapse.
+  function switchTab(tKeyName){
+    ['master','inspection','service'].forEach(function(t){
+      var panel = document.getElementById('fe-tabpanel-' + t);
+      var btn = document.getElementById('fe-tab-' + t);
+      if (panel) panel.style.display = (t === tKeyName) ? '' : 'none';
+      if (btn) btn.classList.toggle('active', t === tKeyName);
+    });
+    if (tKeyName === 'inspection') renderProgressBoard();
   }
 
   /* ── Modal (shared by Add + Edit) ───────────────────────────────────── */
@@ -679,7 +1069,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var fieldsHtml = fields.map(function(f, fi){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
-      var suggestions = getSuggestions(tKeyName, f);
+      // Plant and Unit always offer the fixed canonical list (Issam,
+      // voice, 2026-11-08), not whatever happens to be in the sheet
+      // already — keeps every row using the exact same group names.
+      var suggestions = (f === 'Plant') ? PLANT_GROUPS : (f === 'Unit') ? UNIT_GROUPS : getSuggestions(tKeyName, f);
       var dlId = 'fe-dl-' + fi;
       var dlHtml = '';
       if (suggestions.length){
@@ -767,27 +1160,23 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   /* ── Public API used by inline onclick handlers ─────────────────────── */
   window.FE = {
-    toggle: function(tKeyName){
-      var el = document.getElementById(TABLES[tKeyName].containerId);
-      setExpanded(tKeyName, !el.classList.contains('fe-open'));
-    },
-    jumpTo: function(tKeyName){
-      setExpanded(tKeyName, true);
-      var hdr = document.getElementById('fe-hdr-' + tKeyName);
-      if (hdr) hdr.scrollIntoView({behavior:'smooth', block:'start'});
-    },
+    // toggle/jumpTo kept only so an old bookmark or cached page calling
+    // them doesn't hard-error; both now just switch tabs (Issam, voice,
+    // 2026-11-08 — replaced the collapsible sections with tabs).
+    toggle: function(tKeyName){ switchTab(tKeyName); },
+    jumpTo: function(tKeyName){ switchTab(tKeyName); },
     onSearchInput: function(tKeyName, val){
-      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null, plant:'', unit:''};
       _filters[tKeyName].search = val;
       renderTableArea(tKeyName);
     },
     onCategoryChange: function(tKeyName, val){
-      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null};
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null, plant:'', unit:''};
       _filters[tKeyName].category = val;
       renderTableArea(tKeyName);
     },
     clearFilters: function(tKeyName){
-      _filters[tKeyName] = {search:'', category:'', special:null};
+      _filters[tKeyName] = {search:'', category:'', special:null, plant:'', unit:''};
       renderShell(tKeyName, _cache[tKeyName]); // rebuild shell so the select resets to "All" too
     },
     /* Dashboard card click-through: jumps to the relevant register, already
@@ -796,25 +1185,46 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
        you land on are guaranteed to match the number you clicked. */
     cardClick: function(cardName){
       if (cardName === 'total'){
-        _filters['master'] = {search:'', category:'', special:null};
+        _filters['master'] = {search:'', category:'', special:null, plant:'', unit:''};
         renderShell('master', _cache['master']);
-        setExpanded('master', true);
-        document.getElementById('fe-hdr-master').scrollIntoView({behavior:'smooth', block:'start'});
+        switchTab('master');
       } else if (cardName === 'coverage'){
-        _filters['inspection'] = {search: _lastMonthYM || '', category:'', special:null};
+        _filters['inspection'] = {search: _lastMonthYM || '', category:'', special:null, plant:'', unit:''};
         renderShell('inspection', _cache['inspection']);
-        setExpanded('inspection', true);
-        document.getElementById('fe-hdr-inspection').scrollIntoView({behavior:'smooth', block:'start'});
+        switchTab('inspection');
       } else if (cardName === 'never'){
-        _filters['master'] = {search:'', category:'', special:'never_inspected'};
+        _filters['master'] = {search:'', category:'', special:'never_inspected', plant:'', unit:''};
         renderShell('master', _cache['master']);
-        setExpanded('master', true);
-        document.getElementById('fe-hdr-master').scrollIntoView({behavior:'smooth', block:'start'});
+        switchTab('master');
       } else if (cardName === 'flagged'){
-        _filters['inspection'] = {search:'', category:'', special:'flagged'};
+        _filters['inspection'] = {search:'', category:'', special:'flagged', plant:'', unit:''};
         renderShell('inspection', _cache['inspection']);
-        setExpanded('inspection', true);
-        document.getElementById('fe-hdr-inspection').scrollIntoView({behavior:'smooth', block:'start'});
+        switchTab('inspection');
+      }
+    },
+    switchTab: switchTab,
+    onPlantChange: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null, plant:'', unit:''};
+      _filters[tKeyName].plant = val;
+      _filters[tKeyName].unit = ''; // plant changed, so any previously chosen unit no longer applies
+      renderShell(tKeyName, _cache[tKeyName]); // rebuild shell so the Unit dropdown's options refresh too
+    },
+    onUnitChange: function(tKeyName, val){
+      if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null, plant:'', unit:''};
+      _filters[tKeyName].unit = val;
+      renderTableArea(tKeyName);
+    },
+    onProgressMonthChange: function(val){ renderProgressBoard(); },
+    printMonthly: function(){
+      if (!_progressSelectedPlant){ alert('Click a group\'s card above first, to choose which one to print.'); return; }
+      printMonthlyInspection(_progressSelectedPlant, getSelectedProgressMonth());
+    },
+    onProgressCardClick: function(plant){
+      _progressSelectedPlant = (_progressSelectedPlant === plant) ? null : plant;
+      renderProgressBoard();
+      if (_progressSelectedPlant){
+        _filters['inspection'] = {search:'', category:'', special:null, plant: _progressSelectedPlant, unit:''};
+        renderShell('inspection', _cache['inspection']);
       }
     },
     openAdd: function(tKeyName){
