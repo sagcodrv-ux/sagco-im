@@ -405,6 +405,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return out;
   }
 
+  // Rev.21 (Issam, voice, 2026-11-10) — CRITICAL FIX: formatCell was
+  // called in several places in this file (the flat table renderer,
+  // and now the new grouped inspection renderer) but was never
+  // actually defined anywhere in it. That made every "ReferenceError:
+  // formatCell is not defined" thrown inside loadTab's own .then()
+  // callback, which loadTab's .catch() then silently turned into a
+  // generic "Connection unavailable — Could not reach Google Sheets"
+  // message on screen — masking a code bug as a network problem. In
+  // other words: every tab on this page (Master, Inspection, Service)
+  // would show that same false "can't connect" message once live,
+  // regardless of the actual connection, until this is deployed.
+  function formatCell(v){
+    if (v === null || v === undefined || v === '') return '<span style="opacity:.35">—</span>';
+    return String(v).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
   function getOwnColumnValues(tKeyName, fieldName){
     var data = _cache[tKeyName];
     if (!data || !data.headers || !data.rows) return [];
@@ -435,10 +451,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
     var toolbarHtml = '';
     if (can('add')){
-      toolbarHtml = '<button class="fe-btn fe-btn-add" onclick="FE.openAdd(\'' + tKeyName + '\')">+ Add Record</button>';
-      // Group-table entry (Issam, voice, 2026-11-08): the fast path for
-      // actually doing a round of inspections or a service batch —
-      // "+ Add Record" above still exists for a single one-off entry.
+      // Rev.21 (Issam, voice, 2026-11-10) — the single one-off "+ Add
+      // Record" button is removed for Inspection specifically: every
+      // monthly round now goes through Group entry, so there's no
+      // longer a route that adds one extinguisher's inspection on its
+      // own. Master and Service keep their own "+ Add Record" as
+      // before — this change is scoped to Inspection only.
+      if (tKeyName !== 'inspection'){
+        toolbarHtml = '<button class="fe-btn fe-btn-add" onclick="FE.openAdd(\'' + tKeyName + '\')">+ Add Record</button>';
+      }
       if (tKeyName === 'inspection'){
         toolbarHtml += ' <button class="fe-btn fe-btn-add" onclick="FE.openGroupInspection()">+ Add Inspection (by Group)</button>';
       } else if (tKeyName === 'service'){
@@ -588,6 +609,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       statusEl.textContent = isFiltered ? ('Showing ' + visibleRows.length + ' of ' + totalVisible) : '';
     }
 
+    // Rev.21 (Issam, voice, 2026-11-10) — Inspection renders one line
+    // per inspection ROUND (Plant + Unit + Date + Inspector), not one
+    // line per extinguisher, since that's how the group entry already
+    // saves them and a one-row-per-unit list stopped being readable
+    // once a round covers 40+ units. Master and Service are unchanged.
+    // The per-unit rows are still exactly what's in the sheet and
+    // still drive the progress boards and Flagged Items KPI untouched
+    // — this only changes how they're DISPLAYED, grouped, with the
+    // full per-unit detail one click away.
+    if (tKeyName === 'inspection'){
+      renderGroupedInspectionTable(data, visibleRows, areaEl, idIdx, statusIdx, showActions);
+      return;
+    }
+
     var wide = data.headers.length > 8;
     var html = '<div class="tbl-wrap"><table class="tbl-stripe' + (wide?' tbl-compact':'') + '">';
     html += '<thead><tr>';
@@ -616,6 +651,91 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           html += '</td>';
         }
         html += '</tr>';
+      });
+    }
+    html += '</tbody></table></div>';
+    areaEl.innerHTML = html;
+  }
+
+  var _expandedInspGroups = {}; // groupKey -> true/false, persists across re-renders within the session
+
+  function renderGroupedInspectionTable(data, visibleRows, areaEl, idIdx, statusIdx, showActions){
+    var headers = data.headers;
+    var codeIdx = colIdx(headers, 'FE Code');
+    var dateIdx = colIdx(headers, 'Inspection Date');
+    var inspectorIdx = colIdx(headers, 'Inspector ID');
+    var sealIdx = colIdx(headers, 'Anti-Tamper Seal');
+    var pinIdx = colIdx(headers, 'Pin');
+    var hoseIdx = colIdx(headers, 'Hose');
+    var pressureIdx = colIdx(headers, 'Pressure');
+    var bodyIdx = colIdx(headers, 'Body');
+    var handleIdx = colIdx(headers, 'Handle');
+    var issueCols = [sealIdx, pinIdx, hoseIdx, pressureIdx, bodyIdx, handleIdx].filter(function(i){ return i > -1; });
+
+    var groups = {}; // key -> {plant, unit, date, inspector, rows:[], issueCount}
+    var order = [];
+    visibleRows.forEach(function(row){
+      var code = codeIdx > -1 ? String(row[codeIdx]||'').trim() : '';
+      var info = getPlantUnitForCode(code);
+      var date = dateIdx > -1 ? String(row[dateIdx]||'').trim() : '';
+      var inspector = inspectorIdx > -1 ? String(row[inspectorIdx]||'').trim() : '';
+      var key = [info.plant||'Unassigned', info.unit||'', date, inspector].join('|');
+      if (!groups[key]){
+        groups[key] = { plant: info.plant||'Unassigned', unit: info.unit||'', date: date, inspector: inspector, rows: [], issueCount: 0 };
+        order.push(key);
+      }
+      var g = groups[key];
+      g.rows.push(row);
+      var hasIssue = issueCols.some(function(ci){ return row[ci] && String(row[ci]).trim(); });
+      if (hasIssue) g.issueCount++;
+    });
+
+    // Most recent date first, then by Plant/Unit for a stable order within the same date.
+    order.sort(function(ka, kb){
+      var ga = groups[ka], gb = groups[kb];
+      if (ga.date !== gb.date) return ga.date < gb.date ? 1 : -1;
+      return (ga.plant+ga.unit) < (gb.plant+gb.unit) ? -1 : 1;
+    });
+
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe">';
+    html += '<thead><tr><th style="width:28px"></th><th>Plant</th><th>Unit</th><th>Date</th><th>Inspector</th><th>Units Inspected</th><th>Issues</th></tr></thead><tbody>';
+
+    if (!order.length){
+      html += '<tr><td colspan="7"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
+    } else {
+      order.forEach(function(key){
+        var g = groups[key];
+        var isExpanded = !!_expandedInspGroups[key];
+        var keyEsc = key.replace(/'/g,"\\'");
+        html += '<tr class="fe-group-row" style="cursor:pointer" onclick="FE.toggleInspGroup(\''+keyEsc+'\')">' +
+          '<td style="text-align:center"><span style="display:inline-block;transition:transform .15s'+(isExpanded?';transform:rotate(90deg)':'')+'">▶</span></td>' +
+          '<td>' + formatCell(g.plant) + '</td>' +
+          '<td>' + formatCell(g.unit) + '</td>' +
+          '<td>' + formatCell(g.date) + '</td>' +
+          '<td>' + formatCell(g.inspector) + '</td>' +
+          '<td>' + g.rows.length + '</td>' +
+          '<td>' + (g.issueCount ? '<span class="nb nb-red">' + g.issueCount + '</span>' : '<span class="nb nb-grn">0</span>') + '</td>' +
+        '</tr>';
+        if (isExpanded){
+          html += '<tr><td></td><td colspan="6" style="padding:0">' +
+            '<div class="tbl-wrap"><table class="tbl-stripe tbl-compact"><thead><tr>';
+          headers.forEach(function(h,i){ if (i !== statusIdx) html += '<th>'+h+'</th>'; });
+          if (showActions) html += '<th>Actions</th>';
+          html += '</tr></thead><tbody>';
+          g.rows.forEach(function(row){
+            var idVal = idIdx>-1 ? row[idIdx] : '';
+            html += '<tr>';
+            row.forEach(function(cell,ci){ if (ci !== statusIdx) html += '<td>' + formatCell(cell) + '</td>'; });
+            if (showActions){
+              html += '<td style="white-space:nowrap">';
+              if (can('edit')) html += '<button class="fe-icon-btn" title="Edit" onclick="event.stopPropagation();FE.openEdit(\'inspection\',\''+String(idVal).replace(/'/g,"\\'")+'\')">✏️</button>';
+              if (can('delete')) html += '<button class="fe-icon-btn" title="Remove" onclick="event.stopPropagation();FE.remove(\'inspection\',\''+String(idVal).replace(/'/g,"\\'")+'\')">🗑️</button>';
+              html += '</td>';
+            }
+            html += '</tr>';
+          });
+          html += '</tbody></table></div></td></tr>';
+        }
       });
     }
     html += '</tbody></table></div>';
@@ -1585,6 +1705,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // 2026-11-08 — replaced the collapsible sections with tabs).
     toggle: function(tKeyName){ switchTab(tKeyName); },
     jumpTo: function(tKeyName){ switchTab(tKeyName); },
+    toggleInspGroup: function(key){
+      _expandedInspGroups[key] = !_expandedInspGroups[key];
+      renderTableArea('inspection');
+    },
     onSearchInput: function(tKeyName, val){
       if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null, plant:'', unit:''};
       _filters[tKeyName].search = val;
