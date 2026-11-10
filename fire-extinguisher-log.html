@@ -404,7 +404,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   }
   function getPlantUnitForCode(code){
     if (!_plantUnitByCode) rebuildPlantUnitIndex();
-    return _plantUnitByCode[code] || { plant: '', unit: '' };
+    // Rev.23 (Issam, voice, 2026-11-10) — BUG FIX: a blank Plant in
+    // Master (no Plant/Unit columns yet, or the cell just empty) was
+    // returned here as a literal '', while the progress board and
+    // card-click logic elsewhere normalize a blank Plant to the label
+    // 'Unassigned'. Comparing '' against 'Unassigned' never matched,
+    // so clicking the Unassigned card — or any card, for a unit whose
+    // FE Code isn't in Master at all — showed "No matching records"
+    // even though the units were right there in the cache. Every
+    // caller of this function (the inspection table's plant filter,
+    // and the grouped round view's own grouping key) now agrees with
+    // the progress board on what an empty Plant means.
+    var found = _plantUnitByCode[code];
+    return { plant: (found && found.plant) || 'Unassigned', unit: (found && found.unit) || '' };
   }
 
   function colIdx(headers, name){
@@ -456,6 +468,28 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     _cache[tKeyName] = data;
     if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null, plant:'', unit:''};
     var f = _filters[tKeyName];
+
+    // Rev.23 (Issam, voice, 2026-11-10) — the Pressure/Body column gap
+    // found this session (a failed check silently dropped because the
+    // sheet had no column to hold it) showed that a missing column
+    // fails SILENTLY, with nothing on screen to say so. This check
+    // runs every time the Inspection or Service tab loads and puts a
+    // visible red banner up if any expected check column isn't in the
+    // sheet yet, so a gap like that can't happen again unnoticed.
+    var missingColsBannerHtml = '';
+    if (tKeyName === 'inspection' || tKeyName === 'service'){
+      var expectedCols = tKeyName === 'inspection'
+        ? ['Round ID','Anti-Tamper Seal','Pin','Hose','Pressure','Body','Handle']
+        : ['Batch ID','Pre-Service Pin','Pre-Service Hose','Pre-Service Pressure','Pre-Service Body'];
+      var missingCols = expectedCols.filter(function(c){ return colIdx(data.headers, c) < 0; });
+      if (missingCols.length){
+        missingColsBannerHtml = '<div style="background:rgba(240,104,92,.15);border-left:3px solid var(--fdw-red);' +
+          'padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;margin-bottom:8px">' +
+          '⚠ This sheet tab is missing the column' + (missingCols.length>1?'s':'') + ': <strong>' + missingCols.join(', ') + '</strong>. ' +
+          'Anything entered for ' + (missingCols.length>1?'these':'this') + ' will not be saved until ' +
+          (missingCols.length>1?'they are':'it is') + ' added to the sheet.</div>';
+      }
+    }
 
     var toolbarHtml = '';
     if (can('add')){
@@ -517,6 +551,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
 
     var html =
+      missingColsBannerHtml +
       '<div class="fe-toolbar">' + toolbarHtml + '</div>' +
       specialPillHtml +
       '<div class="fe-filterbar">' +
@@ -1128,9 +1163,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           '<option value="">-- choose --</option>' + PLANT_GROUPS.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('') +
         '</select></div>' +
         '<div style="flex:1 1 140px"><label>Unit (if applicable)</label><select id="fe-gi-unit" onchange="FE.renderGiUnitTable()"><option value="">All</option></select></div>' +
-        '<div style="flex:1 1 140px"><label>Inspection Date</label><input type="date" id="fe-gi-date" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
+        '<div style="flex:1 1 140px"><label>Inspection Date</label><input type="date" id="fe-gi-date" value="' + new Date().toISOString().slice(0,10) + '" onchange="FE.updateGiRoundIdPreview()"></div>' +
         '<div style="flex:1 1 160px"><label>Inspector Name / ID</label><input type="text" id="fe-gi-inspector"></div>' +
       '</div>' +
+      // Round ID preview (Issam, voice, 2026-11-10) — shown as soon as
+      // the window opens, so the inspector can write it on the paper
+      // sheet before saving. Recomputed if the date changes (the
+      // round is scoped to year+month) and recomputed again fresh at
+      // save time, in case another save happened in between.
+      '<div id="fe-gi-roundid-preview" style="font-size:11px;color:var(--fdw-gold-lt);margin:2px 0 8px"></div>' +
       '<div id="fe-gi-table-wrap"><div class="empty-state"><strong>Choose a Plant / Group above</strong>Its extinguishers will list here.</div></div>' +
       '<div class="fe-modal-actions"><button class="fe-btn fe-btn-cancel" id="fe-gi-cancel">Cancel</button>' +
       '<button class="fe-btn fe-btn-add" id="fe-gi-save">Save Ticked Rows</button></div>' +
@@ -1138,11 +1179,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('fe-gi-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('fe-gi-bg').onclick = function(e){ if (e.target.id==='fe-gi-bg') root.innerHTML=''; };
     document.getElementById('fe-gi-save').onclick = saveGroupInspection;
+    updateGiRoundIdPreview();
     // If a plant was already selected on the progress board, start there.
     if (_progressSelectedPlant){
       document.getElementById('fe-gi-plant').value = _progressSelectedPlant;
       renderGiUnitTable();
     }
+  }
+  function updateGiRoundIdPreview(){
+    var dateEl = document.getElementById('fe-gi-date');
+    var previewEl = document.getElementById('fe-gi-roundid-preview');
+    if (!dateEl || !previewEl || !dateEl.value) return;
+    var next = genRoundId('MI', 'inspection', 'Round ID', dateEl.value.slice(0,7));
+    previewEl.textContent = 'This round will be saved as: ' + next;
   }
   function renderGiUnitTable(){
     var plant = document.getElementById('fe-gi-plant').value;
@@ -1267,8 +1316,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           '<option value="">-- choose --</option>' + PLANT_GROUPS.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('') +
         '</select></div>' +
         '<div style="flex:1 1 140px"><label>Unit (if applicable)</label><select id="fe-so-unit" onchange="FE.renderSoUnitTable()"><option value="">All</option></select></div>' +
-        '<div style="flex:1 1 140px"><label>Delivery Date</label><input type="date" id="fe-so-date" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
+        '<div style="flex:1 1 140px"><label>Delivery Date</label><input type="date" id="fe-so-date" value="' + new Date().toISOString().slice(0,10) + '" onchange="FE.updateSoBatchIdPreview()"></div>' +
       '</div>' +
+      '<div id="fe-so-batchid-preview" style="font-size:11px;color:var(--fdw-gold-lt);margin:2px 0 8px"></div>' +
       '<div id="fe-so-table-wrap"><div class="empty-state"><strong>Choose a Plant / Group above</strong>Its extinguishers will list here.</div></div>' +
       '<div class="fe-modal-actions"><button class="fe-btn fe-btn-cancel" id="fe-so-cancel">Cancel</button>' +
       '<button class="fe-btn fe-btn-add" id="fe-so-save">Send Selected Units</button></div>' +
@@ -1276,6 +1326,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('fe-so-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('fe-so-bg').onclick = function(e){ if (e.target.id==='fe-so-bg') root.innerHTML=''; };
     document.getElementById('fe-so-save').onclick = saveServiceBatchOut;
+    updateSoBatchIdPreview();
+  }
+  function updateSoBatchIdPreview(){
+    var dateEl = document.getElementById('fe-so-date');
+    var previewEl = document.getElementById('fe-so-batchid-preview');
+    if (!dateEl || !previewEl || !dateEl.value) return;
+    var next = genRoundId('AS', 'service', 'Batch ID', dateEl.value.slice(0,4));
+    previewEl.textContent = 'This batch will be saved as: ' + next;
   }
   function renderSoUnitTable(){
     var plant = document.getElementById('fe-so-plant').value;
@@ -1302,16 +1360,28 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       units.push({ code: code, loc: locIdx>-1 ? String(r[locIdx]||'') : '', alreadyOut: !!outNow[code] });
     });
     _svcOutState = { units: units };
+    // Rev.23 (Issam, voice, 2026-11-10) — the Pre-Service Pin/Hose/
+    // Pressure/Body columns already existed on the fe_service_log
+    // sheet, but nothing in this window ever asked for them, so they
+    // sat permanently blank. Same pattern as the monthly inspection:
+    // every box defaults to OK/ticked, and the sender unticks only
+    // what was actually faulty before the unit left — the contractor
+    // and the auditor then both know what state it went out in.
+    var preCols = ['Pin','Hose','Pressure','Body'];
+    var preColKeyMap = { Pin:'Pre-Service Pin', Hose:'Pre-Service Hose', Pressure:'Pre-Service Pressure', Body:'Pre-Service Body' };
     wrapEl.innerHTML =
       '<input type="text" class="fe-search-input" placeholder="Search code or location…" style="margin:8px 0" oninput="FE.onSoSearch(this.value)">' +
-      '<div class="tbl-wrap" style="max-height:300px"><table class="tbl-stripe"><thead><tr><th>Send</th><th>FE Code</th><th>Location</th></tr></thead><tbody id="fe-so-tbody">' +
+      '<div class="tbl-wrap" style="max-height:300px"><table class="tbl-stripe"><thead><tr><th>Send</th><th>FE Code</th><th>Location</th>' +
+        preCols.map(function(c){ return '<th>'+c+'</th>'; }).join('') + '</tr></thead><tbody id="fe-so-tbody">' +
       units.map(function(u, idx){
         return '<tr' + (u.alreadyOut?' style="opacity:.45"':'') + '>' +
           '<td><input type="checkbox" class="fe-so-cb" data-idx="'+idx+'"' + (u.alreadyOut?' disabled':'') + '></td>' +
           '<td>' + u.code + (u.alreadyOut?' <span class="badge kc-amb">already out</span>':'') + '</td>' +
-          '<td>' + u.loc + '</td></tr>';
+          '<td>' + u.loc + '</td>' +
+          preCols.map(function(c){ return '<td style="text-align:center"><input type="checkbox" class="fe-so-precb" data-idx="'+idx+'" data-col="'+c+'"' + (u.alreadyOut?' disabled':' checked') + '></td>'; }).join('') +
+        '</tr>';
       }).join('') + '</tbody></table></div>' +
-      '<div style="font-size:10px;color:var(--fdw-text-dim);margin-top:4px">' + units.length + ' unit' + (units.length===1?'':'s') + '. Units already out for service can&rsquo;t be sent again until they&rsquo;re returned.</div>';
+      '<div style="font-size:10px;color:var(--fdw-text-dim);margin-top:4px">' + units.length + ' unit' + (units.length===1?'':'s') + '. Units already out for service can&rsquo;t be sent again until they&rsquo;re returned. Untick a box only if that unit was already faulty when it went out.</div>';
   }
   function saveServiceBatchOut(){
     var plant = document.getElementById('fe-so-plant').value;
@@ -1326,9 +1396,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // following month). Left untouched by saveServiceBatchReturn, so
     // it covers the unit's full round trip.
     var batchId = genRoundId('AS', 'service', 'Batch ID', date.slice(0,4));
+    var preCols = ['Pin','Hose','Pressure','Body'];
+    var preColKeyMap = { Pin:'Pre-Service Pin', Hose:'Pre-Service Hose', Pressure:'Pre-Service Pressure', Body:'Pre-Service Body' };
     var records = idxs.map(function(idx){
       var u = _svcOutState.units[idx];
-      return { 'Service ID': genId('SVC'), 'Batch ID': batchId, 'FE Code': u.code, 'Delivery Date': date, 'Record Status': 'Active' };
+      var rec = { 'Service ID': genId('SVC'), 'Batch ID': batchId, 'FE Code': u.code, 'Delivery Date': date, 'Record Status': 'Active' };
+      preCols.forEach(function(c){
+        var cb = document.querySelector('.fe-so-precb[data-idx="'+idx+'"][data-col="'+c+'"]');
+        var ok = cb ? cb.checked : true;
+        rec[preColKeyMap[c]] = ok ? '' : 'Issue'; // blank = OK, same convention as the monthly inspection
+      });
+      return rec;
     });
     var btn = document.getElementById('fe-so-save'); btn.disabled = true; btn.textContent = 'Saving…';
     postJSON('write', {tab: 'fe_service_log'}, records).then(function(res){
@@ -1404,7 +1482,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var btn = document.getElementById('fe-sr-save'); btn.disabled = true; btn.textContent = 'Saving…';
     var updates = idxs.map(function(idx){
       var u = _svcReturnState[idx];
-      return postJSON('update', {tab: 'fe_service_log', idCol: encodeURIComponent('Service ID'), id: encodeURIComponent(u.serviceId)},
+      // Same double-encoding bug as openEdit/remove above — postJSON
+      // already encodes every param, so passing a pre-encoded idCol
+      // here encoded 'Service ID' twice and the server couldn't find
+      // the resulting column name. Fixed by passing the plain values.
+      return postJSON('update', {tab: 'fe_service_log', idCol: 'Service ID', id: u.serviceId},
         { 'Return Date': retDate, 'Expire Date': expiry });
     });
     Promise.all(updates).then(function(results){
@@ -1828,6 +1910,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       _expandedConformingBlocks[key] = !_expandedConformingBlocks[key];
       renderTableArea('inspection');
     },
+    updateGiRoundIdPreview: function(){ updateGiRoundIdPreview(); },
+    updateSoBatchIdPreview: function(){ updateSoBatchIdPreview(); },
     onSearchInput: function(tKeyName, val){
       if (!_filters[tKeyName]) _filters[tKeyName] = {search:'', category:'', special:null, plant:'', unit:''};
       _filters[tKeyName].search = val;
@@ -1944,7 +2028,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var initial = {};
       data.headers.forEach(function(h,i){ initial[h] = row[i]; });
       showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
-        postJSON('update', {tab: cfg.tabKey, idCol: encodeURIComponent(cfg.idCol), id: encodeURIComponent(idVal)}, values).then(function(res){
+        // Rev.24 (Issam, photo, 2026-11-10) — BUG FIX: postJSON already
+        // URL-encodes every param value itself (see postJSON below).
+        // Pre-encoding idCol/id here meant it was encoded TWICE: e.g.
+        // 'Service ID' became 'Service%2520ID' in the actual request,
+        // and after Apps Script's one built-in decode that still reads
+        // as 'Service%20ID' — a column name that doesn't exist, hence
+        // "ID column not found: Service%20ID". Any idCol with a space
+        // in it (FE Code, Inspection ID, Service ID — every table on
+        // this page) hit this on every Edit and every Remove.
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+            return;
+          }
           close();
           reloadTabAndDashboard(tKeyName);
         }).catch(function(){ alert('Could not save — check your connection.'); });
@@ -1954,7 +2051,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var cfg = TABLES[tKeyName];
       if (!can('delete')) return;
       if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
-      postJSON('update', {tab: cfg.tabKey, idCol: encodeURIComponent(cfg.idCol), id: encodeURIComponent(idVal)}, {'Record Status':'Removed'}).then(function(res){
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message || 'unknown error')); return; }
         reloadTabAndDashboard(tKeyName);
       }).catch(function(){ alert('Could not remove — check your connection.'); });
     }
