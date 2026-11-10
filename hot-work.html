@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Hot Work Checklist</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+
+.hw-dark-wrap{
+  --hwbg:#0D1B35; --hwbg2:#142140; --hwbg3:#1a2a50;
+  --hwgold:#C9A84C; --hwgold-lt:#E8C97A;
+  --hwtext:rgba(255,255,255,.92); --hwtext-muted:rgba(255,255,255,.55);
+  --hwtext-dim:rgba(255,255,255,.35); --hwborder:rgba(255,255,255,.08);
+  --hwborder-gold:rgba(201,168,76,.35);
+  --hwblue:#5B9BD5; --hwred:#F0685C; --hwamb:#E8B339; --hwgrn:#4FCB9E;
+  background:var(--hwbg); color:var(--hwtext); margin:0; padding:24px; min-height:100vh;
+}
+.hw-dark-wrap *{box-sizing:border-box}
+.hw-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.hw-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--hwgold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--hwbg2);
+  border-radius:8px;border:1px solid var(--hwborder-gold)}
+.hw-dark-wrap .back-link:hover{background:var(--hwbg3)}
+.hw-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--hwbg2);
+  border-radius:8px;border-left:3px solid var(--hwgold);margin:10px 0;color:var(--hwtext-muted)}
+.hw-dark-wrap .sec-banner{background:var(--hwbg2);color:var(--hwgold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px;border:1px solid var(--hwborder-gold)}
+.hw-dark-wrap .kpi-grid{display:grid;gap:14px}
+.hw-dark-wrap .kpi-card{background:var(--hwbg2);border:1px solid var(--hwborder);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.hw-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.hw-dark-wrap .kpi-card.kc-nvy::before{background:var(--hwgold)}
+.hw-dark-wrap .kpi-card.kc-blue::before{background:var(--hwblue)}
+.hw-dark-wrap .kpi-card.kc-amb::before{background:var(--hwamb)}
+.hw-dark-wrap .kpi-card.kc-red::before{background:var(--hwred)}
+.hw-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--hwtext-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.hw-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--hwtext);line-height:1.1;margin-bottom:4px}
+.hw-dark-wrap .kpi-sub{font-size:10px;color:var(--hwtext-muted)}
+.hw-dark-wrap .kpi-card.ck-clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.hw-dark-wrap .kpi-card.ck-clickable:hover{transform:translateY(-2px);border-color:var(--hwgold)}
+.hw-dark-wrap .chart-grid{display:grid;gap:14px}
+.hw-dark-wrap .chart-card{background:var(--hwbg2);border:1px solid var(--hwborder);
+  border-radius:14px;padding:16px 18px}
+.hw-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--hwtext);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.hw-dark-wrap .chart-sub{font-size:10px;color:var(--hwtext-muted);font-weight:400}
+.hw-dark-wrap .chart-wrap{height:220px;position:relative}
+.hw-dark-wrap .toolbar{display:flex;justify-content:flex-end;padding:6px 0;flex-wrap:wrap;gap:6px}
+.hw-dark-wrap .btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;
+  border:1px solid var(--hwborder);background:var(--hwbg3);color:var(--hwtext);cursor:pointer;font-family:inherit}
+.hw-dark-wrap .btn:hover{background:#223457;border-color:var(--hwborder-gold)}
+.hw-dark-wrap .btn-add{background:var(--hwgold);color:#1a1200;border-color:var(--hwgold);font-weight:700}
+.hw-dark-wrap .btn-add:hover{background:var(--hwgold-lt)}
+.hw-dark-wrap .btn:disabled{opacity:.35;cursor:not-allowed}
+.hw-dark-wrap .btn:disabled:hover{background:var(--hwbg3);border-color:var(--hwborder)}
+.hw-dark-wrap .row-selectable{cursor:pointer}
+.hw-dark-wrap .row-selected td,
+.hw-dark-wrap .row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--hwgold)}
+.hw-dark-wrap .modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
+  align-items:center;justify-content:center;z-index:9999;padding:20px}
+.hw-dark-wrap .modal{background:var(--hwbg2);border:1px solid var(--hwborder-gold);border-radius:14px;
+  padding:20px;width:520px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--hwtext)}
+.hw-dark-wrap .modal h3{margin:0 0 12px;font-size:14px;color:var(--hwgold-lt)}
+.hw-dark-wrap .modal-sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--hwgold-lt);margin:14px 0 6px;padding-top:8px;border-top:1px solid var(--hwborder)}
+.hw-dark-wrap .modal-sec:first-of-type{margin-top:0;padding-top:0;border-top:none}
+.hw-dark-wrap .field{margin-bottom:9px}
+.hw-dark-wrap .field label{display:block;font-size:10px;font-weight:600;color:var(--hwtext-muted);margin-bottom:3px}
+.hw-dark-wrap .field input,.hw-dark-wrap .field select,.hw-dark-wrap .field textarea{width:100%;padding:6px 8px;font-size:12px;
+  border:1px solid var(--hwborder);border-radius:6px;font-family:inherit;box-sizing:border-box;
+  background:var(--hwbg3);color:var(--hwtext)}
+.hw-dark-wrap .field textarea{min-height:50px;resize:vertical}
+.hw-dark-wrap .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;position:sticky;bottom:0;background:var(--hwbg2);padding-top:8px}
+.hw-dark-wrap .modal-actions .btn-cancel{background:var(--hwbg3)}
+.hw-dark-wrap .filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.hw-dark-wrap .search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
+  border:1px solid var(--hwborder);border-radius:8px;font-family:inherit;background:var(--hwbg3);color:var(--hwtext)}
+.hw-dark-wrap .search-input::placeholder{color:var(--hwtext-dim)}
+.hw-dark-wrap .filter-select{padding:6px 8px;font-size:12px;border:1px solid var(--hwborder);
+  border-radius:8px;font-family:inherit;max-width:220px;background:var(--hwbg3);color:var(--hwtext)}
+.hw-dark-wrap .filter-status{font-size:10px;color:var(--hwtext-muted);margin-left:auto}
+.hw-dark-wrap .tbl-wrap{overflow-x:auto}
+.hw-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
+.hw-dark-wrap .tbl-stripe th{text-align:left;color:var(--hwgold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--hwborder-gold);
+  background:var(--hwbg3);white-space:nowrap}
+.hw-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--hwborder);color:var(--hwtext)}
+.hw-dark-wrap .tbl-stripe tbody tr:nth-child(odd) td{background:var(--hwbg2)}
+.hw-dark-wrap .tbl-stripe tbody tr:nth-child(even) td{background:#101d3a}
+.hw-dark-wrap .tbl-stripe tbody tr:hover td{background:var(--hwbg3)}
+.hw-dark-wrap .expand-cell:hover{background:rgba(232,179,57,.18)!important}
+.hw-dark-wrap .empty-state{text-align:center;padding:20px;color:var(--hwtext-muted)}
+.hw-dark-wrap .empty-state strong{display:block;font-size:13px;color:var(--hwgold-lt);margin-bottom:4px}
+.hw-dark-wrap .nb{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid}
+.hw-dark-wrap .nb-red{background:rgba(240,104,92,.15);color:var(--hwred);border-color:rgba(240,104,92,.4)}
+.hw-dark-wrap .nb-amb{background:rgba(232,179,57,.15);color:var(--hwamb);border-color:rgba(232,179,57,.4)}
+.hw-dark-wrap .nb-grn{background:rgba(79,203,158,.15);color:var(--hwgrn);border-color:rgba(79,203,158,.4)}
+.hw-dark-wrap .detail-row td{background:rgba(255,255,255,.03);padding:10px 14px;border-top:1px dashed rgba(255,255,255,.12)}
+.hw-dark-wrap .detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px}
+.hw-dark-wrap .detail-item{font-size:11px;line-height:1.5}
+.hw-dark-wrap .detail-lbl{display:block;font-weight:600;color:var(--hwtext-muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.3px}
+.hw-dark-wrap .detail-val{display:block;color:var(--hwtext);word-break:break-word;white-space:pre-wrap}
+
+</style>
+</head><body><div class='hw-dark-wrap'>
+<div class="back-row"><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a><a href="ptw-register.html" class="back-link">← Permit to Work Register</a></div>
+<div class="req-text">Hot work checklist, per the SAGCO Hot Work Checklist (Rev.00, 24 Nov 2025) and OSHA 29 CFR 1910.252. Filled once per job, at the point the Permit to Work for hot work is released — covers the Pre Hot Work, Execution, Post Hot Work and Permit Closure stages on a single record. The Permit ID links this checklist to its PTW, the same way Confined Space and LOTO already link to PTW.</div>
+
+<div class="sec-banner">HOT WORK CHECKLIST</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy ck-clickable" onclick="HW.cardClick('all')" title="All hot work jobs"><div class="kpi-lbl">Total Hot Work Jobs</div><div class="kpi-val" id="kpi-total">—</div><div class="kpi-sub">One record per PTW, filled on release</div></div>
+  <div class="kpi-card kc-blue ck-clickable" onclick="HW.cardClick('all')" title="This year"><div class="kpi-lbl">This Year</div><div class="kpi-val" id="kpi-year">—</div><div class="kpi-sub">Year to date</div></div>
+  <div class="kpi-card kc-red ck-clickable" onclick="HW.cardClick('flagged')" title="Click to view jobs with issues noted at closure"><div class="kpi-lbl">Issues Noted</div><div class="kpi-val" id="kpi-issues">—</div><div class="kpi-sub">Closure Result = Issues Noted</div></div>
+  <div class="kpi-card kc-amb ck-clickable" onclick="HW.cardClick('inconsistent')" title="Click to view inconsistent records"><div class="kpi-lbl">Flagged Inconsistencies</div><div class="kpi-val" id="kpi-inconsistent">—</div><div class="kpi-sub">A "No" checklist item but Cleared</div></div>
+</div>
+
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin:14px 0 18px">
+
+  <div class="chart-card">
+    <div class="chart-title">Hot Work Jobs by Location<span class="chart-sub">which areas see the most hot work</span></div>
+    <div class="chart-wrap"><canvas id="hwByLocationChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Hot Work Jobs by Month<span class="chart-sub">job volume over time</span></div>
+    <div class="chart-wrap"><canvas id="hwByMonthChart"></canvas></div>
+  </div>
+
+</div>
+
+<div id='live-table-main'></div>
+
+<div style="margin-top:16px;font-size:10px;color:var(--hwtext-dim);text-align:right" id="live-ts"></div>
+<div id="modal-root"></div>
+</div>
+<!-- No sidebar/topbar: this page is reached only from inside the Operations Hub, same pattern as the other linked registers. -->
+
+
+<script>
+(function(){
+  var TABLE_KEY = 'hot_work_checklist';
+  var ID_COL = 'Record ID';
+  var ID_PREFIX = 'HW-';
+  var ID_PAD = 3;
+  var STATUS_COL = 'Record Status';
+  var DISPLAY_COLS = ["Record ID", "Date", "Job Location", "PTW Number", "Authorized Personnel", "Closure Result"];
+  var FIELDS = ["Record ID", "Date", "PTW Number", "Job Location", "Authorized Personnel", "Start Time", "End Time", "Description of Work", "Job Site Inspected For Flammables (Y/N/NA)", "Work Area Free Of Explosive Atmospheres (Y/N/NA)", "Hazardous Gas Assessment Conducted (Y/N/NA)", "Fire Extinguishers Available (Y/N/NA)", "Firewatch Assigned And Equipped (Y/N/NA)", "Sprinkler Systems Operational (Y/N/NA)", "Fixed Fire Suppression Not Impaired (Y/N/NA)", "Combustibles Removed Or Shielded (Y/N/NA)", "Fire-Resistant Blankets Or Shields Used (Y/N/NA)", "Floor And Wall Openings Covered (Y/N/NA)", "Work Area Within 35ft Cleared (Y/N/NA)", "Flammable Containers Moved To Safe Distance (Y/N/NA)", "Area Adequately Ventilated (Y/N/NA)", "Workers Trained In Hot Work Procedures (Y/N/NA)", "Workers Provided Proper PPE (Y/N/NA)", "Hearing Protection Available (Y/N/NA)", "Respirators Provided If Needed (Y/N/NA)", "Hot Work Permit Displayed (Y/N/NA)", "Only Authorized Personnel Conduct Work (Y/N/NA)", "Hot Work Equipment Inspected (Y/N/NA)", "Gas Cylinders Secured (Y/N/NA)", "Hoses Checked For Leaks (Y/N/NA)", "Firewatch Maintained Throughout (Y/N/NA)", "Combustible Gas Levels Monitored (Y/N/NA)", "Firewatch 30 Min After Completion (Y/N/NA)", "Area Inspected For Smoldering Materials (Y/N/NA)", "Fire Detection Systems Verified (Y/N/NA)", "Tools And Equipment Removed (Y/N/NA)", "Shields And Barriers Removed (Y/N/NA)", "Combustibles Returned Only When Safe (Y/N/NA)", "Work Completed And Area Inspected (Y/N)", "Inspector Name", "Final Inspection Date/Time", "Remarks", "Closure Result"];
+  var SELECT_FIELDS = {"Job Site Inspected For Flammables (Y/N/NA)": ["Yes", "No", "N/A"], "Work Area Free Of Explosive Atmospheres (Y/N/NA)": ["Yes", "No", "N/A"], "Hazardous Gas Assessment Conducted (Y/N/NA)": ["Yes", "No", "N/A"], "Fire Extinguishers Available (Y/N/NA)": ["Yes", "No", "N/A"], "Firewatch Assigned And Equipped (Y/N/NA)": ["Yes", "No", "N/A"], "Sprinkler Systems Operational (Y/N/NA)": ["Yes", "No", "N/A"], "Fixed Fire Suppression Not Impaired (Y/N/NA)": ["Yes", "No", "N/A"], "Combustibles Removed Or Shielded (Y/N/NA)": ["Yes", "No", "N/A"], "Fire-Resistant Blankets Or Shields Used (Y/N/NA)": ["Yes", "No", "N/A"], "Floor And Wall Openings Covered (Y/N/NA)": ["Yes", "No", "N/A"], "Work Area Within 35ft Cleared (Y/N/NA)": ["Yes", "No", "N/A"], "Flammable Containers Moved To Safe Distance (Y/N/NA)": ["Yes", "No", "N/A"], "Area Adequately Ventilated (Y/N/NA)": ["Yes", "No", "N/A"], "Workers Trained In Hot Work Procedures (Y/N/NA)": ["Yes", "No", "N/A"], "Workers Provided Proper PPE (Y/N/NA)": ["Yes", "No", "N/A"], "Hearing Protection Available (Y/N/NA)": ["Yes", "No", "N/A"], "Respirators Provided If Needed (Y/N/NA)": ["Yes", "No", "N/A"], "Hot Work Permit Displayed (Y/N/NA)": ["Yes", "No", "N/A"], "Only Authorized Personnel Conduct Work (Y/N/NA)": ["Yes", "No", "N/A"], "Hot Work Equipment Inspected (Y/N/NA)": ["Yes", "No", "N/A"], "Gas Cylinders Secured (Y/N/NA)": ["Yes", "No", "N/A"], "Hoses Checked For Leaks (Y/N/NA)": ["Yes", "No", "N/A"], "Firewatch Maintained Throughout (Y/N/NA)": ["Yes", "No", "N/A"], "Combustible Gas Levels Monitored (Y/N/NA)": ["Yes", "No", "N/A"], "Firewatch 30 Min After Completion (Y/N/NA)": ["Yes", "No", "N/A"], "Area Inspected For Smoldering Materials (Y/N/NA)": ["Yes", "No", "N/A"], "Fire Detection Systems Verified (Y/N/NA)": ["Yes", "No", "N/A"], "Tools And Equipment Removed (Y/N/NA)": ["Yes", "No", "N/A"], "Shields And Barriers Removed (Y/N/NA)": ["Yes", "No", "N/A"], "Combustibles Returned Only When Safe (Y/N/NA)": ["Yes", "No", "N/A"], "Work Completed And Area Inspected (Y/N)": ["Yes", "No"], "Closure Result": ["Cleared", "Issues Noted"]};
+  var TEXTAREA_FIELDS = ["Description of Work", "Remarks"];
+  var YN_FIELDS = ["Job Site Inspected For Flammables (Y/N/NA)", "Work Area Free Of Explosive Atmospheres (Y/N/NA)", "Hazardous Gas Assessment Conducted (Y/N/NA)", "Fire Extinguishers Available (Y/N/NA)", "Firewatch Assigned And Equipped (Y/N/NA)", "Sprinkler Systems Operational (Y/N/NA)", "Fixed Fire Suppression Not Impaired (Y/N/NA)", "Combustibles Removed Or Shielded (Y/N/NA)", "Fire-Resistant Blankets Or Shields Used (Y/N/NA)", "Floor And Wall Openings Covered (Y/N/NA)", "Work Area Within 35ft Cleared (Y/N/NA)", "Flammable Containers Moved To Safe Distance (Y/N/NA)", "Area Adequately Ventilated (Y/N/NA)", "Workers Trained In Hot Work Procedures (Y/N/NA)", "Workers Provided Proper PPE (Y/N/NA)", "Hearing Protection Available (Y/N/NA)", "Respirators Provided If Needed (Y/N/NA)", "Hot Work Permit Displayed (Y/N/NA)", "Only Authorized Personnel Conduct Work (Y/N/NA)", "Hot Work Equipment Inspected (Y/N/NA)", "Gas Cylinders Secured (Y/N/NA)", "Hoses Checked For Leaks (Y/N/NA)", "Firewatch Maintained Throughout (Y/N/NA)", "Combustible Gas Levels Monitored (Y/N/NA)", "Firewatch 30 Min After Completion (Y/N/NA)", "Area Inspected For Smoldering Materials (Y/N/NA)", "Fire Detection Systems Verified (Y/N/NA)", "Tools And Equipment Removed (Y/N/NA)", "Shields And Barriers Removed (Y/N/NA)", "Combustibles Returned Only When Safe (Y/N/NA)"];
+  var RESULT_FIELD = "Closure Result";
+  var RESULT_FLAG_VALUE = "Issues Noted";
+  var MODAL_SECTIONS = [{"title": "Job Information", "fields": ["Record ID", "Date", "PTW Number", "Job Location", "Authorized Personnel", "Start Time", "End Time", "Description of Work"]}, {"title": "Pre Hot Work \u2014 1. Hazard Assessment", "fields": ["Job Site Inspected For Flammables (Y/N/NA)", "Work Area Free Of Explosive Atmospheres (Y/N/NA)", "Hazardous Gas Assessment Conducted (Y/N/NA)"]}, {"title": "Pre Hot Work \u2014 2. Fire Protection", "fields": ["Fire Extinguishers Available (Y/N/NA)", "Firewatch Assigned And Equipped (Y/N/NA)", "Sprinkler Systems Operational (Y/N/NA)", "Fixed Fire Suppression Not Impaired (Y/N/NA)"]}, {"title": "Pre Hot Work \u2014 3. Work Area Preparation", "fields": ["Combustibles Removed Or Shielded (Y/N/NA)", "Fire-Resistant Blankets Or Shields Used (Y/N/NA)", "Floor And Wall Openings Covered (Y/N/NA)", "Work Area Within 35ft Cleared (Y/N/NA)", "Flammable Containers Moved To Safe Distance (Y/N/NA)", "Area Adequately Ventilated (Y/N/NA)"]}, {"title": "Pre Hot Work \u2014 4. Personnel Safety", "fields": ["Workers Trained In Hot Work Procedures (Y/N/NA)", "Workers Provided Proper PPE (Y/N/NA)", "Hearing Protection Available (Y/N/NA)", "Respirators Provided If Needed (Y/N/NA)"]}, {"title": "Execution \u2014 5. Permit Compliance", "fields": ["Hot Work Permit Displayed (Y/N/NA)", "Only Authorized Personnel Conduct Work (Y/N/NA)"]}, {"title": "Execution \u2014 6. Equipment Safety", "fields": ["Hot Work Equipment Inspected (Y/N/NA)", "Gas Cylinders Secured (Y/N/NA)", "Hoses Checked For Leaks (Y/N/NA)"]}, {"title": "Execution \u2014 7. Continuous Monitoring", "fields": ["Firewatch Maintained Throughout (Y/N/NA)", "Combustible Gas Levels Monitored (Y/N/NA)"]}, {"title": "Post Hot Work \u2014 8. Fire Safety", "fields": ["Firewatch 30 Min After Completion (Y/N/NA)", "Area Inspected For Smoldering Materials (Y/N/NA)", "Fire Detection Systems Verified (Y/N/NA)"]}, {"title": "Post Hot Work \u2014 9. Clean-up (Housekeeping)", "fields": ["Tools And Equipment Removed (Y/N/NA)", "Shields And Barriers Removed (Y/N/NA)", "Combustibles Returned Only When Safe (Y/N/NA)"]}, {"title": "Permit Closure", "fields": ["Work Completed And Area Inspected (Y/N)", "Inspector Name", "Final Inspection Date/Time", "Remarks", "Closure Result"]}];
+  var CONTAINER_ID = 'live-table-main';
+
+  var _filters = {search:'', category:'', special:null};
+  var _selected = null;
+  var _expandedRows = {};
+  var _cache = null;
+  var _charts = {};
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function formatCell(v){
+    if (v === null || v === undefined || v === '') return '<span style="opacity:.35">-</span>';
+    return String(v).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function nextSequentialId(){
+    if (!_cache || !_cache.headers || !_cache.rows) return '';
+    var idIdx = colIdx(_cache.headers, ID_COL);
+    if (idIdx < 0) return '';
+    var maxN = 0, prefixLower = ID_PREFIX.toLowerCase();
+    _cache.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(prefixLower) !== 0) return;
+      var n = parseInt(v.slice(ID_PREFIX.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    var numStr = String(maxN + 1);
+    while (numStr.length < ID_PAD) numStr = '0' + numStr;
+    return ID_PREFIX + numStr;
+  }
+  function getFieldOfSelected(fieldName){
+    if (!_cache || _selected === undefined || _selected === null || _selected === '') return '';
+    var idIdx = colIdx(_cache.headers, ID_COL);
+    var fIdx = colIdx(_cache.headers, fieldName);
+    if (idIdx < 0 || fIdx < 0) return '';
+    var row = _cache.rows.find(function(r){ return String(r[idIdx]) === String(_selected); });
+    return row ? row[fIdx] : '';
+  }
+  function getOwnColumnValues(fieldName){
+    if (!_cache || !_cache.headers || !_cache.rows) return [];
+    var idx = colIdx(_cache.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}, out = [];
+    _cache.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    });
+    out.sort();
+    return out;
+  }
+  function visibleRows(){
+    if (!_cache || !_cache.rows) return [];
+    var statusIdx = colIdx(_cache.headers, STATUS_COL);
+    return _cache.rows.filter(function(r){ return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+  }
+  function hasInconsistentResult(row, headers){
+    var resIdx = colIdx(headers, RESULT_FIELD);
+    if (resIdx < 0) return false;
+    var resVal = String(row[resIdx]||'').trim();
+    if (resVal === RESULT_FLAG_VALUE) return false;
+    var anyNo = YN_FIELDS.some(function(f){
+      var i = colIdx(headers, f);
+      return i >= 0 && String(row[i]||'').trim().toLowerCase() === 'no';
+    });
+    return anyNo && !!resVal;
+  }
+  function isFlaggedResult(row, headers){
+    var resIdx = colIdx(headers, RESULT_FIELD);
+    return resIdx >= 0 && String(row[resIdx]||'').trim() === RESULT_FLAG_VALUE;
+  }
+
+  var _ptwOpenPermits = null, _ptwFetchPromise = null;
+  function loadOpenPTWPermits(){
+    if (_ptwOpenPermits) return Promise.resolve(_ptwOpenPermits);
+    if (_ptwFetchPromise) return _ptwFetchPromise;
+    _ptwFetchPromise = fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
+      if (!data || !data.headers || !data.rows) { _ptwOpenPermits = []; return _ptwOpenPermits; }
+      var h = data.headers;
+      var numIdx = colIdx(h, 'Permit ID'), validToIdx = colIdx(h, 'Permit Valid To'), statusColIdx = colIdx(h, 'Record Status');
+      var today = new Date(); today.setHours(0,0,0,0);
+      var seen = {}; var out = [];
+      data.rows.forEach(function(row){
+        if (statusColIdx >= 0 && String(row[statusColIdx]||'').trim().toLowerCase() === 'removed') return;
+        var num = numIdx >= 0 ? String(row[numIdx]||'').trim() : '';
+        if (!num || seen[num]) return;
+        if (validToIdx >= 0){
+          var vt = String(row[validToIdx]||'').trim();
+          if (vt){ var d = new Date(vt); if (!isNaN(d.getTime()) && d < today) return; }
+        }
+        seen[num] = true; out.push(num);
+      });
+      _ptwOpenPermits = out;
+      return out;
+    }).catch(function(){ _ptwOpenPermits = []; return []; });
+    return _ptwFetchPromise;
+  }
+  function checkLinkedPermitStatus(permitId){
+    if (!permitId) return Promise.resolve(null);
+    return fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
+      if (!data || !data.headers || !data.rows) return null;
+      var idIdx = colIdx(data.headers, 'Permit ID'), statusIdx = colIdx(data.headers, 'Status');
+      var hit = null;
+      data.rows.forEach(function(row){
+        if (idIdx >= 0 && String(row[idIdx]||'').trim() === String(permitId).trim()){
+          hit = { status: statusIdx >= 0 ? String(row[statusIdx]||'').trim() : '' };
+        }
+      });
+      return hit;
+    }).catch(function(){ return null; });
+  }
+
+  function renderShell(){
+    var el = document.getElementById(CONTAINER_ID);
+    var data = _cache;
+    if (!data || !data.headers || !data.rows){
+      el.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      return;
+    }
+    var f = _filters;
+    var sel = _selected;
+    var toolbarHtml = '';
+    if (can('add')) toolbarHtml += '<button class="btn btn-add" onclick="HW.openAdd()">+ Add Record</button>';
+    var disabledAttr = sel ? '' : ' disabled';
+    toolbarHtml += '<button class="btn" id="tb-print"'+disabledAttr+' onclick="HW.printOne(HW.getSelected())">🖨️ Print Report</button>';
+    if (can('edit')) toolbarHtml += '<button class="btn" id="tb-edit"'+disabledAttr+' onclick="HW.openEdit(HW.getSelected())">✏️ Edit</button>';
+    if (can('delete')) toolbarHtml += '<button class="btn" id="tb-remove"'+disabledAttr+' onclick="HW.remove(HW.getSelected())">🗑️ Remove</button>';
+
+    var categoryHtml = '<select class="filter-select" onchange="HW.onCategoryChange(this.value)">' +
+      '<option value="">All Closure Result</option>' +
+      getOwnColumnValues(RESULT_FIELD).map(function(o){
+        var selA = (o === f.category) ? ' selected' : '';
+        return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+selA+'>'+o+'</option>';
+      }).join('') + '</select>';
+
+    var specialLabels = { flagged: 'Flagged / Rejected', inconsistent: 'Result vs. Answers Inconsistent' };
+    var specialPillHtml = '';
+    if (f.special && specialLabels[f.special]){
+      specialPillHtml = '<span class="nb nb-amb" style="margin:6px 0;display:inline-block">Showing: ' + specialLabels[f.special] +
+        ' <span style="cursor:pointer" onclick="HW.clearFilters()">X</span></span>';
+    }
+
+    el.innerHTML =
+      '<div class="toolbar">' + toolbarHtml + '</div>' +
+      specialPillHtml +
+      '<div class="filterbar">' +
+        '<input type="text" class="search-input" placeholder="Search this table..." value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="HW.onSearchInput(this.value)">' +
+        categoryHtml +
+        '<button class="btn" onclick="HW.clearFilters()">Clear</button>' +
+        '<span class="filter-status" id="filter-status"></span>' +
+      '</div>' +
+      '<div class="table-area" id="table-area"></div>';
+    renderTableArea();
+  }
+
+  function renderTableArea(){
+    var data = _cache;
+    var areaEl = document.getElementById('table-area');
+    var statusEl = document.getElementById('filter-status');
+    if (!data || !areaEl) return;
+
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    var idIdx = colIdx(data.headers, ID_COL);
+    var catIdx = colIdx(data.headers, RESULT_FIELD);
+    var f = _filters;
+    var searchLower = f.search.trim().toLowerCase();
+
+    var rows = data.rows.filter(function(r){
+      return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+    var totalVisible = rows.length;
+    if (f.category && catIdx > -1){
+      rows = rows.filter(function(r){ return String(r[catIdx]||'').trim() === f.category; });
+    }
+    if (searchLower){
+      rows = rows.filter(function(r){
+        return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
+      });
+    }
+    if (f.special === 'flagged'){
+      rows = rows.filter(function(r){ return isFlaggedResult(r, data.headers); });
+    }
+    if (f.special === 'inconsistent'){
+      rows = rows.filter(function(r){ return hasInconsistentResult(r, data.headers); });
+    }
+    if (statusEl){
+      var isFiltered = !!(f.search.trim() || f.category || f.special);
+      statusEl.textContent = isFiltered ? ('Showing ' + rows.length + ' of ' + totalVisible) : '';
+    }
+
+    var colIdxs = DISPLAY_COLS.map(function(c){ return colIdx(data.headers, c); }).filter(function(i){ return i >= 0; });
+    var colNames = colIdxs.map(function(i){ return data.headers[i]; });
+    var shownSet = {};
+    colNames.forEach(function(n){ shownSet[n] = true; });
+    var detailFields = FIELDS.filter(function(fld){ return !shownSet[fld] && fld !== STATUS_COL; });
+
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe">';
+    html += '<thead><tr><th style="width:40px"></th>'; colNames.forEach(function(h){ html += '<th>'+h+'</th>'; }); html += '</tr></thead><tbody>';
+
+    if (!rows.length){
+      html += '<tr><td colspan="'+(colNames.length+1)+'"><div class="empty-state"><strong>No records</strong>Add data in Google Sheets or use + Add Record above.</div></td></tr>';
+    } else {
+      var selId = _selected;
+      var expandedSet = _expandedRows;
+      rows.forEach(function(row){
+        var idVal = idIdx>-1 ? row[idIdx] : '';
+        var idValEsc = String(idVal).replace(/'/g,"\\'");
+        var isSel = selId !== undefined && selId !== null && String(selId) === String(idVal);
+        var isExpanded = !!expandedSet[String(idVal)];
+        html += '<tr class="row-selectable'+(isSel?' row-selected':'')+'" onclick="HW.selectRow(\''+idValEsc+'\')">';
+        html += '<td class="expand-cell" style="text-align:center;cursor:pointer;padding:10px 6px" title="Click to show all fields" onclick="event.stopPropagation();HW.toggleRowDetail(\''+idValEsc+'\')">'+
+          '<span style="display:inline-block;font-size:13px;transition:transform .15s'+(isExpanded?';transform:rotate(90deg)':'')+'">&#9654;</span></td>';
+        colIdxs.forEach(function(ci){
+          var cell = row[ci];
+          if (data.headers[ci] === RESULT_FIELD){
+            var stv = String(cell||'').trim();
+            var cls = (stv === RESULT_FLAG_VALUE) ? 'nb-red' : (stv ? 'nb-grn' : '');
+            html += '<td>'+(stv?'<span class="nb '+cls+'">'+stv+'</span>':formatCell(cell))+'</td>';
+          } else {
+            html += '<td>' + formatCell(cell) + '</td>';
+          }
+        });
+        html += '</tr>';
+        if (isExpanded){
+          html += '<tr class="detail-row"><td></td><td colspan="'+colNames.length+'">'+
+            '<div class="detail-grid">' + detailFields.map(function(fld){
+              var fi = colIdx(data.headers, fld);
+              var val = fi>=0 ? row[fi] : '';
+              return '<div class="detail-item"><span class="detail-lbl">'+fld+'</span><span class="detail-val">'+formatCell(val)+'</span></div>';
+            }).join('') +
+            '</div></td></tr>';
+        }
+      });
+    }
+    html += '</tbody></table></div>';
+    areaEl.innerHTML = html;
+  }
+
+  function loadMain(){
+    var el = document.getElementById(CONTAINER_ID);
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--hwtext-muted);font-size:11px">Loading live data...</div>';
+    return fetch(SHEETS_URL + '?tab=' + TABLE_KEY + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        _cache = data;
+        renderShell();
+        renderDashboard();
+        var countEl = document.getElementById('count-main');
+        if (countEl && data && data.rows){
+          var statusIdx = colIdx(data.headers, STATUS_COL);
+          var vc = statusIdx < 0 ? data.rows.length :
+            data.rows.filter(function(r){ return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; }).length;
+          countEl.textContent = '(' + vc + ')';
+        }
+        return data;
+      })
+      .catch(function(){
+        el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
+        return null;
+      });
+  }
+  function reloadAll(){ return loadMain(); }
+
+  function monthLabel(ym){
+    var parts = ym.split('-');
+    var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mi = parseInt(parts[1],10) - 1;
+    return (names[mi] || parts[1]) + ' ' + parts[0];
+  }
+
+  function renderDashboard(){
+    if (!_cache) return;
+    var rows = visibleRows();
+    var h = _cache.headers;
+
+    
+    document.getElementById('kpi-total').textContent = rows.length;
+    var dateIdx = colIdx(h, 'Date');
+    var thisYear = new Date().getFullYear();
+    var yearCount = 0;
+    rows.forEach(function(r){
+      var s = dateIdx>=0 ? String(r[dateIdx]||'').trim() : '';
+      if (/^\d{4}/.test(s) && parseInt(s.slice(0,4),10) === thisYear) yearCount++;
+    });
+    document.getElementById('kpi-year').textContent = yearCount;
+    var issues = rows.filter(function(r){ return isFlaggedResult(r, h); }).length;
+    document.getElementById('kpi-issues').textContent = issues;
+    var inconsistent = rows.filter(function(r){ return hasInconsistentResult(r, h); }).length;
+    document.getElementById('kpi-inconsistent').textContent = inconsistent;
+
+
+    var BLUE = '#5B9BD5', GOLD = '#C9A84C';
+    var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
+    
+    if (_charts.byLocation) { _charts.byLocation.destroy(); _charts.byLocation = null; }
+    if (_charts.byMonth) { _charts.byMonth.destroy(); _charts.byMonth = null; }
+
+    var locIdx = colIdx(h, 'Job Location');
+    var locCounts = {};
+    if (locIdx >= 0){
+      rows.forEach(function(r){
+        var v = String(r[locIdx]||'').trim();
+        if (v) locCounts[v] = (locCounts[v]||0) + 1;
+      });
+    }
+    var usedLocs = Object.keys(locCounts).sort();
+    if (window.Chart && usedLocs.length){
+      _charts.byLocation = new Chart(document.getElementById('hwByLocationChart'), {
+        type:'bar', data:{ labels: usedLocs, datasets:[{ label:'Hot Work Jobs', data: usedLocs.map(function(s){ return locCounts[s]||0; }), backgroundColor:BLUE, borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
+          scales:{ x:{ beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } }, y:{ ticks:{ color:TICK }, grid:{ color:GRID } } },
+          plugins:{ legend:{ display:false } } }
+      });
+    }
+
+    var monthCounts = {};
+    if (dateIdx >= 0){
+      rows.forEach(function(r){
+        var raw = r[dateIdx];
+        if (!raw) return;
+        var s = String(raw).trim();
+        if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return;
+        var ym = s.slice(0,7);
+        monthCounts[ym] = (monthCounts[ym] || 0) + 1;
+      });
+    }
+    var sortedMonths = Object.keys(monthCounts).sort();
+    if (window.Chart && sortedMonths.length){
+      _charts.byMonth = new Chart(document.getElementById('hwByMonthChart'), {
+        type: 'bar',
+        data: { labels: sortedMonths.map(monthLabel), datasets: [{
+          label: 'Hot Work Jobs', data: sortedMonths.map(function(m){ return monthCounts[m]; }),
+          backgroundColor: GOLD, borderRadius: 4
+        }]},
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: { y: { beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } }, x: { ticks:{ color:TICK }, grid:{ color:GRID } } },
+          plugins: { legend: { display:false } } }
+      });
+    }
+
+  }
+
+  function showModal(title, initialValues, onSubmit){
+    var root = document.getElementById('modal-root');
+    var secHtml = MODAL_SECTIONS.map(function(sec){
+      var fieldsHtml = sec.fields.map(function(f, fi){
+        var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+        var vEsc = String(v).replace(/"/g,'&quot;');
+        if (f === 'PTW Number'){
+          return '<div class="field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(the permit\'s Permit ID - pick an open one, or type one not yet in the list)</span></label>'
+            + '<input type="text" data-field="PTW Number" value="'+vEsc+'" list="dl-ptw-open" placeholder="Loading open permits...">' + '<datalist id="dl-ptw-open"></datalist></div>';
+        }
+        if (SELECT_FIELDS[f]){
+          var optsHtml = '<option value=""></option>' + SELECT_FIELDS[f].map(function(o){
+            return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+          }).join('');
+          return '<div class="field"><label>'+f+'</label><select data-field="'+f+'">'+optsHtml+'</select></div>';
+        }
+        if (TEXTAREA_FIELDS.indexOf(f) > -1){
+          return '<div class="field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+        }
+        var fLower = f.trim().toLowerCase();
+        var hasDate = fLower.indexOf('date') > -1;
+        var hasTime = fLower.indexOf('time') > -1 && fLower.indexOf('overtime')<0;
+        var inputType = (hasDate && hasTime) ? 'datetime-local' : (hasDate ? 'date' : (hasTime ? 'time' : 'text'));
+        var suggestions = (hasDate || hasTime) ? [] : getOwnColumnValues(f);
+        var dlId = 'dl-' + fi + '-' + sec.title.replace(/[^a-z0-9]/ig,'');
+        var dlHtml = '';
+        if (suggestions.length){
+          dlHtml = '<datalist id="'+dlId+'">' + suggestions.map(function(s){
+            return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
+          }).join('') + '</datalist>';
+        }
+        return '<div class="field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"'+(suggestions.length?' list="'+dlId+'"':'')+'>'+dlHtml+'</div>';
+      }).join('');
+      return '<div class="modal-sec">'+sec.title+'</div>' + fieldsHtml;
+    }).join('');
+
+    root.innerHTML = '<div class="modal-bg" id="modal-bg"><div class="modal">' +
+      '<h3>'+title+'</h3>' + secHtml +
+      '<div id="modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
+      '<div class="modal-actions"><button class="btn btn-cancel" id="modal-cancel">Cancel</button>' +
+      '<button class="btn btn-add" id="modal-save">Save</button></div></div></div>';
+
+    document.getElementById('modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('modal-bg').onclick = function(e){ if(e.target.id==='modal-bg') root.innerHTML=''; };
+
+    if (FIELDS.indexOf('PTW Number') > -1){
+      loadOpenPTWPermits().then(function(nums){
+        var inp = root.querySelector('[data-field="PTW Number"]');
+        var dl = document.getElementById('dl-ptw-open');
+        if (!inp || !dl) return;
+        inp.placeholder = nums.length ? 'Type or pick a permit number' : 'No open permits found - type one';
+        dl.innerHTML = nums.map(function(n){ return '<option value="'+String(n).replace(/"/g,'&quot;')+'">'; }).join('');
+      });
+      var existingPermitId = initialValues && initialValues['PTW Number'];
+      if (existingPermitId){
+        checkLinkedPermitStatus(existingPermitId).then(function(hit){
+          if (hit && String(hit.status).toLowerCase() === 'cancelled'){
+            var h3 = root.querySelector('.modal h3');
+            if (h3){
+              var warn = document.createElement('div');
+              warn.className = 'field';
+              warn.style.cssText = 'background:rgba(240,104,92,.15);border-left:3px solid #F0685C;border-radius:0 5px 5px 0;padding:8px 12px;font-size:11px;color:#F0685C;margin-bottom:10px';
+              warn.textContent = 'WARNING: This record is linked to permit ' + existingPermitId + ', which has been CANCELLED. Treat this record as void unless it is reissued against a new permit.';
+              h3.insertAdjacentElement('afterend', warn);
+            }
+          }
+        });
+      }
+    }
+
+    document.getElementById('modal-save').onclick = function(){
+      var values = {};
+      root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      var saveBtn = document.getElementById('modal-save');
+      saveBtn.disabled = true;
+      window._reenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
+      onSubmit(values, function(){ root.innerHTML = ''; });
+    };
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  
+  function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function pfRow(label, val){
+    var v = String(val||'').trim().toLowerCase();
+    return '<tr><td>'+pfEsc(label)+'</td><td style="text-align:center">'+(v==='yes'?'&#10003;':'')+'</td><td style="text-align:center">'+(v==='no'?'&#10003;':'')+'</td><td style="text-align:center">'+(v==='n/a'?'&#10003;':'')+'</td></tr>';
+  }
+  function pfSection(title, fieldList, rec){
+    return '<div class="pf-section-title">'+pfEsc(title)+'</div>'
+      + '<table class="pf-tbl"><thead><tr><th>Item</th><th>Yes</th><th>No</th><th>N/A</th></tr></thead><tbody>'
+      + fieldList.map(function(f){ return pfRow(f.replace(' (Y/N/NA)','').replace(' (Y/N)',''), rec[f]); }).join('')
+      + '</tbody></table>';
+  }
+  function buildPrintHtml(rec){
+    var printedAt = new Date().toLocaleString();
+    var hazard = ["Job Site Inspected For Flammables (Y/N/NA)", "Work Area Free Of Explosive Atmospheres (Y/N/NA)", "Hazardous Gas Assessment Conducted (Y/N/NA)"];
+    var fireProt = ["Fire Extinguishers Available (Y/N/NA)", "Firewatch Assigned And Equipped (Y/N/NA)", "Sprinkler Systems Operational (Y/N/NA)", "Fixed Fire Suppression Not Impaired (Y/N/NA)"];
+    var areaPrep = ["Combustibles Removed Or Shielded (Y/N/NA)", "Fire-Resistant Blankets Or Shields Used (Y/N/NA)", "Floor And Wall Openings Covered (Y/N/NA)", "Work Area Within 35ft Cleared (Y/N/NA)", "Flammable Containers Moved To Safe Distance (Y/N/NA)", "Area Adequately Ventilated (Y/N/NA)"];
+    var personnel = ["Workers Trained In Hot Work Procedures (Y/N/NA)", "Workers Provided Proper PPE (Y/N/NA)", "Hearing Protection Available (Y/N/NA)", "Respirators Provided If Needed (Y/N/NA)"];
+    var permitCompliance = ["Hot Work Permit Displayed (Y/N/NA)", "Only Authorized Personnel Conduct Work (Y/N/NA)"];
+    var equipSafety = ["Hot Work Equipment Inspected (Y/N/NA)", "Gas Cylinders Secured (Y/N/NA)", "Hoses Checked For Leaks (Y/N/NA)"];
+    var monitoring = ["Firewatch Maintained Throughout (Y/N/NA)", "Combustible Gas Levels Monitored (Y/N/NA)"];
+    var postFire = ["Firewatch 30 Min After Completion (Y/N/NA)", "Area Inspected For Smoldering Materials (Y/N/NA)", "Fire Detection Systems Verified (Y/N/NA)"];
+    var cleanup = ["Tools And Equipment Removed (Y/N/NA)", "Shields And Barriers Removed (Y/N/NA)", "Combustibles Returned Only When Safe (Y/N/NA)"];
+    var resultVal = String(rec['Closure Result']||'').trim();
+    var resultColor = resultVal === 'Issues Noted' ? '#B33' : '#1a7a3c';
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>Hot Work Checklist '+pfEsc(rec['Record ID'])+'</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#111;margin:0;padding:16px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:10px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:800px;margin:0 auto;border:1px solid #333;padding:14px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}'
+    + '.pf-head h1{font-size:15px;margin:0}'
+    + '.pf-head .pf-code{font-size:10px;text-align:right}'
+    + '.pf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:3px 14px;margin-bottom:8px}'
+    + '.pf-field{font-size:10px}'
+    + '.pf-field b{display:block;font-size:8.5px;text-transform:uppercase;color:#555}'
+    + '.pf-section-title{font-weight:700;font-size:10px;margin:8px 0 3px;text-transform:uppercase;background:#eee;padding:3px 6px}'
+    + '.pf-tbl{width:100%;border-collapse:collapse;font-size:9px;margin-bottom:3px}'
+    + '.pf-tbl th,.pf-tbl td{border:1px solid #999;padding:2px 5px;text-align:left}'
+    + '.pf-tbl th{background:#f6f6f6}'
+    + '.pf-result{margin-top:8px;padding:6px;border:2px solid '+resultColor+';border-radius:4px;text-align:center;font-weight:700;font-size:12px;color:'+resultColor+'}'
+    + '.pf-footer{margin-top:6px;font-size:8px;color:#666;border-top:1px solid #999;padding-top:4px}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}@page{size:A4;margin:10mm}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>Hot Work Checklist</h1>'
+      + '<div class="pf-code">Rev.00, 24-Nov-2025<br>Record ID: <b>'+pfEsc(rec['Record ID'])+'</b></div></div>'
+      + '<div class="pf-grid3">'
+        + '<div class="pf-field"><b>Date</b>'+pfEsc(rec['Date'])+'</div>'
+        + '<div class="pf-field"><b>Permit Number</b>'+pfEsc(rec['PTW Number'])+'</div>'
+        + '<div class="pf-field"><b>Job Location</b>'+pfEsc(rec['Job Location'])+'</div>'
+        + '<div class="pf-field"><b>Authorized Personnel</b>'+pfEsc(rec['Authorized Personnel'])+'</div>'
+        + '<div class="pf-field"><b>Start Time</b>'+pfEsc(rec['Start Time'])+'</div>'
+        + '<div class="pf-field"><b>End Time</b>'+pfEsc(rec['End Time'])+'</div>'
+      + '</div>'
+      + '<div class="pf-field" style="margin-bottom:6px"><b>Description of Work</b>'+pfEsc(rec['Description of Work'])+'</div>'
+      + '<div class="pf-section-title" style="background:#ddd">Pre Hot Work Checklist</div>'
+      + pfSection('1. Hazard Assessment', hazard, rec)
+      + pfSection('2. Fire Protection', fireProt, rec)
+      + pfSection('3. Work Area Preparation', areaPrep, rec)
+      + pfSection('4. Personnel Safety', personnel, rec)
+      + '<div class="pf-section-title" style="background:#ddd">Hot Work Execution Checklist</div>'
+      + pfSection('5. Permit Compliance', permitCompliance, rec)
+      + pfSection('6. Equipment Safety', equipSafety, rec)
+      + pfSection('7. Continuous Monitoring', monitoring, rec)
+      + '<div class="pf-section-title" style="background:#ddd">Post-Hot Work Checklist</div>'
+      + pfSection('8. Fire Safety', postFire, rec)
+      + pfSection('9. Clean-up (Housekeeping)', cleanup, rec)
+      + '<div class="pf-grid3" style="margin-top:6px">'
+        + '<div class="pf-field"><b>Work Completed And Inspected</b>'+pfEsc(rec['Work Completed And Area Inspected (Y/N)'])+'</div>'
+        + '<div class="pf-field"><b>Inspector Name</b>'+pfEsc(rec['Inspector Name'])+'</div>'
+        + '<div class="pf-field"><b>Final Inspection Date/Time</b>'+pfEsc(rec['Final Inspection Date/Time'])+'</div>'
+      + '</div>'
+      + '<div class="pf-field" style="margin-top:4px"><b>Remarks</b>'+pfEsc(rec['Remarks'])+'</div>'
+      + '<div class="pf-result">'+pfEsc(resultVal || 'NOT YET CLOSED')+'</div>'
+      + '<div class="pf-footer">Hot Work Checklist, Rev.00, 24-Nov-2025. Generated from the SAGCO IMS Portal on '+pfEsc(printedAt)+'. Not valid without original signature.</div>'
+    + '</div></body></html>';
+  }
+
+
+  window.HW = {
+    onSearchInput: function(val){ _filters.search = val; renderTableArea(); },
+    onCategoryChange: function(val){ _filters.category = val; renderTableArea(); },
+    clearFilters: function(){ _filters = {search:'', category:'', special:null}; renderShell(); },
+    cardClick: function(which){
+      if (which === 'flagged'){ _filters = {search:'', category:'', special:'flagged'}; }
+      else if (which === 'inconsistent'){ _filters = {search:'', category:'', special:'inconsistent'}; }
+      else { _filters = {search:'', category:'', special:null}; }
+      renderShell();
+    },
+    selectRow: function(idVal){
+      var cur = _selected;
+      _selected = (cur !== undefined && cur !== null && String(cur) === String(idVal)) ? null : idVal;
+      renderShell();
+    },
+    getSelected: function(){ return _selected; },
+    toggleRowDetail: function(idVal){
+      var key = String(idVal);
+      _expandedRows[key] = !_expandedRows[key];
+      renderTableArea();
+    },
+    openAdd: function(extraInitial){
+      if (!can('add')) return;
+      var initial = {};
+      var suggestedId = nextSequentialId();
+      if (suggestedId) initial[ID_COL] = suggestedId;
+      if (extraInitial) Object.keys(extraInitial).forEach(function(k){ initial[k] = extraInitial[k]; });
+      showModal('Add Record', initial, function(values, close){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: TABLE_KEY}, [values]).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error'));
+            if (window._reenableModalSave) window._reenableModalSave();
+            return;
+          }
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save - check your connection.'); if (window._reenableModalSave) window._reenableModalSave(); });
+      });
+    },
+    openEdit: function(idVal){
+      if (!can('edit')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var idIdx = colIdx(_cache.headers, ID_COL);
+      var row = _cache.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found - try refreshing.');
+      var initial = {};
+      _cache.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal('Edit Record - ' + idVal, initial, function(values, close){
+        postJSON('update', {tab: TABLE_KEY, idCol: ID_COL, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved - please try again.');
+            if (window._reenableModalSave) window._reenableModalSave();
+            return;
+          }
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save - check your connection.'); if (window._reenableModalSave) window._reenableModalSave(); });
+      });
+    },
+    remove: function(idVal){
+      if (!can('delete')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: TABLE_KEY, idCol: ID_COL, id: idVal}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message || 'unknown error')); return; }
+        _selected = null;
+        reloadAll();
+      }).catch(function(){ alert('Could not remove - check your connection.'); });
+    },
+    printOne: function(idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var idIdx = colIdx(_cache.headers, ID_COL);
+      var row = _cache.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found - try refreshing.');
+      var rec = {};
+      _cache.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked - please allow pop-ups for this site to print the report.'); return; }
+      w.document.open(); w.document.write(buildPrintHtml(rec)); w.document.close();
+    }
+  };
+
+  function handleDeepLink(){
+    var params = new URLSearchParams(window.location.search);
+    var recId = params.get('record');
+    if (recId){
+      HW.openEdit(recId);
+      return;
+    }
+    var permitId = params.get('permitId');
+    if (permitId){
+      HW.openAdd({'PTW Number': permitId});
+    }
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadMain().then(handleDeepLink); }, 100);
+  });
+})();
+</script>
+
+
+<script>
+/* Access gate: same rule as confined-space.html / loto-register.html / ptw-register.html */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The Hot Work Checklist register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+
+</body></html>

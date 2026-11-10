@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Crane Inspection</title>
+<link rel="stylesheet" href="style.css">
+<script src="auth.js"></script><script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
+</style>
+<style>
+
+.crn-dark-wrap{
+  --crnbg:#0D1B35; --crnbg2:#142140; --crnbg3:#1a2a50;
+  --crngold:#C9A84C; --crngold-lt:#E8C97A;
+  --crntext:rgba(255,255,255,.92); --crntext-muted:rgba(255,255,255,.55);
+  --crntext-dim:rgba(255,255,255,.35); --crnborder:rgba(255,255,255,.08);
+  --crnborder-gold:rgba(201,168,76,.35);
+  --crnblue:#5B9BD5; --crnred:#F0685C; --crnamb:#E8B339; --crngrn:#4FCB9E;
+  background:var(--crnbg); color:var(--crntext); margin:0; padding:24px; min-height:100vh;
+}
+.crn-dark-wrap *{box-sizing:border-box}
+.crn-dark-wrap .back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.crn-dark-wrap .back-link{display:inline-flex;align-items:center;gap:5px;color:var(--crngold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--crnbg2);
+  border-radius:8px;border:1px solid var(--crnborder-gold)}
+.crn-dark-wrap .back-link:hover{background:var(--crnbg3)}
+.crn-dark-wrap .req-text{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--crnbg2);
+  border-radius:8px;border-left:3px solid var(--crngold);margin:10px 0;color:var(--crntext-muted)}
+.crn-dark-wrap .sec-banner{background:var(--crnbg2);color:var(--crngold-lt);padding:8px 14px;
+  font-size:11px;font-weight:700;margin-top:14px;margin-bottom:0;letter-spacing:.03em;
+  border-radius:8px;border:1px solid var(--crnborder-gold)}
+.crn-dark-wrap .kpi-grid{display:grid;gap:14px}
+.crn-dark-wrap .kpi-card{background:var(--crnbg2);border:1px solid var(--crnborder);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.crn-dark-wrap .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.crn-dark-wrap .kpi-card.kc-nvy::before{background:var(--crngold)}
+.crn-dark-wrap .kpi-card.kc-blue::before{background:var(--crnblue)}
+.crn-dark-wrap .kpi-card.kc-amb::before{background:var(--crnamb)}
+.crn-dark-wrap .kpi-card.kc-red::before{background:var(--crnred)}
+.crn-dark-wrap .kpi-lbl{font-size:10px;font-weight:600;color:var(--crntext-muted);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.crn-dark-wrap .kpi-val{font-size:26px;font-weight:800;color:var(--crntext);line-height:1.1;margin-bottom:4px}
+.crn-dark-wrap .kpi-sub{font-size:10px;color:var(--crntext-muted)}
+.crn-dark-wrap .kpi-card.ck-clickable{cursor:pointer;transition:transform .15s,border-color .15s}
+.crn-dark-wrap .kpi-card.ck-clickable:hover{transform:translateY(-2px);border-color:var(--crngold)}
+.crn-dark-wrap .chart-grid{display:grid;gap:14px}
+.crn-dark-wrap .chart-card{background:var(--crnbg2);border:1px solid var(--crnborder);
+  border-radius:14px;padding:16px 18px}
+.crn-dark-wrap .chart-title{font-size:12px;font-weight:700;color:var(--crntext);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.crn-dark-wrap .chart-sub{font-size:10px;color:var(--crntext-muted);font-weight:400}
+.crn-dark-wrap .chart-wrap{height:220px;position:relative}
+.crn-dark-wrap .toolbar{display:flex;justify-content:flex-end;padding:6px 0;flex-wrap:wrap;gap:6px}
+.crn-dark-wrap .btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;
+  border:1px solid var(--crnborder);background:var(--crnbg3);color:var(--crntext);cursor:pointer;font-family:inherit}
+.crn-dark-wrap .btn:hover{background:#223457;border-color:var(--crnborder-gold)}
+.crn-dark-wrap .btn-add{background:var(--crngold);color:#1a1200;border-color:var(--crngold);font-weight:700}
+.crn-dark-wrap .btn-add:hover{background:var(--crngold-lt)}
+.crn-dark-wrap .btn:disabled{opacity:.35;cursor:not-allowed}
+.crn-dark-wrap .btn:disabled:hover{background:var(--crnbg3);border-color:var(--crnborder)}
+.crn-dark-wrap .row-selectable{cursor:pointer}
+.crn-dark-wrap .row-selected td,
+.crn-dark-wrap .row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--crngold)}
+.crn-dark-wrap .modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
+  align-items:center;justify-content:center;z-index:9999;padding:20px}
+.crn-dark-wrap .modal{background:var(--crnbg2);border:1px solid var(--crnborder-gold);border-radius:14px;
+  padding:20px;width:520px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--crntext)}
+.crn-dark-wrap .modal h3{margin:0 0 12px;font-size:14px;color:var(--crngold-lt)}
+.crn-dark-wrap .modal-sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--crngold-lt);margin:14px 0 6px;padding-top:8px;border-top:1px solid var(--crnborder)}
+.crn-dark-wrap .modal-sec:first-of-type{margin-top:0;padding-top:0;border-top:none}
+.crn-dark-wrap .field{margin-bottom:9px}
+.crn-dark-wrap .field label{display:block;font-size:10px;font-weight:600;color:var(--crntext-muted);margin-bottom:3px}
+.crn-dark-wrap .field input,.crn-dark-wrap .field select,.crn-dark-wrap .field textarea{width:100%;padding:6px 8px;font-size:12px;
+  border:1px solid var(--crnborder);border-radius:6px;font-family:inherit;box-sizing:border-box;
+  background:var(--crnbg3);color:var(--crntext)}
+.crn-dark-wrap .field textarea{min-height:50px;resize:vertical}
+.crn-dark-wrap .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;position:sticky;bottom:0;background:var(--crnbg2);padding-top:8px}
+.crn-dark-wrap .modal-actions .btn-cancel{background:var(--crnbg3)}
+.crn-dark-wrap .filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
+.crn-dark-wrap .search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
+  border:1px solid var(--crnborder);border-radius:8px;font-family:inherit;background:var(--crnbg3);color:var(--crntext)}
+.crn-dark-wrap .search-input::placeholder{color:var(--crntext-dim)}
+.crn-dark-wrap .filter-select{padding:6px 8px;font-size:12px;border:1px solid var(--crnborder);
+  border-radius:8px;font-family:inherit;max-width:220px;background:var(--crnbg3);color:var(--crntext)}
+.crn-dark-wrap .filter-status{font-size:10px;color:var(--crntext-muted);margin-left:auto}
+.crn-dark-wrap .tbl-wrap{overflow-x:auto}
+.crn-dark-wrap .tbl-stripe{width:100%;border-collapse:collapse;font-size:11px}
+.crn-dark-wrap .tbl-stripe th{text-align:left;color:var(--crngold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--crnborder-gold);
+  background:var(--crnbg3);white-space:nowrap}
+.crn-dark-wrap .tbl-stripe td{padding:7px 10px;border-bottom:1px solid var(--crnborder);color:var(--crntext)}
+.crn-dark-wrap .tbl-stripe tbody tr:nth-child(odd) td{background:var(--crnbg2)}
+.crn-dark-wrap .tbl-stripe tbody tr:nth-child(even) td{background:#101d3a}
+.crn-dark-wrap .tbl-stripe tbody tr:hover td{background:var(--crnbg3)}
+.crn-dark-wrap .expand-cell:hover{background:rgba(232,179,57,.18)!important}
+.crn-dark-wrap .empty-state{text-align:center;padding:20px;color:var(--crntext-muted)}
+.crn-dark-wrap .empty-state strong{display:block;font-size:13px;color:var(--crngold-lt);margin-bottom:4px}
+.crn-dark-wrap .nb{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid}
+.crn-dark-wrap .nb-red{background:rgba(240,104,92,.15);color:var(--crnred);border-color:rgba(240,104,92,.4)}
+.crn-dark-wrap .nb-amb{background:rgba(232,179,57,.15);color:var(--crnamb);border-color:rgba(232,179,57,.4)}
+.crn-dark-wrap .nb-grn{background:rgba(79,203,158,.15);color:var(--crngrn);border-color:rgba(79,203,158,.4)}
+.crn-dark-wrap .detail-row td{background:rgba(255,255,255,.03);padding:10px 14px;border-top:1px dashed rgba(255,255,255,.12)}
+.crn-dark-wrap .detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px}
+.crn-dark-wrap .detail-item{font-size:11px;line-height:1.5}
+.crn-dark-wrap .detail-lbl{display:block;font-weight:600;color:var(--crntext-muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.3px}
+.crn-dark-wrap .detail-val{display:block;color:var(--crntext);word-break:break-word;white-space:pre-wrap}
+
+</style>
+</head><body><div class='crn-dark-wrap'>
+<div class="back-row"><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a><a href="ptw-register.html" class="back-link">← Permit to Work Register</a></div>
+<div class="req-text">Crane and lifting equipment inspection, per HSE-FRM-18 (Crane Inspection Checklist, Rev.0, effective 2 Nov 2020). Every crane, mobile crane, man lift or crane-with-basket unit is inspected before use against this checklist. When the lift is carried out under a Permit to Work, the Permit ID links this inspection to that permit, the same way Confined Space and LOTO already link to PTW.</div>
+
+<div class="sec-banner">CRANE INSPECTION CHECKLIST</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy ck-clickable" onclick="CRN.cardClick('all')" title="All inspections"><div class="kpi-lbl">Total Inspections</div><div class="kpi-val" id="kpi-total">—</div><div class="kpi-sub">HSE-FRM-18</div></div>
+  <div class="kpi-card kc-blue ck-clickable" onclick="CRN.cardClick('all')" title="This year"><div class="kpi-lbl">This Year</div><div class="kpi-val" id="kpi-year">—</div><div class="kpi-sub">Year to date</div></div>
+  <div class="kpi-card kc-red ck-clickable" onclick="CRN.cardClick('flagged')" title="Click to view rejected equipment"><div class="kpi-lbl">Rejected</div><div class="kpi-val" id="kpi-rejected">—</div><div class="kpi-sub">Reject Crane result</div></div>
+  <div class="kpi-card kc-amb ck-clickable" onclick="CRN.cardClick('inconsistent')" title="Click to view inconsistent records"><div class="kpi-lbl">Flagged Inconsistencies</div><div class="kpi-val" id="kpi-inconsistent">—</div><div class="kpi-sub">A "No" item but still Accepted</div></div>
+</div>
+
+
+<div class="chart-grid" style="grid-template-columns:1fr 1fr;margin:14px 0 18px">
+
+  <div class="chart-card">
+    <div class="chart-title">Inspections by Equipment Type<span class="chart-sub">which equipment is inspected most</span></div>
+    <div class="chart-wrap"><canvas id="crnByTypeChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Inspections by Month<span class="chart-sub">inspection volume over time</span></div>
+    <div class="chart-wrap"><canvas id="crnByMonthChart"></canvas></div>
+  </div>
+
+</div>
+
+<div id='live-table-main'></div>
+
+<div style="margin-top:16px;font-size:10px;color:var(--crntext-dim);text-align:right" id="live-ts"></div>
+<div id="modal-root"></div>
+</div>
+<!-- No sidebar/topbar: this page is reached only from inside the Operations Hub, same pattern as the other linked registers. -->
+
+
+<script>
+(function(){
+  var TABLE_KEY = 'crane_checklist';
+  var ID_COL = 'Inspection ID';
+  var ID_PREFIX = 'CRN-';
+  var ID_PAD = 3;
+  var STATUS_COL = 'Record Status';
+  var DISPLAY_COLS = ["Inspection ID", "Date of Inspection", "Equipment Type", "Equipment Serial #", "Operator Name", "Inspection Result"];
+  var FIELDS = ["Inspection ID", "Date of Inspection", "PTW Number", "Equipment Type", "Model of Equipment", "Equipment Serial #", "Operator Name", "Operator ID", "Driver License Valid (Y/N)", "3rd Party Certificate Valid (Y/N)", "Insurance Valid (Y/N)", "Load Chart Available (Y/N)", "Outriggers OK (Y/N)", "Telescopic Boom OK (Y/N)", "No Engine Oil-Fuel Leak (Y/N)", "Hydraulic Hoses OK (Y/N)", "Lifting Wires OK (Y/N)", "Equipment Reels OK (Y/N)", "Wire Reels Wrap OK (Y/N)", "Hook Safety Latch OK (Y/N)", "Overload Switch OK (Y/N)", "Load Indicator Present (Y/N)", "Telescopic Limit Device OK (Y/N)", "Anti-Two Block Device OK (Y/N)", "Lights OK (Y/N)", "Tires OK (Y/N)", "Fire Extinguisher OK (Y/N)", "Cabin Glass OK (Y/N)", "Horn and Siren OK (Y/N)", "Wire Rope Guides OK (Y/N)", "SWL Awareness Confirmed (Y/N)", "Remarks", "Inspection Result", "Inspected By"];
+  var SELECT_FIELDS = {"Driver License Valid (Y/N)": ["Yes", "No"], "3rd Party Certificate Valid (Y/N)": ["Yes", "No"], "Insurance Valid (Y/N)": ["Yes", "No"], "Load Chart Available (Y/N)": ["Yes", "No"], "Outriggers OK (Y/N)": ["Yes", "No"], "Telescopic Boom OK (Y/N)": ["Yes", "No"], "No Engine Oil-Fuel Leak (Y/N)": ["Yes", "No"], "Hydraulic Hoses OK (Y/N)": ["Yes", "No"], "Lifting Wires OK (Y/N)": ["Yes", "No"], "Equipment Reels OK (Y/N)": ["Yes", "No"], "Wire Reels Wrap OK (Y/N)": ["Yes", "No"], "Hook Safety Latch OK (Y/N)": ["Yes", "No"], "Overload Switch OK (Y/N)": ["Yes", "No"], "Load Indicator Present (Y/N)": ["Yes", "No"], "Telescopic Limit Device OK (Y/N)": ["Yes", "No"], "Anti-Two Block Device OK (Y/N)": ["Yes", "No"], "Lights OK (Y/N)": ["Yes", "No"], "Tires OK (Y/N)": ["Yes", "No"], "Fire Extinguisher OK (Y/N)": ["Yes", "No"], "Cabin Glass OK (Y/N)": ["Yes", "No"], "Horn and Siren OK (Y/N)": ["Yes", "No"], "Wire Rope Guides OK (Y/N)": ["Yes", "No"], "SWL Awareness Confirmed (Y/N)": ["Yes", "No"], "Inspection Result": ["Accept Crane", "Reject Crane"]};
+  var TEXTAREA_FIELDS = ["Remarks"];
+  var YN_FIELDS = ["Driver License Valid (Y/N)", "3rd Party Certificate Valid (Y/N)", "Insurance Valid (Y/N)", "Load Chart Available (Y/N)", "Outriggers OK (Y/N)", "Telescopic Boom OK (Y/N)", "No Engine Oil-Fuel Leak (Y/N)", "Hydraulic Hoses OK (Y/N)", "Lifting Wires OK (Y/N)", "Equipment Reels OK (Y/N)", "Wire Reels Wrap OK (Y/N)", "Hook Safety Latch OK (Y/N)", "Overload Switch OK (Y/N)", "Load Indicator Present (Y/N)", "Telescopic Limit Device OK (Y/N)", "Anti-Two Block Device OK (Y/N)", "Lights OK (Y/N)", "Tires OK (Y/N)", "Fire Extinguisher OK (Y/N)", "Cabin Glass OK (Y/N)", "Horn and Siren OK (Y/N)", "Wire Rope Guides OK (Y/N)", "SWL Awareness Confirmed (Y/N)"];
+  var RESULT_FIELD = "Inspection Result";
+  var RESULT_FLAG_VALUE = "Reject Crane";
+  var MODAL_SECTIONS = [{"title": "Job Information", "fields": ["Inspection ID", "Date of Inspection", "PTW Number", "Equipment Type", "Model of Equipment", "Equipment Serial #", "Operator Name", "Operator ID"]}, {"title": "Documents", "fields": ["Driver License Valid (Y/N)", "3rd Party Certificate Valid (Y/N)", "Insurance Valid (Y/N)", "Load Chart Available (Y/N)"]}, {"title": "Leakages", "fields": ["Outriggers OK (Y/N)", "Telescopic Boom OK (Y/N)", "No Engine Oil-Fuel Leak (Y/N)", "Hydraulic Hoses OK (Y/N)"]}, {"title": "Wires Safety", "fields": ["Lifting Wires OK (Y/N)", "Equipment Reels OK (Y/N)", "Wire Reels Wrap OK (Y/N)"]}, {"title": "Safety Requirements During Lifting", "fields": ["Hook Safety Latch OK (Y/N)", "Overload Switch OK (Y/N)", "Load Indicator Present (Y/N)", "Telescopic Limit Device OK (Y/N)", "Anti-Two Block Device OK (Y/N)"]}, {"title": "General Safety Requirement", "fields": ["Lights OK (Y/N)", "Tires OK (Y/N)", "Fire Extinguisher OK (Y/N)", "Cabin Glass OK (Y/N)", "Horn and Siren OK (Y/N)", "Wire Rope Guides OK (Y/N)", "SWL Awareness Confirmed (Y/N)"]}, {"title": "Result and Sign-off", "fields": ["Remarks", "Inspection Result", "Inspected By"]}];
+  var CONTAINER_ID = 'live-table-main';
+
+  var _filters = {search:'', category:'', special:null};
+  var _selected = null;
+  var _expandedRows = {};
+  var _cache = null;
+  var _charts = {};
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function formatCell(v){
+    if (v === null || v === undefined || v === '') return '<span style="opacity:.35">-</span>';
+    return String(v).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function nextSequentialId(){
+    if (!_cache || !_cache.headers || !_cache.rows) return '';
+    var idIdx = colIdx(_cache.headers, ID_COL);
+    if (idIdx < 0) return '';
+    var maxN = 0, prefixLower = ID_PREFIX.toLowerCase();
+    _cache.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(prefixLower) !== 0) return;
+      var n = parseInt(v.slice(ID_PREFIX.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    var numStr = String(maxN + 1);
+    while (numStr.length < ID_PAD) numStr = '0' + numStr;
+    return ID_PREFIX + numStr;
+  }
+  function getFieldOfSelected(fieldName){
+    if (!_cache || _selected === undefined || _selected === null || _selected === '') return '';
+    var idIdx = colIdx(_cache.headers, ID_COL);
+    var fIdx = colIdx(_cache.headers, fieldName);
+    if (idIdx < 0 || fIdx < 0) return '';
+    var row = _cache.rows.find(function(r){ return String(r[idIdx]) === String(_selected); });
+    return row ? row[fIdx] : '';
+  }
+  function getOwnColumnValues(fieldName){
+    if (!_cache || !_cache.headers || !_cache.rows) return [];
+    var idx = colIdx(_cache.headers, fieldName);
+    if (idx < 0) return [];
+    var seen = {}, out = [];
+    _cache.rows.forEach(function(r){
+      var v = String(r[idx]||'').trim();
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    });
+    out.sort();
+    return out;
+  }
+  function visibleRows(){
+    if (!_cache || !_cache.rows) return [];
+    var statusIdx = colIdx(_cache.headers, STATUS_COL);
+    return _cache.rows.filter(function(r){ return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+  }
+  function hasInconsistentResult(row, headers){
+    var resIdx = colIdx(headers, RESULT_FIELD);
+    if (resIdx < 0) return false;
+    var resVal = String(row[resIdx]||'').trim();
+    if (resVal === RESULT_FLAG_VALUE) return false;
+    var anyNo = YN_FIELDS.some(function(f){
+      var i = colIdx(headers, f);
+      return i >= 0 && String(row[i]||'').trim().toLowerCase() === 'no';
+    });
+    return anyNo && !!resVal;
+  }
+  function isFlaggedResult(row, headers){
+    var resIdx = colIdx(headers, RESULT_FIELD);
+    return resIdx >= 0 && String(row[resIdx]||'').trim() === RESULT_FLAG_VALUE;
+  }
+
+  var _ptwOpenPermits = null, _ptwFetchPromise = null;
+  function loadOpenPTWPermits(){
+    if (_ptwOpenPermits) return Promise.resolve(_ptwOpenPermits);
+    if (_ptwFetchPromise) return _ptwFetchPromise;
+    _ptwFetchPromise = fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
+      if (!data || !data.headers || !data.rows) { _ptwOpenPermits = []; return _ptwOpenPermits; }
+      var h = data.headers;
+      var numIdx = colIdx(h, 'Permit ID'), validToIdx = colIdx(h, 'Permit Valid To'), statusColIdx = colIdx(h, 'Record Status');
+      var today = new Date(); today.setHours(0,0,0,0);
+      var seen = {}; var out = [];
+      data.rows.forEach(function(row){
+        if (statusColIdx >= 0 && String(row[statusColIdx]||'').trim().toLowerCase() === 'removed') return;
+        var num = numIdx >= 0 ? String(row[numIdx]||'').trim() : '';
+        if (!num || seen[num]) return;
+        if (validToIdx >= 0){
+          var vt = String(row[validToIdx]||'').trim();
+          if (vt){ var d = new Date(vt); if (!isNaN(d.getTime()) && d < today) return; }
+        }
+        seen[num] = true; out.push(num);
+      });
+      _ptwOpenPermits = out;
+      return out;
+    }).catch(function(){ _ptwOpenPermits = []; return []; });
+    return _ptwFetchPromise;
+  }
+  function checkLinkedPermitStatus(permitId){
+    if (!permitId) return Promise.resolve(null);
+    return fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
+      if (!data || !data.headers || !data.rows) return null;
+      var idIdx = colIdx(data.headers, 'Permit ID'), statusIdx = colIdx(data.headers, 'Status');
+      var hit = null;
+      data.rows.forEach(function(row){
+        if (idIdx >= 0 && String(row[idIdx]||'').trim() === String(permitId).trim()){
+          hit = { status: statusIdx >= 0 ? String(row[statusIdx]||'').trim() : '' };
+        }
+      });
+      return hit;
+    }).catch(function(){ return null; });
+  }
+
+  function renderShell(){
+    var el = document.getElementById(CONTAINER_ID);
+    var data = _cache;
+    if (!data || !data.headers || !data.rows){
+      el.innerHTML = '<div class="empty-state"><strong>No data</strong>Table is empty or not yet populated in Google Sheets.</div>';
+      return;
+    }
+    var f = _filters;
+    var sel = _selected;
+    var toolbarHtml = '';
+    if (can('add')) toolbarHtml += '<button class="btn btn-add" onclick="CRN.openAdd()">+ Add Record</button>';
+    var disabledAttr = sel ? '' : ' disabled';
+    toolbarHtml += '<button class="btn" id="tb-print"'+disabledAttr+' onclick="CRN.printOne(CRN.getSelected())">🖨️ Print Report</button>';
+    if (can('edit')) toolbarHtml += '<button class="btn" id="tb-edit"'+disabledAttr+' onclick="CRN.openEdit(CRN.getSelected())">✏️ Edit</button>';
+    if (can('delete')) toolbarHtml += '<button class="btn" id="tb-remove"'+disabledAttr+' onclick="CRN.remove(CRN.getSelected())">🗑️ Remove</button>';
+
+    var categoryHtml = '<select class="filter-select" onchange="CRN.onCategoryChange(this.value)">' +
+      '<option value="">All Inspection Result</option>' +
+      getOwnColumnValues(RESULT_FIELD).map(function(o){
+        var selA = (o === f.category) ? ' selected' : '';
+        return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+selA+'>'+o+'</option>';
+      }).join('') + '</select>';
+
+    var specialLabels = { flagged: 'Flagged / Rejected', inconsistent: 'Result vs. Answers Inconsistent' };
+    var specialPillHtml = '';
+    if (f.special && specialLabels[f.special]){
+      specialPillHtml = '<span class="nb nb-amb" style="margin:6px 0;display:inline-block">Showing: ' + specialLabels[f.special] +
+        ' <span style="cursor:pointer" onclick="CRN.clearFilters()">X</span></span>';
+    }
+
+    el.innerHTML =
+      '<div class="toolbar">' + toolbarHtml + '</div>' +
+      specialPillHtml +
+      '<div class="filterbar">' +
+        '<input type="text" class="search-input" placeholder="Search this table..." value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="CRN.onSearchInput(this.value)">' +
+        categoryHtml +
+        '<button class="btn" onclick="CRN.clearFilters()">Clear</button>' +
+        '<span class="filter-status" id="filter-status"></span>' +
+      '</div>' +
+      '<div class="table-area" id="table-area"></div>';
+    renderTableArea();
+  }
+
+  function renderTableArea(){
+    var data = _cache;
+    var areaEl = document.getElementById('table-area');
+    var statusEl = document.getElementById('filter-status');
+    if (!data || !areaEl) return;
+
+    var statusIdx = colIdx(data.headers, STATUS_COL);
+    var idIdx = colIdx(data.headers, ID_COL);
+    var catIdx = colIdx(data.headers, RESULT_FIELD);
+    var f = _filters;
+    var searchLower = f.search.trim().toLowerCase();
+
+    var rows = data.rows.filter(function(r){
+      return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    });
+    var totalVisible = rows.length;
+    if (f.category && catIdx > -1){
+      rows = rows.filter(function(r){ return String(r[catIdx]||'').trim() === f.category; });
+    }
+    if (searchLower){
+      rows = rows.filter(function(r){
+        return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
+      });
+    }
+    if (f.special === 'flagged'){
+      rows = rows.filter(function(r){ return isFlaggedResult(r, data.headers); });
+    }
+    if (f.special === 'inconsistent'){
+      rows = rows.filter(function(r){ return hasInconsistentResult(r, data.headers); });
+    }
+    if (statusEl){
+      var isFiltered = !!(f.search.trim() || f.category || f.special);
+      statusEl.textContent = isFiltered ? ('Showing ' + rows.length + ' of ' + totalVisible) : '';
+    }
+
+    var colIdxs = DISPLAY_COLS.map(function(c){ return colIdx(data.headers, c); }).filter(function(i){ return i >= 0; });
+    var colNames = colIdxs.map(function(i){ return data.headers[i]; });
+    var shownSet = {};
+    colNames.forEach(function(n){ shownSet[n] = true; });
+    var detailFields = FIELDS.filter(function(fld){ return !shownSet[fld] && fld !== STATUS_COL; });
+
+    var html = '<div class="tbl-wrap"><table class="tbl-stripe">';
+    html += '<thead><tr><th style="width:40px"></th>'; colNames.forEach(function(h){ html += '<th>'+h+'</th>'; }); html += '</tr></thead><tbody>';
+
+    if (!rows.length){
+      html += '<tr><td colspan="'+(colNames.length+1)+'"><div class="empty-state"><strong>No records</strong>Add data in Google Sheets or use + Add Record above.</div></td></tr>';
+    } else {
+      var selId = _selected;
+      var expandedSet = _expandedRows;
+      rows.forEach(function(row){
+        var idVal = idIdx>-1 ? row[idIdx] : '';
+        var idValEsc = String(idVal).replace(/'/g,"\\'");
+        var isSel = selId !== undefined && selId !== null && String(selId) === String(idVal);
+        var isExpanded = !!expandedSet[String(idVal)];
+        html += '<tr class="row-selectable'+(isSel?' row-selected':'')+'" onclick="CRN.selectRow(\''+idValEsc+'\')">';
+        html += '<td class="expand-cell" style="text-align:center;cursor:pointer;padding:10px 6px" title="Click to show all fields" onclick="event.stopPropagation();CRN.toggleRowDetail(\''+idValEsc+'\')">'+
+          '<span style="display:inline-block;font-size:13px;transition:transform .15s'+(isExpanded?';transform:rotate(90deg)':'')+'">&#9654;</span></td>';
+        colIdxs.forEach(function(ci){
+          var cell = row[ci];
+          if (data.headers[ci] === RESULT_FIELD){
+            var stv = String(cell||'').trim();
+            var cls = (stv === RESULT_FLAG_VALUE) ? 'nb-red' : (stv ? 'nb-grn' : '');
+            html += '<td>'+(stv?'<span class="nb '+cls+'">'+stv+'</span>':formatCell(cell))+'</td>';
+          } else {
+            html += '<td>' + formatCell(cell) + '</td>';
+          }
+        });
+        html += '</tr>';
+        if (isExpanded){
+          html += '<tr class="detail-row"><td></td><td colspan="'+colNames.length+'">'+
+            '<div class="detail-grid">' + detailFields.map(function(fld){
+              var fi = colIdx(data.headers, fld);
+              var val = fi>=0 ? row[fi] : '';
+              return '<div class="detail-item"><span class="detail-lbl">'+fld+'</span><span class="detail-val">'+formatCell(val)+'</span></div>';
+            }).join('') +
+            '</div></td></tr>';
+        }
+      });
+    }
+    html += '</tbody></table></div>';
+    areaEl.innerHTML = html;
+  }
+
+  function loadMain(){
+    var el = document.getElementById(CONTAINER_ID);
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--crntext-muted);font-size:11px">Loading live data...</div>';
+    return fetch(SHEETS_URL + '?tab=' + TABLE_KEY + '&action=read')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        _cache = data;
+        renderShell();
+        renderDashboard();
+        var countEl = document.getElementById('count-main');
+        if (countEl && data && data.rows){
+          var statusIdx = colIdx(data.headers, STATUS_COL);
+          var vc = statusIdx < 0 ? data.rows.length :
+            data.rows.filter(function(r){ return String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; }).length;
+          countEl.textContent = '(' + vc + ')';
+        }
+        return data;
+      })
+      .catch(function(){
+        el.innerHTML = '<div class="empty-state"><strong>Connection unavailable</strong>Could not reach Google Sheets.</div>';
+        return null;
+      });
+  }
+  function reloadAll(){ return loadMain(); }
+
+  function monthLabel(ym){
+    var parts = ym.split('-');
+    var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mi = parseInt(parts[1],10) - 1;
+    return (names[mi] || parts[1]) + ' ' + parts[0];
+  }
+
+  function renderDashboard(){
+    if (!_cache) return;
+    var rows = visibleRows();
+    var h = _cache.headers;
+
+    
+    document.getElementById('kpi-total').textContent = rows.length;
+    var dateIdx = colIdx(h, 'Date of Inspection');
+    var thisYear = new Date().getFullYear();
+    var yearCount = 0;
+    rows.forEach(function(r){
+      var s = dateIdx>=0 ? String(r[dateIdx]||'').trim() : '';
+      if (/^\d{4}/.test(s) && parseInt(s.slice(0,4),10) === thisYear) yearCount++;
+    });
+    document.getElementById('kpi-year').textContent = yearCount;
+    var rejected = rows.filter(function(r){ return isFlaggedResult(r, h); }).length;
+    document.getElementById('kpi-rejected').textContent = rejected;
+    var inconsistent = rows.filter(function(r){ return hasInconsistentResult(r, h); }).length;
+    document.getElementById('kpi-inconsistent').textContent = inconsistent;
+
+
+    var BLUE = '#5B9BD5', GOLD = '#C9A84C';
+    var GRID = 'rgba(255,255,255,.08)', TICK = 'rgba(255,255,255,.55)';
+    
+    if (_charts.byType) { _charts.byType.destroy(); _charts.byType = null; }
+    if (_charts.byMonth) { _charts.byMonth.destroy(); _charts.byMonth = null; }
+
+    var typeIdx = colIdx(h, 'Equipment Type');
+    var typeCounts = {};
+    if (typeIdx >= 0){
+      rows.forEach(function(r){
+        var v = String(r[typeIdx]||'').trim();
+        if (v) typeCounts[v] = (typeCounts[v]||0) + 1;
+      });
+    }
+    var usedTypes = Object.keys(typeCounts).sort();
+    if (window.Chart && usedTypes.length){
+      _charts.byType = new Chart(document.getElementById('crnByTypeChart'), {
+        type:'bar', data:{ labels: usedTypes, datasets:[{ label:'Inspections', data: usedTypes.map(function(s){ return typeCounts[s]||0; }), backgroundColor:BLUE, borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
+          scales:{ x:{ beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } }, y:{ ticks:{ color:TICK }, grid:{ color:GRID } } },
+          plugins:{ legend:{ display:false } } }
+      });
+    }
+
+    var monthCounts = {};
+    if (dateIdx >= 0){
+      rows.forEach(function(r){
+        var raw = r[dateIdx];
+        if (!raw) return;
+        var s = String(raw).trim();
+        if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return;
+        var ym = s.slice(0,7);
+        monthCounts[ym] = (monthCounts[ym] || 0) + 1;
+      });
+    }
+    var sortedMonths = Object.keys(monthCounts).sort();
+    if (window.Chart && sortedMonths.length){
+      _charts.byMonth = new Chart(document.getElementById('crnByMonthChart'), {
+        type: 'bar',
+        data: { labels: sortedMonths.map(monthLabel), datasets: [{
+          label: 'Inspections', data: sortedMonths.map(function(m){ return monthCounts[m]; }),
+          backgroundColor: GOLD, borderRadius: 4
+        }]},
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: { y: { beginAtZero:true, ticks:{ color:TICK, precision:0 }, grid:{ color:GRID } }, x: { ticks:{ color:TICK }, grid:{ color:GRID } } },
+          plugins: { legend: { display:false } } }
+      });
+    }
+
+  }
+
+  function showModal(title, initialValues, onSubmit){
+    var root = document.getElementById('modal-root');
+    var secHtml = MODAL_SECTIONS.map(function(sec){
+      var fieldsHtml = sec.fields.map(function(f, fi){
+        var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+        var vEsc = String(v).replace(/"/g,'&quot;');
+        if (f === 'PTW Number'){
+          return '<div class="field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(the permit\'s Permit ID - pick an open one, or type one not yet in the list)</span></label>'
+            + '<input type="text" data-field="PTW Number" value="'+vEsc+'" list="dl-ptw-open" placeholder="Loading open permits...">' + '<datalist id="dl-ptw-open"></datalist></div>';
+        }
+        if (SELECT_FIELDS[f]){
+          var optsHtml = '<option value=""></option>' + SELECT_FIELDS[f].map(function(o){
+            return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+          }).join('');
+          return '<div class="field"><label>'+f+'</label><select data-field="'+f+'">'+optsHtml+'</select></div>';
+        }
+        if (TEXTAREA_FIELDS.indexOf(f) > -1){
+          return '<div class="field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+        }
+        var fLower = f.trim().toLowerCase();
+        var hasDate = fLower.indexOf('date') > -1;
+        var hasTime = fLower.indexOf('time') > -1 && fLower.indexOf('overtime')<0;
+        var inputType = (hasDate && hasTime) ? 'datetime-local' : (hasDate ? 'date' : (hasTime ? 'time' : 'text'));
+        var suggestions = (hasDate || hasTime) ? [] : getOwnColumnValues(f);
+        var dlId = 'dl-' + fi + '-' + sec.title.replace(/[^a-z0-9]/ig,'');
+        var dlHtml = '';
+        if (suggestions.length){
+          dlHtml = '<datalist id="'+dlId+'">' + suggestions.map(function(s){
+            return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
+          }).join('') + '</datalist>';
+        }
+        return '<div class="field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"'+(suggestions.length?' list="'+dlId+'"':'')+'>'+dlHtml+'</div>';
+      }).join('');
+      return '<div class="modal-sec">'+sec.title+'</div>' + fieldsHtml;
+    }).join('');
+
+    root.innerHTML = '<div class="modal-bg" id="modal-bg"><div class="modal">' +
+      '<h3>'+title+'</h3>' + secHtml +
+      '<div id="modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
+      '<div class="modal-actions"><button class="btn btn-cancel" id="modal-cancel">Cancel</button>' +
+      '<button class="btn btn-add" id="modal-save">Save</button></div></div></div>';
+
+    document.getElementById('modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('modal-bg').onclick = function(e){ if(e.target.id==='modal-bg') root.innerHTML=''; };
+
+    if (FIELDS.indexOf('PTW Number') > -1){
+      loadOpenPTWPermits().then(function(nums){
+        var inp = root.querySelector('[data-field="PTW Number"]');
+        var dl = document.getElementById('dl-ptw-open');
+        if (!inp || !dl) return;
+        inp.placeholder = nums.length ? 'Type or pick a permit number' : 'No open permits found - type one';
+        dl.innerHTML = nums.map(function(n){ return '<option value="'+String(n).replace(/"/g,'&quot;')+'">'; }).join('');
+      });
+      var existingPermitId = initialValues && initialValues['PTW Number'];
+      if (existingPermitId){
+        checkLinkedPermitStatus(existingPermitId).then(function(hit){
+          if (hit && String(hit.status).toLowerCase() === 'cancelled'){
+            var h3 = root.querySelector('.modal h3');
+            if (h3){
+              var warn = document.createElement('div');
+              warn.className = 'field';
+              warn.style.cssText = 'background:rgba(240,104,92,.15);border-left:3px solid #F0685C;border-radius:0 5px 5px 0;padding:8px 12px;font-size:11px;color:#F0685C;margin-bottom:10px';
+              warn.textContent = 'WARNING: This record is linked to permit ' + existingPermitId + ', which has been CANCELLED. Treat this record as void unless it is reissued against a new permit.';
+              h3.insertAdjacentElement('afterend', warn);
+            }
+          }
+        });
+      }
+    }
+
+    document.getElementById('modal-save').onclick = function(){
+      var values = {};
+      root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      var saveBtn = document.getElementById('modal-save');
+      saveBtn.disabled = true;
+      window._reenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
+      onSubmit(values, function(){ root.innerHTML = ''; });
+    };
+  }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  
+  function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function pfRow(label, val){
+    var isYes = String(val||'').trim().toLowerCase() === 'yes';
+    var isNo = String(val||'').trim().toLowerCase() === 'no';
+    return '<tr><td>'+pfEsc(label)+'</td><td style="text-align:center">'+(isYes?'&#10003;':'')+'</td><td style="text-align:center">'+(isNo?'&#10003;':'')+'</td><td></td></tr>';
+  }
+  function pfSection(title, fieldList, rec){
+    return '<div class="pf-section-title">'+pfEsc(title)+'</div>'
+      + '<table class="pf-tbl"><thead><tr><th>Item</th><th>OK</th><th>No</th><th>Remarks</th></tr></thead><tbody>'
+      + fieldList.map(function(f){ return pfRow(f.replace(' (Y/N)',''), rec[f]); }).join('')
+      + '</tbody></table>';
+  }
+  function buildPrintHtml(rec){
+    var printedAt = new Date().toLocaleString();
+    var docFields = ["Driver License Valid (Y/N)", "3rd Party Certificate Valid (Y/N)", "Insurance Valid (Y/N)", "Load Chart Available (Y/N)"];
+    var leakFields = ["Outriggers OK (Y/N)", "Telescopic Boom OK (Y/N)", "No Engine Oil-Fuel Leak (Y/N)", "Hydraulic Hoses OK (Y/N)"];
+    var wireFields = ["Lifting Wires OK (Y/N)", "Equipment Reels OK (Y/N)", "Wire Reels Wrap OK (Y/N)"];
+    var liftFields = ["Hook Safety Latch OK (Y/N)", "Overload Switch OK (Y/N)", "Load Indicator Present (Y/N)", "Telescopic Limit Device OK (Y/N)", "Anti-Two Block Device OK (Y/N)"];
+    var genFields = ["Lights OK (Y/N)", "Tires OK (Y/N)", "Fire Extinguisher OK (Y/N)", "Cabin Glass OK (Y/N)", "Horn and Siren OK (Y/N)", "Wire Rope Guides OK (Y/N)", "SWL Awareness Confirmed (Y/N)"];
+    var resultVal = String(rec['Inspection Result']||'').trim();
+    var resultColor = resultVal === 'Reject Crane' ? '#B33' : '#1a7a3c';
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>Crane Inspection '+pfEsc(rec['Inspection ID'])+' - HSE-FRM-18</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#111;margin:0;padding:16px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:10px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:800px;margin:0 auto;border:1px solid #333;padding:14px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}'
+    + '.pf-head h1{font-size:15px;margin:0}'
+    + '.pf-head .pf-code{font-size:10px;text-align:right}'
+    + '.pf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:3px 14px;margin-bottom:8px}'
+    + '.pf-field{font-size:10px}'
+    + '.pf-field b{display:block;font-size:8.5px;text-transform:uppercase;color:#555}'
+    + '.pf-section-title{font-weight:700;font-size:10.5px;margin:10px 0 3px;text-transform:uppercase;background:#eee;padding:3px 6px}'
+    + '.pf-tbl{width:100%;border-collapse:collapse;font-size:9.5px;margin-bottom:4px}'
+    + '.pf-tbl th,.pf-tbl td{border:1px solid #999;padding:3px 6px;text-align:left}'
+    + '.pf-tbl th{background:#f6f6f6}'
+    + '.pf-result{margin-top:10px;padding:8px;border:2px solid '+resultColor+';border-radius:4px;text-align:center;font-weight:700;font-size:13px;color:'+resultColor+'}'
+    + '.pf-footer{margin-top:8px;font-size:8px;color:#666;border-top:1px solid #999;padding-top:4px}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}@page{size:A4;margin:10mm}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>Crane Inspection Checklist</h1>'
+      + '<div class="pf-code">HSE-FRM-18 - Rev.0<br>Inspection ID: <b>'+pfEsc(rec['Inspection ID'])+'</b></div></div>'
+      + '<div class="pf-grid3">'
+        + '<div class="pf-field"><b>Model of Equipment</b>'+pfEsc(rec['Model of Equipment'])+'</div>'
+        + '<div class="pf-field"><b>Equipment Serial #</b>'+pfEsc(rec['Equipment Serial #'])+'</div>'
+        + '<div class="pf-field"><b>Date of Inspection</b>'+pfEsc(rec['Date of Inspection'])+'</div>'
+        + '<div class="pf-field"><b>Operator Name</b>'+pfEsc(rec['Operator Name'])+'</div>'
+        + '<div class="pf-field"><b>Operator ID</b>'+pfEsc(rec['Operator ID'])+'</div>'
+        + '<div class="pf-field"><b>Permit Number</b>'+pfEsc(rec['PTW Number'])+'</div>'
+      + '</div>'
+      + pfSection('Documents', docFields, rec)
+      + pfSection('Leakages', leakFields, rec)
+      + pfSection('Wires Safety', wireFields, rec)
+      + pfSection('Safety Requirements During Lifting', liftFields, rec)
+      + pfSection('General Safety Requirement', genFields, rec)
+      + '<div class="pf-field" style="margin-top:6px"><b>Remarks</b>'+pfEsc(rec['Remarks'])+'</div>'
+      + '<div class="pf-result">'+pfEsc(resultVal || 'NOT YET ASSESSED')+'</div>'
+      + '<div class="pf-grid3" style="margin-top:8px"><div class="pf-field"><b>Inspected By</b>'+pfEsc(rec['Inspected By'])+'</div></div>'
+      + '<div class="pf-footer">HSE-FRM-18 - Rev.0. Generated from the SAGCO IMS Portal on '+pfEsc(printedAt)+'. Not valid without original signature.</div>'
+    + '</div></body></html>';
+  }
+
+
+  window.CRN = {
+    onSearchInput: function(val){ _filters.search = val; renderTableArea(); },
+    onCategoryChange: function(val){ _filters.category = val; renderTableArea(); },
+    clearFilters: function(){ _filters = {search:'', category:'', special:null}; renderShell(); },
+    cardClick: function(which){
+      if (which === 'flagged'){ _filters = {search:'', category:'', special:'flagged'}; }
+      else if (which === 'inconsistent'){ _filters = {search:'', category:'', special:'inconsistent'}; }
+      else { _filters = {search:'', category:'', special:null}; }
+      renderShell();
+    },
+    selectRow: function(idVal){
+      var cur = _selected;
+      _selected = (cur !== undefined && cur !== null && String(cur) === String(idVal)) ? null : idVal;
+      renderShell();
+    },
+    getSelected: function(){ return _selected; },
+    toggleRowDetail: function(idVal){
+      var key = String(idVal);
+      _expandedRows[key] = !_expandedRows[key];
+      renderTableArea();
+    },
+    openAdd: function(extraInitial){
+      if (!can('add')) return;
+      var initial = {};
+      var suggestedId = nextSequentialId();
+      if (suggestedId) initial[ID_COL] = suggestedId;
+      if (extraInitial) Object.keys(extraInitial).forEach(function(k){ initial[k] = extraInitial[k]; });
+      showModal('Add Record', initial, function(values, close){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: TABLE_KEY}, [values]).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error'));
+            if (window._reenableModalSave) window._reenableModalSave();
+            return;
+          }
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save - check your connection.'); if (window._reenableModalSave) window._reenableModalSave(); });
+      });
+    },
+    openEdit: function(idVal){
+      if (!can('edit')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var idIdx = colIdx(_cache.headers, ID_COL);
+      var row = _cache.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found - try refreshing.');
+      var initial = {};
+      _cache.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal('Edit Record - ' + idVal, initial, function(values, close){
+        postJSON('update', {tab: TABLE_KEY, idCol: ID_COL, id: idVal}, values).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved - please try again.');
+            if (window._reenableModalSave) window._reenableModalSave();
+            return;
+          }
+          close(); reloadAll();
+        }).catch(function(){ alert('Could not save - check your connection.'); if (window._reenableModalSave) window._reenableModalSave(); });
+      });
+    },
+    remove: function(idVal){
+      if (!can('delete')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      if (!confirm('Remove record ' + idVal + '? It will be hidden from this table but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: TABLE_KEY, idCol: ID_COL, id: idVal}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message || 'unknown error')); return; }
+        _selected = null;
+        reloadAll();
+      }).catch(function(){ alert('Could not remove - check your connection.'); });
+    },
+    printOne: function(idVal){
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var idIdx = colIdx(_cache.headers, ID_COL);
+      var row = _cache.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found - try refreshing.');
+      var rec = {};
+      _cache.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      var w = window.open('', '_blank');
+      if (!w){ alert('Pop-up blocked - please allow pop-ups for this site to print the report.'); return; }
+      w.document.open(); w.document.write(buildPrintHtml(rec)); w.document.close();
+    }
+  };
+
+  function handleDeepLink(){
+    var params = new URLSearchParams(window.location.search);
+    var recId = params.get('record');
+    if (recId){
+      CRN.openEdit(recId);
+      return;
+    }
+    var permitId = params.get('permitId');
+    if (permitId){
+      CRN.openAdd({'PTW Number': permitId});
+    }
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ loadMain().then(handleDeepLink); }, 100);
+  });
+})();
+</script>
+
+
+<script>
+/* Access gate: same rule as confined-space.html / loto-register.html / ptw-register.html */
+(function(){
+  function allowed(s){
+    if(!s) return false;
+    if(s.role==='superadmin') return true;
+    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var title = (u && u.title) || '';
+    var dept  = (u && u.department) || '';
+    if(/manager|head/i.test(title)) return true;
+    if(/^(shee|safety)$/i.test(dept)) return true;
+    if(s.username==='ceo') return true;
+    return false;
+  }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The Crane Inspection register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
+  IMS_AUTH.init({ onReady: function(session){ if(!allowed(session)) blockPage(); } });
+})();
+</script>
+
+</body></html>

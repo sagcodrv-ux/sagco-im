@@ -699,7 +699,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (code && inspectedThisMonth[code]) done[plant] = (done[plant]||0) + 1;
     });
 
-    boardEl.innerHTML = PLANT_GROUPS.map(function(p){
+    // Rev.21 (Issam, voice, 2026-11-10) — a group with zero units on
+    // file is just clutter (Warehouse, Spare today), so it's hidden
+    // here rather than shown as a permanent "0 of 0" card. Marbael
+    // Acc. is the one exception: it's a real site with no units
+    // logged *yet*, so its card stays visible as a standing reminder
+    // that it still needs to be added to the master inventory — and
+    // it will show real counts automatically the moment it is,
+    // without any further page change.
+    var ALWAYS_SHOW_EVEN_IF_EMPTY = ['Marbael Acc.'];
+    boardEl.innerHTML = PLANT_GROUPS.filter(function(p){
+      return (totals[p] || 0) > 0 || ALWAYS_SHOW_EVEN_IF_EMPTY.indexOf(p) > -1;
+    }).map(function(p){
       var total = totals[p] || 0;
       var doneCount = done[p] || 0;
       var pct = total ? Math.round((doneCount/total)*100) : 0;
@@ -1251,7 +1262,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       else if (code && outForService[code]) out[plant] = (out[plant]||0) + 1;
     });
 
-    boardEl.innerHTML = PLANT_GROUPS.map(function(p){
+    // Rev.21 — same hide-if-empty rule as the Monthly Inspection board
+    // above, Marbael Acc. kept as the one standing exception.
+    var ALWAYS_SHOW_EVEN_IF_EMPTY_SVC = ['Marbael Acc.'];
+    boardEl.innerHTML = PLANT_GROUPS.filter(function(p){
+      return (totals[p] || 0) > 0 || ALWAYS_SHOW_EVEN_IF_EMPTY_SVC.indexOf(p) > -1;
+    }).map(function(p){
       var total = totals[p]||0, svc = serviced[p]||0, o = out[p]||0;
       var pending = Math.max(0, total - svc - o);
       var svcPct = total ? (svc/total*100) : 0;

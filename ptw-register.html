@@ -1258,6 +1258,76 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function permitNeedsLoto(rec){
     return !!String(rec['Service Isolation']||'').trim();
   }
+  // Rev.20 (Issam, voice, 2026-11-10) — same "Work Involved" matching
+  // approach as Confined Space above, extended to the three checklists
+  // added this session. Crane/Lifting and Hot Work read live from
+  // crane-inspection.html / hot-work.html, which link by Permit ID the
+  // same way Confined Space / LOTO do. Scaffold is included per
+  // Issam's instruction but flagged below — scaffold-inspection.html
+  // (built in an earlier session, not available to read in this one)
+  // was not confirmed to have a 'PTW Number' field or a Permit ID deep
+  // link yet, so this row will correctly show "Not raised" until that
+  // page is confirmed/updated to match, rather than silently assume a
+  // field that may not exist.
+  function permitNeedsCrane(rec){
+    return /crane|lifting/i.test(String(rec['Work Involved']||''));
+  }
+  function permitNeedsHotWork(rec){
+    return /hot work/i.test(String(rec['Work Involved']||''));
+  }
+  function permitNeedsScaffold(rec){
+    return /scaffold|working at height|height/i.test(String(rec['Work Involved']||''));
+  }
+  var _craneCache = null, _craneFetchPromise = null;
+  function loadCraneRecords(){
+    if (_craneCache) return Promise.resolve(_craneCache);
+    if (_craneFetchPromise) return _craneFetchPromise;
+    _craneFetchPromise = fetch(SHEETS_URL + '?tab=crane_checklist&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _craneCache = (data && data.headers && data.rows) ? data : {headers:[],rows:[]};
+      return _craneCache;
+    }).catch(function(){ _craneCache = {headers:[],rows:[]}; return _craneCache; });
+    return _craneFetchPromise;
+  }
+  var _hotWorkCache = null, _hotWorkFetchPromise = null;
+  function loadHotWorkRecords(){
+    if (_hotWorkCache) return Promise.resolve(_hotWorkCache);
+    if (_hotWorkFetchPromise) return _hotWorkFetchPromise;
+    _hotWorkFetchPromise = fetch(SHEETS_URL + '?tab=hot_work_checklist&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _hotWorkCache = (data && data.headers && data.rows) ? data : {headers:[],rows:[]};
+      return _hotWorkCache;
+    }).catch(function(){ _hotWorkCache = {headers:[],rows:[]}; return _hotWorkCache; });
+    return _hotWorkFetchPromise;
+  }
+  var _scaffoldCache = null, _scaffoldFetchPromise = null;
+  function loadScaffoldRecords(){
+    if (_scaffoldCache) return Promise.resolve(_scaffoldCache);
+    if (_scaffoldFetchPromise) return _scaffoldFetchPromise;
+    _scaffoldFetchPromise = fetch(SHEETS_URL + '?tab=scaffold_inspection&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _scaffoldCache = (data && data.headers && data.rows) ? data : {headers:[],rows:[]};
+      return _scaffoldCache;
+    }).catch(function(){ _scaffoldCache = {headers:[],rows:[]}; return _scaffoldCache; });
+    return _scaffoldFetchPromise;
+  }
+  // Crane/Hot Work use their own Result field instead of a Closed/Open
+  // Status (they're point-in-time inspections, not open jobs) —
+  // "Completed" here means a passing result was recorded, not merely
+  // that a record exists, so a Reject Crane or Issues Noted result
+  // still blocks the permit the same as "Not raised" would.
+  function findCraneOrHotWorkRecord(data, permitNum, resultField, passValue){
+    if (!data || !data.headers || !data.rows || !permitNum) return null;
+    var numIdx = colIdx(data.headers, 'PTW Number');
+    var resIdx = colIdx(data.headers, resultField);
+    var recStatusIdx = colIdx(data.headers, 'Record Status');
+    var found = null;
+    data.rows.forEach(function(row){
+      if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+      if (numIdx >= 0 && String(row[numIdx]||'').trim() === String(permitNum).trim()){
+        var resVal = resIdx >= 0 ? String(row[resIdx]||'').trim() : '';
+        found = { passed: resVal === passValue, hasResult: !!resVal };
+      }
+    });
+    return found;
+  }
   var _csEntryCache = null, _csEntryFetchPromise = null;
   function loadCsEntryRecords(){
     if (_csEntryCache) return Promise.resolve(_csEntryCache);
@@ -1295,34 +1365,94 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function renderLinkedSafetyPanel(rootEl, rec){
     var needsCs = permitNeedsConfinedSpace(rec);
     var needsLoto = permitNeedsLoto(rec);
-    if (!needsCs && !needsLoto){ rootEl.innerHTML = ''; return; }
+    var needsCrane = permitNeedsCrane(rec);
+    var needsHotWork = permitNeedsHotWork(rec);
+    var needsScaffold = permitNeedsScaffold(rec);
+    if (!needsCs && !needsLoto && !needsCrane && !needsHotWork && !needsScaffold){ rootEl.innerHTML = ''; return; }
     var permitId = rec['Permit ID'];
     if (!permitId){
       // Shouldn't happen in practice — Permit ID is auto-suggested the
       // moment a permit is added — but kept as a safe fallback.
-      rootEl.innerHTML = '<div class="ptw-note">Save this permit first, then reopen Edit to raise its linked Confined Space / LOTO records here.</div>';
+      rootEl.innerHTML = '<div class="ptw-note">Save this permit first, then reopen Edit to raise its linked checklists here.</div>';
       return;
     }
-    rootEl.innerHTML = '<div class="ptw-note">Checking linked Confined Space / LOTO records…</div>';
+    rootEl.innerHTML = '<div class="ptw-note">Checking linked checklist records…</div>';
     Promise.all([
       needsCs ? loadCsEntryRecords() : Promise.resolve(null),
-      needsLoto ? loadLotoJobRecords() : Promise.resolve(null)
+      needsLoto ? loadLotoJobRecords() : Promise.resolve(null),
+      needsCrane ? loadCraneRecords() : Promise.resolve(null),
+      needsHotWork ? loadHotWorkRecords() : Promise.resolve(null),
+      needsScaffold ? loadScaffoldRecords() : Promise.resolve(null)
     ]).then(function(results){
-      var csData = results[0], lotoData = results[1];
+      var csData = results[0], lotoData = results[1], craneData = results[2], hwData = results[3], scaffoldData = results[4];
       var rowsHtml = '';
+      var requiredCount = 0, readyCount = 0, blockedNames = [];
+
       if (needsCs){
+        requiredCount++;
         var cs = csData ? findLinkedRecord(csData, permitId) : null;
-        var csBadge = !cs ? '<span class="badge kc-red">Not raised</span>' : (cs.status === 'Closed' ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
+        var csReady = cs && cs.status === 'Closed';
+        if (csReady) readyCount++; else blockedNames.push('Confined Space Entry');
+        var csBadge = !cs ? '<span class="badge kc-red">Not raised</span>' : (csReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Confined Space Entry</strong> ' + csBadge +
           '<button type="button" class="ptw-btn" onclick="window.open(\'confined-space.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (cs ? 'Open' : 'Raise') + ' Confined Space Form</button></div>';
       }
       if (needsLoto){
+        requiredCount++;
         var lj = lotoData ? findLinkedRecord(lotoData, permitId) : null;
-        var ljBadge = !lj ? '<span class="badge kc-red">Not raised</span>' : (lj.status === 'Closed' ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
+        var ljReady = lj && lj.status === 'Closed';
+        if (ljReady) readyCount++; else blockedNames.push('LOTO Job');
+        var ljBadge = !lj ? '<span class="badge kc-red">Not raised</span>' : (ljReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>LOTO Job</strong> ' + ljBadge +
           '<button type="button" class="ptw-btn" onclick="window.open(\'loto-register.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (lj ? 'Open' : 'Raise') + ' LOTO Job</button></div>';
       }
-      rootEl.innerHTML = '<div class="ptw-linked-panel"><div class="ptw-sub-hd" style="border-top:none;padding-top:0;margin-top:0">Linked Safety Records</div>' + rowsHtml + '</div>';
+      if (needsCrane){
+        requiredCount++;
+        var cr = craneData ? findCraneOrHotWorkRecord(craneData, permitId, 'Inspection Result', 'Accept Crane') : null;
+        var crReady = cr && cr.passed;
+        if (crReady) readyCount++; else blockedNames.push('Crane Inspection');
+        var crBadge = !cr ? '<span class="badge kc-red">Not raised</span>' : (crReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (cr.hasResult ? 'Rejected' : 'Open') + '</span>');
+        rowsHtml += '<div class="ptw-linked-row"><strong>Crane Inspection</strong> ' + crBadge +
+          '<button type="button" class="ptw-btn" onclick="window.open(\'crane-inspection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (cr ? 'Open' : 'Raise') + ' Crane Inspection</button></div>';
+      }
+      if (needsHotWork){
+        requiredCount++;
+        var hw = hwData ? findCraneOrHotWorkRecord(hwData, permitId, 'Closure Result', 'Cleared') : null;
+        var hwReady = hw && hw.passed;
+        if (hwReady) readyCount++; else blockedNames.push('Hot Work Checklist');
+        var hwBadge = !hw ? '<span class="badge kc-red">Not raised</span>' : (hwReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (hw.hasResult ? 'Issues Noted' : 'Open') + '</span>');
+        rowsHtml += '<div class="ptw-linked-row"><strong>Hot Work Checklist</strong> ' + hwBadge +
+          '<button type="button" class="ptw-btn" onclick="window.open(\'hot-work.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (hw ? 'Open' : 'Raise') + ' Hot Work Checklist</button></div>';
+      }
+      if (needsScaffold){
+        requiredCount++;
+        // 'PTW Number' on the scaffold_inspection tab is NOT confirmed
+        // to exist yet (see note above findCraneOrHotWorkRecord /
+        // permitNeedsScaffold) — this will show "Not raised" until
+        // that's checked, rather than guess at a column that may not
+        // be there.
+        var sc = scaffoldData ? findLinkedRecord(scaffoldData, permitId) : null;
+        var scReady = sc && sc.status === 'Closed';
+        if (scReady) readyCount++; else blockedNames.push('Scaffold Inspection');
+        var scBadge = !sc ? '<span class="badge kc-red">Not raised</span>' : (scReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
+        rowsHtml += '<div class="ptw-linked-row"><strong>Scaffold Inspection</strong> ' + scBadge +
+          ' <span style="font-size:9px;opacity:.6">(link to this page not yet confirmed)</span>' +
+          '<button type="button" class="ptw-btn" onclick="window.open(\'scaffold-inspection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (sc ? 'Open' : 'Raise') + ' Scaffold Inspection</button></div>';
+      }
+
+      // Readiness banner — informational today, not an enforced block,
+      // since this file has no Submit/Approve action yet to attach a
+      // hard gate to (that screen is still pending Issam's filled
+      // PTW_Approval_Setup.xlsx — see the comment above
+      // permitNeedsConfinedSpace). Once that screen exists, it should
+      // read this same requiredCount/readyCount logic to actually
+      // disable the Approve button.
+      var allReady = requiredCount > 0 && readyCount === requiredCount;
+      var bannerHtml = allReady
+        ? '<div class="ptw-ready-banner" style="background:rgba(79,203,158,.15);border-left:3px solid #4FCB9E;padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;margin-bottom:8px">✓ All required checklists completed — ready for approval.</div>'
+        : '<div class="ptw-ready-banner" style="background:rgba(240,104,92,.15);border-left:3px solid #F0685C;padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;margin-bottom:8px">⚠ Not ready for approval — missing or incomplete: ' + blockedNames.join(', ') + '.</div>';
+
+      rootEl.innerHTML = '<div class="ptw-linked-panel"><div class="ptw-sub-hd" style="border-top:none;padding-top:0;margin-top:0">Linked Safety Records</div>' + bannerHtml + rowsHtml + '</div>';
     });
   }
 
