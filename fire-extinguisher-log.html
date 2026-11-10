@@ -292,14 +292,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       idCol: 'Inspection ID', idPrefix: 'INSP', amberCol: 'Inspector ID',
       // Pressure/Body/Handle added (Issam, voice, 2026-11-08) to match
       // every check on the paper form — new columns on the sheet.
-      fields: ['FE Code','Inspection Date','Inspector ID','Anti-Tamper Seal','Pin','Hose','Pressure','Body','Handle','Notes'],
+      // Round ID added (Issam, voice, 2026-11-10): one ID per inspection
+      // ROUND (a Plant/Unit + Date + Inspector group), stamped on every
+      // per-unit row saved together by Group entry — see genRoundId().
+      fields: ['Round ID','FE Code','Inspection Date','Inspector ID','Anti-Tamper Seal','Pin','Hose','Pressure','Body','Handle','Notes'],
       crossRef: {'FE Code': 'master'}, // suggest FE Codes from the Master Inventory list, not just this table's own history
       filterField: 'Inspector ID'
     },
     service: {
       label: 'Service Record', tabKey: 'fe_service_log', containerId: 'live-table-service',
       idCol: 'Service ID', idPrefix: 'SVC',
-      fields: ['FE Code','Expire Date','Pre-Service Pin','Pre-Service Hose','Pre-Service Pressure','Pre-Service Body','Notes','Delivery Date','Return Date'],
+      // Batch ID added (Issam, voice, 2026-11-10): one ID per contractor
+      // batch — assigned when units go out (saveServiceBatchOut) and
+      // left untouched when they come back (saveServiceBatchReturn
+      // only updates Return Date / Expire Date), so one Batch ID
+      // covers a unit's whole round trip. See genRoundId().
+      fields: ['Batch ID','FE Code','Expire Date','Pre-Service Pin','Pre-Service Hose','Pre-Service Pressure','Pre-Service Body','Notes','Delivery Date','Return Date'],
       crossRef: {'FE Code': 'master'},
       filterField: 'FE Code'
     }
@@ -672,16 +680,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var handleIdx = colIdx(headers, 'Handle');
     var issueCols = [sealIdx, pinIdx, hoseIdx, pressureIdx, bodyIdx, handleIdx].filter(function(i){ return i > -1; });
 
-    var groups = {}; // key -> {plant, unit, date, inspector, rows:[], issueCount}
+    var roundIdIdx = colIdx(headers, 'Round ID');
+    var groups = {}; // key -> {roundId, plant, unit, date, inspector, rows:[], issueCount}
     var order = [];
     visibleRows.forEach(function(row){
       var code = codeIdx > -1 ? String(row[codeIdx]||'').trim() : '';
       var info = getPlantUnitForCode(code);
       var date = dateIdx > -1 ? String(row[dateIdx]||'').trim() : '';
       var inspector = inspectorIdx > -1 ? String(row[inspectorIdx]||'').trim() : '';
-      var key = [info.plant||'Unassigned', info.unit||'', date, inspector].join('|');
+      // Group by Round ID when the row has one (every row saved via
+      // Group entry from now on will); fall back to the old
+      // plant/unit/date/inspector key for any pre-existing rows saved
+      // before Round ID existed, so old history still groups sensibly.
+      var roundId = roundIdIdx > -1 ? String(row[roundIdIdx]||'').trim() : '';
+      var key = roundId || ('noround|' + [info.plant||'Unassigned', info.unit||'', date, inspector].join('|'));
       if (!groups[key]){
-        groups[key] = { plant: info.plant||'Unassigned', unit: info.unit||'', date: date, inspector: inspector, rows: [], issueCount: 0 };
+        groups[key] = { roundId: roundId, plant: info.plant||'Unassigned', unit: info.unit||'', date: date, inspector: inspector, rows: [], issueCount: 0 };
         order.push(key);
       }
       var g = groups[key];
@@ -698,10 +712,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     });
 
     var html = '<div class="tbl-wrap"><table class="tbl-stripe">';
-    html += '<thead><tr><th style="width:28px"></th><th>Plant</th><th>Unit</th><th>Date</th><th>Inspector</th><th>Units Inspected</th><th>Issues</th></tr></thead><tbody>';
+    html += '<thead><tr><th style="width:28px"></th><th>Round ID</th><th>Plant</th><th>Unit</th><th>Date</th><th>Inspector</th><th>Units Inspected</th><th>Issues</th></tr></thead><tbody>';
 
     if (!order.length){
-      html += '<tr><td colspan="7"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
+      html += '<tr><td colspan="8"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
     } else {
       order.forEach(function(key){
         var g = groups[key];
@@ -709,6 +723,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         var keyEsc = key.replace(/'/g,"\\'");
         html += '<tr class="fe-group-row" style="cursor:pointer" onclick="FE.toggleInspGroup(\''+keyEsc+'\')">' +
           '<td style="text-align:center"><span style="display:inline-block;transition:transform .15s'+(isExpanded?';transform:rotate(90deg)':'')+'">▶</span></td>' +
+          '<td>' + (g.roundId ? formatCell(g.roundId) : '<span style="opacity:.4;font-style:italic">pre-existing</span>') + '</td>' +
           '<td>' + formatCell(g.plant) + '</td>' +
           '<td>' + formatCell(g.unit) + '</td>' +
           '<td>' + formatCell(g.date) + '</td>' +
@@ -717,7 +732,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           '<td>' + (g.issueCount ? '<span class="nb nb-red">' + g.issueCount + '</span>' : '<span class="nb nb-grn">0</span>') + '</td>' +
         '</tr>';
         if (isExpanded){
-          html += '<tr><td></td><td colspan="6" style="padding:0">' +
+          html += '<tr><td></td><td colspan="7" style="padding:0">' +
             '<div class="tbl-wrap"><table class="tbl-stripe tbl-compact"><thead><tr>';
           headers.forEach(function(h,i){ if (i !== statusIdx) html += '<th>'+h+'</th>'; });
           if (showActions) html += '<th>Actions</th>';
@@ -1143,10 +1158,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
     var checkCols = ['Seal','Pin','Hose','Pressure','Body','Handle'];
     var colKeyMap = { Seal:'Anti-Tamper Seal', Pin:'Pin', Hose:'Hose', Pressure:'Pressure', Body:'Body', Handle:'Handle' };
+    // One Round ID for this whole save — every ticked row in this
+    // round shares it (Issam, voice, 2026-11-10).
+    var roundId = genRoundId('MI', 'inspection', 'Round ID', date.slice(0,7));
     var records = doneIdxs.map(function(idx){
       var u = _groupInspState.units[idx];
       var notesEl = document.querySelector('.fe-gi-notes[data-idx="'+idx+'"]');
       var rec = {
+        'Round ID': roundId,
         'FE Code': u.code,
         'Inspection Date': date,
         'Inspector ID': inspector,
@@ -1239,9 +1258,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var idxs = [];
     document.querySelectorAll('.fe-so-cb:checked').forEach(function(cb){ idxs.push(parseInt(cb.getAttribute('data-idx'),10)); });
     if (!idxs.length){ alert('Tick at least one unit to send.'); return; }
+    // One Batch ID for this whole outgoing batch (Issam, voice,
+    // 2026-11-10) — scoped to year only (a batch can be returned the
+    // following month). Left untouched by saveServiceBatchReturn, so
+    // it covers the unit's full round trip.
+    var batchId = genRoundId('AS', 'service', 'Batch ID', date.slice(0,4));
     var records = idxs.map(function(idx){
       var u = _svcOutState.units[idx];
-      return { 'Service ID': genId('SVC'), 'FE Code': u.code, 'Delivery Date': date, 'Record Status': 'Active' };
+      return { 'Service ID': genId('SVC'), 'Batch ID': batchId, 'FE Code': u.code, 'Delivery Date': date, 'Record Status': 'Active' };
     });
     var btn = document.getElementById('fe-so-save'); btn.disabled = true; btn.textContent = 'Saving…';
     postJSON('write', {tab: 'fe_service_log'}, records).then(function(res){
@@ -1688,6 +1712,34 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   function genId(prefix){
     return prefix + '-' + Date.now().toString().slice(-8);
+  }
+
+  // Round ID (Monthly Inspection) / Batch ID (Annual Service) — Issam,
+  // voice, 2026-11-10. One readable, sequential ID per round/batch,
+  // not per individual unit: 'MI-2026-11-001' style for inspection
+  // rounds (scoped to year+month), 'AS-2026-001' for service batches
+  // (scoped to year only, since a batch can span into the next month
+  // before it's returned). Scans the already-loaded table cache for
+  // the highest existing number sharing that prefix+period and
+  // returns the next one — no sheet-side counter needed.
+  function genRoundId(prefix, tKeyName, idFieldName, period){
+    var full = prefix + '-' + period + '-';
+    var maxN = 0;
+    var data = _cache[tKeyName];
+    if (data && data.headers && data.rows){
+      var idIdx = colIdx(data.headers, idFieldName);
+      if (idIdx > -1){
+        data.rows.forEach(function(r){
+          var v = String(r[idIdx]||'').trim();
+          if (v.indexOf(full) !== 0) return;
+          var n = parseInt(v.slice(full.length), 10);
+          if (!isNaN(n) && n > maxN) maxN = n;
+        });
+      }
+    }
+    var numStr = String(maxN + 1);
+    while (numStr.length < 3) numStr = '0' + numStr;
+    return full + numStr;
   }
 
   function postJSON(action, params, body){
