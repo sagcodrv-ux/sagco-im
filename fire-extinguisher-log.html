@@ -666,6 +666,83 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   }
 
   var _expandedInspGroups = {}; // groupKey -> true/false, persists across re-renders within the session
+  var _expandedConformingBlocks = {}; // groupKey -> true/false — conforming units collapsed by default (Issam, voice, 2026-11-10)
+
+  // Rev.22 (Issam, voice, 2026-11-10) — splits a round's drill-down
+  // into Defective first, Conforming second, so the units that need
+  // attention aren't buried in a long list of fine ones. Defective
+  // shows which named checks failed (e.g. "Pressure, Hose") instead
+  // of the raw column cells, since that's faster to read than
+  // scanning six Yes/blank columns per row.
+  function renderInspGroupDetail(g, groupKey, headers, statusIdx, showActions, idIdx, checkIdxs, checkLabels){
+    var defective = [], conforming = [];
+    g.rows.forEach(function(row){
+      var failed = [];
+      checkIdxs.forEach(function(ci, i){
+        if (ci > -1 && row[ci] && String(row[ci]).trim()) failed.push(checkLabels[i]);
+      });
+      if (failed.length) defective.push({ row: row, failed: failed });
+      else conforming.push(row);
+    });
+
+    var codeIdx = colIdx(headers, 'FE Code');
+    var notesIdx = colIdx(headers, 'Notes');
+
+    function actionButtons(row){
+      if (!showActions) return '';
+      var idVal = idIdx>-1 ? row[idIdx] : '';
+      var idValEsc = String(idVal).replace(/'/g,"\\'");
+      var out = '<td style="white-space:nowrap">';
+      if (can('edit')) out += '<button class="fe-icon-btn" title="Edit" onclick="event.stopPropagation();FE.openEdit(\'inspection\',\''+idValEsc+'\')">✏️</button>';
+      if (can('delete')) out += '<button class="fe-icon-btn" title="Remove" onclick="event.stopPropagation();FE.remove(\'inspection\',\''+idValEsc+'\')">🗑️</button>';
+      return out + '</td>';
+    }
+
+    var out = '<div style="padding:8px 10px">';
+
+    // Defective block — always shown expanded, since this is what needs attention.
+    out += '<div style="font-size:11px;font-weight:700;color:var(--fdw-red);margin:4px 0 6px">⚠ Defective (' + defective.length + ')</div>';
+    if (!defective.length){
+      out += '<div style="font-size:11px;opacity:.6;margin-bottom:10px">None in this round.</div>';
+    } else {
+      out += '<div class="tbl-wrap"><table class="tbl-stripe tbl-compact"><thead><tr><th>FE Code</th><th>Failed Checks</th><th>Notes</th>' + (showActions?'<th>Actions</th>':'') + '</tr></thead><tbody>';
+      defective.forEach(function(d){
+        out += '<tr>' +
+          '<td>' + formatCell(codeIdx>-1 ? d.row[codeIdx] : '') + '</td>' +
+          '<td><span class="nb nb-red">' + d.failed.join(', ') + '</span></td>' +
+          '<td>' + formatCell(notesIdx>-1 ? d.row[notesIdx] : '') + '</td>' +
+          actionButtons(d.row) +
+        '</tr>';
+      });
+      out += '</tbody></table></div>';
+    }
+
+    // Conforming block — collapsed by default, full row detail one click away.
+    var confExpanded = !!_expandedConformingBlocks[groupKey];
+    var groupKeyEsc = groupKey.replace(/'/g,"\\'");
+    out += '<div style="font-size:11px;font-weight:700;color:var(--fdw-grn);margin:10px 0 6px;cursor:pointer" onclick="event.stopPropagation();FE.toggleConformingBlock(\''+groupKeyEsc+'\')">' +
+      '<span style="display:inline-block;transition:transform .15s'+(confExpanded?';transform:rotate(90deg)':'')+'">▶</span> Conforming (' + conforming.length + ')' +
+    '</div>';
+    if (confExpanded){
+      if (!conforming.length){
+        out += '<div style="font-size:11px;opacity:.6">None in this round.</div>';
+      } else {
+        out += '<div class="tbl-wrap"><table class="tbl-stripe tbl-compact"><thead><tr>';
+        headers.forEach(function(h,i){ if (i !== statusIdx) out += '<th>'+h+'</th>'; });
+        if (showActions) out += '<th>Actions</th>';
+        out += '</tr></thead><tbody>';
+        conforming.forEach(function(row){
+          out += '<tr>';
+          row.forEach(function(cell,ci){ if (ci !== statusIdx) out += '<td>' + formatCell(cell) + '</td>'; });
+          out += actionButtons(row) + '</tr>';
+        });
+        out += '</tbody></table></div>';
+      }
+    }
+
+    out += '</div>';
+    return out;
+  }
 
   function renderGroupedInspectionTable(data, visibleRows, areaEl, idIdx, statusIdx, showActions){
     var headers = data.headers;
@@ -733,23 +810,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         '</tr>';
         if (isExpanded){
           html += '<tr><td></td><td colspan="7" style="padding:0">' +
-            '<div class="tbl-wrap"><table class="tbl-stripe tbl-compact"><thead><tr>';
-          headers.forEach(function(h,i){ if (i !== statusIdx) html += '<th>'+h+'</th>'; });
-          if (showActions) html += '<th>Actions</th>';
-          html += '</tr></thead><tbody>';
-          g.rows.forEach(function(row){
-            var idVal = idIdx>-1 ? row[idIdx] : '';
-            html += '<tr>';
-            row.forEach(function(cell,ci){ if (ci !== statusIdx) html += '<td>' + formatCell(cell) + '</td>'; });
-            if (showActions){
-              html += '<td style="white-space:nowrap">';
-              if (can('edit')) html += '<button class="fe-icon-btn" title="Edit" onclick="event.stopPropagation();FE.openEdit(\'inspection\',\''+String(idVal).replace(/'/g,"\\'")+'\')">✏️</button>';
-              if (can('delete')) html += '<button class="fe-icon-btn" title="Remove" onclick="event.stopPropagation();FE.remove(\'inspection\',\''+String(idVal).replace(/'/g,"\\'")+'\')">🗑️</button>';
-              html += '</td>';
-            }
-            html += '</tr>';
-          });
-          html += '</tbody></table></div></td></tr>';
+            renderInspGroupDetail(g, key, headers, statusIdx, showActions, idIdx,
+              [sealIdx,pinIdx,hoseIdx,pressureIdx,bodyIdx,handleIdx], ['Seal','Pin','Hose','Pressure','Body','Handle']) +
+          '</td></tr>';
         }
       });
     }
@@ -1759,6 +1822,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     jumpTo: function(tKeyName){ switchTab(tKeyName); },
     toggleInspGroup: function(key){
       _expandedInspGroups[key] = !_expandedInspGroups[key];
+      renderTableArea('inspection');
+    },
+    toggleConformingBlock: function(key){
+      _expandedConformingBlocks[key] = !_expandedConformingBlocks[key];
       renderTableArea('inspection');
     },
     onSearchInput: function(tKeyName, val){
