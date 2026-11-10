@@ -210,7 +210,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   <div class="flag-text" style="margin-top:14px">⚠ Source: HSE_Department.xlsm (PPEsStoreCode / PPEs / ShoesSizes / MR tabs) and the "15. PPE Register" 2026 folder (PPE Issuance Log.xlsx — "Dept. Monthly distrub" and "PPEs" sheets), migrated Jan–Sep 2026. <strong>Open item for Issam:</strong> the Safety Shoes baseline quantities below are read from the ERP's "Count" column as of 18-Oct-2026 (the file's last-saved date) — <em>after</em> every 2026 shoe issuance already in this log. That means Received/Issued/Remaining below only count events dated <em>after</em> 18-Oct-2026 going forward; the historical Jan–Sep rows are kept for reference but are not re-subtracted from the baseline. If the ERP Count is actually a start-of-year figure instead, tell me and the math flips. Also unresolved: the "Staff" shoe category in the issuance log has two candidate ERP SKUs (lace-type vs. slip-on) — see the Notes column below.</div>
   <div class="flag-text">Remaining = Baseline + Received − Issued (all three only counting events dated after the baseline date). Select a row and click "Correct Baseline" if the ERP figure or date needs adjusting — never edit this by editing issuance or reception rows. Click a row to see its individual receptions and issuances below the table.</div>
   <div class="ppw-toolbar" style="border-top:1px solid var(--ppw-border-gold)">
+    <button class="ppw-btn ppw-btn-add" id="ppw-stock-btn-new" onclick="PPW.openStockAdd()">+ Add Item</button>
     <button class="ppw-btn" id="ppw-stock-btn-edit" disabled onclick="PPW.openStockEditSelected()">Correct Baseline</button>
+    <button class="ppw-btn" id="ppw-stock-btn-remove" disabled onclick="PPW.removeStockSelected()">Remove</button>
     <span style="margin-left:auto;font-size:10px;color:var(--ppw-text-dim)" id="ppw-stock-count-sub"></span>
   </div>
   <div class="ppw-table-wrap"><div id="live-table-shoes-stock"><div class="empty-state"><strong>Loading…</strong></div></div></div>
@@ -232,6 +234,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
 <div id="ppw-modal-root"></div>
 
+<script>
+/* PPE store catalogue — Item Code / Description / UOM, read directly
+   from HSE_Department.xlsm's own PPEsStoreCode sheet (119 real rows,
+   Issam-supplied, 2026-11-07). Used only to offer suggestions on the
+   Bulk Issuance form — never written back to this sheet. */
+var PPE_STORE_ITEMS_DATA = [{"code":"CN-319-05-0001","desc":"AFFF COMMERCIAL FOAM 16 LTR","uom":"CYL"},{"code":"CN-319-05-0002","desc":"AFFF COMMERCIAL FOAM 200 LTR","uom":"CYL"},{"code":"CN-319-02-0032","desc":"ALUMINISED HOOD SITACO #1770960","uom":"PCS"},{"code":"CN-319-02-0031","desc":"ALUMINIZED GLOVES 14''  SITACO # 1770963","uom":"PCS"},{"code":"CN-319-00-0027","desc":"APPLON TUBE        1/4X3/8''","uom":"MTR"},{"code":"CN-319-04-0005","desc":"ARC WELDING APRON","uom":"PCS"},{"code":"CN-319-04-0011","desc":"BATTERN WITH CASE","uom":"PCS"},{"code":"CN-319-00-0016","desc":"BREATHING APPARATUS","uom":"PCS"},{"code":"CN-319-02-0016","desc":"BROW GUARD WITH HARNESS","uom":"PCS"},{"code":"CN-319-02-0020","desc":"CARTRIDGE ORG #6001 (60/CS)","uom":"PCS"},{"code":"CN-319-00-0025","desc":"CERAMIC CLOTH, NICKEL CHROME  REINFORCEMENT,","uom":"MTR"},{"code":"CN-319-02-0051","desc":"CERAMIC FABRIC CLOTH, 3 MM THICK, 1200 GSM (","uom":"PCS"},{"code":"CN-319-00-0051","desc":"CERAMIC FIBRE CLOTH 3 MM THICK, 1200 GSM (RM00678)","uom":"MTR"},{"code":"CN-319-02-0013","desc":"CHEMICAL RESISTANT RUBBER GLOVES 'NITRIGUARD PLUS","uom":"Pair"},{"code":"CN-319-04-0001","desc":"COTTON CAP","uom":"NO"},{"code":"CN-319-04-0002","desc":"CPMPANY UNIFORM","uom":"NO"},{"code":"CN-215-00-0020","desc":"CUT RESISTANT SAFETY GLOVES 'Jogger'","uom":"Pair"},{"code":"SP-319-02-0012","desc":"DISCHARGE HOSE - FIRE EXTINGUISHER 6/10 KG DCP","uom":"EACH"},{"code":"CN-319-00-0012","desc":"DRY CHEMICAL POWDER","uom":"KG"},{"code":"CN-319-02-0001","desc":"DUST MASK     50 PCS / PKT","uom":"PKT"},{"code":"CN-319-00-0005","desc":"DUST RESPIRATER 7250","uom":"PCS"},{"code":"CN-319-02-0002","desc":"EAR PLUG WITH CASE # 1271","uom":"PCS"},{"code":"CN-319-02-0041","desc":"ELECTRICAL GLOVES PROTECTOR, CLASS 0, LENGTH 13\u00f6","uom":"PCS"},{"code":"CN-319-02-0040","desc":"ELECTRICAL GLOVES, CLASS 0, LENGTH 14\u00f6  REF. CODE","uom":"Pair"},{"code":"CN-319-02-0033","desc":"ELECTRICALLY INSULATED RUBBER HAND GLOVES","uom":"Pair"},{"code":"CN-319-02-0028","desc":"FABRIC FACE MASK_WASHABLE","uom":"PCS"},{"code":"CN-319-02-0018","desc":"FACE SHIELD  JSP","uom":"PCS"},{"code":"CN-319-00-0018","desc":"FILTER ELEMENT FOR DUST RESPIRATER 7250 3M","uom":"PCS"},{"code":"CN-319-00-0009","desc":"FIRE SAFETY EQUIPMENT","uom":"PCS"},{"code":"CN-319-04-0004","desc":"FIREMAN PANT & SHIRT(FIRE FIGHTING SUIT)","uom":"SET"},{"code":"CN-319-02-0030","desc":"FULL FACE MASK RESPIRATOR  SITACO#1770948","uom":"PCS"},{"code":"CN-319-00-0010","desc":"FULL FACE MASKS 10 SETS","uom":"PCS"},{"code":"CN-319-04-0020","desc":"FULL HEAD COVER CLOTH MASK","uom":"PCS"},{"code":"CN-319-02-0006","desc":"GLOVES BANIAN WHITE","uom":"Pair"},{"code":"CN-319-02-0007","desc":"GLOVES CANVAS YELLOW","uom":"Pair"},{"code":"CN-319-02-0005","desc":"GLOVES HEAT RESISTANT  44 CM","uom":"Pair"},{"code":"CN-319-02-0004","desc":"GLOVES HEAT RESISTANT 40 CM","uom":"Pair"},{"code":"CN-319-02-0012","desc":"HAIR NET","uom":"PCS"},{"code":"CN-319-00-0013","desc":"HEAD BAND","uom":"PCS"},{"code":"CN-319-04-0007","desc":"HEAD CAP","uom":"PCS"},{"code":"SP-319-01-0050","desc":"HEAD FOR 25 KG\u00a0 FIRE EXTINGUISHER","uom":"EACH"},{"code":"SP-319-01-0051","desc":"HEAD FOR 6 KG\u00a0 CO2 FIRE EXTINGUISHER","uom":"EACH"},{"code":"SP-319-01-0052","desc":"HEAD FOR FIRE EXTINGUISHER 10KG/DCP","uom":"EACH"},{"code":"SP-319-01-0053","desc":"HEAD FOR FIRE EXTINGUISHER 6KG/DCP","uom":"PCS"},{"code":"CN-319-00-0015","desc":"HEAT RESISTANT CLOTH    2X500 MM","uom":"PCS"},{"code":"CN-319-00-0002","desc":"HEAT RESISTANT CLOTH 1MTR WIDE 2 MM","uom":"MTR"},{"code":"CN-319-00-0003","desc":"HEAT RESISTANT GASKET SHEET 3.5MM","uom":"PCS"},{"code":"CN-319-00-0001","desc":"HEAT RESISTANT MILL BOARD 6MMX1X1MTR","uom":"PCS"},{"code":"CN-319-00-0004","desc":"HEAT RESISTANT WASHER 18X10X1 1/2","uom":"PCS"},{"code":"CN-319-00-0008","desc":"HEAT RESISTANT YARN  3 MM 1 KG/ROLL","uom":"BUN"},{"code":"SP-319-01-0061","desc":"HOSE DISCHARGE FOR 10 KG DCP FIRE EXTINGUISHER","uom":"EACH"},{"code":"SP-319-01-0059","desc":"HOSE DISCHARGE FOR 12 KG CO2 FIRE EXTINGUISHER","uom":"EACH"},{"code":"SP-319-01-0060","desc":"HOSE FOR 6 KG CO2\u00a0 FIRE EXTINGUISHER","uom":"EACH"},{"code":"CN-215-00-0003","desc":"IMPORTED HAND GLOVES 14\"COTTON","uom":"PCS"},{"code":"CN-319-00-0052","desc":"KEVLAR FELT        RM00434","uom":"MTR"},{"code":"CN-319-03-0025","desc":"LADIES SAFETY SHOES MODEL-6002","uom":"Pair"},{"code":"CN-319-03-0008","desc":"LAMINATED SAFETY JACKET","uom":"PCS"},{"code":"CN-319-02-0009","desc":"LATEX HAND GLOVES 11'' NORBLAST -00548","uom":"Pair"},{"code":"CN-319-02-0015","desc":"LYRA SPECTACLES GOLD FRAME","uom":"PCS"},{"code":"CN-319-04-0010","desc":"NAME PLATE","uom":"PCS"},{"code":"CN-319-00-0017","desc":"NECK BAND FOR BREAKTIME CARD","uom":"PCS"},{"code":"CN-319-04-0009","desc":"NECK TIE","uom":"PCS"},{"code":"CN-319-00-0020","desc":"NEFAGLASS 'S' CLOTH   4X50 MM WIDE","uom":"MTR"},{"code":"CN-319-00-0050","desc":"NON ASBESTOS FABRIC =11050102-C ( RM00787)","uom":"MTR"},{"code":"CN-319-00-0026","desc":"NON ASBESTOS LPA3 GLASS CONTACT BRAID, 700\u2591C, 5","uom":"ROL"},{"code":"CN-319-02-0038","desc":"PARTICULATE RESPIRATOR 3M 8577,P95","uom":"PCS"},{"code":"CN-319-04-0003","desc":"POLO T SHIRT","uom":"NO"},{"code":"CN-319-02-0017","desc":"POLY CARBONATE VISOR","uom":"PCS"},{"code":"SP-319-01-0090","desc":"PRESSURE GUAGE FOR FIRE EXTINGUISHER","uom":"PCS"},{"code":"CN-215-00-0004","desc":"PROTECTIVE HAND GLOVES KEVLAR 16\" LONG","uom":"PCS"},{"code":"RP-319-02-0004","desc":"REFILL  - DCP/FOAM - 10 KG","uom":"EACH"},{"code":"RP-319-02-0006","desc":"REFILL  - DCP/FOAM - 50 KG","uom":"EACH"},{"code":"RP-319-02-0003","desc":"REFILL  - DCP/FOAM - 6 KG","uom":"EACH"},{"code":"RP-319-02-0040","desc":"REFILL FE - CO2 - 12 KG","uom":"EACH"},{"code":"RP-319-02-0042","desc":"REFILL FE - CO2 - 2 KG","uom":"EACH"},{"code":"RP-319-02-0025","desc":"REFILL FE - CO2 - 25 KG","uom":"EACH"},{"code":"RP-319-02-0010","desc":"REFILL FE - CO2 - 3 KG","uom":"EACH"},{"code":"RP-319-02-0026","desc":"REFILL FE - CO2 - 50 KG","uom":"EACH"},{"code":"RP-319-02-0009","desc":"REFILL FE - CO2 - 6 KG","uom":"EACH"},{"code":"RP-319-02-0020","desc":"REFILL FE - DCP - 1 KG","uom":"EACH"},{"code":"RP-319-02-0050","desc":"REFILL FE - DCP - 2 KG","uom":"EACH"},{"code":"RP-319-02-0007","desc":"REFILL FE - DCP - 25 KG","uom":"EACH"},{"code":"RP-319-02-0051","desc":"REFILL FE - DCP - 4.5 KG","uom":"EACH"},{"code":"RP-319-02-0030","desc":"REFILL FE - FOAM - 100 LTRS","uom":"EACH"},{"code":"CN-319-00-0021","desc":"REINFORCED CERAMIC GLASS FIBRE TAPE 50X5 MM","uom":"MTR"},{"code":"CN-319-00-0030","desc":"RESPIRATOR FILTER CARTRIDGE RP-203","uom":"PCS"},{"code":"CN-319-02-0029","desc":"RESPIRATORY MASK  3M 8210 N95  20/PKT","uom":"PKT"},{"code":"CN-319-04-0008","desc":"SAFETY BELT","uom":"PCS"},{"code":"CN-319-02-0035","desc":"SAFETY EAR MUFFLER","uom":"PCS"},{"code":"CN-319-02-0003","desc":"SAFETY GOGGLES  32201","uom":"PCS"},{"code":"CN-319-03-0006","desc":"SAFETY GUM BOOTS","uom":"Pair"},{"code":"CN-319-02-0075","desc":"SAFETY HARNESS","uom":"PCS"},{"code":"CN-319-00-0006","desc":"SAFETY HELMET  YELLOW","uom":"PCS"},{"code":"CN-319-03-0007","desc":"SAFETY SHOE  3463","uom":"Pair"},{"code":"CN-319-03-0005","desc":"SAFETY SHOES   5564","uom":"Pair"},{"code":"CN-319-03-0009","desc":"SAFETY SHOES - HEAVY DUTY DUAL DENSITY (CONCORD)","uom":"Pair"},{"code":"CN-319-03-0004","desc":"SAFETY SHOES MODEL 39102 LACE TYPE","uom":"Pair"},{"code":"CN-319-03-0003","desc":"SAFETY SHOES MODEL 4444 (SLIP ON -SAUDI SHOE)","uom":"Pair"},{"code":"CN-319-02-0019","desc":"SAFT GLASS CLEAR - GRAY FRAME #141022","uom":"PCS"},{"code":"RP-319-02-0001","desc":"SERVICE FIRE EXTINGUISHER - ALL TYPES AND CAPACITIES","uom":"EACH"},{"code":"CN-319-00-0011","desc":"SHAFT-FIRE PUMP 100-250","uom":"PCS"},{"code":"CN-319-04-0015","desc":"SHIRTS-SENIOR STAFF","uom":"PCS"},{"code":"CN-319-03-0001","desc":"SHOE CANVAS","uom":"Pair"},{"code":"CN-319-03-0002","desc":"SHOE SAFTEY 3364","uom":"Pair"},{"code":"CN-319-04-0012","desc":"STICKER 'SAGCO 'FOR SHIRT","uom":"PCS"},{"code":"CN-319-00-0014","desc":"STRETCHER","uom":"PCS"},{"code":"CN-319-02-0021","desc":"TISSUE BOX FOR GLASS CLEANER","uom":"PCS"},{"code":"CN-319-02-0011","desc":"TOWEL CLOTH HAND GLOVES","uom":"Pair"},{"code":"CN-319-04-0006","desc":"UNIFORM (SHIRT & PANT)","uom":"SET"},{"code":"CN-319-02-0010","desc":"VINYL HAND GLOVES - LARGE","uom":"Pair"},{"code":"CN-319-00-0019","desc":"WELDING FIRE BLANKET ROLL HEAVY DUTY DESIGN 1M X 50M","uom":"ROL"},{"code":"CN-324-04-0003","desc":"WELDING GLASS 2\" X 4\" BLACK","uom":"PCS"},{"code":"CN-324-04-0002","desc":"WELDING GLASS 2\" X 4\" WHITE","uom":"PCS"},{"code":"CN-324-04-0004","desc":"WELDING GOGGLES","uom":"PCS"},{"code":"CN-324-04-0001","desc":"WELDING HAND SHEILD","uom":"PCS"},{"code":"CN-319-00-0007","desc":"WELDING HELMET","uom":"PCS"},{"code":"CN-319-02-0008","desc":"WELDING LEATHER GLOVES","uom":"Pair"},{"code":"CN-319-02-0033","desc":"3M 6200 HALF FACEPIECE REUSABLE RESPIRATOR","uom":"PCS"},{"code":"CN-319-02-0034","desc":"3M ORGANIC VAPOR CARTRIDGE 6001","uom":"PCS"}];
+</script>
 <script>
 (function(){
 
@@ -256,6 +265,40 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   var _indivFilters = { search:'', type:'' };
   var _recvFilters = { search:'' };
   var _activeTab = 'bulk';
+
+  // Store list (Issam, voice, 2026-11-07): real Item Code / Description /
+  // UOM triples from HSE_Department.xlsm's own PPEsStoreCode sheet (119
+  // items), so the Bulk Issuance form can offer them as a pick list
+  // instead of retyping a code from memory each time. This is the
+  // store's full catalogue, not only Safety Shoes — getStockOptions()
+  // (defined later) already covers just the shoe SKUs for the forms
+  // that are shoe-specific.
+  var PPE_STORE_ITEMS = PPE_STORE_ITEMS_DATA;
+  function getStoreItemByCode(code){
+    var hit = null;
+    PPE_STORE_ITEMS.forEach(function(it){ if (it.code === code) hit = it; });
+    return hit;
+  }
+  // Department suggestions, built live from whatever Bulk and
+  // Individual issuance records are already loaded — not a fixed list,
+  // so it grows and stays current as new departments get used, and
+  // case-insensitive de-duplication (keeping whichever spelling was
+  // seen first) stops "Production" / "production" / "PRODUCTION" from
+  // each becoming its own entry (Issam, voice, 2026-11-07).
+  function getDeptSuggestions(){
+    var seen = {}; var out = [];
+    getDeptRecs().concat(getIndivRecs()).forEach(function(r){
+      var d = String(r['Dept.']||'').trim();
+      if (!d) return;
+      var key = d.toLowerCase();
+      if (!seen[key]){ seen[key] = true; out.push(d); }
+    });
+    return out.sort(function(a,b){ return a.localeCompare(b); });
+  }
+  function buildDatalist(id, values){
+    if (!values.length) return '';
+    return '<datalist id="'+id+'">' + values.map(function(v){ return '<option value="'+ppEsc(v)+'">'; }).join('') + '</datalist>';
+  }
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
   function colIdx(headers, name){
@@ -431,6 +474,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function updateStockButtons(){
     var s = getSelectedStock();
     document.getElementById('ppw-stock-btn-edit').disabled = !s || !can('edit');
+    document.getElementById('ppw-stock-btn-remove').disabled = !s || !can('delete');
   }
   function getSelectedStock(){
     if (!_stockCache || !_stockSelected) return null;
@@ -469,6 +513,53 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); btn.disabled=false; return; }
       root.innerHTML=''; loadAll();
     }).catch(function(){ alert('Could not save — check your connection.'); btn.disabled=false; });
+  }
+  // Add Item (Issam, voice, 2026-11-07): the stock list started as 4
+  // fixed shoe SKUs with no Add button at all — new ones had to be
+  // typed straight into the sheet. This adds a real SKU the same
+  // deliberate way as every other "+ New…" button on this page, with
+  // a duplicate-code check so it can't silently overwrite an existing
+  // line (Correct Baseline is still the only way to change one).
+  function buildStockAddModal(){
+    var root = document.getElementById('ppw-modal-root');
+    root.innerHTML = '<div class="ppw-modal-bg" id="ppw-bg"><div class="ppw-modal">'
+      + '<h3>Add Item — Safety Shoes Stock</h3>'
+      + '<div class="ppw-modal-hdr-grid" style="grid-template-columns:repeat(2,1fr)">'
+        + '<div><label>Item Code</label><input type="text" id="ppw-sa-code" placeholder="e.g. SH-005"></div>'
+        + '<div><label>Description</label><input type="text" id="ppw-sa-desc" placeholder="e.g. Heavy Duty Lace"></div>'
+        + '<div><label>Baseline Qty</label><input type="number" step="any" id="ppw-sa-qty" value="0"></div>'
+        + '<div><label>Baseline Date</label><input type="date" id="ppw-sa-date" value="' + new Date().toISOString().slice(0,10) + '"></div>'
+      + '</div>'
+      + '<div class="ppw-field" style="margin-bottom:14px"><label>Notes <span style="opacity:.6;text-transform:none">(optional)</span></label><textarea id="ppw-sa-notes" rows="3" style="width:100%;background:var(--ppw-bg3);border:1px solid var(--ppw-border);color:var(--ppw-text);border-radius:7px;padding:7px 9px;font-size:12px"></textarea></div>'
+      + '<div class="ppw-note">Item Code must be unique — it\'s how Individual Issuance and Shoes Received link back to this SKU.</div>'
+      + '<div class="ppw-modal-actions"><button class="ppw-btn" id="ppw-sa-cancel">Cancel</button><button class="ppw-btn ppw-btn-add" id="ppw-sa-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('ppw-sa-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('ppw-bg').onclick = function(e){ if (e.target.id==='ppw-bg') root.innerHTML=''; };
+    document.getElementById('ppw-sa-save').onclick = saveStockAdd;
+  }
+  function saveStockAdd(){
+    var root = document.getElementById('ppw-modal-root');
+    var btn = document.getElementById('ppw-sa-save'); btn.disabled = true;
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    var code = document.getElementById('ppw-sa-code').value.trim();
+    if (!code){ alert('Item Code is required.'); reenable(); return; }
+    var dup = getStockRecs().some(function(s){ return String(s['Item Code']).trim().toLowerCase() === code.toLowerCase(); });
+    if (dup){ alert('Item Code "' + code + '" already exists — use Correct Baseline on that row instead.'); reenable(); return; }
+    var desc = document.getElementById('ppw-sa-desc').value.trim();
+    if (!desc){ alert('Description is required.'); reenable(); return; }
+    var values = {
+      'Item Code': code,
+      'Description': desc,
+      'Baseline Qty': document.getElementById('ppw-sa-qty').value,
+      'Baseline Date': document.getElementById('ppw-sa-date').value,
+      'Notes': document.getElementById('ppw-sa-notes').value.trim()
+    };
+    values[STATUS_COL] = 'Active';
+    postJSON('write', {tab: STOCK.tabKey}, [values]).then(function(res){
+      if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+      root.innerHTML=''; loadAll();
+    }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
   }
 
   /* ── Section 2: Dept / bulk distribution log ─────────────────── */
@@ -526,13 +617,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       + '<div class="ppw-modal-hdr-grid">'
         + '<div><label>Date</label><input type="date" id="ppw-d-date" value="' + ppEsc(existingRec?existingRec['Date']:new Date().toISOString().slice(0,10)) + '"></div>'
         + '<div><label>MR#</label><input type="text" id="ppw-d-mr" value="' + ppEsc(existingRec?existingRec['MR#']:'') + '"></div>'
-        + '<div><label>Item Code</label><input type="text" id="ppw-d-code" value="' + ppEsc(existingRec?existingRec['Item Code']:'') + '" placeholder="e.g. CN-319-02-0006"></div>'
-        + '<div><label>PPE Type / Description</label><input type="text" id="ppw-d-type" value="' + ppEsc(existingRec?existingRec['PPE Type']:'') + '"></div>'
+        + '<div><label>Item Code</label><input type="text" id="ppw-d-code" list="ppw-d-code-dl" value="' + ppEsc(existingRec?existingRec['Item Code']:'') + '" placeholder="e.g. CN-319-02-0006" oninput="PPW.onDeptCodeInput(this.value)">' + buildDatalist('ppw-d-code-dl', PPE_STORE_ITEMS.map(function(it){return it.code;})) + '</div>'
+        + '<div><label>PPE Type / Description</label><input type="text" id="ppw-d-type" list="ppw-d-type-dl" value="' + ppEsc(existingRec?existingRec['PPE Type']:'') + '">' + buildDatalist('ppw-d-type-dl', PPE_STORE_ITEMS.map(function(it){return it.desc;}).filter(function(d,i,arr){return d && arr.indexOf(d)===i;})) + '</div>'
         + '<div><label>Qty.</label><input type="number" step="any" id="ppw-d-qty" value="' + ppEsc(existingRec?existingRec['Qty.']:'') + '"></div>'
         + '<div><label>UOM</label><input type="text" id="ppw-d-uom" value="' + ppEsc(existingRec?existingRec['UOM']:'Pair') + '"></div>'
-        + '<div><label>Dept.</label><input type="text" id="ppw-d-dept" value="' + ppEsc(existingRec?existingRec['Dept.']:'') + '"></div>'
+        + '<div><label>Dept.</label><input type="text" id="ppw-d-dept" list="ppw-d-dept-dl" value="' + ppEsc(existingRec?existingRec['Dept.']:'') + '">' + buildDatalist('ppw-d-dept-dl', getDeptSuggestions()) + '</div>'
       + '</div>'
-      + '<div class="ppw-note">General PPE distribution — this is a log entry only. It does not affect any stock quantity (that is managed in the ERP), except Safety Shoes, which are logged in section 3 instead, by individual.</div>'
+      + '<div class="ppw-note">General PPE distribution — this is a log entry only. It does not affect any stock quantity (that is managed in the ERP), except Safety Shoes, which are logged in section 3 instead, by individual. Picking an Item Code from the list fills in its Description and UOM from the store catalogue — you can still edit either afterward.</div>'
       + '<div class="ppw-modal-actions"><button class="ppw-btn" id="ppw-d-cancel">Cancel</button><button class="ppw-btn ppw-btn-add" id="ppw-d-save">Save</button></div>'
     + '</div></div>';
     document.getElementById('ppw-d-cancel').onclick = function(){ root.innerHTML=''; };
@@ -638,7 +729,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         + '<div><label>Date</label><input type="date" id="ppw-i-date" value="' + ppEsc(existingRec?existingRec['Date']:new Date().toISOString().slice(0,10)) + '"></div>'
         + '<div><label>Employee ID</label><input type="text" id="ppw-i-empid" value="' + ppEsc(existingRec?existingRec['Employee ID']:'') + '"></div>'
         + '<div><label>Employee Name</label><input type="text" id="ppw-i-empname" value="' + ppEsc(existingRec?existingRec['Employee Name']:'') + '"></div>'
-        + '<div><label>Dept.</label><input type="text" id="ppw-i-dept" value="' + ppEsc(existingRec?existingRec['Dept.']:'') + '"></div>'
+        + '<div><label>Dept.</label><input type="text" id="ppw-i-dept" list="ppw-i-dept-dl" value="' + ppEsc(existingRec?existingRec['Dept.']:'') + '">' + buildDatalist('ppw-i-dept-dl', getDeptSuggestions()) + '</div>'
         + '<div><label>PPE Type</label><select id="ppw-i-type" onchange="PPW.onIndivTypeChange(this.value)">' + typeOpts + '</select></div>'
         + '<div id="ppw-i-shoe-fields" style="display:' + (ppeType==='Safety Shoes'?'contents':'none') + '">'
           + '<div><label>Category</label><select id="ppw-i-cat">' + catOpts + '</select></div>'
@@ -792,9 +883,31 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   /* ── Public API ───────────────────────────────────────────────── */
   window.PPW = {
     selectStock: function(id){ _stockSelected = (_stockSelected!==null && String(_stockSelected)===String(id)) ? null : id; render(); },
+    openStockAdd: function(){ if (can('add')) buildStockAddModal(); },
     openStockEditSelected: function(){ var s=getSelectedStock(); if(!s) return alert('Select a row first.'); buildStockModal(s); },
+    removeStockSelected: function(){
+      if (!can('delete')) return;
+      var s = getSelectedStock(); if(!s) return alert('Select a row first.');
+      if (!confirm('Remove item ' + s['Item Code'] + ' from the Shoes Stock list? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: STOCK.tabKey, idCol: STOCK.idCol, id: s['Item Code']}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status==='error'){ alert('Remove failed: '+(res.message||'unknown error')); return; }
+        _stockSelected = null; loadAll();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
 
     onDeptSearch: function(v){ _deptFilters.search = v; render(); },
+    // Picking a known Item Code from the datalist fills in its
+    // Description and UOM from the store catalogue — typing a code not
+    // in the list (a new item) leaves those fields alone to fill by
+    // hand (Issam, voice, 2026-11-07).
+    onDeptCodeInput: function(code){
+      var item = getStoreItemByCode(code);
+      if (!item) return;
+      var typeEl = document.getElementById('ppw-d-type');
+      var uomEl = document.getElementById('ppw-d-uom');
+      if (typeEl) typeEl.value = item.desc;
+      if (uomEl && item.uom) uomEl.value = item.uom;
+    },
     selectDept: function(id){ _deptSelected = (_deptSelected!==null && String(_deptSelected)===String(id)) ? null : id; render(); },
     openDeptAdd: function(){ if (can('add')) buildDeptModal(null); },
     openDeptEditSelected: function(){ var r=getSelectedDept(); if(!r) return alert('Select a row first.'); buildDeptModal(r); },

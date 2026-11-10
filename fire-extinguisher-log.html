@@ -138,7 +138,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 </div>
 
 <div class="fe-tabpanel" id="fe-tabpanel-service" style="display:none">
-  <div style="font-weight:400;font-size:10px;opacity:.8;margin-bottom:4px">3rd-party Civil-Defense-licensed contractor.</div>
+  <div style="font-weight:400;font-size:10px;opacity:.8;margin-bottom:4px">3rd-party Civil-Defense-licensed contractor. A unit is Out for Service once it has a Delivery Date but no Return Date yet.</div>
+  <div class="fe-plant-filterbar">
+    <label style="font-size:10px;color:var(--fdw-text-muted);font-weight:600">YEAR</label>
+    <select class="fe-month-picker" id="fe-svc-year" onchange="FE.onSvcYearChange(this.value)"></select>
+  </div>
+  <div class="fe-progress-board" id="fe-svc-progress-board"></div>
   <div id="live-table-service" class="fe-open"></div>
 </div>
 
@@ -246,6 +251,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .fe-dark-wrap .fe-progress-bar-fill.grn{background:var(--fdw-grn)}
 .fe-dark-wrap .fe-progress-bar-fill.amb{background:var(--fdw-amb)}
 .fe-dark-wrap .fe-progress-bar-fill.red{background:var(--fdw-red)}
+.fe-dark-wrap .fe-progress-bar-track.stacked{display:flex}
+.fe-dark-wrap .fe-progress-bar-track.stacked .fe-progress-bar-fill{border-radius:0}
+.fe-dark-wrap .fe-progress-legend{display:flex;gap:8px;font-size:9px;color:var(--fdw-text-dim);margin-top:4px}
+.fe-dark-wrap .fe-progress-legend span{display:inline-flex;align-items:center;gap:3px}
+.fe-dark-wrap .fe-progress-legend i{width:7px;height:7px;border-radius:2px;display:inline-block}
 .fe-dark-wrap .fe-month-picker{padding:6px 8px;font-size:12px;border:1px solid var(--fdw-border);
   border-radius:8px;font-family:inherit;background:var(--fdw-bg3);color:var(--fdw-text)}
 .fe-dark-wrap .fe-not-inspected-panel{margin-top:8px;padding:10px 12px;background:var(--fdw-bg3);
@@ -280,7 +290,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     inspection: {
       label: 'Inspection', tabKey: 'fe_inspection_log', containerId: 'live-table-inspection',
       idCol: 'Inspection ID', idPrefix: 'INSP', amberCol: 'Inspector ID',
-      fields: ['FE Code','Inspection Date','Inspector ID','Anti-Tamper Seal','Pin','Hose','Notes'],
+      // Pressure/Body/Handle added (Issam, voice, 2026-11-08) to match
+      // every check on the paper form — new columns on the sheet.
+      fields: ['FE Code','Inspection Date','Inspector ID','Anti-Tamper Seal','Pin','Hose','Pressure','Body','Handle','Notes'],
       crossRef: {'FE Code': 'master'}, // suggest FE Codes from the Master Inventory list, not just this table's own history
       filterField: 'Inspector ID'
     },
@@ -424,6 +436,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var toolbarHtml = '';
     if (can('add')){
       toolbarHtml = '<button class="fe-btn fe-btn-add" onclick="FE.openAdd(\'' + tKeyName + '\')">+ Add Record</button>';
+      // Group-table entry (Issam, voice, 2026-11-08): the fast path for
+      // actually doing a round of inspections or a service batch —
+      // "+ Add Record" above still exists for a single one-off entry.
+      if (tKeyName === 'inspection'){
+        toolbarHtml += ' <button class="fe-btn fe-btn-add" onclick="FE.openGroupInspection()">+ Add Inspection (by Group)</button>';
+      } else if (tKeyName === 'service'){
+        toolbarHtml += ' <button class="fe-btn fe-btn-add" onclick="FE.openServiceBatchOut()">+ Send for Service (Batch)</button>' +
+          ' <button class="fe-btn fe-btn-add" onclick="FE.openServiceBatchReturn()">+ Record Return (Batch)</button>';
+      }
     }
 
     var categoryHtml = '';
@@ -786,6 +807,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var iSealIdx = colIdx(insp.headers, 'Anti-Tamper Seal');
       var iPinIdx = colIdx(insp.headers, 'Pin');
       var iHoseIdx = colIdx(insp.headers, 'Hose');
+      var iPressureIdx = colIdx(insp.headers, 'Pressure');
+      var iBodyIdx = colIdx(insp.headers, 'Body');
+      var iHandleIdx = colIdx(insp.headers, 'Handle');
       var iNotesIdx = colIdx(insp.headers, 'Notes');
       var iInspectorIdx = colIdx(insp.headers, 'Inspector ID');
       insp.rows.forEach(function(r){
@@ -800,6 +824,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             seal: iSealIdx>-1 ? r[iSealIdx] : '',
             pin: iPinIdx>-1 ? r[iPinIdx] : '',
             hose: iHoseIdx>-1 ? r[iHoseIdx] : '',
+            pressure: iPressureIdx>-1 ? r[iPressureIdx] : '',
+            body: iBodyIdx>-1 ? r[iBodyIdx] : '',
+            handle: iHandleIdx>-1 ? r[iHandleIdx] : '',
             notes: iNotesIdx>-1 ? r[iNotesIdx] : '',
             inspector: iInspectorIdx>-1 ? r[iInspectorIdx] : ''
           };
@@ -834,10 +861,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         '<td>' + (u.loc||'') + '</td>' +
         '<td>' + (i ? '✓ ' + i.date : '') + '</td>' +
         '<td></td>' + // 3rd party due date — not tracked per-inspection; left for hand entry
-        '<td>' + (i && i.seal ? i.seal : '') + '</td>' +
-        '<td>' + (i && i.pin ? i.pin : '') + '</td>' +
-        '<td>' + (i && i.hose ? i.hose : '') + '</td>' +
-        '<td></td><td></td><td></td>' + // Pressure / Body / Handle — not yet separate columns in the inspection form
+        '<td>' + (i && i.seal ? i.seal : (i?'✓':'')) + '</td>' +
+        '<td>' + (i && i.pin ? i.pin : (i?'✓':'')) + '</td>' +
+        '<td>' + (i && i.hose ? i.hose : (i?'✓':'')) + '</td>' +
+        '<td>' + (i && i.pressure ? i.pressure : (i?'✓':'')) + '</td>' +
+        '<td>' + (i && i.body ? i.body : (i?'✓':'')) + '</td>' +
+        '<td>' + (i && i.handle ? i.handle : (i?'✓':'')) + '</td>' +
         '<td>' + (i && i.notes ? i.notes : '') + '</td>' +
       '</tr>';
     }).join('');
@@ -867,6 +896,377 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     setTimeout(function(){ win.print(); }, 300);
   }
 
+  /* ── Group-table Monthly Inspection entry (Issam, voice, 2026-11-08) ──
+     Instead of one form per extinguisher, this opens the whole chosen
+     group as a searchable, scrollable table (10 rows visible, then
+     scrolls), with a tick per check column — defaulting to OK — and a
+     "Done" tick per row that actually marks it for saving, so nothing
+     gets recorded just by having the table open. Standing at one
+     specific unit, the inspector searches its code or location, ticks
+     Done (leaving everything else OK unless something's wrong), and
+     saves; walking a whole area, they can tick Done on every row
+     before saving once. A unit already inspected this month is shown
+     greyed out with its date, but stays editable in case it needs
+     correcting. */
+  var _groupInspState = null; // { units: [...], ym, date, inspector }
+  function openGroupInspectionModal(){
+    var root = document.getElementById('fe-modal-root');
+    var ym = getSelectedProgressMonth();
+    root.innerHTML = '<div class="fe-modal-bg" id="fe-gi-bg"><div class="fe-modal" style="width:820px;max-width:95vw">' +
+      '<h3>Add Inspection — by Group</h3>' +
+      '<div class="fe-field" style="display:flex;gap:10px;flex-wrap:wrap">' +
+        '<div style="flex:1 1 160px"><label>Plant / Group</label><select id="fe-gi-plant" onchange="FE.onGiPlantChange()">' +
+          '<option value="">-- choose --</option>' + PLANT_GROUPS.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('') +
+        '</select></div>' +
+        '<div style="flex:1 1 140px"><label>Unit (if applicable)</label><select id="fe-gi-unit" onchange="FE.renderGiUnitTable()"><option value="">All</option></select></div>' +
+        '<div style="flex:1 1 140px"><label>Inspection Date</label><input type="date" id="fe-gi-date" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
+        '<div style="flex:1 1 160px"><label>Inspector Name / ID</label><input type="text" id="fe-gi-inspector"></div>' +
+      '</div>' +
+      '<div id="fe-gi-table-wrap"><div class="empty-state"><strong>Choose a Plant / Group above</strong>Its extinguishers will list here.</div></div>' +
+      '<div class="fe-modal-actions"><button class="fe-btn fe-btn-cancel" id="fe-gi-cancel">Cancel</button>' +
+      '<button class="fe-btn fe-btn-add" id="fe-gi-save">Save Ticked Rows</button></div>' +
+    '</div></div>';
+    document.getElementById('fe-gi-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('fe-gi-bg').onclick = function(e){ if (e.target.id==='fe-gi-bg') root.innerHTML=''; };
+    document.getElementById('fe-gi-save').onclick = saveGroupInspection;
+    // If a plant was already selected on the progress board, start there.
+    if (_progressSelectedPlant){
+      document.getElementById('fe-gi-plant').value = _progressSelectedPlant;
+      renderGiUnitTable();
+    }
+  }
+  function renderGiUnitTable(){
+    var plant = document.getElementById('fe-gi-plant').value;
+    var unitSel = document.getElementById('fe-gi-unit');
+    var unit = unitSel.value;
+    var wrapEl = document.getElementById('fe-gi-table-wrap');
+    if (!plant){ wrapEl.innerHTML = '<div class="empty-state"><strong>Choose a Plant / Group above</strong>Its extinguishers will list here.</div>'; return; }
+
+    var m = _cache['master'];
+    if (!m || !m.headers || !m.rows){ wrapEl.innerHTML = '<div class="empty-state"><strong>Master Inventory still loading…</strong></div>'; return; }
+    var statusIdx = colIdx(m.headers, STATUS_COL);
+    var plantIdx = colIdx(m.headers, 'Plant');
+    var unitIdx = colIdx(m.headers, 'Unit');
+    var codeIdx = colIdx(m.headers, 'FE Code');
+    var locIdx = colIdx(m.headers, 'Current Location');
+
+    var ym = getSelectedProgressMonth();
+    var insp = _cache['inspection'];
+    var inspectedThisMonth = {};
+    if (insp && insp.headers && insp.rows){
+      var iCodeIdx = colIdx(insp.headers, 'FE Code');
+      var iDateIdx = colIdx(insp.headers, 'Inspection Date');
+      insp.rows.forEach(function(r){
+        var d = iDateIdx>-1 ? String(r[iDateIdx]||'').trim() : '';
+        if (d.indexOf(ym) === 0){
+          var c = iCodeIdx>-1 ? String(r[iCodeIdx]||'').trim() : '';
+          if (c) inspectedThisMonth[c] = d;
+        }
+      });
+    }
+
+    var units = [];
+    m.rows.forEach(function(r){
+      if (statusIdx>-1 && String(r[statusIdx]||'').trim().toLowerCase()==='removed') return;
+      var p = plantIdx>-1 ? String(r[plantIdx]||'').trim() : '';
+      if (!p) p = 'Unassigned';
+      if (p !== plant) return;
+      if (unit && unitIdx>-1 && String(r[unitIdx]||'').trim() !== unit) return;
+      var code = codeIdx>-1 ? String(r[codeIdx]||'').trim() : '';
+      units.push({ code: code, loc: locIdx>-1 ? String(r[locIdx]||'') : '', inspectedOn: inspectedThisMonth[code] || null });
+    });
+    _groupInspState = { units: units, ym: ym };
+
+    var checkCols = ['Seal','Pin','Hose','Pressure','Body','Handle'];
+    var rowsHtml = units.map(function(u, idx){
+      var done = u.inspectedOn ? ' style="opacity:.55"' : '';
+      var badge = u.inspectedOn ? ' <span class="badge kc-grn">✓ ' + u.inspectedOn + '</span>' : '';
+      return '<tr' + done + ' data-gi-row="'+idx+'">' +
+        '<td><input type="checkbox" class="fe-gi-donecb" data-idx="'+idx+'"></td>' +
+        '<td>' + u.code + badge + '</td>' +
+        '<td style="max-width:160px">' + u.loc + '</td>' +
+        checkCols.map(function(c){ return '<td style="text-align:center"><input type="checkbox" class="fe-gi-okcb" data-idx="'+idx+'" data-col="'+c+'" checked></td>'; }).join('') +
+        '<td><input type="text" class="fe-gi-notes" data-idx="'+idx+'" placeholder="If a box above was unticked, say why" style="width:100%;font-size:11px"></td>' +
+      '</tr>';
+    }).join('');
+
+    wrapEl.innerHTML =
+      '<input type="text" class="fe-search-input" placeholder="Search code or location to find a unit fast…" style="margin:8px 0" oninput="FE.onGiSearch(this.value)">' +
+      '<div class="tbl-wrap" style="max-height:320px"><table class="tbl-stripe tbl-compact"><thead><tr>' +
+        '<th>Done</th><th>FE Code</th><th>Location</th>' + checkCols.map(function(c){ return '<th>'+c+'</th>'; }).join('') + '<th>Notes</th>' +
+      '</tr></thead><tbody id="fe-gi-tbody">' + rowsHtml + '</tbody></table></div>' +
+      '<div style="font-size:10px;color:var(--fdw-text-dim);margin-top:4px">' + units.length + ' unit' + (units.length===1?'':'s') + ' in ' + plant + (unit?' / '+unit:'') + '. Units already inspected this month are greyed out but still editable.</div>';
+  }
+  function saveGroupInspection(){
+    var plant = document.getElementById('fe-gi-plant').value;
+    if (!plant){ alert('Choose a Plant / Group first.'); return; }
+    var date = document.getElementById('fe-gi-date').value;
+    if (!date){ alert('Inspection Date is required.'); return; }
+    var inspector = document.getElementById('fe-gi-inspector').value.trim();
+    if (!inspector){ alert('Inspector Name / ID is required.'); return; }
+    if (!_groupInspState || !_groupInspState.units.length){ alert('No units to save — check your Plant/Unit choice.'); return; }
+
+    var doneIdxs = [];
+    document.querySelectorAll('.fe-gi-donecb:checked').forEach(function(cb){ doneIdxs.push(parseInt(cb.getAttribute('data-idx'),10)); });
+    if (!doneIdxs.length){ alert('Tick "Done" on at least one row before saving.'); return; }
+
+    var checkCols = ['Seal','Pin','Hose','Pressure','Body','Handle'];
+    var colKeyMap = { Seal:'Anti-Tamper Seal', Pin:'Pin', Hose:'Hose', Pressure:'Pressure', Body:'Body', Handle:'Handle' };
+    var records = doneIdxs.map(function(idx){
+      var u = _groupInspState.units[idx];
+      var notesEl = document.querySelector('.fe-gi-notes[data-idx="'+idx+'"]');
+      var rec = {
+        'FE Code': u.code,
+        'Inspection Date': date,
+        'Inspector ID': inspector,
+        'Notes': notesEl ? notesEl.value.trim() : '',
+        'Record Status': 'Active'
+      };
+      checkCols.forEach(function(c){
+        var cb = document.querySelector('.fe-gi-okcb[data-idx="'+idx+'"][data-col="'+c+'"]');
+        var ok = cb ? cb.checked : true;
+        rec[colKeyMap[c]] = ok ? '' : 'Issue'; // blank = OK (matches the Flagged Items logic already on this page); unticked = flagged
+      });
+      rec['Inspection ID'] = genId('INSP');
+      return rec;
+    });
+
+    var btn = document.getElementById('fe-gi-save'); btn.disabled = true; btn.textContent = 'Saving…';
+    postJSON('write', {tab: 'fe_inspection_log'}, records).then(function(res){
+      if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); btn.disabled=false; btn.textContent='Save Ticked Rows'; return; }
+      document.getElementById('fe-modal-root').innerHTML = '';
+      reloadTabAndDashboard('inspection');
+    }).catch(function(){ alert('Could not save — check your connection.'); btn.disabled=false; btn.textContent='Save Ticked Rows'; });
+  }
+
+  /* ── Annual Service: batch outgoing + batch return (Issam, voice,
+     2026-11-08) — a service event moves a whole batch of units out to
+     the contractor and back, so both ends are recorded for many units
+     at once rather than one at a time. "Out for service" = a service
+     row with a Delivery Date but no Return Date yet. */
+  var _svcOutState = null;
+  function openServiceBatchOutModal(){
+    var root = document.getElementById('fe-modal-root');
+    root.innerHTML = '<div class="fe-modal-bg" id="fe-so-bg"><div class="fe-modal" style="width:780px;max-width:95vw">' +
+      '<h3>Send for Service — Batch (Outgoing)</h3>' +
+      '<div class="fe-field" style="display:flex;gap:10px;flex-wrap:wrap">' +
+        '<div style="flex:1 1 160px"><label>Plant / Group</label><select id="fe-so-plant" onchange="FE.onSoPlantChange()">' +
+          '<option value="">-- choose --</option>' + PLANT_GROUPS.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('') +
+        '</select></div>' +
+        '<div style="flex:1 1 140px"><label>Unit (if applicable)</label><select id="fe-so-unit" onchange="FE.renderSoUnitTable()"><option value="">All</option></select></div>' +
+        '<div style="flex:1 1 140px"><label>Delivery Date</label><input type="date" id="fe-so-date" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
+      '</div>' +
+      '<div id="fe-so-table-wrap"><div class="empty-state"><strong>Choose a Plant / Group above</strong>Its extinguishers will list here.</div></div>' +
+      '<div class="fe-modal-actions"><button class="fe-btn fe-btn-cancel" id="fe-so-cancel">Cancel</button>' +
+      '<button class="fe-btn fe-btn-add" id="fe-so-save">Send Selected Units</button></div>' +
+    '</div></div>';
+    document.getElementById('fe-so-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('fe-so-bg').onclick = function(e){ if (e.target.id==='fe-so-bg') root.innerHTML=''; };
+    document.getElementById('fe-so-save').onclick = saveServiceBatchOut;
+  }
+  function renderSoUnitTable(){
+    var plant = document.getElementById('fe-so-plant').value;
+    var unit = document.getElementById('fe-so-unit').value;
+    var wrapEl = document.getElementById('fe-so-table-wrap');
+    if (!plant){ wrapEl.innerHTML = '<div class="empty-state"><strong>Choose a Plant / Group above</strong></div>'; return; }
+    var m = _cache['master'];
+    if (!m || !m.headers || !m.rows){ wrapEl.innerHTML = '<div class="empty-state"><strong>Master Inventory still loading…</strong></div>'; return; }
+    var statusIdx = colIdx(m.headers, STATUS_COL);
+    var plantIdx = colIdx(m.headers, 'Plant');
+    var unitIdx = colIdx(m.headers, 'Unit');
+    var codeIdx = colIdx(m.headers, 'FE Code');
+    var locIdx = colIdx(m.headers, 'Current Location');
+    var outNow = getUnitsOutForService(); // codes currently already out, so they can't be sent again by mistake
+
+    var units = [];
+    m.rows.forEach(function(r){
+      if (statusIdx>-1 && String(r[statusIdx]||'').trim().toLowerCase()==='removed') return;
+      var p = plantIdx>-1 ? String(r[plantIdx]||'').trim() : '';
+      if (!p) p = 'Unassigned';
+      if (p !== plant) return;
+      if (unit && unitIdx>-1 && String(r[unitIdx]||'').trim() !== unit) return;
+      var code = codeIdx>-1 ? String(r[codeIdx]||'').trim() : '';
+      units.push({ code: code, loc: locIdx>-1 ? String(r[locIdx]||'') : '', alreadyOut: !!outNow[code] });
+    });
+    _svcOutState = { units: units };
+    wrapEl.innerHTML =
+      '<input type="text" class="fe-search-input" placeholder="Search code or location…" style="margin:8px 0" oninput="FE.onSoSearch(this.value)">' +
+      '<div class="tbl-wrap" style="max-height:300px"><table class="tbl-stripe"><thead><tr><th>Send</th><th>FE Code</th><th>Location</th></tr></thead><tbody id="fe-so-tbody">' +
+      units.map(function(u, idx){
+        return '<tr' + (u.alreadyOut?' style="opacity:.45"':'') + '>' +
+          '<td><input type="checkbox" class="fe-so-cb" data-idx="'+idx+'"' + (u.alreadyOut?' disabled':'') + '></td>' +
+          '<td>' + u.code + (u.alreadyOut?' <span class="badge kc-amb">already out</span>':'') + '</td>' +
+          '<td>' + u.loc + '</td></tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<div style="font-size:10px;color:var(--fdw-text-dim);margin-top:4px">' + units.length + ' unit' + (units.length===1?'':'s') + '. Units already out for service can&rsquo;t be sent again until they&rsquo;re returned.</div>';
+  }
+  function saveServiceBatchOut(){
+    var plant = document.getElementById('fe-so-plant').value;
+    if (!plant){ alert('Choose a Plant / Group first.'); return; }
+    var date = document.getElementById('fe-so-date').value;
+    if (!date){ alert('Delivery Date is required.'); return; }
+    var idxs = [];
+    document.querySelectorAll('.fe-so-cb:checked').forEach(function(cb){ idxs.push(parseInt(cb.getAttribute('data-idx'),10)); });
+    if (!idxs.length){ alert('Tick at least one unit to send.'); return; }
+    var records = idxs.map(function(idx){
+      var u = _svcOutState.units[idx];
+      return { 'Service ID': genId('SVC'), 'FE Code': u.code, 'Delivery Date': date, 'Record Status': 'Active' };
+    });
+    var btn = document.getElementById('fe-so-save'); btn.disabled = true; btn.textContent = 'Saving…';
+    postJSON('write', {tab: 'fe_service_log'}, records).then(function(res){
+      if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); btn.disabled=false; btn.textContent='Send Selected Units'; return; }
+      document.getElementById('fe-modal-root').innerHTML = '';
+      reloadTabAndDashboard('service');
+    }).catch(function(){ alert('Could not save — check your connection.'); btn.disabled=false; btn.textContent='Send Selected Units'; });
+  }
+
+  // Which FE Codes are currently out for service: a service row with a
+  // Delivery Date but no Return Date yet.
+  function getUnitsOutForService(){
+    var s = _cache['service'];
+    var out = {};
+    if (!s || !s.headers || !s.rows) return out;
+    var statusIdx = colIdx(s.headers, STATUS_COL);
+    var codeIdx = colIdx(s.headers, 'FE Code');
+    var delIdx = colIdx(s.headers, 'Delivery Date');
+    var retIdx = colIdx(s.headers, 'Return Date');
+    var svcIdIdx = colIdx(s.headers, 'Service ID');
+    s.rows.forEach(function(r){
+      if (statusIdx>-1 && String(r[statusIdx]||'').trim().toLowerCase()==='removed') return;
+      var del = delIdx>-1 ? String(r[delIdx]||'').trim() : '';
+      var ret = retIdx>-1 ? String(r[retIdx]||'').trim() : '';
+      var code = codeIdx>-1 ? String(r[codeIdx]||'').trim() : '';
+      if (code && del && !ret) out[code] = { serviceId: svcIdIdx>-1 ? r[svcIdIdx] : '' };
+    });
+    return out;
+  }
+
+  var _svcReturnState = null;
+  function openServiceBatchReturnModal(){
+    var root = document.getElementById('fe-modal-root');
+    var outNow = getUnitsOutForService();
+    var codes = Object.keys(outNow);
+    var m = _cache['master'];
+    var locByCode = {};
+    if (m && m.headers && m.rows){
+      var codeIdxM = colIdx(m.headers, 'FE Code'), locIdxM = colIdx(m.headers, 'Current Location');
+      m.rows.forEach(function(r){ var c = codeIdxM>-1?String(r[codeIdxM]||'').trim():''; if (c) locByCode[c] = locIdxM>-1?r[locIdxM]:''; });
+    }
+    _svcReturnState = codes.map(function(c){ return { code: c, serviceId: outNow[c].serviceId, loc: locByCode[c] || '' }; });
+
+    root.innerHTML = '<div class="fe-modal-bg" id="fe-sr-bg"><div class="fe-modal" style="width:780px;max-width:95vw">' +
+      '<h3>Record Return — Batch</h3>' +
+      '<div class="fe-field" style="display:flex;gap:10px;flex-wrap:wrap">' +
+        '<div style="flex:1 1 140px"><label>Return Date</label><input type="date" id="fe-sr-date" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
+        '<div style="flex:1 1 140px"><label>New Expiry Date</label><input type="date" id="fe-sr-expiry"></div>' +
+      '</div>' +
+      '<div class="fe-note">Every unit below is currently out for service. Tick the ones that actually came back — leave any that the contractor hasn&rsquo;t returned yet (or condemned) unticked; they&rsquo;ll stay "out for service".</div>' +
+      (_svcReturnState.length
+        ? '<div class="tbl-wrap" style="max-height:300px"><table class="tbl-stripe"><thead><tr><th>Returned</th><th>FE Code</th><th>Location</th></tr></thead><tbody>' +
+          _svcReturnState.map(function(u, idx){
+            return '<tr><td><input type="checkbox" class="fe-sr-cb" data-idx="'+idx+'" checked></td><td>' + u.code + '</td><td>' + u.loc + '</td></tr>';
+          }).join('') + '</tbody></table></div>'
+        : '<div class="empty-state"><strong>No units currently out for service.</strong></div>') +
+      '<div class="fe-modal-actions"><button class="fe-btn fe-btn-cancel" id="fe-sr-cancel">Cancel</button>' +
+      (_svcReturnState.length ? '<button class="fe-btn fe-btn-add" id="fe-sr-save">Save Returns</button>' : '') +
+      '</div></div></div>';
+    document.getElementById('fe-sr-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('fe-sr-bg').onclick = function(e){ if (e.target.id==='fe-sr-bg') root.innerHTML=''; };
+    var saveBtn = document.getElementById('fe-sr-save');
+    if (saveBtn) saveBtn.onclick = saveServiceBatchReturn;
+  }
+  function saveServiceBatchReturn(){
+    var retDate = document.getElementById('fe-sr-date').value;
+    if (!retDate){ alert('Return Date is required.'); return; }
+    var expiry = document.getElementById('fe-sr-expiry').value;
+    if (!expiry){ alert('New Expiry Date is required.'); return; }
+    var idxs = [];
+    document.querySelectorAll('.fe-sr-cb:checked').forEach(function(cb){ idxs.push(parseInt(cb.getAttribute('data-idx'),10)); });
+    if (!idxs.length){ alert('Tick at least one unit that was actually returned.'); return; }
+    var btn = document.getElementById('fe-sr-save'); btn.disabled = true; btn.textContent = 'Saving…';
+    var updates = idxs.map(function(idx){
+      var u = _svcReturnState[idx];
+      return postJSON('update', {tab: 'fe_service_log', idCol: encodeURIComponent('Service ID'), id: encodeURIComponent(u.serviceId)},
+        { 'Return Date': retDate, 'Expire Date': expiry });
+    });
+    Promise.all(updates).then(function(results){
+      var failed = results.find(function(res){ return res && res.status === 'error'; });
+      if (failed){ alert('Some updates failed: ' + (failed.message||'unknown error')); btn.disabled=false; btn.textContent='Save Returns'; return; }
+      document.getElementById('fe-modal-root').innerHTML = '';
+      reloadTabAndDashboard('service');
+    }).catch(function(){ alert('Could not save — check your connection.'); btn.disabled=false; btn.textContent='Save Returns'; });
+  }
+
+  /* ── Annual Service progress board (Issam, voice, 2026-11-08) ──
+     Same per-group card layout as Monthly Inspection's board, but
+     yearly, and with 3 states instead of 2: Serviced (returned with an
+     expiry dated in the selected year), Out for Service (sent, not
+     yet back), and Not Yet Sent — shown as a 3-colour stacked bar. */
+  function populateSvcYearPicker(){
+    var sel = document.getElementById('fe-svc-year');
+    if (!sel || sel.options.length) return; // already populated once
+    var thisYear = new Date().getFullYear();
+    var years = [];
+    for (var y = thisYear + 1; y >= thisYear - 3; y--) years.push(y);
+    sel.innerHTML = years.map(function(y){ return '<option value="'+y+'"'+(y===thisYear?' selected':'')+'>'+y+'</option>'; }).join('');
+  }
+  function renderServiceProgressBoard(){
+    var boardEl = document.getElementById('fe-svc-progress-board');
+    if (!boardEl) return;
+    populateSvcYearPicker();
+    var yearSel = document.getElementById('fe-svc-year');
+    var year = yearSel ? yearSel.value : String(new Date().getFullYear());
+
+    var m = _cache['master'];
+    var s = _cache['service'];
+    if (!m || !m.headers || !m.rows){ boardEl.innerHTML = ''; return; }
+    var statusIdx = colIdx(m.headers, STATUS_COL);
+    var plantIdx = colIdx(m.headers, 'Plant');
+    var codeIdxM = colIdx(m.headers, 'FE Code');
+
+    var servicedThisYear = {}, outForService = getUnitsOutForService();
+    if (s && s.headers && s.rows){
+      var sStatusIdx = colIdx(s.headers, STATUS_COL);
+      var sCodeIdx = colIdx(s.headers, 'FE Code');
+      var sRetIdx = colIdx(s.headers, 'Return Date');
+      s.rows.forEach(function(r){
+        if (sStatusIdx>-1 && String(r[sStatusIdx]||'').trim().toLowerCase()==='removed') return;
+        var ret = sRetIdx>-1 ? String(r[sRetIdx]||'').trim() : '';
+        if (ret.indexOf(year) === 0){
+          var code = sCodeIdx>-1 ? String(r[sCodeIdx]||'').trim() : '';
+          if (code) servicedThisYear[code] = true;
+        }
+      });
+    }
+
+    var totals = {}, serviced = {}, out = {};
+    PLANT_GROUPS.forEach(function(p){ totals[p]=0; serviced[p]=0; out[p]=0; });
+    m.rows.forEach(function(r){
+      if (statusIdx>-1 && String(r[statusIdx]||'').trim().toLowerCase()==='removed') return;
+      var plant = plantIdx>-1 ? String(r[plantIdx]||'').trim() : '';
+      if (!plant || totals[plant]===undefined) plant = 'Unassigned';
+      totals[plant] = (totals[plant]||0) + 1;
+      var code = codeIdxM>-1 ? String(r[codeIdxM]||'').trim() : '';
+      if (code && servicedThisYear[code]) serviced[plant] = (serviced[plant]||0) + 1;
+      else if (code && outForService[code]) out[plant] = (out[plant]||0) + 1;
+    });
+
+    boardEl.innerHTML = PLANT_GROUPS.map(function(p){
+      var total = totals[p]||0, svc = serviced[p]||0, o = out[p]||0;
+      var pending = Math.max(0, total - svc - o);
+      var svcPct = total ? (svc/total*100) : 0;
+      var outPct = total ? (o/total*100) : 0;
+      return '<div class="fe-progress-card">' +
+        '<div class="fe-progress-name">' + p + '</div>' +
+        '<div class="fe-progress-count">' + svc + ' serviced · ' + o + ' out · ' + pending + ' pending (of ' + total + ')</div>' +
+        '<div class="fe-progress-bar-track stacked">' +
+          '<div class="fe-progress-bar-fill grn" style="width:'+svcPct+'%"></div>' +
+          '<div class="fe-progress-bar-fill amb" style="width:'+outPct+'%"></div>' +
+        '</div>' +
+      '</div>';
+    }).join('') + '<div class="fe-progress-legend" style="grid-column:1/-1"><span><i style="background:var(--fdw-grn)"></i>Serviced</span><span><i style="background:var(--fdw-amb)"></i>Out for service</span><span><i style="background:rgba(255,255,255,.15)"></i>Not yet sent</span></div>';
+  }
+
   function loadAll(){
     var keys = Object.keys(TABLES);
     _plantUnitByCode = null; // force a fresh Master→Plant/Unit index once the new data is in
@@ -881,8 +1281,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
      loaded at least once — so the 4 cards + 2 charts are never stale
      relative to what's actually on screen in the tables below them. */
   function reloadTabAndDashboard(tKeyName){
+    _plantUnitByCode = null; // Master may have changed — force a fresh Plant/Unit index
     return loadTab(tKeyName).then(function(){
       if (_cache['master'] && _cache['inspection'] && _cache['service']) renderDashboard();
+      if (document.getElementById('fe-progress-board')) renderProgressBoard();
+      if (document.getElementById('fe-svc-progress-board')) renderServiceProgressBoard();
     });
   }
 
@@ -1061,6 +1464,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (btn) btn.classList.toggle('active', t === tKeyName);
     });
     if (tKeyName === 'inspection') renderProgressBoard();
+    if (tKeyName === 'service') renderServiceProgressBoard();
   }
 
   /* ── Modal (shared by Add + Edit) ───────────────────────────────────── */
@@ -1218,6 +1622,38 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     printMonthly: function(){
       if (!_progressSelectedPlant){ alert('Click a group\'s card above first, to choose which one to print.'); return; }
       printMonthlyInspection(_progressSelectedPlant, getSelectedProgressMonth());
+    },
+    openGroupInspection: function(){ if (can('add')) openGroupInspectionModal(); },
+    renderGiUnitTable: renderGiUnitTable,
+    openServiceBatchOut: function(){ if (can('add')) openServiceBatchOutModal(); },
+    onSoPlantChange: function(){
+      var plant = document.getElementById('fe-so-plant').value;
+      var unitSel = document.getElementById('fe-so-unit');
+      var units = PLANT_UNITS[plant] || [];
+      unitSel.innerHTML = '<option value="">All</option>' + units.map(function(u){ return '<option value="'+u+'">'+u+'</option>'; }).join('');
+      renderSoUnitTable();
+    },
+    renderSoUnitTable: renderSoUnitTable,
+    onSoSearch: function(val){
+      var q = val.trim().toLowerCase();
+      document.querySelectorAll('#fe-so-tbody tr').forEach(function(tr){
+        tr.style.display = (!q || tr.textContent.toLowerCase().indexOf(q) > -1) ? '' : 'none';
+      });
+    },
+    openServiceBatchReturn: function(){ if (can('add')) openServiceBatchReturnModal(); },
+    onSvcYearChange: function(){ renderServiceProgressBoard(); },
+    onGiPlantChange: function(){
+      var plant = document.getElementById('fe-gi-plant').value;
+      var unitSel = document.getElementById('fe-gi-unit');
+      var units = PLANT_UNITS[plant] || [];
+      unitSel.innerHTML = '<option value="">All</option>' + units.map(function(u){ return '<option value="'+u+'">'+u+'</option>'; }).join('');
+      renderGiUnitTable();
+    },
+    onGiSearch: function(val){
+      var q = val.trim().toLowerCase();
+      document.querySelectorAll('#fe-gi-tbody tr').forEach(function(tr){
+        tr.style.display = (!q || tr.textContent.toLowerCase().indexOf(q) > -1) ? '' : 'none';
+      });
     },
     onProgressCardClick: function(plant){
       _progressSelectedPlant = (_progressSelectedPlant === plant) ? null : plant;
