@@ -109,6 +109,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .md-dark-wrap .md-modal{background:var(--mdw-bg2);border:1px solid var(--mdw-border-gold);border-radius:14px;
   padding:20px;width:460px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--mdw-text)}
 .md-dark-wrap .md-modal h3{margin:0 0 12px;font-size:14px;color:var(--mdw-gold-lt)}
+.md-dark-wrap .md-modal-sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--mdw-gold-lt);margin:14px 0 6px;padding-top:10px;border-top:1px solid var(--mdw-border)}
+.md-dark-wrap .md-modal-sec:first-of-type{margin-top:0;padding-top:0;border-top:none}
 .md-dark-wrap .md-field{margin-bottom:10px}
 .md-dark-wrap .md-field label{display:block;font-size:10px;font-weight:600;color:var(--mdw-text-muted);margin-bottom:3px}
 .md-dark-wrap .md-field input,.md-dark-wrap .md-field select,.md-dark-wrap .md-field textarea{width:100%;padding:6px 8px;font-size:12px;
@@ -209,7 +212,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // narrative, a deficiency write-up, a list of corrective actions,
       // or a per-photo log can't realistically be one line.
       textareaFields: ['Scenario Description','Deficiency Observed','Corrective Actions','Photos','Remarks'],
-      filterField: 'Emergency Situation'
+      filterField: 'Emergency Situation',
+      // Rev.1 (Issam, voice, 2026-11-11) — the Add/Edit form now
+      // follows SST-FRM-40's own report flow instead of one flat
+      // list of 24 fields: who/where/what, then the scenario, then
+      // the response timeline, then the findings and corrective
+      // actions, then evidence and sign-off — same sectioned-form
+      // pattern already used on PTW, Crane Inspection and Hot Work.
+      modalSections: [
+        { title: 'Drill Information', fields: ['Drill ID','Date','Time','Area & Location','Number of Participants','Emergency Situation','Observer(s)','HSE In Charge'] },
+        { title: 'Scenario', fields: ['Scenario Description'] },
+        { title: 'Response Timeline', fields: ['Time of Declaration','First Responder Response Time','Alarm Sounded','Assembled at Point','Ambulance/Medical Called','Finish Time','Total Time Elapsed','Previous Total Time','Production Lines Affected'] },
+        { title: 'Findings & Corrective Actions', fields: ['Deficiency Observed','Corrective Actions'] },
+        { title: 'Evidence & Closure', fields: ['Photos','Attachments','Remarks','Status'] },
+      ]
     }
   };
   var _filters = {};
@@ -521,7 +537,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var cfg = TABLES[tKeyName];
     var selFields = cfg.selectFields || {};
     var taFields = cfg.textareaFields || [];
-    var fieldsHtml = fields.map(function(f, fi){
+
+    function renderField(f, fi){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
       if (selFields[f]){
@@ -539,7 +556,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var isDateField = /date$/i.test(f.trim());
       var inputType = isDateField ? 'date' : 'text';
       return '<div class="md-field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"></div>';
-    }).join('');
+    }
+
+    // Sectioned layout when the table config provides one (matches
+    // the paper form's own flow); falls back to one flat list of
+    // fields otherwise, so this still works for any future table that
+    // doesn't define modalSections.
+    var fieldsHtml;
+    if (cfg.modalSections){
+      fieldsHtml = cfg.modalSections.map(function(sec){
+        return '<div class="md-modal-sec">'+sec.title+'</div>' + sec.fields.map(renderField).join('');
+      }).join('');
+    } else {
+      fieldsHtml = fields.map(renderField).join('');
+    }
 
     root.innerHTML = '<div class="md-modal-bg" id="md-modal-bg"><div class="md-modal">' +
       '<h3>'+title+'</h3>' + fieldsHtml +
