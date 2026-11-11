@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SAGCO IMS — Crane Inspection</title>
+<title>SAGCO IMS — Crane &amp; Lifting</title>
 <link rel="stylesheet" href="style.css">
 <script src="auth.js"></script><script src="data.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -108,12 +108,83 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .crn-dark-wrap .detail-lbl{display:block;font-weight:600;color:var(--crntext-muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.3px}
 .crn-dark-wrap .detail-val{display:block;color:var(--crntext);word-break:break-word;white-space:pre-wrap}
 
+/* Rev.22 (Issam, voice, 2026-11-11) — single page, two tabs: Equipment
+   Register (the former crane-lifting.html, ported in unchanged below —
+   same clw- class names/sheet tab/columns, so the certificate-expiry
+   reminder in google-apps-script.js keeps working untouched) and this
+   page's own Pre-Use Inspection Checklist. */
+.crn-dark-wrap .crn-tabbar{display:flex;gap:8px;margin:14px 0 4px}
+.crn-dark-wrap .crn-tab{font-size:12px;font-weight:700;padding:9px 16px;border-radius:9px 9px 0 0;
+  border:1px solid var(--crnborder-gold);border-bottom:none;background:var(--crnbg2);color:var(--crntext-muted);cursor:pointer;font-family:inherit}
+.crn-dark-wrap .crn-tab.active{background:var(--crnbg3);color:var(--crngold-lt)}
+
+/* ── Equipment Register (ported from crane-lifting.html, unchanged class names) ── */
+.cl-dark-wrap{color:var(--crntext)}
+.cl-dark-wrap .flag-text{font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(232,179,57,.08);
+  border-radius:8px;border-left:3px solid var(--crnamb);margin:10px 0;color:var(--crntext-muted)}
+.clw-clickable{cursor:pointer}
+.clw-clickable:hover{background:var(--crnbg3)}
+.clw-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;
+  background:var(--crnbg2);border:1px solid var(--crnborder-gold);border-top:none}
+.clw-toolbar input[type=text]{background:var(--crnbg3);border:1px solid var(--crnborder);
+  color:var(--crntext);border-radius:7px;padding:7px 10px;font-size:11px;min-width:170px}
+.clw-btn{font-size:11px;font-weight:700;padding:7px 13px;border-radius:7px;border:1px solid var(--crnborder-gold);
+  background:var(--crnbg3);color:var(--crngold-lt);cursor:pointer}
+.clw-btn:hover{background:rgba(201,168,76,.15)}
+.clw-btn:disabled{opacity:.4;cursor:not-allowed}
+.clw-btn-add{background:rgba(79,203,158,.15);border-color:rgba(79,203,158,.4);color:var(--crngrn)}
+.clw-table-wrap{border:1px solid var(--crnborder-gold);border-top:none;max-height:420px;overflow:auto}
+table.clw-tbl{width:100%;border-collapse:collapse;font-size:11px}
+table.clw-tbl th{position:sticky;top:0;background:var(--crnbg3);color:var(--crngold-lt);
+  text-align:left;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--crnborder-gold);white-space:nowrap}
+table.clw-tbl td{padding:7px 10px;border-bottom:1px solid var(--crnborder);color:var(--crntext)}
+table.clw-tbl tr.clw-row{cursor:pointer}
+table.clw-tbl tr.clw-row:hover{background:var(--crnbg3)}
+table.clw-tbl tr.clw-row.clw-sel{background:rgba(201,168,76,.12)}
+.clw-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;
+  justify-content:center;z-index:999;padding:30px 14px;overflow:auto}
+.clw-modal{background:var(--crnbg2);border:1px solid var(--crnborder-gold);border-radius:14px;
+  padding:20px 22px;max-width:1000px;width:100%;color:var(--crntext)}
+.clw-modal h3{margin:0 0 12px;font-size:14px;color:var(--crngold-lt)}
+.clw-modal-hdr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.clw-modal-hdr-grid label{display:block;font-size:10px;font-weight:600;color:var(--crntext-muted);
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.clw-modal-hdr-grid input, .clw-modal-hdr-grid select, .clw-modal-hdr-grid textarea{width:100%;background:var(--crnbg3);
+  border:1px solid var(--crnborder);color:var(--crntext);border-radius:7px;padding:7px 9px;font-size:12px}
+.clw-field label{display:block;font-size:10px;font-weight:600;color:var(--crntext-muted);
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.clw-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+
 </style>
 </head><body><div class='crn-dark-wrap'>
 <div class="back-row"><a href="oc01-safety.html" class="back-link">← OC-01 Safety &amp; Emergency</a><a href="ptw-register.html" class="back-link">← Permit to Work Register</a></div>
-<div class="req-text">Crane and lifting equipment inspection, per HSE-FRM-18 (Crane Inspection Checklist, Rev.0, effective 2 Nov 2020). Every crane, mobile crane, man lift or crane-with-basket unit is inspected before use against this checklist. When the lift is carried out under a Permit to Work, the Permit ID links this inspection to that permit, the same way Confined Space and LOTO already link to PTW.</div>
+<div class="req-text">L4-SHEE-PR-11-R-01 · ISO 45001 §8.1 / SASO — Crane &amp; lifting equipment: the equipment master list with 3rd-party annual inspection certificate tracking, and the pre-use inspection log per HSE-FRM-18 (Rev.0, effective 2 Nov 2020). When a lift is carried out under a Permit to Work, the Permit ID links the inspection to that permit, the same way Confined Space and LOTO already link to PTW.</div>
 
-<div class="sec-banner">CRANE INSPECTION CHECKLIST</div>
+<div class="crn-tabbar">
+  <button class="crn-tab active" id="crn-tab-equip" onclick="CRN.switchTab('equip')">Equipment Register</button>
+  <button class="crn-tab" id="crn-tab-insp" onclick="CRN.switchTab('insp')">Pre-Use Inspection Checklist</button>
+</div>
+
+<div id="crn-panel-equip">
+
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-card kc-nvy clw-clickable" onclick="CRN.equipCardClick('total')" title="Click to view the equipment register"><div class="kpi-lbl">Total Equipment</div><div class="kpi-val" id="cl-kpi-equip-total">—</div><div class="kpi-sub">Crane &amp; Lifting Register</div></div>
+  <div class="kpi-card kc-amb clw-clickable" onclick="CRN.equipCardClick('due')" title="Click to view equipment due for re-certification"><div class="kpi-lbl">Certificates Due ≤14 Days</div><div class="kpi-val" id="cl-kpi-due">—</div><div class="kpi-sub">Next Inspection Due approaching</div></div>
+  <div class="kpi-card kc-red clw-clickable" onclick="CRN.equipCardClick('overdue')" title="Click to view overdue certificates"><div class="kpi-lbl">Certificates Overdue</div><div class="kpi-val" id="cl-kpi-overdue">—</div><div class="kpi-sub">Must not be used until renewed</div></div>
+</div>
+
+<div class="clw-toolbar">
+  <input type="text" id="cl-equip-search" placeholder="Search model / serial…" oninput="CRN.onEquipSearch(this.value)">
+  <button class="clw-btn clw-btn-add" id="cl-equip-btn-new" onclick="CRN.openEquipAdd()">+ Add Equipment</button>
+  <button class="clw-btn" id="cl-equip-btn-edit" disabled onclick="CRN.openEquipEditSelected()">Open / Edit</button>
+  <button class="clw-btn" id="cl-equip-btn-remove" disabled onclick="CRN.removeEquipSelected()">Remove</button>
+  <span style="margin-left:auto;font-size:10px;color:var(--crntext-dim)" id="cl-equip-count-sub"></span>
+</div>
+<div class="clw-table-wrap"><div id="live-table-equip"><div class="empty-state"><strong>Loading…</strong></div></div></div>
+
+</div>
+
+<div id="crn-panel-insp" style="display:none">
 
 <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
   <div class="kpi-card kc-nvy ck-clickable" onclick="CRN.cardClick('all')" title="All inspections"><div class="kpi-lbl">Total Inspections</div><div class="kpi-val" id="kpi-total">—</div><div class="kpi-sub">HSE-FRM-18</div></div>
@@ -139,7 +210,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 <div id='live-table-main'></div>
 
 <div style="margin-top:16px;font-size:10px;color:var(--crntext-dim);text-align:right" id="live-ts"></div>
+
+</div>
+
 <div id="modal-root"></div>
+<div id="cl-modal-root"></div>
 </div>
 <!-- No sidebar/topbar: this page is reached only from inside the Operations Hub, same pattern as the other linked registers. -->
 
@@ -166,6 +241,180 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   var _expandedRows = {};
   var _cache = null;
   var _charts = {};
+
+  /* ── Equipment Register module (Rev.22, Issam, voice, 2026-11-11) —
+     ported unchanged from the retired crane-lifting.html: same sheet
+     tab key, id column and columns, so the certificate-expiry
+     reminder in google-apps-script.js (DATE_RULES, tab 'crane_lifting')
+     keeps working without any change there. Lives as its own small
+     module inside this page rather than merged into the CRN inspection
+     variables above, to keep the two clearly separate internally even
+     though they now share one page and one public API object below. ── */
+  var EQUIP = { tabKey:'crane_lifting', containerId:'live-table-equip', idCol:'Equipment ID', idPrefix:'CRN-', idPad:3 };
+  var EQUIP_TYPES = ['Mobile Crane','Tower Crane','Overhead Crane','Forklift','Telehandler','Hoist / Chain Block','Other'];
+  var EQUIP_STATUSES = ['Active','Out of Service','Decommissioned'];
+  var _equipCache = null;
+  var _equipSelected = null;
+  var _equipFilters = { search:'', special:null };
+
+  function equipRecFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function equipDaysUntil(dateStr){
+    if (!dateStr) return null;
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    var today = new Date(); today.setHours(0,0,0,0); d.setHours(0,0,0,0);
+    return Math.round((d - today) / 86400000);
+  }
+  function equipNextId(){
+    if (!_equipCache || !_equipCache.headers || !_equipCache.rows) return EQUIP.idPrefix + '001';
+    var idIdx = colIdx(_equipCache.headers, EQUIP.idCol);
+    if (idIdx < 0) return EQUIP.idPrefix + '001';
+    var maxN = 0;
+    _equipCache.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(EQUIP.idPrefix.toLowerCase()) !== 0) return;
+      var n = parseInt(v.slice(EQUIP.idPrefix.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    var numStr = String(maxN + 1);
+    while (numStr.length < EQUIP.idPad) numStr = '0' + numStr;
+    return EQUIP.idPrefix + numStr;
+  }
+  function getEquipRecs(){
+    if (!_equipCache || !_equipCache.headers || !_equipCache.rows) return [];
+    return _equipCache.rows.map(function(r){ return equipRecFromRow(_equipCache.headers, r); });
+  }
+  function loadEquip(){
+    return fetch(SHEETS_URL + '?tab=' + EQUIP.tabKey + '&action=read').then(function(r){ return r.json(); }).then(function(data){
+      if (data && data.headers && data.rows){
+        var si = colIdx(data.headers, STATUS_COL);
+        if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
+      }
+      _equipCache = data;
+      renderEquip();
+    }).catch(function(){ _equipCache = null; });
+  }
+  function renderEquip(){
+    var eqRecs = getEquipRecs();
+    var dueSoon = eqRecs.filter(function(rc){ var d = equipDaysUntil(rc['Next Inspection Due']); return d !== null && d >= 0 && d <= 14; }).length;
+    var overdue = eqRecs.filter(function(rc){ var d = equipDaysUntil(rc['Next Inspection Due']); return d !== null && d < 0; }).length;
+    var setTxt = function(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; };
+    setTxt('cl-kpi-equip-total', eqRecs.length);
+    setTxt('cl-kpi-due', dueSoon);
+    setTxt('cl-kpi-overdue', overdue);
+    renderEquipTable(eqRecs);
+  }
+  function filteredEquip(recs){
+    var f = _equipFilters;
+    return recs.filter(function(rc){
+      if (f.search){
+        var hay = ((rc['Model']||'')+' '+(rc['Serial Number']||'')).toLowerCase();
+        if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+      }
+      if (f.special === 'due'){ var d = equipDaysUntil(rc['Next Inspection Due']); if (!(d !== null && d >= 0 && d <= 14)) return false; }
+      if (f.special === 'overdue'){ var d2 = equipDaysUntil(rc['Next Inspection Due']); if (!(d2 !== null && d2 < 0)) return false; }
+      return true;
+    });
+  }
+  function renderEquipTable(recs){
+    var list = filteredEquip(recs);
+    var el = document.getElementById(EQUIP.containerId);
+    var sub = document.getElementById('cl-equip-count-sub');
+    if (sub) sub.textContent = list.length + ' of ' + recs.length + ' items shown';
+    if (!list.length){
+      el.innerHTML = '<div class="empty-state"><strong>No equipment found</strong>Add the first crane or lifting item to get started.</div>';
+      updateEquipButtons();
+      return;
+    }
+    list.sort(function(a,b){ return String(a['Equipment ID']||'').localeCompare(String(b['Equipment ID']||'')); });
+    var rows = list.map(function(rc){
+      var sel = _equipSelected === rc['Equipment ID'];
+      var d = equipDaysUntil(rc['Next Inspection Due']);
+      var dueBadge = d === null ? '—' : (d < 0 ? '<span class="nb nb-red">Overdue ' + Math.abs(d) + 'd</span>'
+        : (d <= 14 ? '<span class="nb nb-amb">Due in ' + d + 'd</span>' : '<span class="nb nb-grn">OK</span>'));
+      var statusBadge = rc['Status'] === 'Active' ? '<span class="nb nb-grn">Active</span>'
+        : (rc['Status'] === 'Out of Service' ? '<span class="nb nb-amb">Out of Service</span>' : '<span class="nb nb-red">Decommissioned</span>');
+      var serialEsc = String(rc['Serial Number']||'').replace(/'/g,"\\'");
+      var inspLink = rc['Serial Number']
+        ? '<a href="#" onclick="event.stopPropagation();CRN.gotoInspectionsFor(\'' + serialEsc + '\');return false;" style="color:var(--crngold-lt)">View Inspections →</a>'
+        : '—';
+      return '<tr class="clw-row' + (sel?' clw-sel':'') + '" onclick="CRN.selectEquip(\'' + String(rc['Equipment ID']).replace(/'/g,"\\'") + '\')">'
+        + '<td>' + (rc['Equipment ID']||'') + '</td>'
+        + '<td>' + (rc['Equipment Type']||'') + '</td>'
+        + '<td>' + (rc['Model']||'') + '</td>'
+        + '<td>' + (rc['Serial Number']||'') + '</td>'
+        + '<td>' + (rc['Next Inspection Due']||'') + ' ' + dueBadge + '</td>'
+        + '<td>' + statusBadge + '</td>'
+        + '<td>' + inspLink + '</td>'
+      + '</tr>';
+    }).join('');
+    el.innerHTML = '<table class="clw-tbl"><thead><tr><th>Equipment ID</th><th>Type</th><th>Model</th><th>Serial Number</th><th>Next Inspection Due</th><th>Status</th><th>Inspections</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    updateEquipButtons();
+  }
+  function updateEquipButtons(){
+    var rc = getSelectedEquip();
+    var editBtn = document.getElementById('cl-equip-btn-edit');
+    var remBtn = document.getElementById('cl-equip-btn-remove');
+    if (editBtn) editBtn.disabled = !rc;
+    if (remBtn) remBtn.disabled = !rc || !can('delete');
+  }
+  function getSelectedEquip(){
+    if (!_equipCache || !_equipSelected) return null;
+    var idIdx = colIdx(_equipCache.headers, EQUIP.idCol);
+    var row = _equipCache.rows.find(function(r){ return String(r[idIdx]) === String(_equipSelected); });
+    return row ? equipRecFromRow(_equipCache.headers, row) : null;
+  }
+  function buildEquipModal(existingRec){
+    var root = document.getElementById('cl-modal-root');
+    var isEdit = !!existingRec;
+    var eqId = isEdit ? existingRec['Equipment ID'] : equipNextId();
+    var typeOpts = EQUIP_TYPES.map(function(t){ return '<option value="'+t+'"'+((existingRec&&existingRec['Equipment Type']===t)?' selected':'')+'>'+t+'</option>'; }).join('');
+    var statusOpts = EQUIP_STATUSES.map(function(s){ return '<option value="'+s+'"'+((existingRec&&existingRec['Status']===s)?' selected':(!existingRec&&s==='Active'?' selected':''))+'>'+s+'</option>'; }).join('');
+    var esc2 = function(v){ return String(v==null?'':v).replace(/"/g,'&quot;'); };
+    root.innerHTML = '<div class="clw-modal-bg" id="clm-bg"><div class="clw-modal">'
+      + '<h3>' + (isEdit?'Edit':'Add') + ' Equipment — ' + eqId + '</h3>'
+      + '<div class="clw-modal-hdr-grid">'
+        + '<div><label>Equipment Type</label><select id="clm-eq-type">' + typeOpts + '</select></div>'
+        + '<div><label>Model</label><input type="text" id="clm-eq-model" value="' + esc2(existingRec?existingRec['Model']:'') + '"></div>'
+        + '<div><label>Serial Number</label><input type="text" id="clm-eq-serial" value="' + esc2(existingRec?existingRec['Serial Number']:'') + '"></div>'
+        + '<div><label>Status</label><select id="clm-eq-status">' + statusOpts + '</select></div>'
+        + '<div><label>Last Inspection Date</label><input type="date" id="clm-eq-last" value="' + esc2(existingRec?existingRec['Last Inspection Date']:'') + '"></div>'
+        + '<div><label>Next Inspection Due</label><input type="date" id="clm-eq-next" value="' + esc2(existingRec?existingRec['Next Inspection Due']:'') + '"></div>'
+      + '</div>'
+      + '<div class="clw-field" style="margin-bottom:14px"><label>Remarks</label><textarea id="clm-eq-remarks" rows="2" style="width:100%;background:var(--crnbg3);border:1px solid var(--crnborder);color:var(--crntext);border-radius:7px;padding:7px 9px;font-size:12px">' + esc2(existingRec?existingRec['Remarks']:'') + '</textarea></div>'
+      + '<div class="clw-modal-actions"><button class="clw-btn" id="clm-eq-cancel">Cancel</button><button class="clw-btn clw-btn-add" id="clm-eq-save">Save</button></div>'
+    + '</div></div>';
+    document.getElementById('clm-eq-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('clm-bg').onclick = function(e){ if (e.target.id==='clm-bg') root.innerHTML=''; };
+    document.getElementById('clm-eq-save').onclick = function(){ saveEquip(eqId, isEdit); };
+  }
+  function saveEquip(eqId, isEdit){
+    var root = document.getElementById('cl-modal-root');
+    var btn = document.getElementById('clm-eq-save'); btn.disabled = true;
+    var values = {
+      'Equipment ID': eqId,
+      'Equipment Type': document.getElementById('clm-eq-type').value,
+      'Model': document.getElementById('clm-eq-model').value.trim(),
+      'Serial Number': document.getElementById('clm-eq-serial').value.trim(),
+      'Last Inspection Date': document.getElementById('clm-eq-last').value,
+      'Next Inspection Due': document.getElementById('clm-eq-next').value,
+      'Status': document.getElementById('clm-eq-status').value,
+      'Remarks': document.getElementById('clm-eq-remarks').value.trim()
+    };
+    var reenable = function(){ if (btn) btn.disabled = false; };
+    if (isEdit){
+      postJSON('update', {tab: EQUIP.tabKey, idCol: EQUIP.idCol, id: eqId}, values).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadEquip();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    } else {
+      values[STATUS_COL] = 'Active';
+      postJSON('write', {tab: EQUIP.tabKey}, [values]).then(function(res){
+        if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
+        root.innerHTML=''; loadEquip();
+      }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+    }
+  }
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
   function colIdx(headers, name){
@@ -534,6 +783,26 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           return '<div class="field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(the permit\'s Permit ID - pick an open one, or type one not yet in the list)</span></label>'
             + '<input type="text" data-field="PTW Number" value="'+vEsc+'" list="dl-ptw-open" placeholder="Loading open permits...">' + '<datalist id="dl-ptw-open"></datalist></div>';
         }
+        /* Rev.22 (Issam, voice, 2026-11-11) — picks the crane from the
+           Equipment Register instead of typing the serial number by
+           hand, which is exactly the mismatch (Serial Number vs
+           Equipment Serial #, typos) that caused problems earlier.
+           Choosing one auto-fills Equipment Type and Model of
+           Equipment below (still ordinary editable fields, in case a
+           unit's details changed since it was registered, or this is
+           an older record from before the register existed). A value
+           already on the record that no longer matches any registered
+           unit is kept as an extra option so editing an old inspection
+           never silently blanks its serial number. */
+        if (f === 'Equipment Serial #'){
+          var equipOpts = getEquipRecs().filter(function(e){ return e['Serial Number']; });
+          var matched = equipOpts.some(function(e){ return e['Serial Number'] === v; });
+          var optsHtml2 = '<option value="">— select registered equipment —</option>' + equipOpts.map(function(e){
+            var label = (e['Model']||e['Equipment ID']||'') + ' (' + (e['Equipment Type']||'') + ') — ' + e['Serial Number'];
+            return '<option value="'+String(e['Serial Number']).replace(/"/g,'&quot;')+'"'+(e['Serial Number']===v?' selected':'')+'>'+label.replace(/</g,'&lt;')+'</option>';
+          }).join('') + (v && !matched ? '<option value="'+vEsc+'" selected>'+vEsc+' (not in Equipment Register)</option>' : '');
+          return '<div class="field"><label>Equipment Serial #</label><select data-field="Equipment Serial #" id="field-equip-serial-select">'+optsHtml2+'</select></div>';
+        }
         if (SELECT_FIELDS[f]){
           var optsHtml = '<option value=""></option>' + SELECT_FIELDS[f].map(function(o){
             return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
@@ -568,6 +837,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
     document.getElementById('modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('modal-bg').onclick = function(e){ if(e.target.id==='modal-bg') root.innerHTML=''; };
+
+    var equipSelectEl = document.getElementById('field-equip-serial-select');
+    if (equipSelectEl){
+      equipSelectEl.addEventListener('change', function(){
+        var rec = getEquipRecs().find(function(e){ return e['Serial Number'] === equipSelectEl.value; });
+        if (!rec) return;
+        var typeInp = root.querySelector('[data-field="Equipment Type"]');
+        var modelInp = root.querySelector('[data-field="Model of Equipment"]');
+        if (typeInp) typeInp.value = rec['Equipment Type'] || '';
+        if (modelInp) modelInp.value = rec['Model'] || '';
+      });
+    }
 
     if (FIELDS.indexOf('PTW Number') > -1){
       loadOpenPTWPermits().then(function(nums){
@@ -678,6 +959,41 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
 
   window.CRN = {
+    switchTab: function(which){
+      var equipPanel = document.getElementById('crn-panel-equip');
+      var inspPanel = document.getElementById('crn-panel-insp');
+      var equipTab = document.getElementById('crn-tab-equip');
+      var inspTab = document.getElementById('crn-tab-insp');
+      if (which === 'insp'){
+        equipPanel.style.display = 'none'; inspPanel.style.display = '';
+        equipTab.classList.remove('active'); inspTab.classList.add('active');
+      } else {
+        equipPanel.style.display = ''; inspPanel.style.display = 'none';
+        inspTab.classList.remove('active'); equipTab.classList.add('active');
+      }
+    },
+    /* Clicking "View Inspections →" on an equipment row switches to the
+       checklist tab, pre-filtered to that unit's serial number — same
+       page now, so this replaces the old cross-page ?serial= link. */
+    gotoInspectionsFor: function(serial){
+      CRN.switchTab('insp');
+      _filters.search = serial;
+      renderShell();
+    },
+    onEquipSearch: function(v){ _equipFilters.search = v; renderEquip(); },
+    equipCardClick: function(name){ _equipFilters.special = (name==='total') ? null : name; renderEquip(); },
+    selectEquip: function(id){ _equipSelected = (_equipSelected!==null && String(_equipSelected)===String(id)) ? null : id; renderEquip(); },
+    openEquipAdd: function(){ if (can('add')) buildEquipModal(null); },
+    openEquipEditSelected: function(){ var rc=getSelectedEquip(); if(!rc) return alert('Select a row first.'); buildEquipModal(rc); },
+    removeEquipSelected: function(){
+      if (!can('delete')) return;
+      var rc = getSelectedEquip(); if(!rc) return alert('Select a row first.');
+      if (!confirm('Remove equipment ' + rc['Equipment ID'] + '? It will be hidden here but kept in the sheet for audit history.')) return;
+      postJSON('update', {tab: EQUIP.tabKey, idCol: EQUIP.idCol, id: rc['Equipment ID']}, {'Record Status':'Removed'}).then(function(r){
+        if (r && r.status==='error'){ alert('Remove failed: '+(r.message||'unknown error')); return; }
+        _equipSelected = null; loadEquip();
+      }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
     onSearchInput: function(val){ _filters.search = val; renderTableArea(); },
     onCategoryChange: function(val){ _filters.category = val; renderTableArea(); },
     clearFilters: function(){ _filters = {search:'', category:'', special:null}; renderShell(); },
@@ -804,12 +1120,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // shows that unit's own inspections rather than the whole table.
     var serial = params.get('serial');
     if (serial){
+      CRN.switchTab('insp');
       _filters.search = serial;
       renderShell();
     }
   }
   document.addEventListener('DOMContentLoaded', function(){
-    setTimeout(function(){ loadMain().then(handleDeepLink); }, 100);
+    setTimeout(function(){
+      loadEquip();
+      loadMain().then(handleDeepLink);
+    }, 100);
   });
 })();
 </script>
@@ -832,7 +1152,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function blockPage(){
     document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
       +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
-      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">The Crane Inspection register is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:360px;margin:0 auto 18px;line-height:1.6">Crane &amp; Lifting (equipment register and pre-use inspection checklist) is limited to the Safety (SHEE) Department, Managers, the CEO, and Superadmin accounts.</div>'
       +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
   }
   if (typeof IMS_AUTH === 'undefined') { blockPage(); return; }
