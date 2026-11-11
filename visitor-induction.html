@@ -269,47 +269,83 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
 
 <script>
 (function(){
-  var TAB_PERSONS = 'vc_persons', TAB_SPOTCHECKS = 'vc_spotchecks';
+  var TAB_PERSONS = 'vc_persons', TAB_SPOTCHECKS = 'vc_spotchecks', TAB_USERS = 'users';
   var STATUS_COL = 'Record Status';
   var INDUCTION_VALID_DAYS = 365;
   var INDUCTION_EXPIRING_WINDOW_DAYS = 30;
-  var _persons = [], _spotchecks = [];
+  var _persons = [], _spotchecks = [], _users = [];
   var _activeScanTarget = null;
+  var _currentUserFromSheet = null; // { name, email, department, username }
 
   /* ── Helpers ───────────────────────────────────────────────── */
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+
+  function getSessionUsername(){
+    if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
+    var s = IMS_AUTH.getSession();
+    return (s && s.username) ? String(s.username).trim().toLowerCase() : '';
+  }
+
+  function lookupUserFromSheet(){
+    var username = getSessionUsername();
+    if (!username || !_users.length) return null;
+    for (var i = 0; i < _users.length; i++){
+      var row = _users[i];
+      var un = String(row['Username'] || row['username'] || '').trim().toLowerCase();
+      if (un && un === username) return row;
+    }
+    return null;
+  }
+
   function currentUserName(){
-    if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
-    var s = IMS_AUTH.getSession();
-    if (!s) return '';
-    var u = (IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
-    // Prefer full name, then username, then role for admin/superadmin
-    if (u && u.name) return u.name;
-    if (s.username) return s.username;
-    if (s.role === 'superadmin' || s.role === 'admin') return 'Admin';
+    if (_currentUserFromSheet){
+      return _currentUserFromSheet['Full Name'] || _currentUserFromSheet['Name'] || _currentUserFromSheet['Username'] || '';
+    }
+    // Fallback to IMS_AUTH while sheet is still loading
+    if (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getSession){
+      var s = IMS_AUTH.getSession();
+      if (!s) return '';
+      var u = (IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+      if (u && u.name) return u.name;
+      if (s.username) return s.username;
+      if (s.role === 'superadmin' || s.role === 'admin') return 'Admin';
+    }
     return '';
   }
+
   function currentUserEmail(){
-    if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
-    var s = IMS_AUTH.getSession();
-    if (!s) return '';
-    var u = (IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
-    if (u && u.email) return u.email;
-    // Fallback: some sessions store email directly
-    if (s.email) return s.email;
+    if (_currentUserFromSheet){
+      return _currentUserFromSheet['Email'] || _currentUserFromSheet['email'] || '';
+    }
+    if (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getSession){
+      var s = IMS_AUTH.getSession();
+      if (!s) return '';
+      var u = (IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+      if (u && u.email) return u.email;
+      if (s.email) return s.email;
+    }
     return '';
   }
+
   function currentUserDept(){
-    if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
-    var s = IMS_AUTH.getSession();
-    var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
-    return (u && u.department) || '';
+    if (_currentUserFromSheet){
+      return _currentUserFromSheet['Department'] || _currentUserFromSheet['department'] || '';
+    }
+    if (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getSession){
+      var s = IMS_AUTH.getSession();
+      var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+      return (u && u.department) || '';
+    }
+    return '';
   }
+
   function fillCurrentUserFields(){
     var nameEl = document.getElementById('vc-inv-createdby');
     var emailEl = document.getElementById('vc-inv-useremail');
-    if (nameEl) nameEl.value = currentUserName() || '(not available)';
-    if (emailEl) emailEl.value = currentUserEmail() || '(not available)';
+    var name = currentUserName();
+    var email = currentUserEmail();
+    if (nameEl) nameEl.value = name || '(not available)';
+    if (emailEl) emailEl.value = email || '(not available)';
   }
   function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -329,10 +365,18 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     return rows.map(function(r){ return recFromRow(data.headers, r); });
   }
   function loadAll(){
-    return Promise.all([ loadTab(TAB_PERSONS), loadTab(TAB_SPOTCHECKS) ])
+    return Promise.all([ loadTab(TAB_PERSONS), loadTab(TAB_SPOTCHECKS), loadTab(TAB_USERS) ])
       .then(function(results){
         _persons = activeRows(results[0]);
         _spotchecks = activeRows(results[1]);
+        // User Register has no "Record Status = Removed" filter — keep all rows
+        if (results[2] && results[2].headers && results[2].rows){
+          _users = results[2].rows.map(function(r){ return recFromRow(results[2].headers, r); });
+        } else {
+          _users = [];
+        }
+        _currentUserFromSheet = lookupUserFromSheet();
+        fillCurrentUserFields();
         renderInviteList();
         renderApprovalsList();
       }).catch(function(){ /* leave caches as-is */ });
