@@ -734,7 +734,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     });
   }
 
-  function buildDrillPrintHtml(rec, uploadedPhotosHtml){
+  function buildDrillPrintHtml(rec, uploadedFiles){
     var scenario = rec['Emergency Situation'] || '';
     var scenRow1 = ['Fire','Glass leak','Emergency evacuation','Medical emergency'];
     var scenRow2 = ['Severe weather','Chemical spillage','Power shortage'];
@@ -747,11 +747,36 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }).join('');
 
     var photoBlocks = parsePhotoLines(rec['Photos']);
-    var photoHtml = photoBlocks.length ? photoBlocks.map(function(p,i){
-      return '<div class="pf-photo-block"><div class="pf-photo-hdr">Photo #'+(i+1)+'</div>' +
-        '<div class="pf-grid4">'+pfField('Date', p.date)+pfField('Time', p.time)+pfField('Location', p.loc)+'</div>' +
-        '<div class="pf-field"><span class="pf-label">Description:</span><span class="pf-value">'+pfEsc(p.desc)+'</span></div></div>';
-    }).join('') : '<div class="pf-note">No photo log entered digitally — see the register\'s 📷 Photos button for uploaded image files.</div>';
+    // Rev.4 (Issam, voice, 2026-11-11) — each printed photo box now
+    // holds BOTH the uploaded image and its own date/time/location/
+    // description together, matched by order: the first uploaded
+    // file pairs with the first typed log line, the second with the
+    // second, and so on — same pairing rule Issam asked for, by
+    // position rather than file name. Entries and files are entered
+    // in the same order, so this needs no extra data. An uploaded
+    // file with no matching log line still prints with just its
+    // upload date; a log line with no matching file still prints as
+    // text only, same as before this fix.
+    uploadedFiles = uploadedFiles || [];
+    var pairCount = Math.max(photoBlocks.length, uploadedFiles.length);
+    var photoHtml = pairCount ? (function(){
+      var out = '';
+      for (var i = 0; i < pairCount; i++){
+        var p = photoBlocks[i];
+        var f = uploadedFiles[i];
+        var imgHtml = f
+          ? '<a href="'+String(f.webViewLink||'#').replace(/"/g,'&quot;')+'" target="_blank">'
+            + '<img class="pf-photo-combo-img" src="'+photoThumbUrl(f.fileId)+'" alt=""></a>'
+          : '<div class="pf-photo-combo-noimg">No image uploaded for this entry</div>';
+        var detailsHtml = p
+          ? '<div class="pf-grid4">'+pfField('Date', p.date)+pfField('Time', p.time)+pfField('Location', p.loc)+'</div>'
+            + '<div class="pf-field"><span class="pf-label">Description:</span><span class="pf-value">'+pfEsc(p.desc)+'</span></div>'
+          : '<div class="pf-note">'+(f ? 'No log entry typed for this photo — uploaded '+pfEsc(f.date||f.uploadedDate||'')+(f.uploadedBy?' by '+pfEsc(f.uploadedBy):'') : '')+'</div>';
+        out += '<div class="pf-photo-combo"><div class="pf-photo-hdr">Photo #'+(i+1)+'</div>'
+          + '<div class="pf-photo-combo-row">' + imgHtml + '<div class="pf-photo-combo-details">' + detailsHtml + '</div></div></div>';
+      }
+      return out;
+    })() : '<div class="pf-note">No photo log entered digitally — see the register\'s 📷 Photos button for uploaded image files.</div>';
 
     var printedAt = new Date().toLocaleString();
     var drillId = rec['Drill ID'] || '';
@@ -789,10 +814,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     + '.pf-action-tbl th{background:#f0f0f0}'
     + '.pf-photo-block{border:1px dashed #999;padding:6px;margin-bottom:6px}'
     + '.pf-photo-hdr{font-weight:700;margin-bottom:4px}'
-    + '.pf-photo-img-grid{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}'
-    + '.pf-photo-img-item{width:160px;text-align:center}'
-    + '.pf-photo-img-item img{width:160px;height:120px;object-fit:cover;border:1px solid #999;border-radius:3px}'
-    + '.pf-photo-img-caption{font-size:8.5px;color:#555;margin-top:3px}'
+    + '.pf-photo-combo{border:1px dashed #999;padding:6px;margin-bottom:8px}'
+    + '.pf-photo-combo-row{display:flex;gap:10px;align-items:flex-start}'
+    + '.pf-photo-combo-img{width:160px;height:120px;object-fit:cover;border:1px solid #999;border-radius:3px;flex-shrink:0}'
+    + '.pf-photo-combo-noimg{width:160px;height:120px;flex-shrink:0;border:1px dashed #bbb;border-radius:3px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:8px;color:#888;padding:6px}'
+    + '.pf-photo-combo-details{flex:1}'
     + '.pf-footer{margin-top:10px;font-size:9px;color:#666;border-top:1px solid #999;padding-top:6px}'
     + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}}'
     + '</style></head><body>'
@@ -856,7 +882,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // full-size file — so the printed sheet shows what the paper
       // form expects to see, not just a caption describing it.
       + '<div class="pf-section"><div class="pf-section-title">Photos</div>'
-        + (uploadedPhotosHtml || '')
         + photoHtml
       + '</div>'
 
@@ -979,22 +1004,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         .then(function(r){ return r.json(); })
         .then(function(res){
           var files = (res && res.files) || [];
-          var uploadedPhotosHtml = '';
-          if (files.length){
-            uploadedPhotosHtml = '<div class="pf-photo-img-grid">' + files.map(function(f){
-              var cap = String(f.date||f.uploadedDate||'').replace(/</g,'&lt;') + (f.uploadedBy?' · '+String(f.uploadedBy).replace(/</g,'&lt;'):'');
-              var link = String(f.webViewLink||'#').replace(/"/g,'&quot;');
-              return '<div class="pf-photo-img-item">' +
-                '<a href="'+link+'" target="_blank"><img src="'+photoThumbUrl(f.fileId)+'" alt=""></a>' +
-                '<div class="pf-photo-img-caption">'+cap+'</div></div>';
-            }).join('') + '</div>';
-          }
-          w.document.open(); w.document.write(buildDrillPrintHtml(rec, uploadedPhotosHtml)); w.document.close();
+          w.document.open(); w.document.write(buildDrillPrintHtml(rec, files)); w.document.close();
         })
         .catch(function(){
           // Still produce the report even if the photo fetch fails —
           // just without the uploaded images, same as before this fix.
-          w.document.open(); w.document.write(buildDrillPrintHtml(rec, '')); w.document.close();
+          w.document.open(); w.document.write(buildDrillPrintHtml(rec, [])); w.document.close();
         });
     },
     remove: function(tKeyName, idVal){
