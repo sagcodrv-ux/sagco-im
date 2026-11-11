@@ -77,6 +77,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   border:1px solid var(--crnborder);border-radius:6px;font-family:inherit;box-sizing:border-box;
   background:var(--crnbg3);color:var(--crntext)}
 .crn-dark-wrap .field textarea{min-height:50px;resize:vertical}
+/* Rev.26 (Issam, upload, 2026-11-11) — the five Yes/No checklist
+   sections render as an Item/OK/No table, matching the printed
+   HSE-FRM-18 report's own table layout. */
+.crn-dark-wrap .chk-tbl{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:10px}
+.crn-dark-wrap .chk-tbl th{text-align:left;color:var(--crngold-lt);font-weight:700;font-size:10px;
+  text-transform:uppercase;letter-spacing:.3px;padding:6px 8px;border-bottom:1px solid var(--crnborder-gold);background:var(--crnbg3)}
+.crn-dark-wrap .chk-tbl th:not(:first-child){text-align:center;width:50px}
+.crn-dark-wrap .chk-tbl td{padding:6px 8px;border-bottom:1px solid var(--crnborder)}
+.crn-dark-wrap .chk-item-cell{color:var(--crntext)}
+.crn-dark-wrap .chk-ok-cell{text-align:center}
+.crn-dark-wrap .chk-ok-cell input[type=radio]{width:16px;height:16px;cursor:pointer;accent-color:var(--crngold)}
 .crn-dark-wrap .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;position:sticky;bottom:0;background:var(--crnbg2);padding-top:8px}
 .crn-dark-wrap .modal-actions .btn-cancel{background:var(--crnbg3)}
 .crn-dark-wrap .filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
@@ -787,10 +798,24 @@ table.clw-tbl tr.clw-row.clw-sel{background:rgba(201,168,76,.12)}
 
   }
 
+  // Rev.26 (Issam, upload, 2026-11-11) — the five Yes/No checklist
+  // sections (Documents, Leakages, Wires Safety, Safety Requirements
+  // During Lifting, General Safety Requirement) now render as an
+  // actual Item/OK/No table, matching the printed HSE-FRM-18 report's
+  // own table layout exactly (see buildPrintHtml's pfSection above,
+  // unchanged) — not a dropdown per item stacked vertically, which is
+  // what was still there after the Rev.25 field-order fix. Job
+  // Information and Result and Sign-off are unaffected; they were
+  // never tables on the print either.
+  var CHECKLIST_SECTION_TITLES = {
+    'Documents': 1, 'Leakages': 1, 'Wires Safety': 1,
+    'Safety Requirements During Lifting': 1, 'General Safety Requirement': 1
+  };
+  function stripYN(label){ return String(label).replace(/\s*\(Y\/N\)\s*$/i, ''); }
+
   function showModal(title, initialValues, onSubmit){
     var root = document.getElementById('modal-root');
-    var secHtml = MODAL_SECTIONS.map(function(sec){
-      var fieldsHtml = sec.fields.map(function(f, fi){
+    function renderOneField(f, fi, sec){
         var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
         var vEsc = String(v).replace(/"/g,'&quot;');
         if (f === 'PTW Number'){
@@ -839,7 +864,25 @@ table.clw-tbl tr.clw-row.clw-sel{background:rgba(201,168,76,.12)}
           }).join('') + '</datalist>';
         }
         return '<div class="field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"'+(suggestions.length?' list="'+dlId+'"':'')+'>'+dlHtml+'</div>';
+    }
+
+    function renderChecklistTable(sec){
+      var rowsHtml = sec.fields.map(function(f){
+        var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+        var fEsc = String(f).replace(/"/g,'&quot;');
+        var nameEsc = 'chk-' + fEsc.replace(/[^a-z0-9]/ig, '');
+        return '<tr><td class="chk-item-cell">'+stripYN(f)+'</td>'
+          + '<td class="chk-ok-cell"><input type="radio" name="'+nameEsc+'" data-field="'+fEsc+'" value="Yes"'+(v==='Yes'?' checked':'')+'></td>'
+          + '<td class="chk-ok-cell"><input type="radio" name="'+nameEsc+'" data-field="'+fEsc+'" value="No"'+(v==='No'?' checked':'')+'></td></tr>';
       }).join('');
+      return '<table class="chk-tbl"><thead><tr><th>Item</th><th>OK</th><th>No</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>';
+    }
+
+    var secHtml = MODAL_SECTIONS.map(function(sec){
+      if (CHECKLIST_SECTION_TITLES[sec.title]){
+        return '<div class="modal-sec">'+sec.title+'</div>' + renderChecklistTable(sec);
+      }
+      var fieldsHtml = sec.fields.map(function(f, fi){ return renderOneField(f, fi, sec); }).join('');
       return '<div class="modal-sec">'+sec.title+'</div>' + fieldsHtml;
     }).join('');
 
@@ -891,7 +934,15 @@ table.clw-tbl tr.clw-row.clw-sel{background:rgba(201,168,76,.12)}
 
     document.getElementById('modal-save').onclick = function(){
       var values = {};
-      root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      // Rev.26 — a radio pair shares one data-field (Yes/No), so only
+      // the checked one should be read; reading every matching element
+      // unconditionally (as before) would always overwrite with
+      // whichever radio happens to come last in the DOM, regardless of
+      // which one is actually selected.
+      root.querySelectorAll('[data-field]').forEach(function(inp){
+        if (inp.type === 'radio'){ if (inp.checked) values[inp.getAttribute('data-field')] = inp.value; }
+        else { values[inp.getAttribute('data-field')] = inp.value.trim(); }
+      });
       var saveBtn = document.getElementById('modal-save');
       saveBtn.disabled = true;
       window._reenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };
