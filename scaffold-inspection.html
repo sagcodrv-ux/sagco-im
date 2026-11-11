@@ -896,12 +896,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       set[key] = !set[key];
       renderTableArea(tKeyName);
     },
-    openAdd: function(tKeyName){
+    openAdd: function(tKeyName, extraInitial){
       var cfg = TABLES[tKeyName];
       if (!can('add')) return;
       var initial = {};
       var suggestedId = nextSequentialId(tKeyName);
       if (suggestedId) initial[cfg.idCol] = suggestedId;
+      if (extraInitial) Object.keys(extraInitial).forEach(function(k){ initial[k] = extraInitial[k]; });
       showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
         values[STATUS_COL] = 'Active';
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
@@ -1008,10 +1009,26 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // exact record's full details (not just a highlighted row), same as
   // the Confined Space / Heat Stress hand-off.
   function handleScaffoldDeepLink(){
-    var inspectionId = new URLSearchParams(window.location.search).get('inspection');
-    if (!inspectionId) return;
-    SI.jumpTo('inspection');
-    SI.openEdit('inspection', inspectionId);
+    var params = new URLSearchParams(window.location.search);
+    var inspectionId = params.get('inspection');
+    if (inspectionId){
+      SI.jumpTo('inspection');
+      SI.openEdit('inspection', inspectionId);
+      return;
+    }
+    // Rev.24 (Issam, voice, 2026-11-11) — PTW Register hand-off: the
+    // permit's "Raise Scaffold Inspection" button opens this page with
+    // ?permitId=<Permit ID>, expecting a fresh Add form pre-filled with
+    // that permit number, same pattern as crane-inspection.html's own
+    // permitId handler. This page's own field for it is 'Permit
+    // Number', confirmed against the real file, not 'PTW Number' like
+    // most of the other linked pages — see the matching fix on
+    // ptw-register.html's findLinkedRecord() call for this page.
+    var permitId = params.get('permitId');
+    if (permitId){
+      SI.jumpTo('inspection');
+      SI.openAdd('inspection', {'Permit Number': permitId});
+    }
   }
   document.addEventListener('DOMContentLoaded', function(){
     setTimeout(function(){ loadAll().then(handleScaffoldDeepLink); }, 100);

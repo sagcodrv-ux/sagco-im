@@ -345,7 +345,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       label: 'Permit', tabKey: 'ptw_register', containerId: 'live-table-register',
       idCol: 'Permit ID', idEditable: true, // auto-suggested PTW-0001 style, but still hand-editable
       idPrefix: 'PTW-', idPad: 4, // next sequential number is pre-filled into Add forms — see nextSequentialId()
-      fields: ['Permit ID','Permit #','Date','Work Involved','Area','Location',
+      fields: ['Permit ID','Permit #','Date','Work Involved','Height Access Method','Area','Location',
                'Name of Project / Job','Contracting Company','Description of Work','Number of Workers',
                'Equipment & Tools','Potential Hazards','Safety Precautions','PPE Required','Service Isolation',
                'Permit Issuer - Name','Permit Issuer - Dept.','Permit Receiver - Name',
@@ -362,8 +362,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // ticked options as a single semicolon-joined string in one sheet
       // column (e.g. "Hot work; Confined spaces"), via checkboxGroupFields
       // below, rather than one column per individual checkbox.
+      // Rev.23 (Issam, voice, 2026-11-11) — 'Height Access Method' is
+      // new: when Work Involved is Working at height, this says which
+      // checklist actually applies — Crane or Scaffolding — instead of
+      // both being silently required (Scaffold) or neither (Crane,
+      // unless the free-text also happened to mention "crane"). See
+      // permitNeedsCrane()/permitNeedsScaffold() below, which now read
+      // this field for the height case specifically. Lifting still
+      // always needs the crane checklist regardless of this field,
+      // same as before. Optional because it doesn't exist on the live
+      // sheet yet — add the column before this can be saved.
       optionalFields: ['Name of Project / Job','Contracting Company','Number of Workers','Unit Manager',
-                        'Permit Valid From','Permit Valid To',
+                        'Permit Valid From','Permit Valid To','Height Access Method',
                         'Equipment & Tools','Potential Hazards','Safety Precautions','PPE Required','Service Isolation',
                         // Approval chain, step 2a (Issam, voice,
                         // 2026-11-08) — simplified to a single
@@ -393,7 +403,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // live sheet yet (see optionalFields above) simply doesn't
       // appear — its section still renders fine with what's left.
       sections: [
-        { title: 'Permit Header', fields: ['Permit ID','Permit #','Date','Area','Location','Work Involved','Name of Project / Job','Contracting Company'] },
+        { title: 'Permit Header', fields: ['Permit ID','Permit #','Date','Area','Location','Work Involved','Height Access Method','Name of Project / Job','Contracting Company'] },
         { title: 'Work Details', fields: ['Description of Work','Number of Workers'] },
         { title: 'Equipment, Hazards & Precautions', fields: ['Equipment & Tools','Potential Hazards','Safety Precautions','PPE Required'] },
         { title: 'Service Isolation', fields: ['Service Isolation'] },
@@ -746,6 +756,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // it verbatim so nothing typed on the record is silently lost.
     var workMatched = PTW_WORK_TYPES.some(function(w){ return w.match.test(workVal); });
     var workNote = (!workMatched && workVal) ? '<div class="pf-note">As recorded in the register: <strong>'+pfEsc(workVal)+'</strong> (did not match a standard checkbox — verify on site)</div>' : '';
+    // Rev.23 (Issam, voice, 2026-11-11) — shown only when Work Involved
+    // is Working at height, since that's the only case the field means
+    // anything for (see permitNeedsCrane()/permitNeedsScaffold() below).
+    var heightAccessNote = (/height/i.test(workVal) && rec['Height Access Method'])
+      ? '<div class="pf-note">Height access method: <strong>'+pfEsc(rec['Height Access Method'])+'</strong></div>' : '';
 
     // Each of these five fields stores its ticked options as a
     // semicolon-joined string (e.g. "Hot work; Confined spaces") once the
@@ -820,7 +835,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       + '</div></div>'
 
       + '<div class="pf-section"><div class="pf-section-title">Type of Work Involved</div>'
-        + '<div class="pf-grid4">' + workTypeHtml + '</div>' + workNote + '</div>'
+        + '<div class="pf-grid4">' + workTypeHtml + '</div>' + workNote + heightAccessNote + '</div>'
 
       + '<div class="pf-section"><div class="pf-section-title">Used Equipment &amp; Tools <span style="font-weight:400;text-transform:none">(tick on site)</span></div>'
         + '<div class="pf-grid4">' + equipmentHtml + '</div></div>'
@@ -1269,14 +1284,26 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // link yet, so this row will correctly show "Not raised" until that
   // page is confirmed/updated to match, rather than silently assume a
   // field that may not exist.
+  // Rev.23 (Issam, voice, 2026-11-11) — a Working at height permit no
+  // longer requires BOTH Crane and Scaffold by default (the old blanket
+  // /height/i match below used to trigger Scaffold on every height
+  // permit, and Crane only if the free text happened to also mention
+  // "crane"). Now, for height specifically, the permit's own 'Height
+  // Access Method' field decides which ONE checklist actually applies
+  // — matching how the work is really being done, not both at once. A
+  // Lifting permit still always needs Crane regardless of this field,
+  // since lifting work always uses a crane or lifting equipment.
   function permitNeedsCrane(rec){
-    return /crane|lifting/i.test(String(rec['Work Involved']||''));
+    var work = String(rec['Work Involved']||'');
+    if (/lifting/i.test(work)) return true;
+    return /height/i.test(work) && String(rec['Height Access Method']||'').trim() === 'Crane';
   }
   function permitNeedsHotWork(rec){
     return /hot work/i.test(String(rec['Work Involved']||''));
   }
   function permitNeedsScaffold(rec){
-    return /scaffold|working at height|height/i.test(String(rec['Work Involved']||''));
+    var work = String(rec['Work Involved']||'');
+    return /height/i.test(work) && String(rec['Height Access Method']||'').trim() === 'Scaffolding';
   }
   var _craneCache = null, _craneFetchPromise = null;
   function loadCraneRecords(){
@@ -1348,9 +1375,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }).catch(function(){ _lotoJobCache = {headers:[],rows:[]}; return _lotoJobCache; });
     return _lotoJobFetchPromise;
   }
-  function findLinkedRecord(data, permitNum){
+  function findLinkedRecord(data, permitNum, idColName){
     if (!data || !data.headers || !data.rows || !permitNum) return null;
-    var numIdx = colIdx(data.headers, 'PTW Number');
+    // Rev.24 (Issam, upload, 2026-11-11) — scaffold-inspection.html's
+    // own column for this is named 'Permit Number', not 'PTW Number'
+    // like every other linked page — confirmed directly from the real
+    // current file. idColName lets the Scaffold call site below pass
+    // its real column name instead of silently matching nothing.
+    var numIdx = colIdx(data.headers, idColName || 'PTW Number');
     var statusIdx = colIdx(data.headers, 'Status');
     var recStatusIdx = colIdx(data.headers, 'Record Status');
     var found = null;
@@ -1426,17 +1458,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       }
       if (needsScaffold){
         requiredCount++;
-        // 'PTW Number' on the scaffold_inspection tab is NOT confirmed
-        // to exist yet (see note above findCraneOrHotWorkRecord /
-        // permitNeedsScaffold) — this will show "Not raised" until
-        // that's checked, rather than guess at a column that may not
-        // be there.
-        var sc = scaffoldData ? findLinkedRecord(scaffoldData, permitId) : null;
+        // Rev.24 (Issam, upload, 2026-11-11) — confirmed against the
+        // real scaffold-inspection.html: its own field is 'Permit
+        // Number', so that's what gets matched here now, and the
+        // "link not yet confirmed" caveat is gone since it's now a
+        // real, tested link (see its own matching ?permitId= deep
+        // link handler added the same session).
+        var sc = scaffoldData ? findLinkedRecord(scaffoldData, permitId, 'Permit Number') : null;
         var scReady = sc && sc.status === 'Closed';
         if (scReady) readyCount++; else blockedNames.push('Scaffold Inspection');
         var scBadge = !sc ? '<span class="badge kc-red">Not raised</span>' : (scReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Scaffold Inspection</strong> ' + scBadge +
-          ' <span style="font-size:9px;opacity:.6">(link to this page not yet confirmed)</span>' +
           '<button type="button" class="ptw-btn" onclick="window.open(\'scaffold-inspection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (sc ? 'Open' : 'Raise') + ' Scaffold Inspection</button></div>';
       }
 
@@ -1506,6 +1538,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             '<span>'+opt+'</span></label>';
         }).join('');
         return '<div class="ptw-field full"><label>'+f+'</label><div class="ptw-cb-grid">'+boxesHtml+'</div></div>';
+      }
+
+      // Rev.23 (Issam, voice, 2026-11-11) — a plain select, not free
+      // text: this field's value is read straight back by
+      // permitNeedsCrane()/permitNeedsScaffold() below, so it has to be
+      // exactly 'Crane' or 'Scaffolding', never a typo or a different
+      // wording of the same thing. The hint says plainly that it only
+      // matters for a Working at height permit — left visible even for
+      // other work types rather than hidden, since hiding/showing it
+      // would need extra JS wiring tied to whatever's typed into the
+      // free-text Work Involved field above, which isn't reliable
+      // enough to gate a field's visibility on.
+      if (f === 'Height Access Method'){
+        var hamOpts = ['', 'Crane', 'Scaffolding'].map(function(o){
+          return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+(o||'— select —')+'</option>';
+        }).join('');
+        return '<div class="ptw-field"><label>Height Access Method <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(only used when Work Involved is Working at height — decides whether the Crane Inspection or the Scaffold Inspection is required below)</span></label>'
+          + '<select data-field="Height Access Method">'+hamOpts+'</select></div>';
       }
 
       var suggestions = getSuggestions(tKeyName, f);
