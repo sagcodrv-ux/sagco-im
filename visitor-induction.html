@@ -281,14 +281,23 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   function currentUserName(){
     if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
     var s = IMS_AUTH.getSession();
-    var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
-    return (u && u.name) || (s && s.username) || '';
+    if (!s) return '';
+    var u = (IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    // Prefer full name, then username, then role for admin/superadmin
+    if (u && u.name) return u.name;
+    if (s.username) return s.username;
+    if (s.role === 'superadmin' || s.role === 'admin') return 'Admin';
+    return '';
   }
   function currentUserEmail(){
     if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
     var s = IMS_AUTH.getSession();
-    var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
-    return (u && u.email) || '';
+    if (!s) return '';
+    var u = (IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    if (u && u.email) return u.email;
+    // Fallback: some sessions store email directly
+    if (s.email) return s.email;
+    return '';
   }
   function currentUserDept(){
     if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
@@ -299,8 +308,8 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   function fillCurrentUserFields(){
     var nameEl = document.getElementById('vc-inv-createdby');
     var emailEl = document.getElementById('vc-inv-useremail');
-    if (nameEl) nameEl.value = currentUserName();
-    if (emailEl) emailEl.value = currentUserEmail();
+    if (nameEl) nameEl.value = currentUserName() || '(not available)';
+    if (emailEl) emailEl.value = currentUserEmail() || '(not available)';
   }
   function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function todayStr(){ return new Date().toISOString().slice(0,10); }
