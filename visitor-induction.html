@@ -163,11 +163,13 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     <div class="vc-row2">
       <div class="vc-field">
         <label>Host Name (person receiving them)</label>
-        <input id="vc-inv-host" placeholder="Full name of host">
+        <input id="vc-inv-host" list="vc-inv-host-list" placeholder="Select or type a new host name" onchange="VC.onHostChange()" oninput="VC.onHostChange()">
+        <datalist id="vc-inv-host-list"></datalist>
       </div>
       <div class="vc-field">
         <label>Host Department</label>
-        <input id="vc-inv-hostdept" placeholder="Department of the host">
+        <input id="vc-inv-hostdept" list="vc-inv-hostdept-list" placeholder="Select or type a new department">
+        <datalist id="vc-inv-hostdept-list"></datalist>
       </div>
     </div>
 
@@ -396,9 +398,84 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
         }
         _currentUserFromSheet = lookupUserFromSheet();
         fillCurrentUserFields();
+        populateHostDropdowns();
         renderInviteList();
         renderApprovalsList();
       }).catch(function(){ /* leave caches as-is */ });
+  }
+
+  /* ── Host dropdowns (from User Register + historical persons) ── */
+  function userDisplayName(u){
+    return (u['Full Name'] || u['Name'] || u.name || u['Username'] || u.username || '').trim();
+  }
+  function userDepartment(u){
+    return (u['Department'] || u.department || '').trim();
+  }
+  function populateHostDropdowns(){
+    var hostList = document.getElementById('vc-inv-host-list');
+    var deptList = document.getElementById('vc-inv-hostdept-list');
+    if (!hostList || !deptList) return;
+
+    // Host names from User Register (Active only when status exists)
+    var names = [];
+    var nameToDept = {};
+    _users.forEach(function(u){
+      var status = String(u['Account Status'] || u.status || 'Active').trim().toLowerCase();
+      if (status && status !== 'active') return;
+      var n = userDisplayName(u);
+      if (!n) return;
+      if (names.indexOf(n) < 0) names.push(n);
+      var d = userDepartment(u);
+      if (d) nameToDept[n] = d;
+    });
+    // Also include hosts used on previous invitations
+    _persons.forEach(function(p){
+      var n = String(p['Host Name'] || '').trim();
+      if (n && names.indexOf(n) < 0) names.push(n);
+      var d = String(p['Host Department'] || '').trim();
+      if (n && d && !nameToDept[n]) nameToDept[n] = d;
+    });
+    names.sort(function(a,b){ return a.localeCompare(b); });
+
+    hostList.innerHTML = '';
+    names.forEach(function(n){
+      var opt = document.createElement('option');
+      opt.value = n;
+      hostList.appendChild(opt);
+    });
+
+    // Departments: unique from users + historical persons
+    var depts = [];
+    _users.forEach(function(u){
+      var d = userDepartment(u);
+      if (d && depts.indexOf(d) < 0) depts.push(d);
+    });
+    _persons.forEach(function(p){
+      var d = String(p['Host Department'] || p['Destination Department'] || '').trim();
+      if (d && depts.indexOf(d) < 0) depts.push(d);
+    });
+    depts.sort(function(a,b){ return a.localeCompare(b); });
+
+    deptList.innerHTML = '';
+    depts.forEach(function(d){
+      var opt = document.createElement('option');
+      opt.value = d;
+      deptList.appendChild(opt);
+    });
+
+    // Keep mapping for onHostChange
+    window._vcHostDeptMap = nameToDept;
+  }
+
+  function onHostChange(){
+    var hostInp = document.getElementById('vc-inv-host');
+    var deptInp = document.getElementById('vc-inv-hostdept');
+    if (!hostInp || !deptInp) return;
+    var name = (hostInp.value || '').trim();
+    var map = window._vcHostDeptMap || {};
+    var dept = map[name] || '';
+    // Only auto-fill department if the typed/selected host is known
+    if (dept) deptInp.value = dept;
   }
   function nextPersonId(){ return 'VC-' + String(_persons.length + 1).padStart(5,'0'); }
   function generateToken(){
@@ -882,6 +959,7 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   window.VC = {
     switchTab: switchTab,
     createInvitation: createInvitation,
+    onHostChange: onHostChange,
     showApprovalDetail: showApprovalDetail,
     approvePerson: approvePerson,
     rejectPerson: rejectPerson,
