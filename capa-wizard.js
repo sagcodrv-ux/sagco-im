@@ -93,6 +93,25 @@
    REQUIRES: 'Source LOTO Audit ID' column on this CAPA sheet tab, and
    an 'Action Reference' column on the loto_station_audit sheet tab
    (both parallel to the Mock Drill columns above).
+
+   Rev.17 (Issam, 2026-11-11) — Crane Inspection hand-off. The OLDER
+   Crane & Lifting Pre-Use Inspection Checklist (Rev.10, sourced from
+   crane-lifting.html's own checklist section, idCol 'Entry ID' on the
+   crane_checklist tab) is being retired — that checklist section
+   never held real data (its tab was already in use by the newer
+   crane-inspection.html, built from Issam's actual HSE-FRM-18 paper
+   forms, with its OWN id column 'Inspection ID', not 'Entry ID'). This
+   is a NEW, separate source type — sourceCraneInspectionId / 'Source
+   Crane Inspection ID' — rather than repurposing the existing Crane
+   Lifting fields, specifically to avoid the ID-column mismatch: a
+   write-back keyed on 'Entry ID' would silently fail to find a row on
+   a tab whose real ID column is 'Inspection ID'. The old Crane Lifting
+   fields/functions (Rev.10) are left untouched and harmless — nothing
+   calls them anymore now that crane-lifting.html's checklist section
+   has been removed, same "leave the old one alone" reasoning already
+   used throughout google-apps-script.js for retired tabs.
+   REQUIRES: 'Source Crane Inspection ID' column on this CAPA sheet
+   tab (new — parallel to 'Source Crane Lifting ID').
    ═══════════════════════════════════════════════════════════════ */
 
 (function (global) {
@@ -180,6 +199,7 @@
       sourceChemicalSdsId: '', /* Rev.14 (Issam, 2026-10-17) — set when this ACT record was forwarded from the Chemical Inventory (GHS) SDS Review Log's "Escalate to Action" button. Carries a Review Ref — this is a paperwork/compliance chase (requesting an updated or missing supplier SDS), never a physical-safety emergency. Mutually exclusive with the other source-* fields in practice. */
       sourceViolationId: '', /* Rev.15 (Issam, 2026-11-01) — set when this ACT record was forwarded from the HSE Violation Register's "Escalate to Action" button, for a repeat-offender/category-pattern case per Clause 10.2. Carries only the Violation Ref — never the employee's name — matching the Violation Register's own confidentiality notice; ctx.description is built the same privacy-conscious way. Mutually exclusive with the other source-* fields in practice. */
       sourceForkliftInspectionId: '', /* Rev.16 (Issam, 2026-11-02) — set when this ACT record was forwarded from the Forklift Inspection Register's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
+      sourceCraneInspectionId: '', /* Rev.17 (Issam, 2026-11-11) — set when this ACT record was forwarded from the Crane Inspection Checklist's (crane-inspection.html) "Escalate to Action" button. NOT the same as sourceCraneLiftingId above (that was the retired crane-lifting.html checklist section, keyed by 'Entry ID' — this one is keyed by 'Inspection ID'). Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -380,19 +400,21 @@
                   ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Fire Pump Test Log <strong>' + esc(state.sourceFirePumpLogId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that log sheet too.</div>'
                   : (state.sourceCraneLiftingId
                     ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Crane &amp; Lifting Inspection <strong>' + esc(state.sourceCraneLiftingId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection entry too.</div>'
-                    : (state.sourceFirstAidKitId
-                      ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from First Aid Kit Inspection <strong>' + esc(state.sourceFirstAidKitId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection entry too.</div>'
-                      : (state.sourceContractorComplianceId
-                        ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Contractor Compliance Review <strong>' + esc(state.sourceContractorComplianceId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that review entry too.</div>'
-                        : (state.sourceOhSurveillanceId
-                          ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from OH Surveillance Round <strong>' + esc(state.sourceOhSurveillanceId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that round too.</div>'
-                          : (state.sourceChemicalSdsId
-                            ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Chemical Inventory SDS Review <strong>' + esc(state.sourceChemicalSdsId) + '</strong> — a plain Action chasing a supplier SDS, not a physical-safety emergency: no root cause analysis, no approval gate. Closing this Action automatically closes that review entry too.</div>'
-                            : (state.sourceViolationId
-                              ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from HSE Violation Register <strong>' + esc(state.sourceViolationId) + '</strong> — a repeat-offender/pattern escalation under Clause 10.2: no root cause analysis, no approval gate. The employee is not named here; see the Violation Register (Safety/Managers/CEO access) for details.</div>'
-                              : (state.sourceForkliftInspectionId
-                                ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Forklift Inspection <strong>' + esc(state.sourceForkliftInspectionId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection record too.</div>'
-                                : '')))))))))))));
+                    : (state.sourceCraneInspectionId
+                      ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Crane Inspection <strong>' + esc(state.sourceCraneInspectionId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection entry too.</div>'
+                      : (state.sourceFirstAidKitId
+                        ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from First Aid Kit Inspection <strong>' + esc(state.sourceFirstAidKitId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection entry too.</div>'
+                        : (state.sourceContractorComplianceId
+                          ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Contractor Compliance Review <strong>' + esc(state.sourceContractorComplianceId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that review entry too.</div>'
+                          : (state.sourceOhSurveillanceId
+                            ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from OH Surveillance Round <strong>' + esc(state.sourceOhSurveillanceId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that round too.</div>'
+                            : (state.sourceChemicalSdsId
+                              ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Chemical Inventory SDS Review <strong>' + esc(state.sourceChemicalSdsId) + '</strong> — a plain Action chasing a supplier SDS, not a physical-safety emergency: no root cause analysis, no approval gate. Closing this Action automatically closes that review entry too.</div>'
+                              : (state.sourceViolationId
+                                ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from HSE Violation Register <strong>' + esc(state.sourceViolationId) + '</strong> — a repeat-offender/pattern escalation under Clause 10.2: no root cause analysis, no approval gate. The employee is not named here; see the Violation Register (Safety/Managers/CEO access) for details.</div>'
+                                : (state.sourceForkliftInspectionId
+                                  ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Forklift Inspection <strong>' + esc(state.sourceForkliftInspectionId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection record too.</div>'
+                                  : ''))))))))))))));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -590,6 +612,7 @@
               notifyScaffoldInspectionActionCompleted();
               notifyFirePumpActionCompleted();
               notifyCraneLiftingActionCompleted();
+              notifyCraneInspectionActionCompleted();
               notifyFirstAidKitActionCompleted();
               notifyContractorComplianceActionCompleted();
               notifyOhSurveillanceActionCompleted();
@@ -1022,6 +1045,7 @@
       'Source Scaffold Inspection ID': state.sourceScaffoldInspectionId || '',
       'Source Fire Pump Log ID': state.sourceFirePumpLogId || '',
       'Source Crane Lifting ID': state.sourceCraneLiftingId || '',
+      'Source Crane Inspection ID': state.sourceCraneInspectionId || '',
       'Source First Aid Kit ID': state.sourceFirstAidKitId || '',
       'Source Contractor Compliance ID': state.sourceContractorComplianceId || '',
       'Source OH Surveillance ID': state.sourceOhSurveillanceId || '',
@@ -1030,7 +1054,7 @@
       'Source Forklift Inspection ID': state.sourceForkliftInspectionId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
-      /* Point (Issam, 2026-10-10) — this used to be hardcoded to 'Low'
+      /* Point (Issam, 2026-10-10): this used to be hardcoded to 'Low'
          regardless of the real score, which action-register.html's
          badgeForSeverity doesn't even recognize (hence a blank "—" on
          every Action row no matter the actual Risk Score). Derived
@@ -1372,6 +1396,23 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.17 (Issam, 2026-11-11) — mirrors notifySourceCraneLifting()
+     above, but for the NEW crane-inspection.html page (idCol
+     'Inspection ID' on the same crane_checklist tab, NOT 'Entry ID' —
+     see the Rev.17 note at the top of this file for why this is a
+     separate source field rather than reusing Crane Lifting's). Writes
+     the durable "Action Reference" back to the one inspection row that
+     escalated it, so crane-inspection.html's own Escalate to Action
+     button can show its "already escalated" state. Only fires on
+     first save. */
+  function notifySourceCraneInspection() {
+    if (!state.sourceCraneInspectionId) return;
+    fetch(SHEETS_URL + '?action=update&tab=crane_checklist&idCol=' + encodeURIComponent('Inspection ID') + '&id=' + encodeURIComponent(state.sourceCraneInspectionId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* Rev.11 (Issam, 2026-10-14) — mirrors notifySourceCraneLifting()
      exactly, for the First Aid Kit Monthly Inspection: writes the
      durable "Action Reference" back to the one inspection entry that
@@ -1489,6 +1530,19 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.17 (Issam, 2026-11-11) — mirrors notifyCraneLiftingActionCompleted()
+     above, but keyed on 'Inspection ID' for the new crane-inspection.html
+     page, not 'Entry ID'. Once this ACT-lane record reaches Closed, the
+     one inspection row that escalated it has its own Status set to
+     Closed too. Fire-and-forget and idempotent. */
+  function notifyCraneInspectionActionCompleted() {
+    if (!state.sourceCraneInspectionId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=crane_checklist&idCol=' + encodeURIComponent('Inspection ID') + '&id=' + encodeURIComponent(state.sourceCraneInspectionId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Status': 'Closed' }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* Rev.11 (Issam, 2026-10-14) — mirrors notifyCraneLiftingActionCompleted()
      exactly, for the First Aid Kit Monthly Inspection: once this
      ACT-lane record reaches Closed, the one inspection entry that
@@ -1571,6 +1625,7 @@
             notifySourceScaffoldInspection();
             notifySourceFirePump();
             notifySourceCraneLifting();
+            notifySourceCraneInspection();
             notifySourceFirstAidKit();
             notifySourceContractorCompliance();
             notifySourceOhSurveillance();
@@ -1585,6 +1640,7 @@
             notifyScaffoldInspectionActionCompleted();
             notifyFirePumpActionCompleted();
             notifyCraneLiftingActionCompleted();
+            notifyCraneInspectionActionCompleted();
             notifyFirstAidKitActionCompleted();
             notifyContractorComplianceActionCompleted();
             notifyOhSurveillanceActionCompleted();
@@ -1624,6 +1680,7 @@
             notifyScaffoldInspectionActionCompleted();
             notifyFirePumpActionCompleted();
             notifyCraneLiftingActionCompleted();
+            notifyCraneInspectionActionCompleted();
             notifyFirstAidKitActionCompleted();
             notifyContractorComplianceActionCompleted();
             notifyOhSurveillanceActionCompleted();
@@ -1903,6 +1960,7 @@
     state.sourceScaffoldInspectionId = col('Source Scaffold Inspection ID');
     state.sourceFirePumpLogId = col('Source Fire Pump Log ID');
     state.sourceCraneLiftingId = col('Source Crane Lifting ID');
+    state.sourceCraneInspectionId = col('Source Crane Inspection ID');
     state.sourceFirstAidKitId = col('Source First Aid Kit ID');
     state.sourceContractorComplianceId = col('Source Contractor Compliance ID');
     state.sourceOhSurveillanceId = col('Source OH Surveillance ID');
@@ -2789,6 +2847,25 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.17 (Issam, 2026-11-11) — Crane Inspection hand-off (the NEW
+     crane-inspection.html page, idCol 'Inspection ID' — see the Rev.17
+     note at the top of this file for why this is separate from
+     openFromCraneLifting above). action-register.html?fromCraneInspection=
+     CRN-2026-0XX&lane=ACT, opened by crane-inspection.html's
+     "⚡ Escalate to Action" button. Same sessionStorage-plus-URL-
+     verification pattern as every other hand-off above. */
+  function openFromCraneInspection(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceCraneInspectionId = ctx.inspectionId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Crane Inspection';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Rev.11 (Issam, 2026-10-14) — First Aid Kit Inspection hand-off —
      action-register.html?fromFirstAidKit=FAI-2026-0XX&lane=ACT, opened
      by first-aid-kit.html's "⚡ Escalate to Action" button. Same
@@ -3096,6 +3173,27 @@
         loadUserDirectory(function () { openFromCraneLifting(clCtx); });
       } else {
         loadUserDirectory(function () { openFromCraneLifting({ entryId: fromCraneLifting }); });
+      }
+    }
+
+    /* Rev.17 (Issam, 2026-11-11) — Crane Inspection hand-off (the NEW
+       crane-inspection.html page) — action-register.html?
+       fromCraneInspection=CRN-2026-0XX&lane=ACT, opened by
+       crane-inspection.html's "⚡ Escalate to Action" button. Same
+       sessionStorage-plus-URL-verification pattern as every other
+       hand-off above — matches crane-inspection.html's own
+       sessionStorage key 'incomingCraneInspectionContext' and ctx
+       shape {inspectionId, description, date} set by its
+       escalateSelected() function. */
+    var fromCraneInspection = params.get('fromCraneInspection');
+    if (fromCraneInspection) {
+      showLoadingWizard();
+      var criCtx = null;
+      try { criCtx = JSON.parse(sessionStorage.getItem('incomingCraneInspectionContext') || 'null'); } catch (e) { criCtx = null; }
+      if (criCtx && String(criCtx.inspectionId) === String(fromCraneInspection)) {
+        loadUserDirectory(function () { openFromCraneInspection(criCtx); });
+      } else {
+        loadUserDirectory(function () { openFromCraneInspection({ inspectionId: fromCraneInspection }); });
       }
     }
 

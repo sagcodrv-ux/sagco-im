@@ -205,6 +205,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         // hand-off, same provenance pattern as Source Fire Pump Log ID
         // above.
         srcClIdx = colIdx(h,'Source Crane Lifting ID'),
+        // Rev.17 (Issam, 2026-11-11) — Crane Inspection hand-off (the
+        // NEW crane-inspection.html page, idCol 'Inspection ID' — see
+        // capa-wizard.js's Rev.17 note for why this is a separate
+        // source field from Source Crane Lifting ID above, not a
+        // reuse of it).
+        srcCriIdx = colIdx(h,'Source Crane Inspection ID'),
         // Rev.11 (Issam, 2026-10-14) — First Aid Kit Inspection
         // hand-off, same provenance pattern as above.
         srcFakIdx = colIdx(h,'Source First Aid Kit ID'),
@@ -265,6 +271,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         'Source Scaffold Inspection ID': srcSciIdx>=0 ? r[srcSciIdx] : '',
         'Source Fire Pump Log ID': srcFplIdx>=0 ? r[srcFplIdx] : '',
         'Source Crane Lifting ID': srcClIdx>=0 ? r[srcClIdx] : '',
+        'Source Crane Inspection ID': srcCriIdx>=0 ? r[srcCriIdx] : '',
         'Source First Aid Kit ID': srcFakIdx>=0 ? r[srcFakIdx] : '',
         'Source Contractor Compliance ID': srcCcIdx>=0 ? r[srcCcIdx] : '',
         'Source OH Surveillance ID': srcOhsIdx>=0 ? r[srcOhsIdx] : '',
@@ -423,66 +430,78 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
                         // deep-link handler opens straight to that
                         // exact checklist entry.
                         ? '<a href="crane-lifting.html?entry='+encodeURIComponent(r['Source Crane Lifting ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Crane Lifting ID'])+'</a>'
-                        : (r['Source First Aid Kit ID']
-                          ? '<a href="first-aid-kit.html?entry='+encodeURIComponent(r['Source First Aid Kit ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source First Aid Kit ID'])+'</a>'
-                          : (r['Source Contractor Compliance ID']
-                            // Rev.12 (Issam, 2026-10-15) — a Contractor-
-                            // Compliance-escalated Action now shows its
-                            // Source Contractor Compliance ID as a
-                            // clickable reference, same pattern as the
-                            // First Aid Kit link above.
-                            // contractor-register.html's own
-                            // ?entry=<Entry ID> deep-link handler opens
-                            // straight to that exact review entry.
-                            ? '<a href="contractor-register.html?entry='+encodeURIComponent(r['Source Contractor Compliance ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Contractor Compliance ID'])+'</a>'
-                            : (r['Source OH Surveillance ID']
-                              // Rev.13 (Issam, 2026-10-15) — an OH-
-                              // Surveillance-escalated Action now
-                              // shows its Source OH Surveillance ID
-                              // (a Round ID — never a worker name or
-                              // ID) as a clickable reference, same
-                              // pattern as the Contractor Compliance
-                              // link above. oh-surveillance.html's own
-                              // ?entry=<Round ID> deep-link handler
-                              // opens straight to that exact round.
-                              ? '<a href="oh-surveillance.html?entry='+encodeURIComponent(r['Source OH Surveillance ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source OH Surveillance ID'])+'</a>'
-                              : (r['Source Chemical SDS ID']
-                                // Rev.14 (Issam, 2026-10-17) — a
-                                // Chemical-SDS-escalated Action now
-                                // shows its Source Chemical SDS ID
-                                // (a Review Ref) as a clickable
-                                // reference, same pattern as the OH
-                                // Surveillance link above.
-                                // chemical-inventory.html's own
-                                // ?entry=<Review Ref> deep-link
-                                // handler opens straight to that
-                                // exact review.
-                                ? '<a href="chemical-inventory.html?entry='+encodeURIComponent(r['Source Chemical SDS ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Chemical SDS ID'])+'</a>'
-                                : (r['Source HSE Violation ID']
-                                  // Rev.15 (Issam, 2026-11-01) — a
-                                  // Violation-escalated Action now shows
-                                  // its Source HSE Violation ID as a
-                                  // clickable reference, same pattern as
-                                  // the Chemical SDS link above.
-                                  // violation-register.html's own
-                                  // ?violation=<Violation Ref> deep-link
-                                  // handler opens straight to that exact
-                                  // record (Safety/Managers/CEO access
-                                  // still applies there).
-                                  ? '<a href="violation-register.html?violation='+encodeURIComponent(r['Source HSE Violation ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source HSE Violation ID'])+'</a>'
-                                  : (r['Source Forklift Inspection ID']
-                                    // Rev.16 (Issam, 2026-11-02) — a
-                                    // Forklift-Inspection-escalated
-                                    // Action now shows its Source
-                                    // Forklift Inspection ID as a
-                                    // clickable reference, same pattern
-                                    // as the HSE Violation link above.
-                                    // forklift-inspection.html's own
-                                    // ?inspection=<Inspection ID>
-                                    // deep-link handler opens straight
-                                    // to that exact record.
-                                    ? '<a href="forklift-inspection.html?inspection='+encodeURIComponent(r['Source Forklift Inspection ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Forklift Inspection ID'])+'</a>'
-                                    : (r.Source ? escHtml(r.Source) : '<span class="action-dim">—</span>'))))))))))))));
+                        : (r['Source Crane Inspection ID']
+                          // Rev.17 (Issam, 2026-11-11) — a Crane-
+                          // Inspection-escalated Action (the NEW
+                          // crane-inspection.html page) now shows its
+                          // Source Crane Inspection ID as a clickable
+                          // reference, same pattern as the Crane
+                          // Lifting link above. crane-inspection.html's
+                          // own ?record=<Inspection ID> deep-link
+                          // handler (already built — see openEdit via
+                          // handleDeepLink there) opens straight to
+                          // that exact inspection entry.
+                          ? '<a href="crane-inspection.html?record='+encodeURIComponent(r['Source Crane Inspection ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Crane Inspection ID'])+'</a>'
+                          : (r['Source First Aid Kit ID']
+                            ? '<a href="first-aid-kit.html?entry='+encodeURIComponent(r['Source First Aid Kit ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source First Aid Kit ID'])+'</a>'
+                            : (r['Source Contractor Compliance ID']
+                              // Rev.12 (Issam, 2026-10-15) — a Contractor-
+                              // Compliance-escalated Action now shows its
+                              // Source Contractor Compliance ID as a
+                              // clickable reference, same pattern as the
+                              // First Aid Kit link above.
+                              // contractor-register.html's own
+                              // ?entry=<Entry ID> deep-link handler opens
+                              // straight to that exact review entry.
+                              ? '<a href="contractor-register.html?entry='+encodeURIComponent(r['Source Contractor Compliance ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Contractor Compliance ID'])+'</a>'
+                              : (r['Source OH Surveillance ID']
+                                // Rev.13 (Issam, 2026-10-15) — an OH-
+                                // Surveillance-escalated Action now
+                                // shows its Source OH Surveillance ID
+                                // (a Round ID — never a worker name or
+                                // ID) as a clickable reference, same
+                                // pattern as the Contractor Compliance
+                                // link above. oh-surveillance.html's own
+                                // ?entry=<Round ID> deep-link handler
+                                // opens straight to that exact round.
+                                ? '<a href="oh-surveillance.html?entry='+encodeURIComponent(r['Source OH Surveillance ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source OH Surveillance ID'])+'</a>'
+                                : (r['Source Chemical SDS ID']
+                                  // Rev.14 (Issam, 2026-10-17) — a
+                                  // Chemical-SDS-escalated Action now
+                                  // shows its Source Chemical SDS ID
+                                  // (a Review Ref) as a clickable
+                                  // reference, same pattern as the OH
+                                  // Surveillance link above.
+                                  // chemical-inventory.html's own
+                                  // ?entry=<Review Ref> deep-link
+                                  // handler opens straight to that
+                                  // exact review.
+                                  ? '<a href="chemical-inventory.html?entry='+encodeURIComponent(r['Source Chemical SDS ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Chemical SDS ID'])+'</a>'
+                                  : (r['Source HSE Violation ID']
+                                    // Rev.15 (Issam, 2026-11-01) — a
+                                    // Violation-escalated Action now shows
+                                    // its Source HSE Violation ID as a
+                                    // clickable reference, same pattern as
+                                    // the Chemical SDS link above.
+                                    // violation-register.html's own
+                                    // ?violation=<Violation Ref> deep-link
+                                    // handler opens straight to that exact
+                                    // record (Safety/Managers/CEO access
+                                    // still applies there).
+                                    ? '<a href="violation-register.html?violation='+encodeURIComponent(r['Source HSE Violation ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source HSE Violation ID'])+'</a>'
+                                    : (r['Source Forklift Inspection ID']
+                                      // Rev.16 (Issam, 2026-11-02) — a
+                                      // Forklift-Inspection-escalated
+                                      // Action now shows its Source
+                                      // Forklift Inspection ID as a
+                                      // clickable reference, same pattern
+                                      // as the HSE Violation link above.
+                                      // forklift-inspection.html's own
+                                      // ?inspection=<Inspection ID>
+                                      // deep-link handler opens straight
+                                      // to that exact record.
+                                      ? '<a href="forklift-inspection.html?inspection='+encodeURIComponent(r['Source Forklift Inspection ID'])+'" target="_blank" class="ref-link">'+escHtml(r['Source Forklift Inspection ID'])+'</a>'
+                                      : (r.Source ? escHtml(r.Source) : '<span class="action-dim">—</span>')))))))))))))));
         // Point (Issam, 2026-10-08): "Initial Evidence" is one or more
         // links, newline-joined by uploadInitialEvidence() in
         // capa-wizard.js. Render one 📎 per link rather than one big

@@ -273,6 +273,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }).catch(function(){ return null; });
   }
 
+  function getRecById(idVal){
+    if (!_cache || idVal === null || idVal === undefined) return null;
+    var idIdx = colIdx(_cache.headers, ID_COL);
+    var row = _cache.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+    if (!row) return null;
+    var rec = {};
+    _cache.headers.forEach(function(h,i){ rec[h] = row[i]; });
+    return rec;
+  }
+
   function renderShell(){
     var el = document.getElementById(CONTAINER_ID);
     var data = _cache;
@@ -287,6 +297,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var disabledAttr = sel ? '' : ' disabled';
     toolbarHtml += '<button class="btn" id="tb-print"'+disabledAttr+' onclick="CRN.printOne(CRN.getSelected())">🖨️ Print Report</button>';
     if (can('edit')) toolbarHtml += '<button class="btn" id="tb-edit"'+disabledAttr+' onclick="CRN.openEdit(CRN.getSelected())">✏️ Edit</button>';
+    // Rev.21 (Issam, 2026-11-11) — Escalate to Action, ported over
+    // from the older crane-lifting.html checklist section now being
+    // retired: a rejected inspection that hasn't been escalated yet
+    // can be raised straight to the Action Register, same hand-off
+    // pattern already used by Mock Drill / LOTO / Scaffold. Enabled
+    // only for a selected Reject Crane record with no Action
+    // Reference on it yet.
+    var escRec = sel ? getRecById(sel) : null;
+    var escDisabled = !escRec || String(escRec[RESULT_FIELD]||'').trim() !== RESULT_FLAG_VALUE || !!(escRec['Action Reference']);
+    var escTitle = escRec && escRec['Action Reference'] ? ' title="Already escalated — see ' + String(escRec['Action Reference']).replace(/"/g,'&quot;') + '"' : '';
+    toolbarHtml += '<button class="btn" id="tb-escalate"'+(escDisabled?' disabled':'')+escTitle+' onclick="CRN.escalateSelected()">⚡ Escalate to Action</button>';
     if (can('delete')) toolbarHtml += '<button class="btn" id="tb-remove"'+disabledAttr+' onclick="CRN.remove(CRN.getSelected())">🗑️ Remove</button>';
 
     var categoryHtml = '<select class="filter-select" onchange="CRN.onCategoryChange(this.value)">' +
@@ -734,6 +755,33 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var w = window.open('', '_blank');
       if (!w){ alert('Pop-up blocked - please allow pop-ups for this site to print the report.'); return; }
       w.document.open(); w.document.write(buildPrintHtml(rec)); w.document.close();
+    },
+    // Rev.21 (Issam, 2026-11-11) — escalates a rejected, not-yet-
+    // escalated inspection to a single Action Register record. Uses
+    // its own hand-off key and query param (fromCraneInspection, NOT
+    // the older fromCraneLifting) because this table's own ID column
+    // is 'Inspection ID', not 'Entry ID' as the retired crane-lifting
+    // checklist used — action-register.html / capa-wizard.js need a
+    // matching 'fromCraneInspection' case added on their side (find
+    // the row by Inspection ID on the crane_checklist tab and write
+    // its 'Action Reference' back there once the Action is raised),
+    // the same way each of the other sources already has its own
+    // case. Neither file is available in this session to add that
+    // other half — until it's added, this button still opens the
+    // Action Register prefilled correctly, but the inspection row
+    // won't be automatically marked "already escalated" afterward.
+    escalateSelected: function(){
+      var rec = getRecById(_selected);
+      if (!rec) return alert('Select a row first.');
+      if (String(rec[RESULT_FIELD]||'').trim() !== RESULT_FLAG_VALUE) return alert('Only a Reject Crane result needs escalating.');
+      if (rec['Action Reference']) return alert('This inspection was already escalated — see Action Register record ' + rec['Action Reference'] + '.');
+      var ctx = {
+        inspectionId: rec[ID_COL],
+        description: 'Crane Inspection ' + rec[ID_COL] + ' (' + (rec['Equipment Serial #']||'') + ') — ' + (rec['Date of Inspection']||'') + '. Result: ' + rec[RESULT_FIELD] + (rec['Remarks'] ? '. ' + rec['Remarks'] : ''),
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingCraneInspectionContext', JSON.stringify(ctx)); } catch(e){}
+      window.open('action-register.html?fromCraneInspection=' + encodeURIComponent(rec[ID_COL]) + '&lane=ACT', '_blank');
     }
   };
 
@@ -747,6 +795,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var permitId = params.get('permitId');
     if (permitId){
       CRN.openAdd({'PTW Number': permitId});
+      return;
+    }
+    // Rev.21 (Issam, 2026-11-11) — cross-reference link from the
+    // Crane & Lifting Equipment Register (crane-lifting.html): opens
+    // this page pre-filtered to one equipment's inspection history by
+    // its Serial Number, so clicking through from an equipment row
+    // shows that unit's own inspections rather than the whole table.
+    var serial = params.get('serial');
+    if (serial){
+      _filters.search = serial;
+      renderShell();
     }
   }
   document.addEventListener('DOMContentLoaded', function(){
