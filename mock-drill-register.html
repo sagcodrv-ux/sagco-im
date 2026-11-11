@@ -213,18 +213,29 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // or a per-photo log can't realistically be one line.
       textareaFields: ['Scenario Description','Deficiency Observed','Corrective Actions','Photos','Remarks'],
       filterField: 'Emergency Situation',
-      // Rev.1 (Issam, voice, 2026-11-11) — the Add/Edit form now
-      // follows SST-FRM-40's own report flow instead of one flat
-      // list of 24 fields: who/where/what, then the scenario, then
-      // the response timeline, then the findings and corrective
-      // actions, then evidence and sign-off — same sectioned-form
-      // pattern already used on PTW, Crane Inspection and Hot Work.
+      // Rev.2 (Issam, screenshot of the real SST-FRM-40 print output,
+      // 2026-11-11) — corrected to match the actual paper form's own
+      // section order exactly, replacing Rev.1's guessed grouping:
+      // header block, Emergency Situation as its OWN section (not
+      // folded into header), Scenario, the response timeline block,
+      // Production Lines as its own section (not folded into the
+      // timeline), Deficiency as its own section, the corrective-
+      // action table as its own section, Attachments/Remarks
+      // together, then the Observer/HSE sign-off block, then Photos
+      // last — Status has no place on the paper form at all, so it's
+      // kept with the sign-off block as the one field that closes the
+      // record out digitally.
       modalSections: [
-        { title: 'Drill Information', fields: ['Drill ID','Date','Time','Area & Location','Number of Participants','Emergency Situation','Observer(s)','HSE In Charge'] },
+        { title: 'Drill Information', fields: ['Drill ID','Area & Location','Number of Participants','Date','Time'] },
+        { title: 'Emergency Situation', fields: ['Emergency Situation'] },
         { title: 'Scenario', fields: ['Scenario Description'] },
-        { title: 'Response Timeline', fields: ['Time of Declaration','First Responder Response Time','Alarm Sounded','Assembled at Point','Ambulance/Medical Called','Finish Time','Total Time Elapsed','Previous Total Time','Production Lines Affected'] },
-        { title: 'Findings & Corrective Actions', fields: ['Deficiency Observed','Corrective Actions'] },
-        { title: 'Evidence & Closure', fields: ['Photos','Attachments','Remarks','Status'] },
+        { title: 'Response Timeline', fields: ['Time of Declaration','First Responder Response Time','Alarm Sounded','Assembled at Point','Ambulance/Medical Called','Finish Time','Total Time Elapsed','Previous Total Time'] },
+        { title: 'Production Lines and Finish Goods Pallets Situation', fields: ['Production Lines Affected'] },
+        { title: 'Deficiency Observed During the Exercise', fields: ['Deficiency Observed'] },
+        { title: 'Action Recommended for Improvement', fields: ['Corrective Actions'] },
+        { title: 'Attachments & Remarks', fields: ['Attachments','Remarks'] },
+        { title: 'Sign-off', fields: ['Observer(s)','HSE In Charge','Status'] },
+        { title: 'Photos', fields: ['Photos'] },
       ]
     }
   };
@@ -723,7 +734,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     });
   }
 
-  function buildDrillPrintHtml(rec){
+  function buildDrillPrintHtml(rec, uploadedPhotosHtml){
     var scenario = rec['Emergency Situation'] || '';
     var scenRow1 = ['Fire','Glass leak','Emergency evacuation','Medical emergency'];
     var scenRow2 = ['Severe weather','Chemical spillage','Power shortage'];
@@ -778,6 +789,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     + '.pf-action-tbl th{background:#f0f0f0}'
     + '.pf-photo-block{border:1px dashed #999;padding:6px;margin-bottom:6px}'
     + '.pf-photo-hdr{font-weight:700;margin-bottom:4px}'
+    + '.pf-photo-img-grid{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}'
+    + '.pf-photo-img-item{width:160px;text-align:center}'
+    + '.pf-photo-img-item img{width:160px;height:120px;object-fit:cover;border:1px solid #999;border-radius:3px}'
+    + '.pf-photo-img-caption{font-size:8.5px;color:#555;margin-top:3px}'
     + '.pf-footer{margin-top:10px;font-size:9px;color:#666;border-top:1px solid #999;padding-top:6px}'
     + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}}'
     + '</style></head><body>'
@@ -831,7 +846,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         + pfSignBlock('HSE In Charge', rec['HSE In Charge'])
       + '</div></div>'
 
-      + '<div class="pf-section"><div class="pf-section-title">Photos</div>' + photoHtml + '</div>'
+      // Rev.3 (Issam, voice, 2026-11-11) — the printed report used to
+      // show only the typed Photos LOG (date/time/location/description
+      // text), never the actual uploaded image files, even though
+      // those files were sitting right there in Drive the whole time
+      // and show fine in the page's own photo grid. The real images,
+      // fetched the same way the grid fetches them, now print above
+      // that text log as actual <img> thumbnails, each linking to its
+      // full-size file — so the printed sheet shows what the paper
+      // form expects to see, not just a caption describing it.
+      + '<div class="pf-section"><div class="pf-section-title">Photos</div>'
+        + (uploadedPhotosHtml || '')
+        + photoHtml
+      + '</div>'
 
       + '<div class="pf-footer">SST-FRM-40 · Rev.1 · Effective date: 12 Dec 2024. Generated from the SAGCO IMS Portal on '+pfEsc(printedAt)+'. Not valid without original signatures.</div>'
     + '</div></body></html>';
@@ -937,9 +964,38 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (!row) return alert('Record not found — try refreshing.');
       var rec = {};
       data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+      // Open the window immediately, synchronously, so the pop-up
+      // blocker still sees this as a direct response to the click —
+      // opening it only after the fetch below resolves is what gets
+      // silently blocked in some browsers. It shows a loading message
+      // until the real photo files come back, then gets overwritten
+      // with the finished report.
       var w = window.open('', '_blank');
       if (!w){ alert('Pop-up blocked — please allow pop-ups for this site to print the drill report.'); return; }
-      w.document.open(); w.document.write(buildDrillPrintHtml(rec)); w.document.close();
+      w.document.open();
+      w.document.write('<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;padding:40px;color:#555">Loading report and photos…</body></html>');
+      w.document.close();
+      fetch(SHEETS_URL + '?action=listFiles&docId=' + encodeURIComponent(idVal))
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          var files = (res && res.files) || [];
+          var uploadedPhotosHtml = '';
+          if (files.length){
+            uploadedPhotosHtml = '<div class="pf-photo-img-grid">' + files.map(function(f){
+              var cap = String(f.date||f.uploadedDate||'').replace(/</g,'&lt;') + (f.uploadedBy?' · '+String(f.uploadedBy).replace(/</g,'&lt;'):'');
+              var link = String(f.webViewLink||'#').replace(/"/g,'&quot;');
+              return '<div class="pf-photo-img-item">' +
+                '<a href="'+link+'" target="_blank"><img src="'+photoThumbUrl(f.fileId)+'" alt=""></a>' +
+                '<div class="pf-photo-img-caption">'+cap+'</div></div>';
+            }).join('') + '</div>';
+          }
+          w.document.open(); w.document.write(buildDrillPrintHtml(rec, uploadedPhotosHtml)); w.document.close();
+        })
+        .catch(function(){
+          // Still produce the report even if the photo fetch fails —
+          // just without the uploaded images, same as before this fix.
+          w.document.open(); w.document.write(buildDrillPrintHtml(rec, '')); w.document.close();
+        });
     },
     remove: function(tKeyName, idVal){
       var cfg = TABLES[tKeyName];
