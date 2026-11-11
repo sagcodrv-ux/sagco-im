@@ -343,8 +343,18 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     if (!nameEl && !emailEl) return false;
     var name = currentUserName(session);
     var email = currentUserEmail(session);
-    if (nameEl) nameEl.value = name || '(not available)';
-    if (emailEl) emailEl.value = email || '(not available)';
+    // Never overwrite a good value with empty — this was the bug:
+    // loadAll() ran later and wiped the fields that session had filled.
+    if (nameEl){
+      var curName = (nameEl.value || '').trim();
+      if (name) nameEl.value = name;
+      else if (!curName || curName === '(not available)') nameEl.value = '(not available)';
+    }
+    if (emailEl){
+      var curEmail = (emailEl.value || '').trim();
+      if (email) emailEl.value = email;
+      else if (!curEmail || curEmail === '(not available)') emailEl.value = '(not available)';
+    }
     return !!(name || email);
   }
 
