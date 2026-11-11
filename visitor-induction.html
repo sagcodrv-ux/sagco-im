@@ -178,6 +178,19 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
       <input id="vc-inv-email" type="email" placeholder="visitor@example.com — optional">
     </div>
 
+    <!-- Safety Controllers multi-select -->
+    <div class="vc-field" style="margin-top:14px">
+      <label>Safety Controllers (will be CC on approval email)</label>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+        <select id="vc-inv-safety-select" style="flex:1">
+          <option value="">— Select Safety Controller —</option>
+        </select>
+        <button type="button" class="aiw-btn" onclick="VC.addSafetyController()" style="white-space:nowrap">+ Add</button>
+      </div>
+      <div id="vc-inv-safety-list" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"></div>
+      <div class="vc-reason" style="margin-top:4px;font-size:11px">Required. You must select at least one Safety Controller. They will receive the confirmation email when the visitor is approved.</div>
+    </div>
+
     <div class="vc-field">
       <label>Notes / Purpose of visit (optional)</label>
       <textarea id="vc-inv-notes" rows="2" placeholder="Brief purpose of the visit"></textarea>
@@ -278,6 +291,7 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   var _persons = [], _spotchecks = [], _users = [];
   var _activeScanTarget = null;
   var _currentUserFromSheet = null; // { name, email, department, username }
+  var _selectedSafetyControllers = []; // [{name, email}, ...]
 
   /* ── Helpers ───────────────────────────────────────────────── */
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
@@ -399,6 +413,7 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
         _currentUserFromSheet = lookupUserFromSheet();
         fillCurrentUserFields();
         populateHostDropdowns();
+        populateSafetyDropdown();
         renderInviteList();
         renderApprovalsList();
       }).catch(function(){ /* leave caches as-is */ });
@@ -559,8 +574,84 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     return html;
   }
 
+  /* ── Safety Controllers multi-select ───────────────────────── */
+  function isSafetyUser(u){
+    var role = String(u['Role'] || u.role || '').toLowerCase();
+    var title = String(u['Job Title'] || u.title || '').toLowerCase();
+    var dept  = String(u['Department'] || u.department || '').toLowerCase();
+    if (/superadmin|admin/.test(role)) return true;
+    if (/safety|hse/.test(dept)) return true;
+    if (/safety|hse|controller/.test(title)) return true;
+    if (/safety|hse/.test(role)) return true;
+    return false;
+  }
+
+  function populateSafetyDropdown(){
+    var sel = document.getElementById('vc-inv-safety-select');
+    if (!sel) return;
+    var current = sel.value;
+    sel.innerHTML = '<option value="">— Select Safety Controller —</option>';
+    var seen = {};
+    (_users || []).forEach(function(u){
+      var status = String(u['Account Status'] || u.status || 'Active').trim().toLowerCase();
+      if (status && status !== 'active') return;
+      if (!isSafetyUser(u)) return;
+      var name = userDisplayName(u);
+      var email = String(u['Email'] || u.email || '').trim();
+      if (!name || !email) return;
+      var key = email.toLowerCase();
+      if (seen[key]) return;
+      seen[key] = true;
+      var opt = document.createElement('option');
+      opt.value = email;
+      opt.textContent = name + ' <' + email + '>';
+      opt.setAttribute('data-name', name);
+      sel.appendChild(opt);
+    });
+    // restore selection if still present
+    if (current) sel.value = current;
+  }
+
+  function addSafetyController(){
+    var sel = document.getElementById('vc-inv-safety-select');
+    if (!sel || !sel.value) return;
+    var email = sel.value;
+    var name = sel.options[sel.selectedIndex].getAttribute('data-name') || email;
+    // avoid duplicates
+    if (_selectedSafetyControllers.some(function(s){ return s.email.toLowerCase() === email.toLowerCase(); })) {
+      alert('This Safety Controller is already in the list.');
+      return;
+    }
+    _selectedSafetyControllers.push({ name: name, email: email });
+    renderSelectedSafetyList();
+    sel.value = '';
+  }
+
+  function removeSafetyController(email){
+    _selectedSafetyControllers = _selectedSafetyControllers.filter(function(s){
+      return s.email.toLowerCase() !== email.toLowerCase();
+    });
+    renderSelectedSafetyList();
+  }
+
+  function renderSelectedSafetyList(){
+    var el = document.getElementById('vc-inv-safety-list');
+    if (!el) return;
+    if (!_selectedSafetyControllers.length){
+      el.innerHTML = '<span class="vc-reason" style="font-size:11px">No Safety Controllers selected yet.</span>';
+      return;
+    }
+    el.innerHTML = _selectedSafetyControllers.map(function(s){
+      return '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.35);border-radius:16px;padding:4px 10px;font-size:12px">'
+        + vEsc(s.name)
+        + ' <button type="button" onclick="VC.removeSafetyController(\'' + s.email.replace(/'/g,"\\'") + '\')" '
+        + 'style="background:none;border:none;color:#F0685C;cursor:pointer;font-size:14px;line-height:1;padding:0 2px" title="Remove">×</button></span>';
+    }).join('');
+  }
+
   /* ── Invitations ───────────────────────────────────────────── */
   function createInvitation(){
+
     var type = document.getElementById('vc-inv-type').value;
     var dept = document.getElementById('vc-inv-dept').value.trim();
     var host = document.getElementById('vc-inv-host').value.trim();
@@ -569,11 +660,20 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     var notes = document.getElementById('vc-inv-notes').value.trim();
 
     if (!dept || !host){ alert('Destination Department and Host Name are required.'); return; }
+    if (!_selectedSafetyControllers.length){
+      alert('Please select at least one Safety Controller.');
+      return;
+    }
 
     var personId = nextPersonId();
     var token = generateToken();
     var baseUrl = window.location.href.replace(/[^/]*$/, '');
     var inviteUrl = baseUrl + 'visitor-register.html?token=' + token;
+
+    // Build Safety Controllers string (Name <email>; Name <email>)
+    var safetyStr = _selectedSafetyControllers.map(function(s){
+      return s.name + ' <' + s.email + '>';
+    }).join('; ');
 
     var rec = {
       'Person ID': personId,
@@ -588,7 +688,8 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
       'PPE Status': 'Not Issued', 'PPE Issued Date': '', 'PPE Issued By': '',
       'Registered By': currentUserName(), 'Registered Date': todayStr(),
       'Record Status': 'Active',
-      'Notes': notes
+      'Notes': notes,
+      'Safety Controllers': safetyStr
     };
 
     postJSON('create', { tab: TAB_PERSONS }, rec).then(loadAll).then(function(){
@@ -597,6 +698,9 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
       html += '<button class="aiw-btn vc-copy-btn" onclick="navigator.clipboard.writeText(\'' + inviteUrl.replace(/'/g,"\\'") + '\').then(function(){alert(\'Link copied\')})">Copy Link</button>';
       html += '<div class="vc-reason" style="margin-top:8px">Send this link to the visitor/contractor. They will complete the registration form.</div>';
       document.getElementById('vc-inv-result').innerHTML = html;
+      // clear selected Safety Controllers after successful creation
+      _selectedSafetyControllers = [];
+      renderSelectedSafetyList();
     });
   }
 
@@ -657,19 +761,32 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   function approvePerson(personId){
     var p = findById(personId);
     if (!p) return;
-    postJSON('update', { tab: TAB_PERSONS, id: personId }, {
-      'Person ID': personId,
-      'Registration Status': 'Approved',
-      'Approved By': currentUserName(),
-      'Approved Date': todayStr()
-    }).then(loadAll).then(function(){
-      var updated = findById(personId) || p;
-      updated['Registration Status'] = 'Approved';
-      var html = personCardHtml(updated, 'vc-appr-qr') + fullStatusHtml(updated);
-      html += '<div class="vc-reason" style="margin-top:10px;color:var(--vc-grn)">Approved. The visitor can now be sent their QR access card (copy the card or send via email).</div>';
-      document.getElementById('vc-appr-detail').innerHTML = html;
-      renderQR('vc-appr-qr', 'SAGCO-VC:' + personId);
-      // Note: actual email sending should be added in Apps Script (action e.g. sendVisitorCard)
+
+    // Call the dedicated Apps Script action that updates status AND sends the confirmation email
+    fetch(SHEETS_URL + '?action=approveVisitorAndSendCard', {
+      method: 'POST',
+      body: JSON.stringify({
+        personId: personId,
+        approvedBy: currentUserName()
+      })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res.status !== 'ok') {
+        alert('Approval failed: ' + (res.message || 'Unknown error'));
+        return;
+      }
+      return loadAll().then(function(){
+        var updated = findById(personId) || p;
+        updated['Registration Status'] = 'Approved';
+        var html = personCardHtml(updated, 'vc-appr-qr') + fullStatusHtml(updated);
+        html += '<div class="vc-reason" style="margin-top:10px;color:var(--vc-grn)">Approved successfully. Confirmation email with QR access details has been sent to the visitor (CC: Host + selected Safety Controllers).</div>';
+        document.getElementById('vc-appr-detail').innerHTML = html;
+        renderQR('vc-appr-qr', 'SAGCO-VC:' + personId);
+      });
+    })
+    .catch(function(err){
+      alert('Network error while approving: ' + err);
     });
   }
 
@@ -960,6 +1077,8 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     switchTab: switchTab,
     createInvitation: createInvitation,
     onHostChange: onHostChange,
+    addSafetyController: addSafetyController,
+    removeSafetyController: removeSafetyController,
     showApprovalDetail: showApprovalDetail,
     approvePerson: approvePerson,
     rejectPerson: rejectPerson,
