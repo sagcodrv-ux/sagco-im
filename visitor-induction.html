@@ -133,6 +133,19 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   <!-- ═══════════════ TAB: Invitations ═══════════════ -->
   <div class="vc-panel active" id="vc-panel-invite">
     <div class="vc-section-title">Create New Invitation</div>
+
+    <!-- Current user (auto-filled, disabled) -->
+    <div class="vc-row2">
+      <div class="vc-field">
+        <label>Created By (you)</label>
+        <input id="vc-inv-createdby" disabled>
+      </div>
+      <div class="vc-field">
+        <label>Your Email</label>
+        <input id="vc-inv-useremail" disabled>
+      </div>
+    </div>
+
     <div class="vc-row2">
       <div class="vc-field">
         <label>Visitor / Contractor Type</label>
@@ -146,6 +159,7 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
         <input id="vc-inv-dept" placeholder="e.g. Batch Plant, Hot End, Administration">
       </div>
     </div>
+
     <div class="vc-row2">
       <div class="vc-field">
         <label>Host Name (person receiving them)</label>
@@ -156,10 +170,17 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
         <input id="vc-inv-hostdept" placeholder="Department of the host">
       </div>
     </div>
+
+    <div class="vc-field">
+      <label>Visitor / Contractor Email (optional)</label>
+      <input id="vc-inv-email" type="email" placeholder="visitor@example.com — optional">
+    </div>
+
     <div class="vc-field">
       <label>Notes / Purpose of visit (optional)</label>
       <textarea id="vc-inv-notes" rows="2" placeholder="Brief purpose of the visit"></textarea>
     </div>
+
     <button class="aiw-btn aiw-btn-add" onclick="VC.createInvitation()">Generate Invitation Link</button>
     <div id="vc-inv-result" style="margin-top:16px"></div>
 
@@ -263,11 +284,23 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
     return (u && u.name) || (s && s.username) || '';
   }
+  function currentUserEmail(){
+    if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
+    var s = IMS_AUTH.getSession();
+    var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    return (u && u.email) || '';
+  }
   function currentUserDept(){
     if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
     var s = IMS_AUTH.getSession();
     var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
     return (u && u.department) || '';
+  }
+  function fillCurrentUserFields(){
+    var nameEl = document.getElementById('vc-inv-createdby');
+    var emailEl = document.getElementById('vc-inv-useremail');
+    if (nameEl) nameEl.value = currentUserName();
+    if (emailEl) emailEl.value = currentUserEmail();
   }
   function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -383,6 +416,7 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     var dept = document.getElementById('vc-inv-dept').value.trim();
     var host = document.getElementById('vc-inv-host').value.trim();
     var hostDept = document.getElementById('vc-inv-hostdept').value.trim();
+    var visitorEmail = document.getElementById('vc-inv-email').value.trim();
     var notes = document.getElementById('vc-inv-notes').value.trim();
 
     if (!dept || !host){ alert('Destination Department and Host Name are required.'); return; }
@@ -395,7 +429,7 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     var rec = {
       'Person ID': personId,
       'Invitation Token': token,
-      'First Name': '', 'Family Name': '', 'ID Number': '', 'Phone': '', 'Email': '',
+      'First Name': '', 'Family Name': '', 'ID Number': '', 'Phone': '', 'Email': visitorEmail,
       'Company': '', 'Type': type,
       'Destination Department': dept,
       'Host Name': host, 'Host Department': hostDept || currentUserDept(),
@@ -794,8 +828,9 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   };
 
   if (typeof IMS_AUTH !== 'undefined'){
-    IMS_AUTH.init({ onReady: function(){ loadAll(); } });
+    IMS_AUTH.init({ onReady: function(){ fillCurrentUserFields(); loadAll(); } });
   } else {
+    fillCurrentUserFields();
     loadAll();
   }
 })();
