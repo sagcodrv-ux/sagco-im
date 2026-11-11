@@ -298,43 +298,49 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   }
 
   function currentUserName(){
-    if (_currentUserFromSheet){
-      return _currentUserFromSheet['Full Name'] || _currentUserFromSheet['Name'] || _currentUserFromSheet['Username'] || '';
-    }
-    // Fallback to IMS_AUTH while sheet is still loading
+    // 1. Prefer live session (auth.js puts name + email into session on login)
     if (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getSession){
       var s = IMS_AUTH.getSession();
-      if (!s) return '';
-      var u = (IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
-      if (u && u.name) return u.name;
-      if (s.username) return s.username;
-      if (s.role === 'superadmin' || s.role === 'admin') return 'Admin';
+      if (s){
+        if (s.name) return s.name;
+        var u = (IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+        if (u && u.name) return u.name;
+        if (s.username) return s.username;
+        if (s.role === 'superadmin' || s.role === 'admin') return 'Admin';
+      }
+    }
+    // 2. Fallback: User Register sheet lookup
+    if (_currentUserFromSheet){
+      return _currentUserFromSheet['Full Name'] || _currentUserFromSheet['Name'] || _currentUserFromSheet['Username'] || '';
     }
     return '';
   }
 
   function currentUserEmail(){
-    if (_currentUserFromSheet){
-      return _currentUserFromSheet['Email'] || _currentUserFromSheet['email'] || '';
-    }
+    // 1. Prefer live session
     if (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getSession){
       var s = IMS_AUTH.getSession();
-      if (!s) return '';
-      var u = (IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
-      if (u && u.email) return u.email;
-      if (s.email) return s.email;
+      if (s){
+        if (s.email) return s.email;
+        var u = (IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+        if (u && u.email) return u.email;
+      }
+    }
+    // 2. Fallback: User Register sheet lookup
+    if (_currentUserFromSheet){
+      return _currentUserFromSheet['Email'] || _currentUserFromSheet['email'] || '';
     }
     return '';
   }
 
   function currentUserDept(){
-    if (_currentUserFromSheet){
-      return _currentUserFromSheet['Department'] || _currentUserFromSheet['department'] || '';
-    }
     if (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getSession){
       var s = IMS_AUTH.getSession();
       var u = (s && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
-      return (u && u.department) || '';
+      if (u && u.department) return u.department;
+    }
+    if (_currentUserFromSheet){
+      return _currentUserFromSheet['Department'] || _currentUserFromSheet['department'] || '';
     }
     return '';
   }
