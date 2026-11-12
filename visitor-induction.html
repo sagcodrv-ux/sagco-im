@@ -568,6 +568,14 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
       + '</div>';
   }
 
+  // Rev.27 (Issam, voice, 2026-11-12) — when PPE is already Issued,
+  // it now gets its own large, green, hard-to-miss banner (same
+  // treatment as the Rev.26 gate ID-number box) instead of a small
+  // inline "· PPE: Issued (date)" easy to read past. Shows only the
+  // LATEST issuance — Issam explicitly said no history/count is
+  // needed, just the most recent date and who did it, which is all
+  // the sheet keeps per person already. Induction's own line is
+  // unchanged; this only affects how PPE is shown.
   function fullStatusHtml(person){
     var c = computeClearance(person);
     var ind = inductionState(person);
@@ -575,9 +583,16 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     html += '<div class="vc-reason" style="margin-top:10px">';
     html += 'Induction: ' + vEsc(person['Induction Status']||'Not Inducted');
     if (person['Induction Date']) html += ' (' + vEsc(person['Induction Date']) + ')';
-    html += ' · PPE: ' + vEsc(person['PPE Status']||'Not Issued');
-    if (person['PPE Issued Date']) html += ' (' + vEsc(person['PPE Issued Date']) + ')';
     html += '</div>';
+    var ppeIssued = String(person['PPE Status']||'').trim() === 'Issued';
+    if (ppeIssued){
+      html += '<div style="margin-top:8px;padding:10px 14px;background:rgba(79,203,158,.18);border:2px solid var(--vc-grn);border-radius:10px;text-align:center">'
+        + '<div style="font-size:16px;font-weight:800;color:var(--vc-grn)">✓ PPE ISSUED' + (person['PPE Issued Date'] ? ' — ' + vEsc(person['PPE Issued Date']) : '') + '</div>'
+        + (person['PPE Issued By'] ? '<div style="font-size:11px;color:var(--vc-text-muted);margin-top:2px">by ' + vEsc(person['PPE Issued By']) + '</div>' : '')
+        + '</div>';
+    } else {
+      html += '<div class="vc-reason" style="margin-top:4px">PPE: Not Issued</div>';
+    }
     return html;
   }
 
@@ -880,7 +895,18 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
       document.getElementById('vc-gate-detail').innerHTML = '<div class="vc-reason">Unknown Person ID: ' + vEsc(personId) + '</div>';
       return;
     }
-    var html = personCardHtml(p, 'vc-gate-qr') + fullStatusHtml(p);
+    // Rev.26 (Issam, voice, 2026-11-12) — there are no photo or ID-
+    // card uploads in this system (deliberately, per Issam), so the
+    // gate check is manual: the guard reads the ID number here and
+    // compares it against the physical ID card the person is holding.
+    // Made large, bold, and impossible to miss, with the instruction
+    // spelled out, since a small inline "ID: 111" among other
+    // details was too easy to skip past.
+    var idCheckHtml = '<div style="margin:10px 0;padding:12px 14px;background:var(--vc-bg3);border:2px solid var(--vc-gold);border-radius:10px;text-align:center">'
+      + '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--vc-text-muted);margin-bottom:4px">ID Number — Check Against the Person\'s ID Card</div>'
+      + '<div style="font-size:26px;font-weight:800;color:var(--vc-gold-lt);letter-spacing:.5px">' + vEsc(p['ID Number'] || '—') + '</div>'
+      + '</div>';
+    var html = personCardHtml(p, 'vc-gate-qr') + idCheckHtml + fullStatusHtml(p);
     var c = computeClearance(p);
     if (c.color === 'red' || c.color === 'amber'){
       html += '<div class="vc-reason" style="margin-top:10px;color:var(--vc-amb)">Direct the person to Safety / PPE desk before allowing entry to operational areas.</div>';
