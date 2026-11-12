@@ -112,6 +112,9 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     <a href="safety-hub.html" class="back-link">← Safety Hub</a>
   </div>
 
+  <div id="vc-col-warning" style="display:none;font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(240,104,92,.12);
+    border-radius:8px;border-left:3px solid var(--vc-red);margin:10px 0;color:var(--vc-red)"></div>
+
   <div class="req-text">
     <strong>Visitor &amp; Contractor Management</strong> — full digital workflow from invitation to gate clearance.
     <strong>Cleared to Enter (Green)</strong> requires: Registration <strong>Approved</strong> + valid Induction (≤ 12 months) + <strong>PPE Issued</strong>.
@@ -290,110 +293,72 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   var INDUCTION_EXPIRING_WINDOW_DAYS = 30;
   var _persons = [], _spotchecks = [], _users = [];
   var _activeScanTarget = null;
-  var _currentUserFromSheet = null; // { name, email, department, username }
   var _selectedSafetyControllers = []; // [{name, email}, ...]
 
   /* ── Helpers ───────────────────────────────────────────────── */
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
 
-  // Rev.2 (Issam, screenshot, 2026-11-12) — getSession() is not a real
-  // method on this project's auth.js (every other page uses
-  // IMS_AUTH.getUser() instead), so this always returned '' here,
-  // silently breaking every "who did this" field on this entire page
-  // (Registered By, Approved By, Inducted By, PPE Issued By, Checked
-  // By) — confirmed by Issam's screenshot showing a blank Registered
-  // By on an invitation created after the Rev.1 fix. getUser() is now
-  // the primary path, with getSession() kept as a harmless fallback
-  // in case a future auth.js version adds it.
-  function getCurrentSession_(){
-    if (typeof IMS_AUTH === 'undefined') return null;
+  // Rev.3 (Issam, voice, 2026-11-12) — REBUILT session handling.
+  // Every earlier version of this (getSession(), name/email lookup
+  // chains through the User Register, directory fallbacks) could
+  // silently disagree with what IMS_AUTH.init's onReady callback
+  // actually handed this page — the one place that is PROVEN correct,
+  // because it's exactly what the login server just authenticated.
+  // _session below is set ONCE, at startup, directly from that
+  // callback, and nothing on this page ever recomputes it a second
+  // way. Every "who did this" field (Registered By, Approved By,
+  // Inducted By, PPE Issued By, Checked By) now reads _session.name /
+  // _session.email directly — there is no other path left to diverge
+  // from what the server returned at login.
+  var _session = null;
+
+  function currentUserName(){ return (_session && _session.name) ? _session.name : ''; }
+  function currentUserEmail(){ return (_session && _session.email) ? _session.email : ''; }
+  // Department isn't part of the login session itself, so this is the
+  // one field still allowed a secondary source — IMS_AUTH.getUserById
+  // is a real, existing method (unlike the old getSession() chain),
+  // and this is only ever used as an optional auto-fill suggestion
+  // for Host Department, never for a "who did this" record.
+  function currentUserDept(){
+    if (!_session || typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getUserById) return '';
     try {
-      if (IMS_AUTH.getUser) { var u = IMS_AUTH.getUser(); if (u) return u; }
-      if (IMS_AUTH.getSession) { var s = IMS_AUTH.getSession(); if (s) return s; }
-    } catch(e){ /* fall through to null below */ }
-    return null;
-  }
-  function getSessionUsername(){
-    var s = getCurrentSession_();
-    return (s && s.username) ? String(s.username).trim().toLowerCase() : '';
+      var u = IMS_AUTH.getUserById(_session.userId);
+      return (u && u.department) ? u.department : '';
+    } catch(e){ return ''; }
   }
 
-  function lookupUserFromSheet(){
-    var username = getSessionUsername();
-    if (!username || !_users.length) return null;
-    for (var i = 0; i < _users.length; i++){
-      var row = _users[i];
-      var un = String(row['Username'] || row['username'] || '').trim().toLowerCase();
-      if (un && un === username) return row;
-    }
-    return null;
+  // Rev.3 (Issam, voice, 2026-11-12) — same missing-column safety
+  // banner pattern as fire-extinguisher-log.html: names exactly which
+  // columns this page writes to that are absent from the live VC
+  // Persons sheet, instead of letting a write silently drop that
+  // field (as happened with Registered By Email before the column
+  // was added). Checked once per page load, against the real headers
+  // just read from the sheet.
+  var REQUIRED_VC_PERSONS_COLUMNS = [
+    'Person ID','Invitation Token','First Name','Family Name','ID Number','Phone','Email','Company',
+    'Type','Destination Department','Host Name','Host Department','Registration Status','Submitted Date',
+    'Approved By','Approved Date','Rejection Reason','Induction Status','Induction Date','Induction Method',
+    'Inducted By','PPE Status','PPE Issued Date','PPE Issued By','Registered By','Registered By Email',
+    'Registered Date','Record Status','Safety Controllers','Notes'
+  ];
+  function checkRequiredColumns(headers){
+    var el = document.getElementById('vc-col-warning');
+    if (!el) return;
+    var have = (headers||[]).map(function(h){ return String(h).trim(); });
+    var missing = REQUIRED_VC_PERSONS_COLUMNS.filter(function(c){ return have.indexOf(c) < 0; });
+    if (!missing.length){ el.style.display = 'none'; el.innerHTML = ''; return; }
+    el.style.display = 'block';
+    el.innerHTML = '⚠ The VC Persons sheet is missing ' + missing.length + ' expected column' + (missing.length>1?'s':'')
+      + ' — add exactly this header text to row 3: <strong>' + missing.map(vEsc).join('</strong>, <strong>') + '</strong>.'
+      + ' Until added, anything saved to ' + (missing.length>1?'these columns':'this column') + ' will be silently lost.';
   }
 
-  function resolveUserRecord(session){
-    // Build the best available user record from session + auth directory + sheet
-    var s = session || getCurrentSession_();
-    var u = null;
-    if (s && typeof IMS_AUTH !== 'undefined'){
-      if (IMS_AUTH.getUserById && s.userId) u = IMS_AUTH.getUserById(s.userId);
-      if (!u && IMS_AUTH.getUserByUsername && s.username) u = IMS_AUTH.getUserByUsername(s.username);
-    }
-    return { session: s, user: u, sheet: _currentUserFromSheet };
-  }
-
-  function currentUserName(session){
-    var r = resolveUserRecord(session);
-    if (r.session && r.session.name) return r.session.name;
-    if (r.user && r.user.name) return r.user.name;
-    if (r.sheet && (r.sheet['Full Name'] || r.sheet['Name'])) return r.sheet['Full Name'] || r.sheet['Name'];
-    if (r.session && r.session.username) return r.session.username;
-    if (r.user && r.user.username) return r.user.username;
-    if (r.session && (r.session.role === 'superadmin' || r.session.role === 'admin')) return 'Admin';
-    return '';
-  }
-
-  function currentUserEmail(session){
-    var r = resolveUserRecord(session);
-    if (r.session && r.session.email) return r.session.email;
-    if (r.user && r.user.email) return r.user.email;
-    if (r.sheet && (r.sheet['Email'] || r.sheet['email'])) return r.sheet['Email'] || r.sheet['email'];
-    return '';
-  }
-
-  function currentUserDept(session){
-    var r = resolveUserRecord(session);
-    if (r.user && r.user.department) return r.user.department;
-    if (r.sheet && (r.sheet['Department'] || r.sheet['department'])) return r.sheet['Department'] || r.sheet['department'];
-    return '';
-  }
-
-  function fillCurrentUserFields(session){
+  function fillCurrentUserFields(){
     var nameEl = document.getElementById('vc-inv-createdby');
     var emailEl = document.getElementById('vc-inv-useremail');
-    if (!nameEl && !emailEl) return false;
-    var name = currentUserName(session);
-    var email = currentUserEmail(session);
-    // Never overwrite a good value with empty — this was the bug:
-    // loadAll() ran later and wiped the fields that session had filled.
-    if (nameEl){
-      var curName = (nameEl.value || '').trim();
-      if (name) nameEl.value = name;
-      else if (!curName || curName === '(not available)') nameEl.value = '(not available)';
-    }
-    if (emailEl){
-      var curEmail = (emailEl.value || '').trim();
-      if (email) emailEl.value = email;
-      else if (!curEmail || curEmail === '(not available)') emailEl.value = '(not available)';
-    }
-    return !!(name || email);
-  }
-
-  // Retry a few times in case session / directory loads slightly later
-  function fillCurrentUserFieldsWithRetry(session, attempt){
-    attempt = attempt || 0;
-    var ok = fillCurrentUserFields(session);
-    if (!ok && attempt < 8){
-      setTimeout(function(){ fillCurrentUserFieldsWithRetry(session, attempt + 1); }, 250 * (attempt + 1));
-    }
+    if (!nameEl && !emailEl) return;
+    if (nameEl) nameEl.value = currentUserName() || '(not available — please log out and back in)';
+    if (emailEl) emailEl.value = currentUserEmail() || '(not available — please log out and back in)';
   }
   function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -423,7 +388,7 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
         } else {
           _users = [];
         }
-        _currentUserFromSheet = lookupUserFromSheet();
+        checkRequiredColumns(results[0] ? results[0].headers : []);
         fillCurrentUserFields();
         populateHostDropdowns();
         populateSafetyDropdown();
@@ -695,38 +660,42 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
       'Submitted Date': '', 'Approved By': '', 'Approved Date': '', 'Rejection Reason': '',
       'Induction Status': 'Not Inducted', 'Induction Date': '', 'Induction Method': '', 'Inducted By': '',
       'PPE Status': 'Not Issued', 'PPE Issued Date': '', 'PPE Issued By': '',
-      // Rev.2 (Issam, screenshot, 2026-11-12) — Rev.1 called
-      // currentUserName()/currentUserEmail() with NO session argument,
-      // which here fall back to IMS_AUTH.getSession() — a method this
-      // auth.js does not actually provide (every other page in this
-      // project uses IMS_AUTH.getUser() instead), so both silently
-      // returned '' and every invitation still saved blank, confirmed
-      // by Issam's screenshot (Registered By blank on a row created
-      // AFTER the Rev.1 fix). The two fields at the top of this tab
-      // (#vc-inv-createdby / #vc-inv-useremail) DID show the right
-      // name and email, because those were filled once, correctly, by
-      // fillCurrentUserFieldsWithRetry() using the real session object
-      // IMS_AUTH.init's onReady callback actually hands this page.
-      // Reading straight from those two fields — what's already
-      // proven correct on screen — sidesteps the broken call entirely,
-      // rather than trying to recompute the same answer a second way.
-      'Registered By': (document.getElementById('vc-inv-createdby').value || '').trim(),
-      'Registered By Email': (document.getElementById('vc-inv-useremail').value || '').trim(),
+      // Rev.3 (Issam, voice, 2026-11-12) — currentUserName()/
+      // currentUserEmail() now read directly from _session, set once
+      // from IMS_AUTH.init's onReady callback and never recomputed —
+      // see the rebuilt session block near the top of this script.
+      'Registered By': currentUserName(),
+      'Registered By Email': currentUserEmail(),
       'Registered Date': todayStr(),
       'Record Status': 'Active',
       'Notes': notes,
       'Safety Controllers': safetyStr
     };
 
-    postJSON('create', { tab: TAB_PERSONS }, rec).then(loadAll).then(function(){
-      var html = '<div class="vc-reason" style="color:var(--vc-grn)">Invitation created successfully.</div>';
-      html += '<div class="vc-invite-link">' + vEsc(inviteUrl) + '</div>';
-      html += '<button class="aiw-btn vc-copy-btn" onclick="navigator.clipboard.writeText(\'' + inviteUrl.replace(/'/g,"\\'") + '\').then(function(){alert(\'Link copied\')})">Copy Link</button>';
-      html += '<div class="vc-reason" style="margin-top:8px">Send this link to the visitor/contractor. They will complete the registration form.</div>';
-      document.getElementById('vc-inv-result').innerHTML = html;
-      // clear selected Safety Controllers after successful creation
-      _selectedSafetyControllers = [];
-      renderSelectedSafetyList();
+    // Rev.3 (Issam, voice, 2026-11-12) — every write on this rebuilt
+    // page now checks the server's own status and shows its exact
+    // message on screen on failure, instead of assuming success and
+    // moving on regardless (createInvitation previously had no error
+    // path at all — a failed write looked identical to a successful
+    // one from the person's point of view).
+    postJSON('create', { tab: TAB_PERSONS }, rec).then(function(res){
+      if (res && res.status === 'error'){
+        document.getElementById('vc-inv-result').innerHTML =
+          '<div class="vc-reason" style="color:var(--vc-red)">Could not create the invitation: ' + vEsc(res.message || 'unknown error') + '</div>';
+        return;
+      }
+      return loadAll().then(function(){
+        var html = '<div class="vc-reason" style="color:var(--vc-grn)">Invitation created successfully.</div>';
+        html += '<div class="vc-invite-link">' + vEsc(inviteUrl) + '</div>';
+        html += '<button class="aiw-btn vc-copy-btn" onclick="navigator.clipboard.writeText(\'' + inviteUrl.replace(/'/g,"\\'") + '\').then(function(){alert(\'Link copied\')})">Copy Link</button>';
+        html += '<div class="vc-reason" style="margin-top:8px">Send this link to the visitor/contractor. They will complete the registration form.</div>';
+        document.getElementById('vc-inv-result').innerHTML = html;
+        _selectedSafetyControllers = [];
+        renderSelectedSafetyList();
+      });
+    }).catch(function(){
+      document.getElementById('vc-inv-result').innerHTML =
+        '<div class="vc-reason" style="color:var(--vc-red)">Could not reach the server — check your connection and try again.</div>';
     });
   }
 
@@ -1122,13 +1091,19 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     _internal: { getPersons:function(){return _persons;}, getSpotChecks:function(){return _spotchecks;}, loadAll: loadAll }
   };
 
+  // Rev.3 (Issam, voice, 2026-11-12) — _session is set exactly once,
+  // right here, directly from the real login session IMS_AUTH.init
+  // hands this page. Nothing else on the page ever recomputes it a
+  // second way, so there's no path left for it to disagree with what
+  // actually authenticated.
   if (typeof IMS_AUTH !== 'undefined'){
     IMS_AUTH.init({ onReady: function(session){
-      fillCurrentUserFieldsWithRetry(session, 0);
+      _session = session;
+      fillCurrentUserFields();
       loadAll();
     }});
   } else {
-    fillCurrentUserFieldsWithRetry(null, 0);
+    fillCurrentUserFields();
     loadAll();
   }
 })();
