@@ -396,7 +396,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   function buildModal(existingRec){
     var root = document.getElementById('viw-modal-root');
-    var isEdit = !!existingRec;
+    // Rev.28 (Issam, voice, 2026-11-12) — isEdit now checks for a real
+    // Violation Ref, not just any truthy object. This lets a deep-link
+    // PRE-FILL (from a Spot Check or other escalation — see
+    // handleViolationDeepLink() below) pass a values-only object with
+    // no Violation Ref yet, and still get treated as a genuinely NEW
+    // record (its own fresh ref via nextRef, "New" in the title) while
+    // using every other field in that object as the starting values —
+    // instead of being mistaken for editing an existing violation.
+    var isEdit = !!(existingRec && existingRec['Violation Ref']);
     var ref = isEdit ? existingRec['Violation Ref'] : nextRef(_cache);
     var r = existingRec || {};
     var catOpts = Object.keys(CATEGORY_REASONS).map(function(c){
@@ -628,8 +636,32 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }
   };
 
+  // Rev.28 (Issam, voice, 2026-11-12) — reads the details a Spot
+  // Check escalation (or any other future source) already puts in the
+  // URL, and opens the New Violation form pre-filled with them — per
+  // Issam's "no need to retype everything" request. Previously this
+  // page ignored its own query string entirely; escalateSpotCheck()
+  // in visitor-induction.html was already sending these details, they
+  // just had nowhere to land.
+  function handleViolationDeepLink(){
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('source') !== 'spotcheck') return; // only one source exists today; checked explicitly so an unrelated query string never mis-opens this form
+    if (!can('add')) return;
+    var dateVal = params.get('date') || '';
+    var prefill = {
+      'Date': /^\d{4}-\d{2}-\d{2}$/.test(dateVal) ? dateVal : new Date().toISOString().slice(0,10),
+      'Reported By': params.get('checkedBy') || '',
+      'Employee Name': params.get('name') || '',
+      'Position': params.get('company') || '', // no dedicated Company field on this form; Position is the closest free-text slot and is editable before saving
+      'Department': params.get('department') || '',
+      'Description': params.get('note') || '',
+      'Remarks': 'Escalated from Visitor Spot Check ' + (params.get('spotcheck') || '') + (params.get('idNumber') ? (' — ID Number: ' + params.get('idNumber')) : '')
+    };
+    buildModal(prefill);
+  }
+
   document.addEventListener('DOMContentLoaded', function(){
-    setTimeout(loadAll, 100);
+    setTimeout(function(){ loadAll().then(handleViolationDeepLink); }, 100);
   });
 })();
 </script>
