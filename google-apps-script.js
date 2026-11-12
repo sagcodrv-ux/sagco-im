@@ -116,6 +116,16 @@ var TABS = {
   /* Clause 8 */
   'ptw_register':    'ptw_register',
   'ptw_authorized_issuers': 'ptw_authorized_issuers',
+  /* Rev.19 (Issam, voice, 2026-11-08) — PTW approval chain, step 2.
+     ptw_area_managers: one row per Area, with that area's manager name
+     and email — looked up by the permit's own Area when it's
+     submitted. ptw_controllers: a shared list, name + email + Record
+     Status; every active controller is emailed, and whichever one acts
+     first takes the approval. Same literal-tab-name convention as the
+     other ptw_* tabs above, not the "54d – description" pattern used
+     elsewhere in this map. */
+  'ptw_area_managers': 'ptw_area_managers',
+  'ptw_controllers':   'ptw_controllers',
   'location_zones':  'Locations - Zones (Tier 1)',
   'emergency':       '34b – Emergency Response',
   'contractor':      '35 – Contractor Register',
@@ -199,7 +209,11 @@ var TABS = {
      Inspection Due" that DATE_RULES below already watches).
      'crane_checklist' is new: one row per HSE-FRM-18 pre-use
      inspection event, dropping numbered-sheet naming for the same
-     reason as 'scaffold_inspection' / 'fire_pump_log'. */
+     reason as 'scaffold_inspection' / 'fire_pump_log'.
+     Rev.20 (Issam, 2026-11-10) — crane-inspection.html now exists and
+     reads this tab; it was reserved here on Rev.10 but no page read it
+     until now. Links to the PTW Register by Permit ID, same pattern
+     as Confined Space / LOTO. */
   'crane_checklist': 'Crane Inspection Checklist',
   /* Rev.11 (Issam, 2026-10-14) — First Aid Kit Register (master list
      of physical kit/box locations, one row per kit, carrying "Next
@@ -248,6 +262,7 @@ var TABS = {
   'tpdd':            ' TPDD',
   'water_waste':     ' Water & Waste',
   'supplier_scoc':   ' Supplier SCoC',
+  'mock_drill': 'mock drill',
 
   /* New Safety & ESG Programmes — Rev.19 */
   'ppe_register':      '54 – PPE Register',
@@ -268,6 +283,12 @@ var TABS = {
   'ppe_issuance_dept':   '54b – PPE Issuance (Dept)',
   'ppe_issuance_indiv':  '54c – PPE Issuance (Individual)',
   'ppe_shoes_stock':     '54d – Safety Shoes Stock',
+  /* Rev.19 (Issam, 2026-11-07) — Safety Shoes material reception log,
+     the fourth tab on ppe-issuance.html. Descriptive name with NO sheet
+     number, per the convention adopted after the Scaffold Inspection
+     sheet-number collision (see CP-107). Columns: Record ID, Date,
+     Item Code, Qty Received, Delivery Ref, Received By, Record Status. */
+  'ppe_shoes_received':  'Safety Shoes Received',
   /* Rev.19 (Issam, 2026-10-20) — Shift Area Safety Inspection
      (HSE-FRM-06). Tab name deliberately has NO sheet number, per the
      convention adopted after the Scaffold Inspection sheet-number
@@ -332,7 +353,18 @@ var TABS = {
      data — restrict sheet sharing accordingly. */
   'hse_violations': 'HSE Violations',
   'wah_register':      '55 – WAH Register',
+  /* 'hot_work' below is the OLD generic placeholder tab (no real
+     checklist fields) — left untouched so nothing else that may still
+     reference it breaks, same reasoning as 'confined_space' /
+     'scaffold' / 'fire_pump' above. hot-work.html's real single-day
+     Pre/Execution/Post/Closure checklist (SAGCO Hot Work Checklist,
+     Rev.00, 24-Nov-2025) reads 'hot_work_checklist' instead, pointed
+     at its own tab, dropping numbered-sheet naming for the same
+     reason as 'scaffold_inspection' / 'fire_pump_log' / 'crane_checklist'.
+     Rev.20 (Issam, 2026-11-10) — links to the PTW Register by Permit
+     ID, same pattern as Confined Space / LOTO / crane_checklist. */
   'hot_work':          '56 – Hot Work Log',
+  'hot_work_checklist': 'Hot Work Checklist',
   'electrical_safety': '57 – Electrical Safety Log',
   'furnace_leakage':   '58 – Furnace Leakage Log',
   'first_aid':         '59 – First Aid Records',
@@ -601,9 +633,12 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    if (pAction === 'write') {
+    /* ── Rev.21: write / create (both accepted) ──────────────── */
+    if (pAction === 'write' || pAction === 'create') {
       var wTab  = e.parameter.tab || '';
       var wRows = JSON.parse(e.postData ? e.postData.contents : '[]');
+      // Accept both a single object and an array of objects
+      if (!Array.isArray(wRows)) wRows = [wRows];
       return ContentService
         .createTextOutput(writeRows(wTab, wRows))
         .setMimeType(ContentService.MimeType.JSON);
@@ -611,15 +646,38 @@ function doPost(e) {
 
     if (pAction === 'update') {
       var uTab     = e.parameter.tab   || '';
-      var uIdCol   = e.parameter.idCol || 'CAPA ID';
+      var uIdCol   = e.parameter.idCol || 'Person ID';  // default changed for VC; CAPA still works when idCol is passed
       var uId      = e.parameter.id    || '';
-      var uUpsert  = e.parameter.upsert === '1'; /* opt-in — see updateRowById's doc comment */
+      var uUpsert  = e.parameter.upsert === '1' || e.parameter.upsert === 'true';
       var uUpdates = JSON.parse(e.postData ? e.postData.contents : '{}');
       return ContentService
         .createTextOutput(updateRowById(uTab, uIdCol, uId, uUpdates, uUpsert))
         .setMimeType(ContentService.MimeType.JSON);
     }
-  } catch(routeErr) { /* fall through to existing doPost */ }
+
+    /* ── Rev.21: Visitor / Contractor workflow ─────────────── */
+    if (pAction === 'submitVisitorRegistration') {
+      var bodySub = JSON.parse(e.postData ? e.postData.contents : '{}');
+      return ContentService
+        .createTextOutput(JSON.stringify(submitVisitorRegistration(bodySub)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (pAction === 'approveVisitorAndSendCard') {
+      var bodyAppr = JSON.parse(e.postData ? e.postData.contents : '{}');
+      return ContentService
+        .createTextOutput(JSON.stringify(approveVisitorAndSendCard(bodyAppr)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch(routeErr) {
+    // Rev.22 (Issam, voice, 2026-11-12) — this used to swallow routeErr
+    // completely and fall through, so a failure here (e.g. malformed
+    // JSON in the request body, before submitVisitorRegistration's own
+    // try/catch is even reached) left no trace anywhere. Now logged,
+    // so Executions shows it even though the request still falls
+    // through to the existing doPost below, same as before.
+    Logger.log('doPost: new-route handling threw before reaching its own try/catch — ' + routeErr);
+  }
 
   /* ── Existing doPost ────────────────────────────────────── */
   var output = ContentService.createTextOutput();
@@ -2335,4 +2393,318 @@ function setDocumentStatusDraft(docId) {
       if (String(data[r][idCol]) === String(docId)) { sh.getRange(r+1, stCol+1).setValue('Draft'); break; }
     }
   } catch (e) { /* silent */ }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   VISITOR & CONTRACTOR – EMAIL + WORKFLOW (Rev.21)
+   Added 2026-11-11
+══════════════════════════════════════════════════════════════ */
+
+/* Configurable addresses – CHANGE THESE to your real emails */
+// SAFETY_CONTROLLER_EMAIL removed – selection is now compulsory on the invitation form
+// var SAFETY_CONTROLLER_EMAIL = 'safety@sagco.com.sa';
+var IMS_FROM_NAME           = 'SAGCO IMS – Visitor Gate';
+
+/**
+ * Called by the public registration page after the visitor submits the form.
+ * 1. Updates the vc_persons row (status → Submitted + personal data)
+ * 2. Sends email notification to the person who created the invitation
+ */
+// Rev.22 (Issam, voice, 2026-11-12) — step-by-step logging added, so
+// the Executions screen shows exactly where this stopped instead of
+// just "Completed" (which Apps Script shows even when this function
+// returned an error internally — it only means the script didn't
+// crash, not that the email actually sent). Every meaningful step now
+// has its own Logger.log line, and sendVisitorSubmittedEmail's own
+// MailApp call is now wrapped so a send failure is LOGGED and
+// reported back in the response, instead of throwing silently or
+// being swallowed by doPost's outer catch.
+function submitVisitorRegistration(data) {
+  try {
+    Logger.log('submitVisitorRegistration: started, token=' + (data && data.token));
+
+    if (!data || !data.token) {
+      Logger.log('submitVisitorRegistration: FAILED — missing token in request body');
+      return { status: 'error', message: 'Missing invitation token' };
+    }
+
+    var token = String(data.token).trim();
+    var sheetName = TABS['vc_persons'];
+    var sheet = findSheet(sheetName);
+    if (!sheet) {
+      Logger.log('submitVisitorRegistration: FAILED — VC Persons sheet not found (looked for "' + sheetName + '")');
+      return { status: 'error', message: 'VC Persons sheet not found' };
+    }
+
+    var headerRow = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var tokenCol  = headerRow.indexOf('Invitation Token');
+    if (tokenCol < 0) {
+      Logger.log('submitVisitorRegistration: FAILED — Invitation Token column missing from row 3');
+      return { status: 'error', message: 'Invitation Token column missing' };
+    }
+
+    var lastRow = sheet.getLastRow();
+    var targetRow = -1;
+    if (lastRow >= 4) {
+      var tokens = sheet.getRange(4, tokenCol + 1, lastRow - 3, 1).getValues();
+      for (var i = 0; i < tokens.length; i++) {
+        if (String(tokens[i][0]) === token) { targetRow = i + 4; break; }
+      }
+    }
+    if (targetRow < 0) {
+      Logger.log('submitVisitorRegistration: FAILED — no row found with Invitation Token = ' + token);
+      return { status: 'error', message: 'Invalid or expired invitation token' };
+    }
+    Logger.log('submitVisitorRegistration: matched invitation at row ' + targetRow);
+
+    // Build updates
+    var updates = {
+      'First Name':           data.firstName || '',
+      'Family Name':          data.familyName || '',
+      'ID Number':            data.idNumber || '',
+      'Phone':                data.phone || '',
+      'Email':                data.email || '',
+      'Company':              data.company || '',
+      'Registration Status':  'Submitted',
+      'Submitted Date':       Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd')
+    };
+
+    // Apply update
+    var existingRow = sheet.getRange(targetRow, 1, 1, headerRow.length).getValues()[0];
+    var newRow = headerRow.map(function(header, idx) {
+      return updates[header] !== undefined ? updates[header] : existingRow[idx];
+    });
+    sheet.getRange(targetRow, 1, 1, headerRow.length).setValues([newRow]);
+    Logger.log('submitVisitorRegistration: row ' + targetRow + ' updated to Registration Status = Submitted');
+
+    // Prepare person object for email
+    var person = {};
+    headerRow.forEach(function(h, idx) { person[h] = newRow[idx]; });
+
+    // Send notification to invitation owner
+    var ownerEmail = person['Registered By Email'] || person['Creator Email'] || '';
+    var emailSource = ownerEmail ? 'Registered By Email / Creator Email column' : '';
+    // Fallback: try to find the creator in User Register
+    if (!ownerEmail && person['Registered By']) {
+      ownerEmail = lookupUserEmailByName(person['Registered By']);
+      if (ownerEmail) emailSource = 'name lookup in User Register for "' + person['Registered By'] + '"';
+    }
+    Logger.log('submitVisitorRegistration: owner email resolved to "' + ownerEmail + '" (source: ' + (emailSource || 'none found') + ')');
+
+    var mailStatus = 'not attempted — no owner email found';
+    if (ownerEmail) {
+      try {
+        sendVisitorSubmittedEmail(person, ownerEmail);
+        mailStatus = 'sent';
+        Logger.log('submitVisitorRegistration: MailApp.sendEmail succeeded, to=' + ownerEmail);
+      } catch (mailErr) {
+        mailStatus = 'FAILED: ' + mailErr;
+        Logger.log('submitVisitorRegistration: MailApp.sendEmail THREW — ' + mailErr);
+      }
+    }
+
+    // Rev.23 (Issam, voice, 2026-11-12) — writes the mail outcome onto
+    // the row itself, in two new columns: 'Notification Status' and
+    // 'Notification Time'. Before this, the only way to see whether
+    // the submission email actually sent was reading the Executions
+    // log line by line — now it's visible directly on the sheet, and
+    // visitor-induction.html's Pending Approvals list can show a badge
+    // from it without any extra lookup. Written as a second, separate
+    // update so a failure here never risks the Registration Status
+    // write above, which already succeeded. If either column doesn't
+    // exist yet on the live sheet, this silently does nothing to that
+    // column (same tolerant pattern as every other optional column in
+    // this project) — add them to row 3 to start seeing the badge.
+    var notifyColIdx = headerRow.indexOf('Notification Status');
+    var notifyTimeColIdx = headerRow.indexOf('Notification Time');
+    if (notifyColIdx >= 0) sheet.getRange(targetRow, notifyColIdx + 1).setValue(mailStatus);
+    if (notifyTimeColIdx >= 0) sheet.getRange(targetRow, notifyTimeColIdx + 1).setValue(
+      Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm')
+    );
+    if (notifyColIdx < 0 && notifyTimeColIdx < 0) {
+      Logger.log('submitVisitorRegistration: "Notification Status"/"Notification Time" columns not found on VC Persons — mail status not written to sheet (log only).');
+    }
+
+    appendAuditLog('VC_SUBMIT', 'Visitor submitted registration via token ' + token + ' — notification email: ' + mailStatus, 'public', 'Public Registration');
+    Logger.log('submitVisitorRegistration: finished, mailStatus=' + mailStatus);
+
+    return {
+      status: 'ok',
+      message: 'Registration submitted successfully. The invitation owner has been notified.',
+      personId: person['Person ID'],
+      // Rev.22 — surfaced so the visitor-register.html confirmation
+      // screen (or anyone reading the raw response) can show whether
+      // the email genuinely sent, instead of assuming it did.
+      mailStatus: mailStatus,
+      ownerEmail: ownerEmail
+    };
+
+  } catch (err) {
+    Logger.log('submitVisitorRegistration: THREW — ' + err);
+    return { status: 'error', message: err.toString() };
+  }
+}
+
+/**
+ * Called from the main management page when the invitation owner clicks Approve.
+ * 1. Sets Registration Status = Approved
+ * 2. Sends confirmation email to the visitor (CC Host + Safety Controller)
+ *    containing the QR access information
+ */
+function approveVisitorAndSendCard(data) {
+  try {
+    if (!data || !data.personId) {
+      return { status: 'error', message: 'Missing Person ID' };
+    }
+
+    var personId = String(data.personId).trim();
+    var approvedBy = data.approvedBy || 'Safety';
+
+    // Update the row
+    var result = JSON.parse(updateRowById('vc_persons', 'Person ID', personId, {
+      'Registration Status': 'Approved',
+      'Approved By': approvedBy,
+      'Approved Date': Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+      'Record Status': 'Active'
+    }, false));
+
+    if (result.status !== 'ok') return result;
+
+    // Re-read the full person record
+    var person = getPersonById(personId);
+    if (!person) return { status: 'error', message: 'Person not found after update' };
+
+    // Send confirmation email with QR info
+    var visitorEmail = person['Email'];
+    if (visitorEmail) {
+      sendVisitorApprovedEmail(person);
+    }
+
+    appendAuditLog('VC_APPROVE', 'Visitor ' + personId + ' approved and card email sent', approvedBy, approvedBy);
+
+    return {
+      status: 'ok',
+      message: 'Visitor approved and confirmation email sent.',
+      personId: personId
+    };
+
+  } catch (err) {
+    return { status: 'error', message: err.toString() };
+  }
+}
+
+/* ── Helper: get full person record by Person ID ─────────────── */
+function getPersonById(personId) {
+  var data = readSheet('vc_persons');
+  if (!data || !data.headers || !data.rows) return null;
+  var idIdx = data.headers.indexOf('Person ID');
+  if (idIdx < 0) return null;
+  for (var i = 0; i < data.rows.length; i++) {
+    if (String(data.rows[i][idIdx]) === String(personId)) {
+      var p = {};
+      data.headers.forEach(function(h, idx) { p[h] = data.rows[i][idx]; });
+      return p;
+    }
+  }
+  return null;
+}
+
+/* ── Helper: lookup email from User Register by name ─────────── */
+function lookupUserEmailByName(name) {
+  if (!name) return '';
+  try {
+    var data = readSheet('users');
+    if (!data || !data.headers) return '';
+    var nameIdx  = data.headers.indexOf('Full Name');
+    var emailIdx = data.headers.indexOf('Email');
+    if (nameIdx < 0 || emailIdx < 0) return '';
+    var target = String(name).trim().toLowerCase();
+    for (var i = 0; i < data.rows.length; i++) {
+      if (String(data.rows[i][nameIdx] || '').trim().toLowerCase() === target) {
+        return String(data.rows[i][emailIdx] || '').trim();
+      }
+    }
+  } catch (e) {}
+  return '';
+}
+
+/* ── Email: Visitor has submitted the registration form ──────── */
+function sendVisitorSubmittedEmail(person, ownerEmail) {
+  var subject = 'SAGCO IMS – New Visitor Registration Submitted for Review';
+  var body = ''
+    + 'Dear Colleague,\n\n'
+    + 'A visitor/contractor has completed the online registration form.\n\n'
+    + 'Person ID      : ' + (person['Person ID'] || '') + '\n'
+    + 'Name           : ' + (person['First Name'] || '') + ' ' + (person['Family Name'] || '') + '\n'
+    + 'Company        : ' + (person['Company'] || '') + '\n'
+    + 'Type           : ' + (person['Type'] || '') + '\n'
+    + 'Destination    : ' + (person['Destination Department'] || '') + '\n'
+    + 'Host           : ' + (person['Host Name'] || '') + '\n'
+    + 'ID Number      : ' + (person['ID Number'] || '') + '\n'
+    + 'Phone          : ' + (person['Phone'] || '') + '\n'
+    + 'Email          : ' + (person['Email'] || '') + '\n\n'
+    + 'Please open the Visitor & Contractor Management page, go to the “Pending Approvals” tab, review the details and Approve or Reject.\n\n'
+    + 'SAGCO IMS – Visitor Gate System';
+
+  MailApp.sendEmail({
+    to: ownerEmail,
+    subject: subject,
+    body: body,
+    name: IMS_FROM_NAME
+  });
+}
+
+/* ── Email: Visitor approved + QR access card info ───────────── */
+function sendVisitorApprovedEmail(person) {
+  var visitorEmail = person['Email'];
+  if (!visitorEmail) return;
+
+  var hostEmail = lookupUserEmailByName(person['Host Name']) || '';
+  var ccList = [];
+  if (hostEmail) ccList.push(hostEmail);
+
+  // Parse Safety Controllers stored as "Name <email>; Name <email>"
+  // Selection is compulsory on the invitation form, so this should always have values.
+  var safetyRaw = String(person['Safety Controllers'] || '').trim();
+  if (safetyRaw) {
+    var parts = safetyRaw.split(';');
+    parts.forEach(function(part) {
+      var m = part.match(/<([^>]+)>/);
+      if (m && m[1]) {
+        var em = m[1].trim();
+        if (em && ccList.indexOf(em) < 0) ccList.push(em);
+      } else {
+        var em2 = part.trim();
+        if (em2 && em2.indexOf('@') > 0 && ccList.indexOf(em2) < 0) ccList.push(em2);
+      }
+    });
+  }
+
+  var subject = 'SAGCO IMS – Your Visit Access Card (QR Code)';
+  var body = ''
+    + 'Dear ' + (person['First Name'] || 'Visitor') + ',\n\n'
+    + 'Your registration has been approved by SAGCO Safety / Management.\n\n'
+    + '=== YOUR ACCESS DETAILS ===\n'
+    + 'Person ID     : ' + (person['Person ID'] || '') + '\n'
+    + 'Name          : ' + (person['First Name'] || '') + ' ' + (person['Family Name'] || '') + '\n'
+    + 'Company       : ' + (person['Company'] || '') + '\n'
+    + 'Destination   : ' + (person['Destination Department'] || '') + '\n'
+    + 'Host          : ' + (person['Host Name'] || '') + '\n\n'
+    + 'Please present the QR code (or this Person ID) at the main gate.\n'
+    + 'QR Code content: SAGCO-VC:' + (person['Person ID'] || '') + '\n\n'
+    + 'Important:\n'
+    + '• You must complete Safety Induction and receive PPE before entering operational areas.\n'
+    + '• Keep this email / QR code with you during the visit.\n\n'
+    + 'Welcome to SAGCO.\n\n'
+    + 'SAGCO IMS – Visitor Gate System';
+
+  var options = {
+    to: visitorEmail,
+    subject: subject,
+    body: body,
+    name: IMS_FROM_NAME
+  };
+  if (ccList.length) options.cc = ccList.join(',');
+
+  MailApp.sendEmail(options);
 }

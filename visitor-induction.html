@@ -339,7 +339,11 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     'Type','Destination Department','Host Name','Host Department','Registration Status','Submitted Date',
     'Approved By','Approved Date','Rejection Reason','Induction Status','Induction Date','Induction Method',
     'Inducted By','PPE Status','PPE Issued Date','PPE Issued By','Registered By','Registered By Email',
-    'Registered Date','Record Status','Safety Controllers','Notes'
+    'Registered Date','Record Status','Safety Controllers','Notes',
+    // Rev.23 (Issam, voice, 2026-11-12) — written by submitVisitorRegistration
+    // in google-apps-script.js once a visitor submits, so Pending Approvals
+    // below can show whether that submission email actually sent.
+    'Notification Status','Notification Time'
   ];
   function checkRequiredColumns(headers){
     var el = document.getElementById('vc-col-warning');
@@ -715,6 +719,19 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   }
 
   /* ── Approvals ─────────────────────────────────────────────── */
+  // Rev.23 (Issam, voice, 2026-11-12) — reads the 'Notification
+  // Status' column submitVisitorRegistration now writes in
+  // google-apps-script.js, so this is visible at a glance here
+  // instead of needing the Apps Script Executions log. A row from
+  // before this feature existed has nothing in that column, so it
+  // shows no badge at all rather than a misleading one.
+  function notificationBadgeHtml(p){
+    var status = String(p['Notification Status'] || '').trim();
+    if (!status) return '';
+    if (status === 'sent') return '<span class="vc-badge approved" title="Creator notification email sent">✓ Email sent</span>';
+    if (status.indexOf('FAILED') === 0) return '<span class="vc-badge rejected" title="' + vEsc(status) + '">✕ Email failed</span>';
+    return '<span class="vc-badge invited" title="' + vEsc(status) + '">⚠ No creator email</span>';
+  }
   function renderApprovalsList(){
     var el = document.getElementById('vc-appr-list');
     if (!el) return;
@@ -724,7 +741,7 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
       return '<div class="vc-person-row" onclick="VC.showApprovalDetail(\'' + p['Person ID'] + '\')">'
         + '<span><strong>' + vEsc(p['First Name']) + ' ' + vEsc(p['Family Name']) + '</strong> — ' + vEsc(p['Company'])
         + ' · ' + vEsc(p['Type']) + ' → ' + vEsc(p['Destination Department']) + '</span>'
-        + '<span class="vc-badge submitted">Submitted</span></div>';
+        + '<span style="display:flex;gap:6px;align-items:center"><span class="vc-badge submitted">Submitted</span>' + notificationBadgeHtml(p) + '</span></div>';
     }).join('');
   }
 
@@ -746,6 +763,14 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     html += '<div><div class="vc-reason">Destination</div><div>' + vEsc(p['Destination Department']) + '</div></div>';
     html += '<div><div class="vc-reason">Host</div><div>' + vEsc(p['Host Name']) + ' (' + vEsc(p['Host Department']) + ')</div></div>';
     html += '</div>';
+    // Rev.23 (Issam, voice, 2026-11-12) — shows whether the "a visitor
+    // submitted" notification email reached this creator, with the
+    // full status text (including any error) on hover via the badge's
+    // title attribute.
+    var notifBadge = notificationBadgeHtml(p);
+    if (notifBadge){
+      html += '<div class="vc-row2" style="margin-top:8px"><div><div class="vc-reason">Submission notification</div><div>' + notifBadge + '</div></div></div>';
+    }
     html += '<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">';
     html += '<button class="aiw-btn aiw-btn-add" onclick="VC.approvePerson(\'' + personId + '\')">Approve &amp; Generate Card</button>';
     html += '<button class="aiw-btn aiw-btn-esc" onclick="VC.rejectPerson(\'' + personId + '\')">Reject</button>';
