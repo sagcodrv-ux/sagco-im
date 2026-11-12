@@ -7,7 +7,14 @@
 <script src="auth.js"></script>
 <script src="data.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<!-- Rev.25 (Issam, voice, 2026-11-12) — self-hosted, not loaded from
+     cdnjs. Issam confirmed in the browser's own Network tab that
+     jsQR.js was failing to load there, which silently breaks every
+     scan tab (the camera opens, but no frame is ever decoded, with
+     nothing on screen to say why). Upload jsQR.js (delivered
+     alongside this page) into the same GitHub repo folder as
+     visitor-induction.html so this relative path resolves. -->
+<script src="jsQR.js"></script>
 <style>
 body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 /* ══════════════════════════════════════════════════════════════════
@@ -91,6 +98,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
 .vc-person-row:hover{background:rgba(255,255,255,.05)}
 .vc-scan-area{text-align:center;padding:14px;background:var(--vc-bg3);border-radius:10px;margin:10px 0}
 .vc-scan-area video{width:100%;max-width:320px;border-radius:8px}
+/* Rev.25 (Issam, voice, 2026-11-12) — a square frame over the camera
+   so the person scanning knows exactly where to hold the QR code,
+   and a status line underneath that changes from "point it inside
+   the square" to a clear "QR recognized" the moment a decode
+   succeeds — the old scanner gave no feedback at all while it
+   searched, so it looked identical whether it was working or stuck. */
+.vc-scan-video-wrap{position:relative;display:inline-block;max-width:320px;width:100%}
+.vc-scan-video-wrap video{width:100%;border-radius:8px;display:block}
+.vc-scan-frame{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:62%;aspect-ratio:1/1;border:3px solid var(--vc-gold);border-radius:14px;
+  box-shadow:0 0 0 2000px rgba(0,0,0,.35);pointer-events:none}
+.vc-scan-status{margin-top:10px;font-size:12px;color:var(--vc-text-muted)}
+.vc-scan-status.found{color:var(--vc-grn);font-weight:700}
 table{width:100%;border-collapse:collapse;font-size:11px}
 thead th{background:var(--vc-bg3);color:var(--vc-gold-lt);font-weight:700;text-align:left;padding:7px 9px;
   text-transform:uppercase;font-size:9.5px;border-bottom:1px solid var(--vc-border-gold)}
@@ -1065,12 +1085,31 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   /* ── QR camera scanning ────────────────────────────────────── */
   var _scanStream = null, _scanRAF = null;
 
+  // Rev.25 (Issam, voice, 2026-11-12) — adds a square guide frame over
+  // the camera so the person scanning knows exactly where to hold the
+  // QR code, a status line that changes from "point it inside the
+  // square" to "QR recognized!" the instant a decode succeeds, and
+  // crops the decode itself to roughly that same central square
+  // (jsQR's own cropping options) instead of scanning the full camera
+  // frame every tick — faster on a phone, and avoids background
+  // clutter confusing the decoder. Also checks for jsQR being
+  // missing entirely up front, since a failed library load used to
+  // just sit there silently forever with no sign anything was wrong.
   function startScan(target){
     _activeScanTarget = target;
     var area = document.getElementById('vc-scan-' + target);
     if (!area) return;
     area.style.display = 'block';
-    area.innerHTML = '<video id="vc-video-' + target + '" autoplay playsinline></video><canvas style="display:none" id="vc-canvas-' + target + '"></canvas>';
+    if (typeof jsQR === 'undefined'){
+      area.innerHTML = '<div class="vc-reason" style="color:var(--vc-red)">QR scanning library failed to load — check your connection, or enter the Person ID manually below instead.</div>';
+      return;
+    }
+    area.innerHTML = '<div class="vc-scan-video-wrap">'
+      + '<video id="vc-video-' + target + '" autoplay playsinline muted></video>'
+      + '<div class="vc-scan-frame"></div>'
+      + '</div>'
+      + '<div class="vc-scan-status" id="vc-scan-status-' + target + '">Point the QR code inside the square</div>'
+      + '<canvas style="display:none" id="vc-canvas-' + target + '"></canvas>';
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
       area.innerHTML = '<div class="vc-reason">Camera not available on this device/browser.</div>';
       return;
@@ -1087,13 +1126,25 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     var video = document.getElementById('vc-video-' + target);
     var canvas = document.getElementById('vc-canvas-' + target);
     if (!video || !canvas) return;
-    if (video.readyState === video.HAVE_ENOUGH_DATA && typeof jsQR !== 'undefined'){
-      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    if (video.readyState === video.HAVE_ENOUGH_DATA){
+      var vw = video.videoWidth, vh = video.videoHeight;
+      // Crop to the same central square the on-screen frame shows
+      // (62% of the shorter side), matching what the person is
+      // actually pointing at the frame — same reasoning as zooming a
+      // photo into just the part that matters before reading it.
+      var side = Math.round(Math.min(vw, vh) * 0.62);
+      var sx = Math.round((vw - side) / 2), sy = Math.round((vh - side) / 2);
+      canvas.width = side; canvas.height = side;
       var ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, sx, sy, side, side, 0, 0, side, side);
+      var imageData = ctx.getImageData(0, 0, side, side);
       var code = jsQR(imageData.data, imageData.width, imageData.height);
-      if (code && code.data){ onQRDecoded(code.data); return; }
+      if (code && code.data){
+        var statusEl = document.getElementById('vc-scan-status-' + target);
+        if (statusEl){ statusEl.textContent = '✓ QR recognized!'; statusEl.classList.add('found'); }
+        onQRDecoded(code.data);
+        return;
+      }
     }
     _scanRAF = requestAnimationFrame(function(){ tickScan(target); });
   }
