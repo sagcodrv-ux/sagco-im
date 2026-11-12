@@ -302,6 +302,39 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     <button class="aiw-btn" onclick="VC.startScan('spotcheck')">📷 Scan Person's Card</button>
     <div class="vc-scan-area" id="vc-scan-spotcheck" style="display:none"></div>
     <div id="vc-spot-detail" style="margin-top:12px"></div>
+
+    <!-- Rev.28 (Issam, voice, 2026-11-12) — spot check HISTORY: every
+         record kept, not just the latest. A row count badge is shown
+         so you can tell it's showing all of them. Search matches
+         name, ID number, company, department, or who checked;
+         "Failed only" narrows to Result = Fail; the date range
+         narrows by Checked At. The table itself stays a fixed height
+         (~8 rows) and scrolls inside, same pattern as every other
+         live-table register in this portal. -->
+    <div class="vc-section-title" style="margin-top:28px">Spot Check History <span id="vc-spot-hist-count" style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--vc-text-muted)"></span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <input type="text" id="vc-spot-hist-search" placeholder="Search name, ID number, company, department, checked by…" style="flex:1 1 260px;min-width:200px;background:var(--vc-bg3);border:1px solid var(--vc-border);color:var(--vc-text);border-radius:7px;padding:7px 10px;font-size:12px" oninput="VC.onSpotHistSearch(this.value)">
+      <input type="date" id="vc-spot-hist-from" title="From date" style="background:var(--vc-bg3);border:1px solid var(--vc-border);color:var(--vc-text);border-radius:7px;padding:7px 8px;font-size:11px" onchange="VC.onSpotHistDate('from', this.value)">
+      <input type="date" id="vc-spot-hist-to" title="To date" style="background:var(--vc-bg3);border:1px solid var(--vc-border);color:var(--vc-text);border-radius:7px;padding:7px 8px;font-size:11px" onchange="VC.onSpotHistDate('to', this.value)">
+      <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--vc-text-muted);cursor:pointer">
+        <input type="checkbox" id="vc-spot-hist-failedonly" onchange="VC.onSpotHistFailedOnly(this.checked)"> Failed only
+      </label>
+      <button class="aiw-btn" onclick="VC.clearSpotHistFilters()">Clear</button>
+    </div>
+    <div style="max-height:360px;overflow:auto;border:1px solid var(--vc-border-gold);border-radius:8px">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="position:sticky;top:0;background:var(--vc-bg3)">
+          <th style="text-align:left;padding:7px 9px;color:var(--vc-gold-lt);font-weight:700;border-bottom:1px solid var(--vc-border-gold)">Date / Time</th>
+          <th style="text-align:left;padding:7px 9px;color:var(--vc-gold-lt);font-weight:700;border-bottom:1px solid var(--vc-border-gold)">Name</th>
+          <th style="text-align:left;padding:7px 9px;color:var(--vc-gold-lt);font-weight:700;border-bottom:1px solid var(--vc-border-gold)">Department</th>
+          <th style="text-align:left;padding:7px 9px;color:var(--vc-gold-lt);font-weight:700;border-bottom:1px solid var(--vc-border-gold)">PPE</th>
+          <th style="text-align:center;padding:7px 9px;color:var(--vc-gold-lt);font-weight:700;border-bottom:1px solid var(--vc-border-gold)">Photo</th>
+          <th style="text-align:left;padding:7px 9px;color:var(--vc-gold-lt);font-weight:700;border-bottom:1px solid var(--vc-border-gold)">Checked By</th>
+          <th style="text-align:left;padding:7px 9px;color:var(--vc-gold-lt);font-weight:700;border-bottom:1px solid var(--vc-border-gold)">Escalated</th>
+        </tr></thead>
+        <tbody id="vc-spot-hist-tbody"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -370,16 +403,32 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     // own Email in the group.
     'Requester Email'
   ];
-  function checkRequiredColumns(headers){
+  // Rev.29 (Issam, voice, 2026-11-12) — 'Photo Link' on VC Spot Checks,
+  // for the Take Photo button on a failed spot check (see
+  // submitSpotCheck() below). Checked alongside the VC Persons
+  // columns, in the same one banner, so a missing column on either
+  // sheet is equally visible.
+  var REQUIRED_VC_SPOTCHECKS_COLUMNS = [
+    'Spot Check ID','Person ID','Checked At','Department','PPE Confirmed Now','Result',
+    'Checked By','Escalated','Escalated Violation Ref','Record Status','Photo Link'
+  ];
+  function checkRequiredColumns(personsHeaders, spotcheckHeaders){
     var el = document.getElementById('vc-col-warning');
     if (!el) return;
-    var have = (headers||[]).map(function(h){ return String(h).trim(); });
-    var missing = REQUIRED_VC_PERSONS_COLUMNS.filter(function(c){ return have.indexOf(c) < 0; });
-    if (!missing.length){ el.style.display = 'none'; el.innerHTML = ''; return; }
+    var havePersons = (personsHeaders||[]).map(function(h){ return String(h).trim(); });
+    var haveSpot = (spotcheckHeaders||[]).map(function(h){ return String(h).trim(); });
+    var missingPersons = REQUIRED_VC_PERSONS_COLUMNS.filter(function(c){ return havePersons.indexOf(c) < 0; });
+    var missingSpot = REQUIRED_VC_SPOTCHECKS_COLUMNS.filter(function(c){ return haveSpot.indexOf(c) < 0; });
+    if (!missingPersons.length && !missingSpot.length){ el.style.display = 'none'; el.innerHTML = ''; return; }
     el.style.display = 'block';
-    el.innerHTML = '⚠ The VC Persons sheet is missing ' + missing.length + ' expected column' + (missing.length>1?'s':'')
-      + ' — add exactly this header text to row 3: <strong>' + missing.map(vEsc).join('</strong>, <strong>') + '</strong>.'
-      + ' Until added, anything saved to ' + (missing.length>1?'these columns':'this column') + ' will be silently lost.';
+    var parts = [];
+    if (missingPersons.length){
+      parts.push('VC Persons is missing: <strong>' + missingPersons.map(vEsc).join('</strong>, <strong>') + '</strong>');
+    }
+    if (missingSpot.length){
+      parts.push('VC Spot Checks is missing: <strong>' + missingSpot.map(vEsc).join('</strong>, <strong>') + '</strong>');
+    }
+    el.innerHTML = '⚠ Add exactly this header text to row 3 — ' + parts.join('; ') + '. Until added, anything saved to those columns will be silently lost.';
   }
 
   function fillCurrentUserFields(){
@@ -417,12 +466,13 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
         } else {
           _users = [];
         }
-        checkRequiredColumns(results[0] ? results[0].headers : []);
+        checkRequiredColumns(results[0] ? results[0].headers : [], results[1] ? results[1].headers : []);
         fillCurrentUserFields();
         populateHostDropdowns();
         populateSafetyDropdown();
         renderInviteList();
         renderApprovalsList();
+        renderSpotHistory();
       }).catch(function(){ /* leave caches as-is */ });
   }
 
@@ -1079,12 +1129,101 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
       'Record Status': 'Active'
     };
     postJSON('create', { tab: TAB_SPOTCHECKS }, rec).then(loadAll).then(function(){
+      // Rev.29 (Issam, voice, 2026-11-12) — a failed spot check can
+      // now have a photo taken right there as evidence, same upload
+      // mechanism violation-register.html's own photo field already
+      // uses (uploadFilePicker), filed under a Drive subfolder named
+      // after this Spot Check ID. The link travels with an escalation
+      // automatically (see escalateSpotCheck() below), so nobody
+      // photographs the same person twice.
       var extra = rec['Result']==='Fail'
         ? '<div class="vc-reason" style="color:var(--vc-red)">Spot check recorded: FAIL — missing PPE.</div>'
-          + '<button class="aiw-btn aiw-btn-esc" onclick="VC.escalateSpotCheck(\'' + rec['Spot Check ID'] + '\')">Escalate to HSE Violation Register</button>'
+          + '<div class="vc-field" style="margin-top:8px">'
+            + '<label>Photo Evidence (optional)</label>'
+            + '<input type="hidden" id="vc-spot-photo-url-' + rec['Spot Check ID'] + '">'
+            + '<div id="vc-spot-photo-thumb-' + rec['Spot Check ID'] + '"></div>'
+            + '<label class="aiw-btn" style="display:inline-block;cursor:pointer;margin-top:4px" for="vc-spot-photo-input-' + rec['Spot Check ID'] + '">📷 Take Photo</label>'
+            + '<input type="file" id="vc-spot-photo-input-' + rec['Spot Check ID'] + '" accept="image/*" capture="environment" style="display:none" onchange="VC.onSpotPhotoSelected(event, \'' + rec['Spot Check ID'] + '\')">'
+            + '<div id="vc-spot-photo-status-' + rec['Spot Check ID'] + '" style="font-size:11px;color:var(--vc-text-muted);margin-top:4px">No photo attached yet</div>'
+          + '</div>'
+          + '<button class="aiw-btn aiw-btn-esc" style="margin-top:8px" onclick="VC.escalateSpotCheck(\'' + rec['Spot Check ID'] + '\')">Escalate to HSE Violation Register</button>'
           + '<div id="vc-spot-escalate-status-' + rec['Spot Check ID'] + '"></div>'
         : '<div class="vc-reason" style="color:var(--vc-grn)">Spot check recorded: PASS.</div>';
       document.getElementById('vc-spot-detail').innerHTML += extra;
+    });
+  }
+
+  // Resizes an image client-side before upload (max 1000px on the
+  // longer side) — a phone photo straight off the camera can be
+  // several MB, and nothing here needs more detail than that to be
+  // useful as evidence.
+  function resizeImageFile_(file, maxDim){
+    return new Promise(function(resolve, reject){
+      var img = new Image();
+      var reader = new FileReader();
+      reader.onload = function(){
+        img.onload = function(){
+          var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          var w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+          var canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          canvas.toBlob(function(blob){
+            if (!blob) { reject(new Error('Could not process image')); return; }
+            resolve(blob);
+          }, 'image/jpeg', 0.82);
+        };
+        img.onerror = function(){ reject(new Error('Could not read image')); };
+        img.src = reader.result;
+      };
+      reader.onerror = function(){ reject(new Error('Could not read file')); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function onSpotPhotoSelected(evt, spotCheckId){
+    var file = evt.target.files && evt.target.files[0];
+    if (!file) return;
+    var statusEl = document.getElementById('vc-spot-photo-status-' + spotCheckId);
+    var thumbEl = document.getElementById('vc-spot-photo-thumb-' + spotCheckId);
+    var urlField = document.getElementById('vc-spot-photo-url-' + spotCheckId);
+    if (statusEl) statusEl.textContent = 'Uploading…';
+
+    resizeImageFile_(file, 1000).then(function(blob){
+      var reader = new FileReader();
+      reader.onload = function(){
+        var dataUrl = reader.result;
+        var commaIdx = dataUrl.indexOf(',');
+        var base64 = commaIdx >= 0 ? dataUrl.substring(commaIdx + 1) : dataUrl;
+        fetch(SHEETS_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'uploadFilePicker',
+            docId: spotCheckId,
+            fileName: spotCheckId + '.jpg',
+            mimeType: 'image/jpeg',
+            b64: base64,
+            username: currentUserName()
+          })
+        }).then(function(r){ return r.json(); }).then(function(res){
+          if (!res || res.ok === false){
+            if (statusEl){ statusEl.textContent = 'Upload failed' + (res && res.error ? ': ' + res.error : '') + ' — try again.'; statusEl.style.color = 'var(--vc-red)'; }
+            return;
+          }
+          var link = res.webViewLink || res.previewLink || '';
+          if (urlField) urlField.value = link;
+          if (thumbEl && res.fileId) thumbEl.innerHTML = '<img src="https://drive.google.com/uc?export=view&id=' + res.fileId + '" style="max-width:160px;border-radius:8px;margin-top:6px;display:block">';
+          if (statusEl){ statusEl.textContent = '✓ Photo attached'; statusEl.style.color = 'var(--vc-grn)'; }
+          // Save the link onto the spot check row right away, so it's
+          // kept even if the person navigates away before escalating.
+          postJSON('update', { tab: TAB_SPOTCHECKS, id: spotCheckId }, { 'Spot Check ID': spotCheckId, 'Photo Link': link }).then(loadAll);
+        }).catch(function(err){
+          if (statusEl){ statusEl.textContent = 'Network error — try again.'; statusEl.style.color = 'var(--vc-red)'; }
+        });
+      };
+      reader.readAsDataURL(blob);
+    }).catch(function(err){
+      if (statusEl){ statusEl.textContent = 'Could not process photo — try again.'; statusEl.style.color = 'var(--vc-red)'; }
     });
   }
 
@@ -1092,20 +1231,110 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     var row = _spotchecks.filter(function(s){ return s['Spot Check ID']===spotCheckId; })[0];
     if (!row) return;
     var p = findById(row['Person ID']);
+    // Rev.28 (Issam, voice, 2026-11-12) — added idNumber and
+    // checkedBy, so the Violation Register's own deep-link handler
+    // can fill in more of the form without retyping — per Issam's
+    // "no need to retype everything" request.
     var params = new URLSearchParams({
       source: 'spotcheck',
       spotcheck: spotCheckId,
       name: p ? (p['First Name']+' '+p['Family Name']) : '',
+      idNumber: p ? (p['ID Number']||'') : '',
       company: p ? p['Company'] : '',
       department: row['Department']||'',
       date: (row['Checked At']||'').slice(0,10),
-      note: 'PPE missing at in-plant spot check'
+      checkedBy: row['Checked By']||'',
+      note: 'PPE missing at in-plant spot check',
+      // Rev.29 (Issam, voice, 2026-11-12) — carries the photo taken at
+      // the spot check straight through, so the violation form opens
+      // with it already attached — see violation-register.html's
+      // handleViolationDeepLink(), which now also reads this param.
+      photoUrl: row['Photo Link']||''
     });
     if (typeof window !== 'undefined' && window.open) window.open('violation-register.html?' + params.toString(), '_blank');
     postJSON('update', { tab: TAB_SPOTCHECKS, id: spotCheckId }, { 'Spot Check ID': spotCheckId, 'Escalated':'Yes' }).then(loadAll).then(function(){
       var el = document.getElementById('vc-spot-escalate-status-' + spotCheckId);
       if (el) el.innerHTML = '<div class="vc-reason">Escalated — opened in the HSE Violation Register.</div>';
     });
+  }
+
+  /* ── Spot Check history table (Rev.28, Issam, voice, 2026-11-12) ──
+     Every record is kept and searchable — this is not a "latest N"
+     list, just a fixed-height scrolling view of all of them, same
+     reasoning as every other live register table in this portal.
+     Search matches across several fields at once (name, ID number,
+     company, department, checked by) rather than one dedicated field
+     per column, since any of them could be what someone remembers. */
+  var _spotHistFilters = { search:'', dateFrom:'', dateTo:'', failedOnly:false };
+  function spotHistRows(){
+    return _spotchecks.map(function(s){
+      var p = findById(s['Person ID']) || {};
+      return {
+        raw: s,
+        checkedAt: s['Checked At'] || '',
+        name: ((p['First Name']||'') + ' ' + (p['Family Name']||'')).trim(),
+        idNumber: p['ID Number'] || '',
+        company: p['Company'] || '',
+        department: s['Department'] || '',
+        ppe: s['PPE Confirmed Now'] || s['Result'] || '',
+        result: s['Result'] || '',
+        checkedBy: s['Checked By'] || '',
+        escalated: String(s['Escalated']||'').trim() === 'Yes',
+        photoLink: s['Photo Link'] || ''
+      };
+    }).sort(function(a,b){ return (b.checkedAt||'').localeCompare(a.checkedAt||''); });
+  }
+  function renderSpotHistory(){
+    var tbody = document.getElementById('vc-spot-hist-tbody');
+    var countEl = document.getElementById('vc-spot-hist-count');
+    if (!tbody) return;
+    var f = _spotHistFilters;
+    var rows = spotHistRows().filter(function(r){
+      if (f.failedOnly && r.result !== 'Fail') return false;
+      if (f.dateFrom && r.checkedAt.slice(0,10) < f.dateFrom) return false;
+      if (f.dateTo && r.checkedAt.slice(0,10) > f.dateTo) return false;
+      if (f.search){
+        var hay = (r.name+' '+r.idNumber+' '+r.company+' '+r.department+' '+r.checkedBy).toLowerCase();
+        if (hay.indexOf(f.search.toLowerCase()) < 0) return false;
+      }
+      return true;
+    });
+    if (countEl) countEl.textContent = '(' + rows.length + ' of ' + _spotchecks.length + ')';
+    if (!rows.length){
+      tbody.innerHTML = '<tr><td colspan="7" style="padding:16px;text-align:center;color:var(--vc-text-dim)">No spot checks found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(function(r){
+      var when = r.checkedAt ? r.checkedAt.replace('T',' ').slice(0,16) : '—';
+      var ppeBadge = r.result === 'Fail'
+        ? '<span class="vc-badge rejected">Fail — missing</span>'
+        : '<span class="vc-badge approved">Pass</span>';
+      var escCell = r.escalated
+        ? '<span class="vc-badge submitted">Escalated</span>'
+        : (r.result === 'Fail'
+            ? '<button class="aiw-btn aiw-btn-esc" style="font-size:10px;padding:4px 9px" onclick="VC.escalateSpotCheck(\'' + String(r.raw['Spot Check ID']).replace(/'/g,"\\'") + '\')">Escalate</button>'
+            : '<span style="color:var(--vc-text-dim)">—</span>');
+      return '<tr>'
+        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + vEsc(when) + '</td>'
+        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + vEsc(r.name || '—') + '</td>'
+        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + vEsc(r.department || '—') + '</td>'
+        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + ppeBadge + '</td>'
+        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border);text-align:center">' + (r.photoLink ? '<a href="' + vEsc(r.photoLink) + '" target="_blank">📷</a>' : '<span style="color:var(--vc-text-dim)">—</span>') + '</td>'
+        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + vEsc(r.checkedBy || '—') + '</td>'
+        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + escCell + '</td>'
+      + '</tr>';
+    }).join('');
+  }
+  function onSpotHistSearch(v){ _spotHistFilters.search = v; renderSpotHistory(); }
+  function onSpotHistDate(which, v){ if (which==='from') _spotHistFilters.dateFrom = v; else _spotHistFilters.dateTo = v; renderSpotHistory(); }
+  function onSpotHistFailedOnly(checked){ _spotHistFilters.failedOnly = checked; renderSpotHistory(); }
+  function clearSpotHistFilters(){
+    _spotHistFilters = { search:'', dateFrom:'', dateTo:'', failedOnly:false };
+    document.getElementById('vc-spot-hist-search').value = '';
+    document.getElementById('vc-spot-hist-from').value = '';
+    document.getElementById('vc-spot-hist-to').value = '';
+    document.getElementById('vc-spot-hist-failedonly').checked = false;
+    renderSpotHistory();
   }
 
   /* ── QR camera scanning ────────────────────────────────────── */
@@ -1217,7 +1446,12 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     showCheckDetail: showCheckDetail,
     startScan: startScan,
     submitSpotCheck: submitSpotCheck,
+    onSpotPhotoSelected: onSpotPhotoSelected,
     escalateSpotCheck: escalateSpotCheck,
+    onSpotHistSearch: onSpotHistSearch,
+    onSpotHistDate: onSpotHistDate,
+    onSpotHistFailedOnly: onSpotHistFailedOnly,
+    clearSpotHistFilters: clearSpotHistFilters,
     onQRDecoded: onQRDecoded,
     computeClearance: computeClearance,
     _internal: { getPersons:function(){return _persons;}, getSpotChecks:function(){return _spotchecks;}, loadAll: loadAll }

@@ -648,6 +648,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (params.get('source') !== 'spotcheck') return; // only one source exists today; checked explicitly so an unrelated query string never mis-opens this form
     if (!can('add')) return;
     var dateVal = params.get('date') || '';
+    var photoUrl = params.get('photoUrl') || '';
     var prefill = {
       'Date': /^\d{4}-\d{2}-\d{2}$/.test(dateVal) ? dateVal : new Date().toISOString().slice(0,10),
       'Reported By': params.get('checkedBy') || '',
@@ -655,7 +656,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       'Position': params.get('company') || '', // no dedicated Company field on this form; Position is the closest free-text slot and is editable before saving
       'Department': params.get('department') || '',
       'Description': params.get('note') || '',
-      'Remarks': 'Escalated from Visitor Spot Check ' + (params.get('spotcheck') || '') + (params.get('idNumber') ? (' — ID Number: ' + params.get('idNumber')) : '')
+      'Remarks': 'Escalated from Visitor Spot Check ' + (params.get('spotcheck') || '') + (params.get('idNumber') ? (' — ID Number: ' + params.get('idNumber')) : ''),
+      // Rev.29 (Issam, voice, 2026-11-12) — the photo taken at the
+      // spot check itself (see visitor-induction.html's Take Photo
+      // button) carries straight through, in the SAME two fields
+      // buildModal() already shows a thumbnail for ('Photo URL' /
+      // 'Photo File ID') — no second photo needed.
+      'Photo URL': photoUrl
     };
     buildModal(prefill);
   }
