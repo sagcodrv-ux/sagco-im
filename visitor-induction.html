@@ -296,9 +296,25 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   /* ── Helpers ───────────────────────────────────────────────── */
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
 
+  // Rev.2 (Issam, screenshot, 2026-11-12) — getSession() is not a real
+  // method on this project's auth.js (every other page uses
+  // IMS_AUTH.getUser() instead), so this always returned '' here,
+  // silently breaking every "who did this" field on this entire page
+  // (Registered By, Approved By, Inducted By, PPE Issued By, Checked
+  // By) — confirmed by Issam's screenshot showing a blank Registered
+  // By on an invitation created after the Rev.1 fix. getUser() is now
+  // the primary path, with getSession() kept as a harmless fallback
+  // in case a future auth.js version adds it.
+  function getCurrentSession_(){
+    if (typeof IMS_AUTH === 'undefined') return null;
+    try {
+      if (IMS_AUTH.getUser) { var u = IMS_AUTH.getUser(); if (u) return u; }
+      if (IMS_AUTH.getSession) { var s = IMS_AUTH.getSession(); if (s) return s; }
+    } catch(e){ /* fall through to null below */ }
+    return null;
+  }
   function getSessionUsername(){
-    if (typeof IMS_AUTH === 'undefined' || !IMS_AUTH.getSession) return '';
-    var s = IMS_AUTH.getSession();
+    var s = getCurrentSession_();
     return (s && s.username) ? String(s.username).trim().toLowerCase() : '';
   }
 
@@ -315,10 +331,7 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
 
   function resolveUserRecord(session){
     // Build the best available user record from session + auth directory + sheet
-    var s = session || null;
-    if (!s && typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getSession){
-      try { s = IMS_AUTH.getSession(); } catch(e){ s = null; }
-    }
+    var s = session || getCurrentSession_();
     var u = null;
     if (s && typeof IMS_AUTH !== 'undefined'){
       if (IMS_AUTH.getUserById && s.userId) u = IMS_AUTH.getUserById(s.userId);
@@ -682,15 +695,24 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
       'Submitted Date': '', 'Approved By': '', 'Approved Date': '', 'Rejection Reason': '',
       'Induction Status': 'Not Inducted', 'Induction Date': '', 'Induction Method': '', 'Inducted By': '',
       'PPE Status': 'Not Issued', 'PPE Issued Date': '', 'PPE Issued By': '',
-      // Rev.1 (Issam, voice, 2026-11-12) — saves the creator's EMAIL
-      // directly, not just their name. submitVisitorRegistration() in
-      // google-apps-script.js looks for 'Registered By Email' (or
-      // 'Creator Email') first, falling back to looking up 'Registered
-      // By' by name in the User Register only if that's blank — a
-      // lookup that silently finds nothing, and sends no email, if the
-      // name doesn't match exactly. Saving the real email here removes
-      // that point of failure entirely.
-      'Registered By': currentUserName(), 'Registered By Email': currentUserEmail(), 'Registered Date': todayStr(),
+      // Rev.2 (Issam, screenshot, 2026-11-12) — Rev.1 called
+      // currentUserName()/currentUserEmail() with NO session argument,
+      // which here fall back to IMS_AUTH.getSession() — a method this
+      // auth.js does not actually provide (every other page in this
+      // project uses IMS_AUTH.getUser() instead), so both silently
+      // returned '' and every invitation still saved blank, confirmed
+      // by Issam's screenshot (Registered By blank on a row created
+      // AFTER the Rev.1 fix). The two fields at the top of this tab
+      // (#vc-inv-createdby / #vc-inv-useremail) DID show the right
+      // name and email, because those were filled once, correctly, by
+      // fillCurrentUserFieldsWithRetry() using the real session object
+      // IMS_AUTH.init's onReady callback actually hands this page.
+      // Reading straight from those two fields — what's already
+      // proven correct on screen — sidesteps the broken call entirely,
+      // rather than trying to recompute the same answer a second way.
+      'Registered By': (document.getElementById('vc-inv-createdby').value || '').trim(),
+      'Registered By Email': (document.getElementById('vc-inv-useremail').value || '').trim(),
+      'Registered Date': todayStr(),
       'Record Status': 'Active',
       'Notes': notes,
       'Safety Controllers': safetyStr
