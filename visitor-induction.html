@@ -188,7 +188,7 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
         <button type="button" class="aiw-btn" onclick="VC.addSafetyController()" style="white-space:nowrap">+ Add</button>
       </div>
       <div id="vc-inv-safety-list" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"></div>
-      <div class="vc-reason" style="margin-top:4px;font-size:11px">Required. You must select at least one Safety Controller. They will receive the confirmation email when the visitor is approved.</div>
+      <div class="vc-reason" style="margin-top:4px;font-size:11px">You can add multiple Safety Controllers. They will receive the confirmation email when the visitor is approved.</div>
     </div>
 
     <div class="vc-field">
@@ -660,10 +660,6 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
     var notes = document.getElementById('vc-inv-notes').value.trim();
 
     if (!dept || !host){ alert('Destination Department and Host Name are required.'); return; }
-    if (!_selectedSafetyControllers.length){
-      alert('Please select at least one Safety Controller.');
-      return;
-    }
 
     var personId = nextPersonId();
     var token = generateToken();
@@ -686,7 +682,15 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
       'Submitted Date': '', 'Approved By': '', 'Approved Date': '', 'Rejection Reason': '',
       'Induction Status': 'Not Inducted', 'Induction Date': '', 'Induction Method': '', 'Inducted By': '',
       'PPE Status': 'Not Issued', 'PPE Issued Date': '', 'PPE Issued By': '',
-      'Registered By': currentUserName(), 'Registered Date': todayStr(),
+      // Rev.1 (Issam, voice, 2026-11-12) — saves the creator's EMAIL
+      // directly, not just their name. submitVisitorRegistration() in
+      // google-apps-script.js looks for 'Registered By Email' (or
+      // 'Creator Email') first, falling back to looking up 'Registered
+      // By' by name in the User Register only if that's blank — a
+      // lookup that silently finds nothing, and sends no email, if the
+      // name doesn't match exactly. Saving the real email here removes
+      // that point of failure entirely.
+      'Registered By': currentUserName(), 'Registered By Email': currentUserEmail(), 'Registered Date': todayStr(),
       'Record Status': 'Active',
       'Notes': notes,
       'Safety Controllers': safetyStr
