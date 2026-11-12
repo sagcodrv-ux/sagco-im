@@ -186,6 +186,35 @@
     color: var(--text-dim);
   }
   .hidden { display: none !important; }
+  /* Rev.24 (Issam, voice, 2026-11-12) — one card per person in the
+     group, repeatable. */
+  .person-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 16px 4px;
+    margin-bottom: 14px;
+    position: relative;
+  }
+  .person-card .person-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gold-lt);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+  .person-card .remove-person {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    background: none;
+    border: none;
+    color: var(--red);
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
@@ -222,44 +251,26 @@
   <!-- Registration form -->
   <div id="state-form" class="card hidden">
     <h2>Complete Your Registration</h2>
-    <p class="sub">Please fill in your details below. All fields marked with <span style="color:var(--red)">*</span> are required.</p>
+    <p class="sub">You can register yourself alone, or add a group from the same company. Fields marked with <span style="color:var(--red)">*</span> are required.</p>
 
     <div class="invite-info" id="invite-summary"></div>
 
     <form id="reg-form" autocomplete="on">
-      <div class="row2">
-        <div class="field">
-          <label>First Name <span class="req">*</span></label>
-          <input id="firstName" name="firstName" required placeholder="Your first name">
-        </div>
-        <div class="field">
-          <label>Family Name <span class="req">*</span></label>
-          <input id="familyName" name="familyName" required placeholder="Your family name">
-        </div>
-      </div>
-
+      <!-- Rev.24 (Issam, voice, 2026-11-12) — this is YOUR OWN email,
+           the person filling in this page, not any one guest's email
+           below. You always receive one email with the full list and
+           every QR code, for everyone you register, even if you also
+           give a guest their own email below. -->
       <div class="field">
-        <label>ID / Passport Number <span class="req">*</span></label>
-        <input id="idNumber" name="idNumber" required placeholder="National ID or Passport number">
+        <label>Your Email <span class="req">*</span> <span style="font-weight:400;color:var(--text-muted)">(you'll receive the full list and all QR codes here)</span></label>
+        <input id="requesterEmail" name="requesterEmail" type="email" required placeholder="you@company.com">
       </div>
 
-      <div class="row2">
-        <div class="field">
-          <label>Phone Number <span class="req">*</span></label>
-          <input id="phone" name="phone" type="tel" required placeholder="+966 5X XXX XXXX">
-        </div>
-        <div class="field">
-          <label>Email Address <span class="req">*</span></label>
-          <input id="email" name="email" type="email" required placeholder="you@company.com">
-        </div>
-      </div>
+      <div id="people-list"></div>
 
-      <div class="field">
-        <label>Company / Organization <span class="req">*</span></label>
-        <input id="company" name="company" required placeholder="Your company name">
-      </div>
+      <button type="button" class="btn" id="btn-add-person" style="background:var(--bg3);color:var(--gold-lt);border:1px solid var(--border-gold);margin-top:4px">+ Add Another Person</button>
 
-      <button type="submit" class="btn" id="btn-submit">Submit Registration</button>
+      <button type="submit" class="btn" id="btn-submit" style="margin-top:16px">Submit Registration</button>
     </form>
 
     <div id="form-msg" class="msg"></div>
@@ -268,10 +279,10 @@
   <!-- Success state -->
   <div id="state-success" class="card hidden">
     <h2>Registration Submitted Successfully</h2>
-    <p class="sub">Thank you. Your details have been received.</p>
+    <p class="sub" id="success-sub">Thank you. Your details have been received.</p>
     <div class="msg ok" style="display:block">
       The person who invited you has been notified.<br>
-      You will receive a confirmation email with your access QR code once your registration is approved by Safety / Management.
+      You (as the requester) will receive one email with the full list and a QR code for everyone, once approved by Safety / Management. Anyone you also gave their own email to will get a personal copy too.
     </div>
   </div>
 
@@ -359,10 +370,14 @@
 
         // Valid invitation – show form
         renderInviteSummary(person);
-        // Pre-fill email if it was provided when creating the invitation
-        if (person['Email']) $('email').value = person['Email'];
         window._invitationPerson = person;
         window._token = token;
+        // Rev.24 (Issam, voice, 2026-11-12) — start with one person
+        // block. If an email was already provided when the invitation
+        // was created, pre-fill the requester's own email with it, as
+        // a starting guess — it's still an ordinary editable field.
+        resetPeopleList();
+        if (person['Email']) $('requesterEmail').value = person['Email'];
         show('state-form');
       })
       .catch(function(){
@@ -384,6 +399,44 @@
     $('invite-summary').innerHTML = html;
   }
 
+  /* ── Repeatable person list (Rev.24, Issam, voice, 2026-11-12) ──
+     One card per person being registered. Each person's Email is
+     OPTIONAL: filling it in gives that specific person their own
+     copy of their own QR code once approved, in addition to — not
+     instead of — the full table the requester (above) always gets
+     for everyone. Leaving it blank just means that person's QR only
+     appears inside the requester's own table. */
+  var _personCount = 0;
+  function addPersonCard(){
+    _personCount++;
+    var n = _personCount;
+    var div = document.createElement('div');
+    div.className = 'person-card';
+    div.setAttribute('data-person', n);
+    div.innerHTML = ''
+      + '<div class="person-title">Person ' + n + '</div>'
+      + (n > 1 ? '<button type="button" class="remove-person" data-remove="' + n + '">Remove</button>' : '')
+      + '<div class="row2">'
+        + '<div class="field"><label>First Name <span class="req">*</span></label><input class="p-firstName" required placeholder="First name"></div>'
+        + '<div class="field"><label>Family Name <span class="req">*</span></label><input class="p-familyName" required placeholder="Family name"></div>'
+      + '</div>'
+      + '<div class="field"><label>ID / Passport Number <span class="req">*</span></label><input class="p-idNumber" required placeholder="National ID or Passport number"></div>'
+      + '<div class="row2">'
+        + '<div class="field"><label>Phone Number <span class="req">*</span></label><input class="p-phone" type="tel" required placeholder="+966 5X XXX XXXX"></div>'
+        + '<div class="field"><label>This Person\'s Email <span style="font-weight:400;color:var(--text-dim)">(optional)</span></label><input class="p-email" type="email" placeholder="leave blank unless they want their own copy"></div>'
+      + '</div>'
+      + '<div class="field"><label>Company / Organization <span class="req">*</span></label><input class="p-company" required placeholder="Company name"></div>';
+    $('people-list').appendChild(div);
+    var removeBtn = div.querySelector('[data-remove]');
+    if (removeBtn) removeBtn.addEventListener('click', function(){ div.remove(); });
+  }
+  function resetPeopleList(){
+    $('people-list').innerHTML = '';
+    _personCount = 0;
+    addPersonCard();
+  }
+  $('btn-add-person').addEventListener('click', addPersonCard);
+
   /* ── Form submit ─────────────────────────────────────────── */
   $('reg-form').addEventListener('submit', function(e){
     e.preventDefault();
@@ -392,23 +445,31 @@
     msg.className = 'msg';
     msg.style.display = 'none';
 
-    var payload = {
-      token: window._token,
-      firstName: $('firstName').value.trim(),
-      familyName: $('familyName').value.trim(),
-      idNumber: $('idNumber').value.trim(),
-      phone: $('phone').value.trim(),
-      email: $('email').value.trim(),
-      company: $('company').value.trim()
-    };
+    var requesterEmail = $('requesterEmail').value.trim();
+    var cards = $('people-list').querySelectorAll('.person-card');
+    var people = [];
+    var missing = false;
+    cards.forEach(function(card){
+      var p = {
+        firstName: card.querySelector('.p-firstName').value.trim(),
+        familyName: card.querySelector('.p-familyName').value.trim(),
+        idNumber: card.querySelector('.p-idNumber').value.trim(),
+        phone: card.querySelector('.p-phone').value.trim(),
+        email: card.querySelector('.p-email').value.trim(),
+        company: card.querySelector('.p-company').value.trim()
+      };
+      if (!p.firstName || !p.familyName || !p.idNumber || !p.phone || !p.company) missing = true;
+      people.push(p);
+    });
 
-    if (!payload.firstName || !payload.familyName || !payload.idNumber ||
-        !payload.phone || !payload.email || !payload.company){
+    if (!requesterEmail || missing || !people.length){
       msg.className = 'msg err';
-      msg.textContent = 'Please fill in all required fields.';
+      msg.textContent = 'Please fill in your own email and every required field for each person.';
       msg.style.display = 'block';
       return;
     }
+
+    var payload = { token: window._token, requesterEmail: requesterEmail, people: people };
 
     btn.disabled = true;
     btn.textContent = 'Submitting…';
@@ -420,6 +481,9 @@
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (res.status === 'ok'){
+        $('success-sub').textContent = people.length > 1
+          ? 'Thank you. The details for all ' + people.length + ' people have been received.'
+          : 'Thank you. Your details have been received.';
         show('state-success');
       } else {
         msg.className = 'msg err';
