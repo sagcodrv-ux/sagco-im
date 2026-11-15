@@ -852,6 +852,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
     return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
   }
+  // Rev.35 (Issam, voice, 2026-11-15) — a green tag used to save even
+  // with inspection items left blank (an untouched select just reads
+  // as "", never flagged as a fail). Whenever Tag Status is the
+  // passing value, every "(Ok/No)" / "(Ok/No/NA)" item on the form —
+  // picked out by its own field-name suffix, so a future item added
+  // the same way is covered automatically — must actually be
+  // answered first.
+  function missingScaffoldItems_(values){
+    if (String(values['Tag Status']||'').trim() !== 'Green — Safe to Use') return [];
+    var itemFields = Object.keys(TABLES['inspection'].selectFields).filter(function(f){ return /\(Ok\/No/.test(f); });
+    return itemFields.filter(function(f){ return !String(values[f]||'').trim(); });
+  }
   // Rev.32 (Issam, voice, 2026-11-15) — an inspection counts for the
   // permit once its Tag Status reads green, not only once it's later
   // Closed — the inspection record can stay Open for the whole job,
@@ -919,6 +931,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (suggestedId) initial[cfg.idCol] = suggestedId;
       if (extraInitial) Object.keys(extraInitial).forEach(function(k){ initial[k] = extraInitial[k]; });
       showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
+        var missing = missingScaffoldItems_(values);
+        if (missing.length){
+          alert('This inspection cannot be saved as Green — Safe to Use yet — the following items must be answered first:\n\n- ' + missing.join('\n- '));
+          if (window._siReenableModalSave) window._siReenableModalSave();
+          return;
+        }
         values[STATUS_COL] = 'Active';
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
           close(); reloadAll();
@@ -995,6 +1013,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var initial = {};
       data.headers.forEach(function(h,i){ initial[h] = row[i]; });
       showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+        var missing = missingScaffoldItems_(values);
+        if (missing.length){
+          alert('This inspection cannot be saved as Green — Safe to Use yet — the following items must be answered first:\n\n- ' + missing.join('\n- '));
+          if (window._siReenableModalSave) window._siReenableModalSave();
+          return;
+        }
         postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
           if (res && res.status === 'error'){
             alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');

@@ -1123,12 +1123,41 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('lt-modal-bg').onclick = function(e){ if (e.target.id === 'lt-modal-bg') root.innerHTML = ''; };
     document.getElementById('lt-modal-save').onclick = function(){
       var values = collectLotoModalValues(root);
+      // Rev.34 (Issam, voice, 2026-11-15) — a Pre-Task record used to
+      // save with the seven isolation checks left blank, only getting
+      // caught later at Continue/close — too late, since the permit
+      // side already treats a saved Open job as isolation done once
+      // those checks are confirmed (lotoJobIsReady_ in
+      // ptw-register.html). The form itself now refuses to save until
+      // every one is actually Yes, naming whichever are still
+      // missing, same block Continue already applies at closure.
+      var missingPreTask = LOTO_PRE_CHECKLIST.filter(function(f){
+        return String(values[f]||'').trim().toLowerCase() !== 'yes';
+      });
+      if (missingPreTask.length){
+        alert('This LOTO job cannot be saved yet — the following pre-task isolation checks must be confirmed as "Yes" first:\n\n- ' + missingPreTask.join('\n- ') + '\n\nA blank or "No" check means the isolation isn\'t actually confirmed.');
+        return;
+      }
       values[STATUS_COL] = 'Active';
       values['Status'] = 'Open'; // reinstatement is completed later via Continue
       var saveBtn = document.getElementById('lt-modal-save');
       saveBtn.disabled = true;
-      postJSON('write', {tab: cfg.tabKey}, [values]).then(function(){
-        root.innerHTML = ''; reloadAll();
+      postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+        if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); saveBtn.disabled = false; return; }
+        // Rev.31 (Issam, voice, 2026-11-15) — an Open job with its
+        // pre-task checks done is enough for the permit to move
+        // forward (the isolation itself is the point — see
+        // ptw-register.html's lotoJobIsReady_), so this is checked and
+        // emailed the moment the isolation is saved, not only when the
+        // job later closes. Then the person is sent straight back to
+        // that permit to see its new state, instead of staying here.
+        if (values['PTW Number']){
+          fetch(SHEETS_URL + '?action=checkAndPromotePtwPermit', { method:'POST', body: JSON.stringify({ permitId: values['PTW Number'] }) })
+            .catch(function(){})
+            .then(function(){ window.location.href = 'ptw-register.html?permitId=' + encodeURIComponent(values['PTW Number']); });
+        } else {
+          root.innerHTML = ''; reloadAll();
+        }
       }).catch(function(){ alert('Could not save — check your connection.'); saveBtn.disabled = false; });
     };
   }
@@ -1174,7 +1203,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           saveBtn.disabled = false;
           return;
         }
-        root.innerHTML = ''; reloadAll();
+        // Rev.31 (Issam, voice, 2026-11-15) — closing the job is also
+        // a moment the permit could become ready (if LOTO was its
+        // last outstanding checklist, though in practice it's usually
+        // already counted from the Open/pre-task save above); tell
+        // the register, then go straight back to that permit instead
+        // of staying on this table. 'PTW Number' isn't a field on
+        // this Post-Task form, so it comes from `initial` (the record
+        // as loaded), not from the collected `values`.
+        if (initial['PTW Number']){
+          fetch(SHEETS_URL + '?action=checkAndPromotePtwPermit', { method:'POST', body: JSON.stringify({ permitId: initial['PTW Number'] }) })
+            .catch(function(){})
+            .then(function(){ window.location.href = 'ptw-register.html?permitId=' + encodeURIComponent(initial['PTW Number']); });
+        } else {
+          root.innerHTML = ''; reloadAll();
+        }
       }).catch(function(){ alert('Could not save — check your connection.'); saveBtn.disabled = false; });
     };
   }
@@ -1247,6 +1290,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           return;
         }
       }
+      // Rev.34 (Issam, voice, 2026-11-15) — same gate on the Open side,
+      // for the same reason: correcting a record here shouldn't be a
+      // way to set it Open with the isolation checks still blank.
+      if (values['Status'] === 'Open'){
+        var missingOpen = LOTO_PRE_CHECKLIST.filter(function(f){ return String(values[f]||'').trim().toLowerCase() !== 'yes'; });
+        if (missingOpen.length){
+          alert('Status can\'t be set to Open yet — the following pre-task isolation checks must be confirmed as "Yes" first:\n\n- ' + missingOpen.join('\n- '));
+          return;
+        }
+      }
       var saveBtn = document.getElementById('lt-modal-save');
       saveBtn.disabled = true;
       postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
@@ -1256,6 +1309,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           return;
         }
         root.innerHTML = ''; reloadAll();
+        // Rev.30 (Issam, voice, 2026-11-15) — same immediate PTW notify
+        // as the dedicated Continue flow above, for the case where a
+        // job is closed by correcting it here in the full Edit modal
+        // instead.
+        if (values['Status'] === 'Closed' && values['PTW Number']){
+          fetch(SHEETS_URL + '?action=checkAndPromotePtwPermit', { method:'POST', body: JSON.stringify({ permitId: values['PTW Number'] }) }).catch(function(){});
+        }
       }).catch(function(){ alert('Could not save — check your connection.'); saveBtn.disabled = false; });
     };
   }

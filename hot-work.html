@@ -576,6 +576,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('modal-save').onclick = function(){
       var values = {};
       root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+      // Rev.35 (Issam, voice, 2026-11-15) — a passing Closure Result
+      // used to save even with pre-/post-work items left blank: a
+      // field nobody touched defaults to "— Select —", which isn't a
+      // "No", so nothing ever flagged it. Now, whenever the result is
+      // the passing value, every other Yes/No/NA item on the form
+      // must actually be answered first, naming whichever are missing.
+      if (values[RESULT_FIELD] === 'Cleared'){
+        var missing = Object.keys(SELECT_FIELDS).filter(function(f){
+          return f !== RESULT_FIELD && !String(values[f]||'').trim();
+        });
+        if (missing.length){
+          alert('This checklist cannot be saved as Cleared yet — the following items must be answered first:\n\n- ' + missing.join('\n- '));
+          return;
+        }
+      }
       var saveBtn = document.getElementById('modal-save');
       saveBtn.disabled = true;
       window._reenableModalSave = function(){ if (saveBtn) saveBtn.disabled = false; };

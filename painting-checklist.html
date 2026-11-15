@@ -190,12 +190,23 @@ table.chk-tbl{width:100%;border-collapse:collapse;font-size:11px}
         'Record Status': 'Active'
       };
       var anyNo = false;
+      var missingItems = [];
       ITEMS.forEach(function(item, i){
         var sel = root.querySelector('input[name="chk-item-' + i + '"]:checked');
         var v = sel ? sel.value : '';
         values[item] = v;
         if (v === 'No') anyNo = true;
+        if (!v) missingItems.push(item);
       });
+      // Rev.35 (Issam, voice, 2026-11-15) — an unanswered item used to
+      // count as passing (only an explicit "No" was ever checked),
+      // so a checklist could save as Cleared with items nobody
+      // actually looked at. Every item must now be answered Yes or
+      // No before it can save at all, naming whichever are missing.
+      if (missingItems.length){
+        alert('This checklist cannot be saved yet — the following items must be answered first:\n\n- ' + missingItems.join('\n- '));
+        return;
+      }
       values['Result'] = anyNo ? FAIL : PASS;
       if (!values['PTW Number']){ alert('PTW Number (Permit ID) is required.'); return; }
       var btn = document.getElementById('chk-save'); btn.disabled = true;

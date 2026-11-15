@@ -929,6 +929,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
     return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
   }
+  // Rev.35 (Issam, voice, 2026-11-15) — "All Safe to Enter" = Yes used
+  // to save even with the real safety checks and gas readings left
+  // blank. Whenever that field is the passing value, the four
+  // pre-entry Yes/No gates must actually be Yes, and the four gas
+  // readings must actually have a value — an empty reading isn't the
+  // same as a safe one.
+  function missingConfinedSpaceItems_(values){
+    if (String(values['All Safe to Enter (Y/N)']||'').trim() !== 'Yes') return [];
+    var requiredYes = ['Isolation Confirmed (LOTO) (Y/N)','Ventilation Provided (Y/N)','Rescue Equipment Ready (Y/N)','PPE / Breathing Apparatus Confirmed (Y/N)'];
+    var requiredFilled = ['O2 (%)','CO (ppm)','H2S (ppm)','LEL (%)'];
+    var missing = [];
+    requiredYes.forEach(function(f){ if (String(values[f]||'').trim().toLowerCase() !== 'yes') missing.push(f); });
+    requiredFilled.forEach(function(f){ if (!String(values[f]||'').trim()) missing.push(f); });
+    return missing;
+  }
   // Rev.32 (Issam, voice, 2026-11-15) — a Pre-Entry record counts for
   // the permit once its atmospheric test says "All Safe to Enter" =
   // Yes, not only once it's later Closed — the entry can stay Open
@@ -1010,6 +1025,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (suggestedId) initial[cfg.idCol] = suggestedId;
       if (extraInitial) Object.keys(extraInitial).forEach(function(k){ initial[k] = extraInitial[k]; });
       showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
+        if (tKeyName === 'preentry'){
+          var missing = missingConfinedSpaceItems_(values);
+          if (missing.length){
+            alert('This record cannot be saved as "Safe to Enter" yet — the following must be confirmed first:\n\n- ' + missing.join('\n- '));
+            if (window._csReenableModalSave) window._csReenableModalSave();
+            return;
+          }
+        }
         values[STATUS_COL] = 'Active';
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
           close(); reloadAll();
@@ -1085,6 +1108,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var initial = {};
       data.headers.forEach(function(h,i){ initial[h] = row[i]; });
       showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+        if (tKeyName === 'preentry'){
+          var missing = missingConfinedSpaceItems_(values);
+          if (missing.length){
+            alert('This record cannot be saved as "Safe to Enter" yet — the following must be confirmed first:\n\n- ' + missing.join('\n- '));
+            if (window._csReenableModalSave) window._csReenableModalSave();
+            return;
+          }
+        }
         postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
           if (res && res.status === 'error'){
             alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
