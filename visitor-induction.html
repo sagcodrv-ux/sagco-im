@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>SAGCO IMS — Visitor &amp; Contractor Management</title>
 <script src="auth.js"></script>
 <script src="data.js"></script>
@@ -124,6 +124,80 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
 .vc-badge.rejected{background:rgba(240,104,92,.2);color:var(--vc-red)}
 .vc-section-title{font-size:12px;font-weight:700;color:var(--vc-gold-lt);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.4px}
 .vc-copy-btn{font-size:10px;padding:4px 10px;margin-left:8px}
+.vc-tab-ic{display:none}
+.vc-tab-lb{display:inline}
+
+/* ═══════════════════════════════════════════════════════════════
+   Rev.36 (Issam, voice, 2026-11-12) — PHONE LAYOUT. Issam asked for
+   this page to be more practical and ergonomic on a phone, with
+   every tab kept available to everyone (no per-role cut-down). Below
+   this width: the tab bar becomes a fixed bottom nav (thumb reach,
+   icon-first); every tap target (buttons, inputs, selects, checkbox
+   rows) grows; the two-and-three-column grids collapse to one column
+   so nothing is ever a narrow squeeze; the one real data table (Spot
+   Check history) turns into a stack of labeled cards instead of a
+   sideways-scrolling grid; and a result like Cleared/Not Cleared or
+   PPE Issued fills the width in large text, readable at arm's length.
+   Nothing here changes how the page looks or behaves above this
+   width — this is purely additive for small screens.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 680px){
+  .vc-dark-wrap{padding:14px 12px 84px} /* bottom padding clears the fixed nav bar */
+
+  /* Bottom nav bar: the exact same tab elements, just repositioned
+     and restyled — same onclick handlers, same switchTab logic. */
+  .vc-tabs{
+    position:fixed; left:0; right:0; bottom:0; z-index:50;
+    display:flex; flex-wrap:nowrap; gap:0; margin:0;
+    background:var(--vc-bg2); border-top:1px solid var(--vc-border-gold);
+    padding:6px 2px calc(6px + env(safe-area-inset-bottom,0px));
+    overflow-x:auto;
+  }
+  .vc-tab{
+    flex:1 1 0; min-width:56px; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:2px; padding:7px 2px; border-radius:10px;
+    border:none; background:transparent; white-space:nowrap;
+  }
+  .vc-tab.active{background:rgba(201,168,76,.15)}
+  .vc-tab-ic{display:block; font-size:19px; line-height:1}
+  .vc-tab-lb{display:block; font-size:9px}
+  .vc-panel{border-radius:10px} /* the top-left square corner only made sense against in-flow tabs */
+
+  /* Bigger touch targets everywhere a finger has to land. */
+  .vc-field input,.vc-field select,.vc-field textarea{padding:12px 12px; font-size:15px; border-radius:9px}
+  .vc-field label{font-size:11px}
+  .aiw-btn{padding:13px 16px; font-size:13px; border-radius:9px; min-height:44px}
+  .vc-yn-pick label{padding:13px 14px; font-size:14px}
+  .vc-row2,.vc-row3{grid-template-columns:1fr; gap:10px}
+  .vc-copy-btn{padding:10px 14px; font-size:12px}
+
+  /* Results fill the width and read at arm's length. */
+  .vc-status-pill{display:flex; width:100%; justify-content:center; font-size:16px; padding:14px 16px}
+  .vc-card{max-width:100%}
+  .vc-qr-box{width:min(220px,70vw); height:min(220px,70vw)}
+
+  /* Search/approval rows stack instead of squeezing side by side. */
+  .vc-person-row{flex-direction:column; align-items:stretch; font-size:13px}
+  .vc-person-row > span{width:100%}
+
+  /* Spot Check history: table → stacked labeled cards. */
+  #vc-spot-hist-tbody tr{
+    display:block; background:var(--vc-bg3); border:1px solid var(--vc-border-gold);
+    border-radius:10px; padding:4px 10px; margin-bottom:10px;
+  }
+  #vc-spot-hist-tbody td{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    padding:8px 2px !important; border-bottom:1px solid var(--vc-border) !important;
+    text-align:right !important; font-size:13px;
+  }
+  #vc-spot-hist-tbody td:last-child{border-bottom:none !important}
+  #vc-spot-hist-tbody td[data-label]::before{
+    content:attr(data-label); font-size:10px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.3px; color:var(--vc-text-dim); text-align:left;
+  }
+  /* The "no results" row has no data-label and spans the whole table — leave it centered, not flipped into a label/value row. */
+  #vc-spot-hist-tbody tr td[colspan]{display:block; text-align:center !important}
+}
 </style>
 </head>
 <body>
@@ -144,13 +218,17 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
   </div>
 
   <div class="vc-tabs">
-    <div class="vc-tab active" data-tab="invite" onclick="VC.switchTab('invite')">Invitations</div>
-    <div class="vc-tab" data-tab="approvals" onclick="VC.switchTab('approvals')">Pending Approvals</div>
-    <div class="vc-tab" data-tab="gate" onclick="VC.switchTab('gate')">Gate / Scan</div>
-    <div class="vc-tab" data-tab="induct" onclick="VC.switchTab('induct')">Induction</div>
-    <div class="vc-tab" data-tab="ppe" onclick="VC.switchTab('ppe')">PPE Issuance</div>
-    <div class="vc-tab" data-tab="search" onclick="VC.switchTab('search')">Search</div>
-    <div class="vc-tab" data-tab="spotcheck" onclick="VC.switchTab('spotcheck')">Spot Check</div>
+    <!-- Rev.36 (Issam, voice, 2026-11-12) — icons added so the same
+         markup reads well both as desktop tabs (icon + text) and as
+         the mobile bottom nav bar (icon on top, short label under),
+         with no separate mobile markup to keep in sync. -->
+    <div class="vc-tab active" data-tab="invite" onclick="VC.switchTab('invite')"><span class="vc-tab-ic">📋</span><span class="vc-tab-lb">Invitations</span></div>
+    <div class="vc-tab" data-tab="approvals" onclick="VC.switchTab('approvals')"><span class="vc-tab-ic">⏳</span><span class="vc-tab-lb">Approvals</span></div>
+    <div class="vc-tab" data-tab="gate" onclick="VC.switchTab('gate')"><span class="vc-tab-ic">🚪</span><span class="vc-tab-lb">Gate</span></div>
+    <div class="vc-tab" data-tab="induct" onclick="VC.switchTab('induct')"><span class="vc-tab-ic">🎓</span><span class="vc-tab-lb">Induction</span></div>
+    <div class="vc-tab" data-tab="ppe" onclick="VC.switchTab('ppe')"><span class="vc-tab-ic">🦺</span><span class="vc-tab-lb">PPE</span></div>
+    <div class="vc-tab" data-tab="search" onclick="VC.switchTab('search')"><span class="vc-tab-ic">🔍</span><span class="vc-tab-lb">Search</span></div>
+    <div class="vc-tab" data-tab="spotcheck" onclick="VC.switchTab('spotcheck')"><span class="vc-tab-ic">✅</span><span class="vc-tab-lb">Spot Check</span></div>
   </div>
 
   <!-- ═══════════════ TAB: Invitations ═══════════════ -->
@@ -1341,14 +1419,19 @@ tbody td{padding:6px 9px;border-bottom:1px solid var(--vc-border);color:var(--vc
         : (r.result === 'Fail'
             ? '<button class="aiw-btn aiw-btn-esc" style="font-size:10px;padding:4px 9px" onclick="VC.escalateSpotCheck(\'' + String(r.raw['Spot Check ID']).replace(/'/g,"\\'") + '\')">Escalate</button>'
             : '<span style="color:var(--vc-text-dim)">—</span>');
+      // Rev.36 (Issam, voice, 2026-11-12) — data-label on every cell is
+      // what lets the mobile media query turn this row into a stacked
+      // card (each cell shows "Label: value" instead of a column) —
+      // see the responsive-table CSS, which reads these via
+      // ::before{content:attr(data-label)}. Harmless on desktop.
       return '<tr>'
-        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + vEsc(when) + '</td>'
-        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + vEsc(r.name || '—') + '</td>'
-        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + vEsc(r.department || '—') + '</td>'
-        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + ppeBadge + '</td>'
-        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border);text-align:center">' + (r.photoLink ? '<a href="' + vEsc(r.photoLink) + '" target="_blank">📷</a>' : '<span style="color:var(--vc-text-dim)">—</span>') + '</td>'
-        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + vEsc(r.checkedBy || '—') + '</td>'
-        + '<td style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + escCell + '</td>'
+        + '<td data-label="When" style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + vEsc(when) + '</td>'
+        + '<td data-label="Name" style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + vEsc(r.name || '—') + '</td>'
+        + '<td data-label="Department" style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + vEsc(r.department || '—') + '</td>'
+        + '<td data-label="PPE" style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + ppeBadge + '</td>'
+        + '<td data-label="Photo" style="padding:6px 9px;border-bottom:1px solid var(--vc-border);text-align:center">' + (r.photoLink ? '<a href="' + vEsc(r.photoLink) + '" target="_blank">📷</a>' : '<span style="color:var(--vc-text-dim)">—</span>') + '</td>'
+        + '<td data-label="Checked By" style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + vEsc(r.checkedBy || '—') + '</td>'
+        + '<td data-label="Escalation" style="padding:6px 9px;border-bottom:1px solid var(--vc-border)">' + escCell + '</td>'
       + '</tr>';
     }).join('');
   }
