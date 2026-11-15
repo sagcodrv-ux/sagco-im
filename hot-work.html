@@ -587,6 +587,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
     return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
   }
+  // Rev.30 (Issam, voice, 2026-11-15) — the moment a Hot Work closure
+  // clears, tell the PTW Register right away instead of waiting for
+  // someone to happen to open it, so a permit whose last outstanding
+  // checklist was this one gets its Area Manager email immediately.
+  function notifyPtwIfPassed_(values){
+    if (String(values['Closure Result']||'').trim() !== 'Cleared') return;
+    if (!values['PTW Number']) return;
+    fetch(SHEETS_URL + '?action=checkAndPromotePtwPermit', { method:'POST', body: JSON.stringify({ permitId: values['PTW Number'] }) }).catch(function(){});
+  }
 
   
   function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -707,6 +716,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             return;
           }
           close(); reloadAll();
+          notifyPtwIfPassed_(values);
         }).catch(function(){ alert('Could not save - check your connection.'); if (window._reenableModalSave) window._reenableModalSave(); });
       });
     },
@@ -726,6 +736,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             return;
           }
           close(); reloadAll();
+          notifyPtwIfPassed_(values);
         }).catch(function(){ alert('Could not save - check your connection.'); if (window._reenableModalSave) window._reenableModalSave(); });
       });
     },

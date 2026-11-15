@@ -207,6 +207,13 @@ table.chk-tbl{width:100%;border-collapse:collapse;font-size:11px}
         if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); btn.disabled=false; return; }
         root.innerHTML = '';
         loadAll();
+        // Rev.30 (Issam, voice, 2026-11-15) — the moment this checklist
+        // clears, tell the PTW Register right away instead of waiting
+        // for someone to happen to open it, so the Area Manager email
+        // goes out immediately rather than on the register's next load.
+        if (values['Result'] === PASS && values['PTW Number']){
+          fetch(SHEETS_URL + '?action=checkAndPromotePtwPermit', { method:'POST', body: JSON.stringify({ permitId: values['PTW Number'] }) }).catch(function(){});
+        }
       }).catch(function(){ alert('Could not save — check your connection.'); btn.disabled=false; });
     };
   }

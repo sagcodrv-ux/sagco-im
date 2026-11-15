@@ -726,6 +726,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (can('add')){
       toolbarHtml += '<button class="ptw-btn ptw-btn-add" onclick="PTW.openAdd(\'' + tKeyName + '\')">+ Add Record</button>';
     }
+    // Rev.30 (Issam, voice, 2026-11-15) — "where do I raise the
+    // checklist this permit is waiting on?" was buried inside Edit's
+    // Linked Safety Records panel, with nothing in the table pointing
+    // there. This button surfaces it right in the toolbar, next to Add
+    // Record, but ONLY once a Waiting permit is selected — picked
+    // straight off the selected row's own Status, not recomputed from
+    // checklist data, so it stays in lockstep with the Workflow column
+    // the person is actually looking at.
+    if (tKeyName === 'register' && sel){
+      var selStatusIdx = colIdx(data.headers, 'Status');
+      var selRow = data.rows.find(function(r){ return String(r[colIdx(data.headers, cfg.idCol)]) === String(sel); });
+      var selStatus = (selRow && selStatusIdx >= 0) ? String(selRow[selStatusIdx]||'').trim().toLowerCase() : '';
+      if (selStatus === 'waiting'){
+        toolbarHtml += '<button class="ptw-btn" id="ptw-tb-raise-'+tKeyName+'" onclick="PTW.raiseChecklists(\''+tKeyName+'\', PTW.getSelected(\''+tKeyName+'\'))">⚠️ Raise Checklists</button>';
+      }
+    }
     // Edit / Remove / Print now live here in the toolbar instead of one
     // icon set per row -- they act on whichever row is currently selected
     // (click a row to select it). Disabled and dimmed until a row is
@@ -1925,6 +1941,32 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // Renders the approval ladder inside the Edit modal — the one place
   // Status is now shown and moved, since it's no longer a typed field
   // (see the 'Remarks' section replacing 'Status & Remarks' above).
+  // Rev.30 (Issam, voice, 2026-11-15) — the toolbar's "Raise
+  // Checklists" button opens straight to the SAME panel Edit already
+  // shows (renderLinkedSafetyPanel), just on its own without the rest
+  // of the permit form — a quicker path for the one thing the person
+  // actually came here to do: raise whatever checklist is still
+  // outstanding.
+  function raiseChecklistsFlow(tKeyName, idVal){
+    if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+    var cfg = TABLES[tKeyName];
+    var data = _cache[tKeyName];
+    var idIdx = colIdx(data.headers, cfg.idCol);
+    var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+    if (!row) return alert('Record not found — try refreshing.');
+    var rec = {};
+    data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+    var root = document.getElementById('ptw-modal-root');
+    root.innerHTML = '<div class="ptw-modal-bg" id="ptw-modal-bg"><div class="ptw-modal">' +
+      '<h3>Raise Checklists — ' + String(idVal).replace(/</g,'&lt;') + '</h3>' +
+      '<div id="ptw-raise-panel-root"></div>' +
+      '<div class="ptw-modal-actions"><button class="ptw-btn ptw-btn-cancel" id="ptw-raise-close">Close</button></div>' +
+      '</div></div>';
+    document.getElementById('ptw-raise-close').onclick = function(){ root.innerHTML = ''; };
+    document.getElementById('ptw-modal-bg').onclick = function(e){ if (e.target.id === 'ptw-modal-bg') root.innerHTML=''; };
+    renderLinkedSafetyPanel(document.getElementById('ptw-raise-panel-root'), rec);
+  }
+
   function renderPtwApprovalBlock(rec){
     var status = String(rec['Status']||'').trim();
     var statusLower = status.toLowerCase();
@@ -2439,6 +2481,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     approveAreaManager: approveAreaManager,
     approveController: approveController,
     closePermitFlow: closePermitFlow,
+    raiseChecklists: raiseChecklistsFlow,
     onDateRangeChange: function(){
       var s = document.getElementById('ptw-date-start');
       var e = document.getElementById('ptw-date-end');
