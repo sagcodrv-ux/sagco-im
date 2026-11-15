@@ -929,6 +929,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
     return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
   }
+  // Rev.32 (Issam, voice, 2026-11-15) — a Pre-Entry record counts for
+  // the permit once its atmospheric test says "All Safe to Enter" =
+  // Yes, not only once it's later Closed — the entry can stay Open
+  // for the whole job, same as a LOTO job can. Tell the PTW Register
+  // the moment that's saved, instead of waiting for someone to happen
+  // to open it, so a permit whose last outstanding checklist was this
+  // one gets its Area Manager email immediately.
+  function notifyPtwIfClosed_(tKeyName, values){
+    if (tKeyName !== 'preentry') return;
+    if (String(values['All Safe to Enter (Y/N)']||'').trim() !== 'Yes') return;
+    if (!values['PTW Number']) return;
+    fetch(SHEETS_URL + '?action=checkAndPromotePtwPermit', { method:'POST', body: JSON.stringify({ permitId: values['PTW Number'] }) }).catch(function(){});
+  }
 
   /* ── Public API used by inline onclick handlers ─────────────────────── */
   window.CS = {
@@ -1000,6 +1013,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         values[STATUS_COL] = 'Active';
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
           close(); reloadAll();
+          notifyPtwIfClosed_(tKeyName, values);
         }).catch(function(){ alert('Could not save — check your connection.'); if (window._csReenableModalSave) window._csReenableModalSave(); });
       });
     },
@@ -1078,6 +1092,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             return;
           }
           close(); reloadAll();
+          notifyPtwIfClosed_(tKeyName, values);
         }).catch(function(){ alert('Could not save — check your connection.'); if (window._csReenableModalSave) window._csReenableModalSave(); });
       });
     },

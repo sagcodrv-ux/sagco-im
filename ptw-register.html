@@ -1643,6 +1643,79 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     });
     return found;
   }
+  // Rev.31 (Issam, voice, 2026-11-15) — a LOTO job only needs to be
+  // Open, not Closed, for the permit to move forward: the isolation
+  // itself (done before work starts) is what the permit needs, not
+  // the later reinstatement that Closes the job. "Open" only counts
+  // once the pre-task isolation checks are actually confirmed Yes —
+  // a job that merely exists isn't isolation. A Closed job still
+  // counts too, since closing requires every pre-task check to have
+  // already been Yes. Mirrors the matching rule in
+  // checkAndPromotePtwPermit / ptwChecklistIsReady_ in
+  // google-apps-script.js — keep both in step if this ever changes.
+  var LOTO_PRE_TASK_CHECKS = ['Equipment Shutdown Safely','All Energy Sources Isolated','Locks and Tags Applied',
+    'Stored Energy Released or Restrained','Zero-Energy Condition Verified',
+    'Absence-of-Voltage Test Completed','Work Area Confirmed Safe and PTW Conditions Satisfied'];
+  function lotoJobIsReady_(data, permitNum){
+    if (!data || !data.headers || !data.rows || !permitNum) return false;
+    var numIdx = colIdx(data.headers, 'PTW Number');
+    var statusIdx = colIdx(data.headers, 'Status');
+    var recStatusIdx = colIdx(data.headers, 'Record Status');
+    if (numIdx < 0) return false;
+    var found = null;
+    data.rows.forEach(function(row){
+      if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+      if (String(row[numIdx]||'').trim() === String(permitNum).trim()) found = row;
+    });
+    if (!found) return false;
+    var status = statusIdx >= 0 ? String(found[statusIdx]||'').trim().toLowerCase() : '';
+    if (status !== 'open' && status !== 'closed') return false;
+    return LOTO_PRE_TASK_CHECKS.every(function(f){
+      var idx = colIdx(data.headers, f);
+      return idx >= 0 && String(found[idx]||'').trim() === 'Yes';
+    });
+  }
+  // Rev.32 (Issam, voice, 2026-11-15) — same principle as LOTO above:
+  // a Scaffold inspection or a Confined Space entry can stay Open
+  // while the work is under way, so requiring Closed would leave the
+  // permit stuck on Waiting past the point it's actually safe to
+  // start. Scaffold counts once its own Tag Status reads green,
+  // whichever the two options read exactly (confirmed in
+  // scaffold-inspection.html: 'Green — Safe to Use' / 'Red — Unsafe,
+  // Do Not Use'), Open or Closed. Confined Space counts once its own
+  // atmospheric test says safe — 'All Safe to Enter (Y/N)' = 'Yes',
+  // confirmed in confined-space.html — Open or Closed. Mirrors the
+  // matching rule in checkAndPromotePtwPermit / ptwChecklistIsReady_
+  // in google-apps-script.js; keep both in step.
+  function scaffoldIsReady_(data, permitNum){
+    if (!data || !data.headers || !data.rows || !permitNum) return false;
+    var numIdx = colIdx(data.headers, 'Permit Number');
+    var tagIdx = colIdx(data.headers, 'Tag Status');
+    var recStatusIdx = colIdx(data.headers, 'Record Status');
+    if (numIdx < 0) return false;
+    var found = null;
+    data.rows.forEach(function(row){
+      if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+      if (String(row[numIdx]||'').trim() === String(permitNum).trim()) found = row;
+    });
+    if (!found) return false;
+    var tagStatus = tagIdx >= 0 ? String(found[tagIdx]||'').trim() : '';
+    return /green/i.test(tagStatus);
+  }
+  function confinedSpaceIsReady_(data, permitNum){
+    if (!data || !data.headers || !data.rows || !permitNum) return false;
+    var numIdx = colIdx(data.headers, 'PTW Number');
+    var safeIdx = colIdx(data.headers, 'All Safe to Enter (Y/N)');
+    var recStatusIdx = colIdx(data.headers, 'Record Status');
+    if (numIdx < 0) return false;
+    var found = null;
+    data.rows.forEach(function(row){
+      if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+      if (String(row[numIdx]||'').trim() === String(permitNum).trim()) found = row;
+    });
+    if (!found) return false;
+    return safeIdx >= 0 && String(found[safeIdx]||'').trim() === 'Yes';
+  }
   function renderLinkedSafetyPanel(rootEl, rec){
     var needsCs = permitNeedsConfinedSpace(rec);
     var needsLoto = permitNeedsLoto(rec);
@@ -1678,19 +1751,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
       if (needsCs){
         requiredCount++;
+        // Rev.32 (Issam, voice, 2026-11-15) — "safe to enter" counts,
+        // not just Closed; see confinedSpaceIsReady_ above.
         var cs = csData ? findLinkedRecord(csData, permitId) : null;
-        var csReady = cs && cs.status === 'Closed';
+        var csReady = csData ? confinedSpaceIsReady_(csData, permitId) : false;
         if (csReady) readyCount++; else blockedNames.push('Confined Space Entry');
-        var csBadge = !cs ? '<span class="badge kc-red">Not raised</span>' : (csReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
+        var csBadge = !cs ? '<span class="badge kc-red">Not raised</span>' : (csReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (cs.status || 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Confined Space Entry</strong> ' + csBadge +
           '<button type="button" class="ptw-btn" onclick="window.open(\'confined-space.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (cs ? 'Open' : 'Raise') + ' Confined Space Form</button></div>';
       }
       if (needsLoto){
         requiredCount++;
+        // Rev.31 (Issam, voice, 2026-11-15) — Open (with the pre-task
+        // checks confirmed) is enough here, not Closed — see
+        // lotoJobIsReady_ above for why.
         var lj = lotoData ? findLinkedRecord(lotoData, permitId) : null;
-        var ljReady = lj && lj.status === 'Closed';
+        var ljReady = lotoData ? lotoJobIsReady_(lotoData, permitId) : false;
         if (ljReady) readyCount++; else blockedNames.push('LOTO Job');
-        var ljBadge = !lj ? '<span class="badge kc-red">Not raised</span>' : (ljReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
+        var ljBadge = !lj ? '<span class="badge kc-red">Not raised</span>' : (ljReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (lj.status || 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>LOTO Job</strong> ' + ljBadge +
           '<button type="button" class="ptw-btn" onclick="window.open(\'loto-register.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (lj ? 'Open' : 'Raise') + ' LOTO Job</button></div>';
       }
@@ -1720,10 +1798,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         // "link not yet confirmed" caveat is gone since it's now a
         // real, tested link (see its own matching ?permitId= deep
         // link handler added the same session).
+        // Rev.32 (Issam, voice, 2026-11-15) — a green tag counts, not
+        // just Closed; see scaffoldIsReady_ above.
         var sc = scaffoldData ? findLinkedRecord(scaffoldData, permitId, 'Permit Number') : null;
-        var scReady = sc && sc.status === 'Closed';
+        var scReady = scaffoldData ? scaffoldIsReady_(scaffoldData, permitId) : false;
         if (scReady) readyCount++; else blockedNames.push('Scaffold Inspection');
-        var scBadge = !sc ? '<span class="badge kc-red">Not raised</span>' : (scReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">Open</span>');
+        var scBadge = !sc ? '<span class="badge kc-red">Not raised</span>' : (scReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (sc.status || 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Scaffold Inspection</strong> ' + scBadge +
           '<button type="button" class="ptw-btn" onclick="window.open(\'scaffold-inspection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (sc ? 'Open' : 'Raise') + ' Scaffold Inspection</button></div>';
       }
@@ -1793,11 +1873,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // permit, not just the one the list happens to be rendering.
   function getChecklistNeeds(rec){
     return [
-      { need: permitNeedsConfinedSpace(rec), name: 'Confined Space', data: _csEntryCache, ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID']); return f && f.status === 'Closed'; } },
-      { need: permitNeedsLoto(rec), name: 'LOTO', data: _lotoJobCache, ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID']); return f && f.status === 'Closed'; } },
+      // Rev.32 (Issam, voice, 2026-11-15) — "safe to enter" counts,
+      // not just Closed; see confinedSpaceIsReady_.
+      { need: permitNeedsConfinedSpace(rec), name: 'Confined Space', data: _csEntryCache, ready: function(d){ return confinedSpaceIsReady_(d, rec['Permit ID']); } },
+      // Rev.31 (Issam, voice, 2026-11-15) — Open-with-checks-confirmed
+      // counts, not just Closed; see lotoJobIsReady_.
+      { need: permitNeedsLoto(rec), name: 'LOTO', data: _lotoJobCache, ready: function(d){ return lotoJobIsReady_(d, rec['Permit ID']); } },
       { need: permitNeedsCrane(rec), name: 'Crane', data: _craneCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Inspection Result', 'Accept Crane'); return f && f.passed; } },
       { need: permitNeedsHotWork(rec), name: 'Hot Work', data: _hotWorkCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Closure Result', 'Cleared'); return f && f.passed; } },
-      { need: permitNeedsScaffold(rec), name: 'Scaffold', data: _scaffoldCache, ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID'], 'Permit Number'); return f && f.status === 'Closed'; } },
+      // Rev.32 (Issam, voice, 2026-11-15) — a green tag counts, not
+      // just Closed; see scaffoldIsReady_.
+      { need: permitNeedsScaffold(rec), name: 'Scaffold', data: _scaffoldCache, ready: function(d){ return scaffoldIsReady_(d, rec['Permit ID']); } },
       { need: permitNeedsPainting(rec), name: 'Painting', data: _paintingCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
       { need: permitNeedsCivilWork(rec), name: 'Civil Work', data: _civilCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
       { need: permitNeedsPipeline(rec), name: 'Pipeline', data: _pipelineCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } }

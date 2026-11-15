@@ -852,15 +852,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
     return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
   }
-  // Rev.30 (Issam, voice, 2026-11-15) — the moment this inspection is
-  // saved as Closed, tell the PTW Register right away instead of
-  // waiting for someone to happen to open it, so a permit whose last
-  // outstanding checklist was Scaffold gets its Area Manager email
-  // immediately. This sheet's own linking field is 'Permit Number',
-  // not 'PTW Number' — confirmed the real field name, same as
-  // ptw-register.html's own findLinkedRecord call for this table.
+  // Rev.32 (Issam, voice, 2026-11-15) — an inspection counts for the
+  // permit once its Tag Status reads green, not only once it's later
+  // Closed — the inspection record can stay Open for the whole job,
+  // same as a LOTO job can. Tell the PTW Register the moment that's
+  // saved, instead of waiting for someone to happen to open it, so a
+  // permit whose last outstanding checklist was Scaffold gets its
+  // Area Manager email immediately. This sheet's own linking field is
+  // 'Permit Number', not 'PTW Number' — confirmed the real field
+  // name, same as ptw-register.html's own findLinkedRecord call for
+  // this table.
   function notifyPtwIfClosed_(values){
-    if (String(values['Status']||'').trim() !== 'Closed') return;
+    if (!/green/i.test(String(values['Tag Status']||'').trim())) return;
     if (!values['Permit Number']) return;
     fetch(SHEETS_URL + '?action=checkAndPromotePtwPermit', { method:'POST', body: JSON.stringify({ permitId: values['Permit Number'] }) }).catch(function(){});
   }
