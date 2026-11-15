@@ -390,6 +390,27 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // verbatim (see PTW_EQUIPMENT etc. used by the print template) so
       // the same list drives both data entry and the printed form.
       checkboxGroupFields: {
+        // Rev.26 (Issam, voice, 2026-11-12) — Work Involved becomes a
+        // fixed set of family tick boxes (the same nine HSE-FRM-01
+        // already prints), not free text. Issam's own complaint: the
+        // old free-text field had accumulated "Lifting", "lifting
+        // works", "Working at height", "work at heights only", "works
+        // at height" etc. for what were really the same few job
+        // families, which the checklist rules, the chart, and the
+        // printed form all had to guess at by keyword matching. A
+        // permit can tick MORE than one family (e.g. hot work done at
+        // height) — per Issam's explicit answer — and every ticked
+        // family's own checklist becomes required.
+        // Stored the same way every other checkbox-group field here
+        // is: one semicolon-joined string, e.g. "Hot work; Working at
+        // height" — no new sheet column needed. The existing
+        // permitNeeds*() functions below and the print template both
+        // already pattern-match substrings of this field rather than
+        // requiring an exact value, so they work unchanged on BOTH a
+        // new tick-box value and an old free-text one — only the
+        // dashboard chart (see renderDashboard) needed an actual
+        // rewrite, to bucket by family instead of by the raw string.
+        'Work Involved': PTW_WORK_TYPES.map(function(w){ return w.label; }),
         'Equipment & Tools': PTW_EQUIPMENT.map(function(e){ return e[0]; }),
         'Potential Hazards': PTW_HAZARDS.map(function(h){ return h[0]; }),
         'Safety Precautions': PTW_SAFETY_PRECAUTIONS.map(function(p){ return p[0]; }),
@@ -929,12 +950,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (i === statusIdx) return;
       html += '<th>' + h + '</th>';
     });
+    // Rev.25 (Issam, voice, 2026-11-12) — Workflow is a computed column,
+    // not a real sheet field, added right after the real Status column
+    // so the two sit side by side: Status is the person-set state,
+    // Workflow is what's automatically known about its linked
+    // checklists. Register table only.
+    if (tKeyName === 'register') html += '<th>Workflow</th>';
     html += '</tr></thead><tbody>';
 
     var issuerColIdx = colIdx(data.headers, 'Permit Issuer - Name');
 
     if (!visibleRows.length){
-      var colspan = data.headers.length - (statusIdx>-1?1:0);
+      var colspan = data.headers.length - (statusIdx>-1?1:0) + (tKeyName==='register'?1:0);
       html += '<tr><td colspan="'+colspan+'"><div class="empty-state"><strong>No matching records</strong>Try a different search or clear the filter.</div></td></tr>';
     } else {
       var selId = _selected[tKeyName];
@@ -954,6 +981,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
             html += '<td>' + formatCell(cell) + '</td>';
           }
         });
+        if (tKeyName === 'register'){
+          var rec = {};
+          data.headers.forEach(function(h,hi){ rec[h] = row[hi]; });
+          var ws = computeWorkflowStatus(rec);
+          html += '<td><span class="badge kc-' + ws.color + '">' + String(ws.label).replace(/</g,'&lt;') + '</span></td>';
+        }
         html += '</tr>';
       });
     }
@@ -1009,10 +1042,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       });
   }
 
+  // Rev.25 (Issam, voice, 2026-11-12) — loads every linked-checklist
+  // tab UP FRONT, alongside the register and issuers tables, instead
+  // of only fetching them lazily when one permit's Edit modal opens.
+  // This is what lets the register table below show a computed
+  // Workflow status on EVERY row at once (see computeWorkflowStatus),
+  // without a separate round-trip per permit.
   function loadAll(){
     var keys = Object.keys(TABLES);
-    Promise.all(keys.map(loadTab)).then(function(){
+    Promise.all(
+      keys.map(loadTab).concat([
+        loadCsEntryRecords(), loadLotoJobRecords(), loadCraneRecords(),
+        loadHotWorkRecords(), loadScaffoldRecords()
+      ])
+    ).then(function(){
       renderDashboard();
+      renderTableArea('register'); // re-render now that checklist caches are warm, so Workflow shows immediately
     });
   }
 
@@ -1144,13 +1189,31 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // bar still shows its count and share of the total, and clicking
     // a named bar filters the register below to that work type —
     // clicking "Other" clears the filter instead, since it's a mix.
+    // Rev.26 (Issam, voice, 2026-11-12) — buckets by FAMILY now, not by
+    // the raw Work Involved string, which is what let the old free text
+    // split one real job family into five near-duplicate bars ("Lifting",
+    // "lifting works", "Working at height", "work at heights only",
+    // "works at height" all used to count separately). A permit can
+    // belong to more than one family at once (e.g. hot work at height,
+    // per Issam's explicit answer) — each one it belongs to gets a tick
+    // in that family's own count, so totalWithWork below is permits-with-
+    // at-least-one-family, while the bars can sum to more than that.
+    // Works identically whether a permit's own stored value is the new
+    // semicolon-joined tick-box format or old messy free text — PTW_WORK_TYPES'
+    // own regex (used elsewhere for the same purpose, e.g. the print
+    // template) is the single source of truth for "which family/families
+    // does this text belong to", so a permit is never double-counted for
+    // the same family and old records need no rewriting to show up
+    // correctly here.
     var workIdx = colIdx(reg.headers, 'Work Involved');
     var workCounts = {};
     var totalWithWork = 0;
     visibleRows.forEach(function(r){
       var w = workIdx >= 0 ? String(r[workIdx]||'').trim() : '';
       if (!w) return;
-      workCounts[w] = (workCounts[w] || 0) + 1;
+      var families = PTW_WORK_TYPES.filter(function(t){ return t.match.test(w); }).map(function(t){ return t.label; });
+      if (!families.length) families = [w]; // didn't match any known family — still counted, under its own raw text, so nothing is silently dropped
+      families.forEach(function(fam){ workCounts[fam] = (workCounts[fam] || 0) + 1; });
       totalWithWork++;
     });
     var sortedWork = Object.keys(workCounts).sort(function(a,b){ return workCounts[b]-workCounts[a]; });
@@ -1486,6 +1549,47 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
       rootEl.innerHTML = '<div class="ptw-linked-panel"><div class="ptw-sub-hd" style="border-top:none;padding-top:0;margin-top:0">Linked Safety Records</div>' + bannerHtml + rowsHtml + '</div>';
     });
+  }
+
+  // Rev.25 (Issam, voice, 2026-11-12) — Issam's own idea, in place of a
+  // hard block: let the permit's STATUS itself say where it stands,
+  // computed automatically from the same linked-checklist data the
+  // Edit modal's readiness banner already uses — never typed by hand,
+  // so it can't drift from reality (the exact problem the old free-
+  // text Approved By / Supervisor / Manager fields had before the
+  // violation approval chain replaced them with real lookups).
+  //
+  // A permit already in a FINAL, person-set state — Cancelled, or
+  // Closed — keeps showing that: those are deliberate human decisions,
+  // not something checklist completeness should ever override.
+  // Otherwise: no checklist needed → shows the permit's own real
+  // Status field as-is (e.g. Active). Some checklist outstanding →
+  // "Waiting: X, Y" in amber. All needed checklists Completed → "Ready
+  // for Approval" in green — still informational, matching the rest of
+  // this page: nothing here blocks Closing a permit, it only makes the
+  // true state visible without opening it.
+  function computeWorkflowStatus(rec){
+    var realStatus = String(rec['Status']||'').trim();
+    var realStatusLower = realStatus.toLowerCase();
+    if (realStatusLower === 'cancelled' || realStatusLower === 'closed'){
+      return { label: realStatus, color: realStatusLower === 'cancelled' ? 'red' : 'grn' };
+    }
+    var needs = [
+      { need: permitNeedsConfinedSpace(rec), name: 'Confined Space', data: _csEntryCache, idCol: null, ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID']); return f && f.status === 'Closed'; } },
+      { need: permitNeedsLoto(rec), name: 'LOTO', data: _lotoJobCache, idCol: null, ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID']); return f && f.status === 'Closed'; } },
+      { need: permitNeedsCrane(rec), name: 'Crane', data: _craneCache, idCol: null, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Inspection Result', 'Accept Crane'); return f && f.passed; } },
+      { need: permitNeedsHotWork(rec), name: 'Hot Work', data: _hotWorkCache, idCol: null, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Closure Result', 'Cleared'); return f && f.passed; } },
+      { need: permitNeedsScaffold(rec), name: 'Scaffold', data: _scaffoldCache, idCol: 'Permit Number', ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID'], 'Permit Number'); return f && f.status === 'Closed'; } }
+    ];
+    var required = needs.filter(function(n){ return n.need; });
+    if (!required.length){
+      return { label: realStatus || '—', color: realStatusLower === 'active' || realStatusLower === 'open' ? 'blue' : 'nvy' };
+    }
+    var waiting = required.filter(function(n){ return !n.data || !n.ready(n.data); }).map(function(n){ return n.name; });
+    if (waiting.length){
+      return { label: 'Waiting: ' + waiting.join(', '), color: 'amb' };
+    }
+    return { label: 'Ready for Approval', color: 'grn' };
   }
 
   // Cancel Permit (Issam, voice, 2026-11-08) — requires a typed reason,
