@@ -734,9 +734,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // straight off the selected row's own Status, not recomputed from
     // checklist data, so it stays in lockstep with the Workflow column
     // the person is actually looking at.
+    // selRow/selRec are shared below by the Raise Checklists gate and
+    // the Permit Pack button, so the selected permit's record is only
+    // looked up once per render, not twice.
+    var selRow = null, selRec = null;
+    if (tKeyName === 'register' && sel){
+      selRow = data.rows.find(function(r){ return String(r[colIdx(data.headers, cfg.idCol)]) === String(sel); });
+      if (selRow){ selRec = {}; data.headers.forEach(function(h,i){ selRec[h] = selRow[i]; }); }
+    }
     if (tKeyName === 'register' && sel){
       var selStatusIdx = colIdx(data.headers, 'Status');
-      var selRow = data.rows.find(function(r){ return String(r[colIdx(data.headers, cfg.idCol)]) === String(sel); });
       var selStatus = (selRow && selStatusIdx >= 0) ? String(selRow[selStatusIdx]||'').trim().toLowerCase() : '';
       if (selStatus === 'waiting'){
         toolbarHtml += '<button class="ptw-btn" id="ptw-tb-raise-'+tKeyName+'" onclick="PTW.raiseChecklists(\''+tKeyName+'\', PTW.getSelected(\''+tKeyName+'\'))">⚠️ Raise Checklists</button>';
@@ -749,6 +756,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var disabledAttr = sel ? '' : ' disabled';
     if (tKeyName === 'register'){
       toolbarHtml += '<button class="ptw-btn" id="ptw-tb-print-'+tKeyName+'"' + disabledAttr + ' onclick="PTW.printPermit(\''+tKeyName+'\', PTW.getSelected(\''+tKeyName+'\'))">🖨️ Print</button>';
+      // Rev.33 (Issam, voice, 2026-11-15) — only enabled once a permit
+      // with at least one linked checklist is selected; a plain Cold
+      // work permit with none has nothing to show beyond the Print
+      // button above, so there's no separate Pack for it.
+      var packDisabledAttr = (!sel || !selRec || !permitHasAnyChecklist_(selRec)) ? ' disabled' : '';
+      toolbarHtml += '<button class="ptw-btn" id="ptw-tb-pack-'+tKeyName+'"' + packDisabledAttr + ' onclick="PTW.openPermitPack(PTW.getSelected(\''+tKeyName+'\'))">📦 Permit Pack</button>';
       // Photo evidence for the permit — e.g. the Safety Attendant
       // documenting the actual work area/situation. Anyone can open
       // the gallery to view what's attached; uploading/deleting is
@@ -990,6 +1003,148 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     + '</div></body></html>';
   }
 
+  // Rev.33 (Issam, voice, 2026-11-15) — the Area Manager and Controller
+  // were being asked to approve a permit on trust, seeing only
+  // "Completed" badges and never the actual filled checklist. These
+  // functions build a read-only view of one checklist's real data
+  // (viewChecklistRecordFlow) and a single combined printable pack of
+  // the permit plus every one of its linked checklists
+  // (buildPermitPackHtml/openPermitPackFlow), so the approver can
+  // actually see the Yes/No answers, readings, and results behind
+  // each "Completed" badge before signing off.
+
+  // Pulls the <style> and <body> content back out of a full HTML
+  // document string buildPermitPrintHtml() already builds, so the
+  // Permit Pack can embed the SAME styled permit page as its first
+  // section without duplicating or forking that print template.
+  function extractDocParts_(fullHtml){
+    var styleM = /<style>([\s\S]*?)<\/style>/i.exec(fullHtml);
+    var bodyM = /<body[^>]*>([\s\S]*)<\/body>/i.exec(fullHtml);
+    return { style: styleM ? styleM[1] : '', body: bodyM ? bodyM[1] : fullHtml };
+  }
+  // Every non-removed row in a checklist's cached {headers, rows} data
+  // matching permitNum under idColName — same matching rule
+  // findLinkedRecord() uses, just returning every match instead of
+  // only a status flag, so the Pack can show the actual latest record.
+  function findAllLinkedRows_(data, permitNum, idColName){
+    if (!data || !data.headers || !data.rows || !permitNum) return [];
+    var numIdx = colIdx(data.headers, idColName || 'PTW Number');
+    var recStatusIdx = colIdx(data.headers, 'Record Status');
+    if (numIdx < 0) return [];
+    return data.rows.filter(function(row){
+      if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return false;
+      return String(row[numIdx]||'').trim() === String(permitNum).trim();
+    });
+  }
+  // Renders one record as a plain label/value table — every filled
+  // field, in sheet column order, skipping Record Status (internal
+  // bookkeeping, not something an approver needs) and any blank
+  // field. Deliberately generic rather than a bespoke layout per
+  // checklist type, so it works the same for all eight without eight
+  // separate templates to keep in sync with their real sheets.
+  function recordKvTableHtml_(headers, row){
+    var skip = { 'Record Status': 1 };
+    var rowsHtml = headers.map(function(h, i){
+      if (skip[h]) return '';
+      var v = row[i];
+      if (v === undefined || v === null || String(v).trim() === '') return '';
+      return '<tr><td>'+pfEsc(h)+'</td><td>'+pfEsc(v)+'</td></tr>';
+    }).join('');
+    return '<table class="pack-kv">'+rowsHtml+'</table>';
+  }
+  // Which cached data variable and ID column each checklist's View
+  // button and Pack section reads from — the single place this
+  // mapping lives, so a future checklist just adds one line here.
+  var CHECKLIST_VIEW_SOURCES_ = {
+    cs:       { cache: function(){ return _csEntryCache; },  idCol: 'PTW Number',    title: 'Confined Space Entry' },
+    loto:     { cache: function(){ return _lotoJobCache; },  idCol: 'PTW Number',    title: 'LOTO Job' },
+    crane:    { cache: function(){ return _craneCache; },    idCol: 'PTW Number',    title: 'Crane Inspection' },
+    hotwork:  { cache: function(){ return _hotWorkCache; },  idCol: 'PTW Number',    title: 'Hot Work Checklist' },
+    scaffold: { cache: function(){ return _scaffoldCache; }, idCol: 'Permit Number', title: 'Scaffold Inspection' },
+    painting: { cache: function(){ return _paintingCache; }, idCol: 'PTW Number',    title: 'Painting Checklist' },
+    civil:    { cache: function(){ return _civilCache; },    idCol: 'PTW Number',    title: 'Civil Work Checklist' },
+    pipeline: { cache: function(){ return _pipelineCache; }, idCol: 'PTW Number',    title: 'Pipeline Checklist' }
+  };
+  function viewChecklistRecordFlow(key, idColName, permitId, title){
+    var src = CHECKLIST_VIEW_SOURCES_[key];
+    var data = src ? src.cache() : null;
+    var rows = findAllLinkedRows_(data, permitId, idColName);
+    if (!rows.length){ alert('No record found — it may not have been raised yet, or the data hasn\'t loaded. Try reopening this permit.'); return; }
+    var latest = rows[rows.length - 1]; // most recently appended row wins, same convention as findLinkedRecord
+    var w = window.open('', '_blank');
+    if (!w){ alert('Pop-up blocked — please allow pop-ups to view this record.'); return; }
+    var html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>'+pfEsc(title)+' — '+pfEsc(permitId)+'</title>'
+      + '<style>body{font-family:Arial,Helvetica,sans-serif;font-size:12px;padding:24px;color:#111}'
+      + 'h2{margin-top:0}.pack-kv{width:100%;border-collapse:collapse}'
+      + '.pack-kv td{padding:5px 12px;border-bottom:1px solid #ddd;vertical-align:top}'
+      + '.pack-kv td:first-child{font-weight:700;white-space:nowrap;width:260px}</style>'
+      + '</head><body><h2>'+pfEsc(title)+' — '+pfEsc(permitId)+'</h2>'
+      + recordKvTableHtml_(data.headers, latest)
+      + '</body></html>';
+    w.document.open(); w.document.write(html); w.document.close();
+  }
+  // One section per linked checklist for the Pack: shows the real
+  // filled record (latest one on file) when it exists, or a plain
+  // "not yet done" notice when it doesn't — so the Pack never looks
+  // complete for a checklist that hasn't actually been raised.
+  function buildChecklistPackSectionHtml_(need, permitId){
+    var src = CHECKLIST_VIEW_SOURCES_[need.key];
+    var data = src ? src.cache() : null;
+    var ready = data ? need.ready(data) : false;
+    var hd = '<div class="pack-hd">' + pfEsc(need.name) + (ready ? ' — Completed' : ' — Not yet done') + '</div>';
+    var rows = findAllLinkedRows_(data, permitId, src ? src.idCol : 'PTW Number');
+    if (!rows.length){
+      return '<div class="pack-section">' + hd + '<div class="pack-missing">This checklist has not been raised yet.</div></div>';
+    }
+    var latest = rows[rows.length - 1];
+    return '<div class="pack-section">' + hd + recordKvTableHtml_(data.headers, latest) + '</div>';
+  }
+  function permitHasAnyChecklist_(rec){
+    return getChecklistNeeds(rec).some(function(n){ return n.need; });
+  }
+  function buildPermitPackHtml(rec){
+    var parts = extractDocParts_(buildPermitPrintHtml(rec));
+    // Tags each getChecklistNeeds() entry with the matching
+    // CHECKLIST_VIEW_SOURCES_ key, by name, so the Pack's sections use
+    // the same data/readiness logic the Workflow column and the
+    // Linked Safety Records panel already use — never a second,
+    // separately-maintained copy of "is this one actually ready".
+    var nameToKey = { 'Confined Space': 'cs', 'LOTO': 'loto', 'Crane': 'crane', 'Hot Work': 'hotwork',
+      'Scaffold': 'scaffold', 'Painting': 'painting', 'Civil Work': 'civil', 'Pipeline': 'pipeline' };
+    var needs = getChecklistNeeds(rec).filter(function(n){ return n.need; })
+      .map(function(n){ n.key = nameToKey[n.name]; return n; });
+    var sectionsHtml = needs.map(function(n){ return buildChecklistPackSectionHtml_(n, rec['Permit ID']); }).join('');
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+      + '<title>Permit Pack — ' + pfEsc(rec['Permit ID']) + '</title>'
+      + '<style>' + parts.style
+      + '.pack-section{page-break-before:always;padding:20px 24px}'
+      + '.pack-section:first-child{page-break-before:avoid;padding-top:24px}'
+      + '.pack-hd{font-size:13px;font-weight:800;background:#0D1B35;color:#C9A84C;padding:8px 14px;margin-bottom:10px;border-radius:4px}'
+      + '.pack-kv{width:100%;border-collapse:collapse;font-size:11px}'
+      + '.pack-kv td{padding:4px 10px;border-bottom:1px solid #ddd;vertical-align:top}'
+      + '.pack-kv td:first-child{font-weight:700;white-space:nowrap;width:260px}'
+      + '.pack-missing{padding:14px;background:#fdeceb;border-left:4px solid #F0685C;font-weight:700;color:#a33}'
+      + '</style></head><body>'
+      + '<div class="pack-section">' + parts.body + '</div>'
+      + sectionsHtml
+      + '</body></html>';
+  }
+  function openPermitPackFlow(idVal){
+    if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+    var data = _cache['register'];
+    if (!data || !data.headers) return alert('Permit data not loaded yet — try again in a moment.');
+    var idIdx = colIdx(data.headers, 'Permit ID');
+    var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+    if (!row) return alert('Record not found — try refreshing.');
+    var rec = {};
+    data.headers.forEach(function(h,i){ rec[h] = row[i]; });
+    var w = window.open('', '_blank');
+    if (!w){ alert('Pop-up blocked — please allow pop-ups to view the permit pack.'); return; }
+    w.document.open();
+    w.document.write(buildPermitPackHtml(rec));
+    w.document.close();
+  }
+
   function renderTableArea(tKeyName){
     var cfg = TABLES[tKeyName];
     var data = _cache[tKeyName];
@@ -1181,7 +1336,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     setExpanded('register', true);
     _selected['register'] = permitId;
     renderShell('register', reg);
-    PTW.openEdit('register', permitId);
+    // Rev.33 (Issam, voice, 2026-11-15) — the approval email's "View
+    // Permit Pack" link carries &pack=1, so it opens straight to the
+    // read-only pack instead of the Edit screen — the Area Manager
+    // can review the filled checklists without even opening Edit.
+    if (params.get('pack') === '1'){
+      openPermitPackFlow(permitId);
+    } else {
+      PTW.openEdit('register', permitId);
+    }
   }
 
   function reloadTabAndDashboard(tKeyName){
@@ -1758,6 +1921,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (csReady) readyCount++; else blockedNames.push('Confined Space Entry');
         var csBadge = !cs ? '<span class="badge kc-red">Not raised</span>' : (csReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (cs.status || 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Confined Space Entry</strong> ' + csBadge +
+          (cs ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="cs" data-idcol="PTW Number" data-title="Confined Space Entry">👁️ View</button>' : '') +
           '<button type="button" class="ptw-btn" onclick="window.open(\'confined-space.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (cs ? 'Open' : 'Raise') + ' Confined Space Form</button></div>';
       }
       if (needsLoto){
@@ -1770,6 +1934,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (ljReady) readyCount++; else blockedNames.push('LOTO Job');
         var ljBadge = !lj ? '<span class="badge kc-red">Not raised</span>' : (ljReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (lj.status || 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>LOTO Job</strong> ' + ljBadge +
+          (lj ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="loto" data-idcol="PTW Number" data-title="LOTO Job">👁️ View</button>' : '') +
           '<button type="button" class="ptw-btn" onclick="window.open(\'loto-register.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (lj ? 'Open' : 'Raise') + ' LOTO Job</button></div>';
       }
       if (needsCrane){
@@ -1779,6 +1944,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (crReady) readyCount++; else blockedNames.push('Crane Inspection');
         var crBadge = !cr ? '<span class="badge kc-red">Not raised</span>' : (crReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (cr.hasResult ? 'Rejected' : 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Crane Inspection</strong> ' + crBadge +
+          (cr ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="crane" data-idcol="PTW Number" data-title="Crane Inspection">👁️ View</button>' : '') +
           '<button type="button" class="ptw-btn" onclick="window.open(\'crane-inspection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (cr ? 'Open' : 'Raise') + ' Crane Inspection</button></div>';
       }
       if (needsHotWork){
@@ -1788,6 +1954,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (hwReady) readyCount++; else blockedNames.push('Hot Work Checklist');
         var hwBadge = !hw ? '<span class="badge kc-red">Not raised</span>' : (hwReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (hw.hasResult ? 'Issues Noted' : 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Hot Work Checklist</strong> ' + hwBadge +
+          (hw ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="hotwork" data-idcol="PTW Number" data-title="Hot Work Checklist">👁️ View</button>' : '') +
           '<button type="button" class="ptw-btn" onclick="window.open(\'hot-work.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (hw ? 'Open' : 'Raise') + ' Hot Work Checklist</button></div>';
       }
       if (needsScaffold){
@@ -1805,6 +1972,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (scReady) readyCount++; else blockedNames.push('Scaffold Inspection');
         var scBadge = !sc ? '<span class="badge kc-red">Not raised</span>' : (scReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (sc.status || 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Scaffold Inspection</strong> ' + scBadge +
+          (sc ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="scaffold" data-idcol="Permit Number" data-title="Scaffold Inspection">👁️ View</button>' : '') +
           '<button type="button" class="ptw-btn" onclick="window.open(\'scaffold-inspection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (sc ? 'Open' : 'Raise') + ' Scaffold Inspection</button></div>';
       }
       if (needsPainting){
@@ -1814,6 +1982,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (ptReady) readyCount++; else blockedNames.push('Painting Checklist');
         var ptBadge = !pt ? '<span class="badge kc-red">Not raised</span>' : (ptReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (pt.hasResult ? 'Issues Noted' : 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Painting Checklist</strong> ' + ptBadge +
+          (pt ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="painting" data-idcol="PTW Number" data-title="Painting Checklist">👁️ View</button>' : '') +
           '<button type="button" class="ptw-btn" onclick="window.open(\'painting-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (pt ? 'Open' : 'Raise') + ' Painting Checklist</button></div>';
       }
       if (needsCivil){
@@ -1823,6 +1992,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (cvReady) readyCount++; else blockedNames.push('Civil Work Checklist');
         var cvBadge = !cv ? '<span class="badge kc-red">Not raised</span>' : (cvReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (cv.hasResult ? 'Issues Noted' : 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Civil Work Checklist</strong> ' + cvBadge +
+          (cv ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="civil" data-idcol="PTW Number" data-title="Civil Work Checklist">👁️ View</button>' : '') +
           '<button type="button" class="ptw-btn" onclick="window.open(\'civil-work-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (cv ? 'Open' : 'Raise') + ' Civil Work Checklist</button></div>';
       }
       if (needsPipeline){
@@ -1832,6 +2002,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (plReady) readyCount++; else blockedNames.push('Pipeline Checklist');
         var plBadge = !pl ? '<span class="badge kc-red">Not raised</span>' : (plReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (pl.hasResult ? 'Issues Noted' : 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Pipeline Checklist</strong> ' + plBadge +
+          (pl ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="pipeline" data-idcol="PTW Number" data-title="Pipeline Checklist">👁️ View</button>' : '') +
           '<button type="button" class="ptw-btn" onclick="window.open(\'pipeline-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (pl ? 'Open' : 'Raise') + ' Pipeline Checklist</button></div>';
       }
 
@@ -1847,7 +2018,27 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         ? '<div class="ptw-ready-banner" style="background:rgba(79,203,158,.15);border-left:3px solid #4FCB9E;padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;margin-bottom:8px">✓ All required checklists completed — ready for approval.</div>'
         : '<div class="ptw-ready-banner" style="background:rgba(240,104,92,.15);border-left:3px solid #F0685C;padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;margin-bottom:8px">⚠ Not ready for approval — missing or incomplete: ' + blockedNames.join(', ') + '.</div>';
 
-      rootEl.innerHTML = '<div class="ptw-linked-panel"><div class="ptw-sub-hd" style="border-top:none;padding-top:0;margin-top:0">Linked Safety Records</div>' + bannerHtml + rowsHtml + '</div>';
+      // Rev.33 (Issam, voice, 2026-11-15) — a Permit Pack link sits
+      // right here too, since this panel is what the Area Manager and
+      // Controller actually see at approval time (see
+      // renderPtwApprovalBlock, which shows this same panel above its
+      // Approve button) — one combined printable copy of the permit
+      // plus every linked checklist, instead of approving on trust.
+      var packHtml = '<div style="margin-bottom:8px"><button type="button" class="ptw-btn ptw-view-pack-btn">📦 View Permit Pack</button></div>';
+
+      rootEl.innerHTML = '<div class="ptw-linked-panel"><div class="ptw-sub-hd" style="border-top:none;padding-top:0;margin-top:0">Linked Safety Records</div>' + packHtml + bannerHtml + rowsHtml + '</div>';
+
+      // Rev.33 (Issam, voice, 2026-11-15) — wired as listeners, not
+      // inline onclick, so the record ids/titles never have to be
+      // smuggled through HTML-attribute string escaping; permitId is
+      // already in closure scope here.
+      var viewPackBtn = rootEl.querySelector('.ptw-view-pack-btn');
+      if (viewPackBtn) viewPackBtn.addEventListener('click', function(){ openPermitPackFlow(permitId); });
+      rootEl.querySelectorAll('.ptw-view-chk-btn').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          viewChecklistRecordFlow(btn.getAttribute('data-key'), btn.getAttribute('data-idcol'), permitId, btn.getAttribute('data-title'));
+        });
+      });
     });
   }
 
@@ -2063,6 +2254,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         + '<div style="font-weight:700;color:#E0B43C;font-size:13px">⏳ Awaiting Area Manager Approval — ' + String(rec['Unit Manager']||'—').replace(/</g,'&lt;') + '</div>'
         + '<div style="display:flex;gap:8px;margin-top:8px">'
           + '<button type="button" class="ptw-btn" style="background:var(--pdw-grn, #4FCB9E);color:#fff" onclick="PTW.approveAreaManager(\'' + String(rec['Permit ID']).replace(/'/g,"\\'") + '\')">Approve</button>'
+          + '<button type="button" class="ptw-btn" onclick="PTW.openPermitPack(\'' + String(rec['Permit ID']).replace(/'/g,"\\'") + '\')">📦 View Permit Pack</button>'
         + '</div></div>';
     } else if (statusLower === 'awaiting controller'){
       html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(240,180,60,.12);border:2px solid #E0B43C;border-radius:8px">'
@@ -2070,6 +2262,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         + '<div style="font-size:11px;margin-top:4px;opacity:.75">Area Manager approved' + (rec['Area Manager Approval Date'] ? ' on ' + rec['Area Manager Approval Date'] : '') + '.</div>'
         + '<div style="display:flex;gap:8px;margin-top:8px">'
           + '<button type="button" class="ptw-btn" style="background:var(--pdw-grn, #4FCB9E);color:#fff" onclick="PTW.approveController(\'' + String(rec['Permit ID']).replace(/'/g,"\\'") + '\')">Approve</button>'
+          + '<button type="button" class="ptw-btn" onclick="PTW.openPermitPack(\'' + String(rec['Permit ID']).replace(/'/g,"\\'") + '\')">📦 View Permit Pack</button>'
         + '</div></div>';
     } else if (statusLower === 'active'){
       html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(79,203,158,.18);border:2px solid #4FCB9E;border-radius:8px">'
@@ -2568,6 +2761,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     approveController: approveController,
     closePermitFlow: closePermitFlow,
     raiseChecklists: raiseChecklistsFlow,
+    openPermitPack: openPermitPackFlow,
     onDateRangeChange: function(){
       var s = document.getElementById('ptw-date-start');
       var e = document.getElementById('ptw-date-end');
