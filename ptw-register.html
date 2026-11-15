@@ -1763,7 +1763,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           + '<select data-field="Height Access Method">'+hamOpts+'</select></div>';
       }
 
-      var suggestions = getSuggestions(tKeyName, f);
+      // Rev.28 (Issam, voice, 2026-11-12) — any field literally called
+      // "Date", or ending in "Date" (e.g. a future "Permit Valid From
+      // Date"), gets a native calendar picker, AND no suggestion
+      // dropdown of past permits' dates — Issam specifically didn't
+      // want that history list showing. 'Permit Valid From' / 'Permit
+      // Valid To' don't end in "Date" by name, but the paper permit's
+      // validity window is a date AND a time, so those two get a
+      // combined date-and-time picker instead (datetime-local), also
+      // with no suggestion list — picking a moment in time from a list
+      // of past permits' start/end times would be just as unhelpful
+      // as the plain Date field's history was.
+      var isDateField = /date$/i.test(f.trim());
+      var isDateTimeField = (f === 'Permit Valid From' || f === 'Permit Valid To');
+      var inputType = isDateTimeField ? 'datetime-local' : (isDateField ? 'date' : 'text');
+      var skipSuggestions = isDateField || isDateTimeField;
+      var suggestions = skipSuggestions ? [] : getSuggestions(tKeyName, f);
       var dlId = 'ptw-dl-' + fi;
       var dlHtml = '';
       if (suggestions.length){
@@ -1771,12 +1786,6 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           return '<option value="'+String(s).replace(/"/g,'&quot;')+'">';
         }).join('') + '</datalist>';
       }
-      // Any field literally called "Date", or ending in "Date" (e.g. a
-      // future "Permit Valid From Date"), gets a native calendar
-      // picker instead of a free-text box — keeps entries consistent
-      // and matches how people naturally expect to pick a date.
-      var isDateField = /date$/i.test(f.trim());
-      var inputType = isDateField ? 'date' : 'text';
       var isLong = f === 'Description of Work';
       return '<div class="ptw-field'+(isLong?' full':'')+'"><label>'+f+'</label>' +
         '<input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
