@@ -429,7 +429,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         { title: 'Equipment, Hazards & Precautions', fields: ['Equipment & Tools','Potential Hazards','Safety Precautions','PPE Required'] },
         { title: 'Service Isolation', fields: ['Service Isolation'] },
         { title: 'Permit Authorization', fields: ['Permit Issuer - Name','Permit Issuer - Dept.','Permit Receiver - Name','Permit Controller','Unit Manager','Permit Valid From','Permit Valid To'] },
-        { title: 'Status & Remarks', fields: ['Status','Remarks'] },
+        // Rev.29 (Issam, voice, 2026-11-15) — Status is no longer a
+        // typed field here: it's computed on creation and then only
+        // ever moved by the Approve/Close/Cancel buttons in the
+        // approval block (see renderPtwApprovalBlock), so nobody can
+        // type "Closed" on a permit still waiting on a checklist or
+        // an approval. Remarks is still free text.
+        { title: 'Remarks', fields: ['Remarks'] },
         // Only shows once a permit actually has these filled in — see
         // the Cancel Permit button, which writes them. Nobody fills
         // this in by hand on a live permit.
@@ -568,6 +574,79 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       }
     });
     return found;
+  }
+
+  // Rev.29 (Issam, voice, 2026-11-15) — Unit Manager and Permit
+  // Controller are now picked from the real User Register instead of
+  // typed free text, so the two-step approval chain (see
+  // computeWorkflowStatus, approveAreaManager, approveController
+  // below) has a real email to notify at each stage. Same tolerant
+  // field-name fallbacks and Safety-user filter violation-register.html
+  // already uses for its own Safety Approver dropdown — "safety people"
+  // means the same thing in both places.
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function userDisplayName(u){ return (u['Full Name'] || u['Name'] || u.name || u['Username'] || u.username || '').trim(); }
+  function userEmail(u){ return String(u['Email'] || u.email || '').trim(); }
+  function userActive(u){ var s = String(u['Account Status'] || u.status || 'Active').trim().toLowerCase(); return !s || s === 'active'; }
+  function isSafetyUser_(u){
+    var role = String(u['Role'] || u.role || '').toLowerCase();
+    var title = String(u['Job Title'] || u.title || '').toLowerCase();
+    var dept  = String(u['Department'] || u.department || '').toLowerCase();
+    if (/superadmin|admin/.test(role)) return true;
+    if (/safety|hse/.test(dept)) return true;
+    if (/safety|hse|controller/.test(title)) return true;
+    if (/safety|hse/.test(role)) return true;
+    return false;
+  }
+  // Unit Manager gives the FIRST sign-off on the approval chain — any
+  // user with "Manager" in their job title or role qualifies, since
+  // area/unit managers aren't recorded under one single consistent
+  // title across the User Register.
+  function isManagerUser_(u){
+    var role = String(u['Role'] || u.role || '').toLowerCase();
+    var title = String(u['Job Title'] || u.title || '').toLowerCase();
+    if (/superadmin|admin/.test(role)) return true;
+    if (/manager/.test(title) || /manager/.test(role)) return true;
+    return false;
+  }
+  var _usersCache = null, _usersFetchPromise = null;
+  function loadUsersRecords(){
+    if (_usersCache) return Promise.resolve(_usersCache);
+    if (_usersFetchPromise) return _usersFetchPromise;
+    _usersFetchPromise = fetch(SHEETS_URL + '?tab=users&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _usersCache = (data && data.headers && data.rows)
+        ? data.rows.map(function(r){ return recFromRow(data.headers, r); }).filter(userActive)
+        : [];
+      return _usersCache;
+    }).catch(function(){ _usersCache = []; return _usersCache; });
+    return _usersFetchPromise;
+  }
+  // Builds the <option> list for a Unit Manager / Permit Controller
+  // dropdown, deduped by name, each option carrying its email as a
+  // data-email attribute so the hidden companion field (see
+  // renderOneField's special case below) can be filled without a
+  // second round trip.
+  function userOptionsHtml_(filterFn, selectedName){
+    var seen = {};
+    var opts = '<option value="" data-email="">— select —</option>';
+    (_usersCache||[]).filter(filterFn).forEach(function(u){
+      var name = userDisplayName(u), email = userEmail(u);
+      if (!name || !email || seen[name.toLowerCase()]) return;
+      seen[name.toLowerCase()] = true;
+      opts += '<option value="' + name.replace(/"/g,'&quot;') + '" data-email="' + email.replace(/"/g,'&quot;') + '"' +
+        (name.toLowerCase() === String(selectedName||'').trim().toLowerCase() ? ' selected' : '') + '>' + name + ' (' + email + ')</option>';
+    });
+    return opts;
+  }
+  // Looks up the email for a name against the SAME filtered roster the
+  // dropdown offered, so a freshly-loaded User Register (not whatever
+  // stale email happened to be saved on the row) wins when both exist.
+  function emailForSelectedUser_(filterFn, name, fallback){
+    if (!name) return '';
+    var match = (_usersCache||[]).filter(filterFn).filter(function(u){
+      return userDisplayName(u).toLowerCase() === String(name).trim().toLowerCase();
+    })[0];
+    return match ? userEmail(match) : (fallback || '');
   }
 
   /* Datalist suggestions for a field. "Permit Issuer - Name" is special:
@@ -1054,12 +1133,39 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       keys.map(loadTab).concat([
         loadCsEntryRecords(), loadLotoJobRecords(), loadCraneRecords(),
         loadHotWorkRecords(), loadScaffoldRecords(),
-        loadPaintingRecords(), loadCivilRecords(), loadPipelineRecords()
+        loadPaintingRecords(), loadCivilRecords(), loadPipelineRecords(),
+        loadUsersRecords()
       ])
     ).then(function(){
       renderDashboard();
       renderTableArea('register'); // re-render now that checklist caches are warm, so Workflow shows immediately
+      // Rev.29 (Issam, voice, 2026-11-15) — every checklist cache is now
+      // warm, so this is the moment to check whether any permit still
+      // marked "Waiting" has actually just become ready, and if so bump
+      // it on to the approval chain and email the Area Manager. Runs
+      // after every load, same as the rest of this page's "checked when
+      // opened, not pushed live" approach.
+      promoteReadyPermits();
+      if (!_ptwDeepLinkHandled){ _ptwDeepLinkHandled = true; handlePtwPermitIdDeepLink(); }
     });
+  }
+  var _ptwDeepLinkHandled = false;
+  // Rev.29 (Issam, voice, 2026-11-15) — opens straight to a specific
+  // permit when linked from an approval-stage email (?permitId=PTW-0779),
+  // so the Area Manager or Controller doesn't have to search for it.
+  function handlePtwPermitIdDeepLink(){
+    var params = new URLSearchParams(window.location.search);
+    var permitId = params.get('permitId');
+    if (!permitId) return;
+    var reg = _cache['register'];
+    if (!reg || !reg.headers || !reg.rows) return;
+    var idIdx = colIdx(reg.headers, 'Permit ID');
+    var row = reg.rows.find(function(r){ return String(r[idIdx]) === String(permitId); });
+    if (!row) return;
+    setExpanded('register', true);
+    _selected['register'] = permitId;
+    renderShell('register', reg);
+    PTW.openEdit('register', permitId);
   }
 
   function reloadTabAndDashboard(tKeyName){
@@ -1666,31 +1772,190 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // for Approval" in green — still informational, matching the rest of
   // this page: nothing here blocks Closing a permit, it only makes the
   // true state visible without opening it.
+  // Pulled out of computeWorkflowStatus so promoteReadyPermits() below
+  // can run the exact same required/ready logic over every cached
+  // permit, not just the one the list happens to be rendering.
+  function getChecklistNeeds(rec){
+    return [
+      { need: permitNeedsConfinedSpace(rec), name: 'Confined Space', data: _csEntryCache, ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID']); return f && f.status === 'Closed'; } },
+      { need: permitNeedsLoto(rec), name: 'LOTO', data: _lotoJobCache, ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID']); return f && f.status === 'Closed'; } },
+      { need: permitNeedsCrane(rec), name: 'Crane', data: _craneCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Inspection Result', 'Accept Crane'); return f && f.passed; } },
+      { need: permitNeedsHotWork(rec), name: 'Hot Work', data: _hotWorkCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Closure Result', 'Cleared'); return f && f.passed; } },
+      { need: permitNeedsScaffold(rec), name: 'Scaffold', data: _scaffoldCache, ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID'], 'Permit Number'); return f && f.status === 'Closed'; } },
+      { need: permitNeedsPainting(rec), name: 'Painting', data: _paintingCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
+      { need: permitNeedsCivilWork(rec), name: 'Civil Work', data: _civilCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
+      { need: permitNeedsPipeline(rec), name: 'Pipeline', data: _pipelineCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } }
+    ];
+  }
+  function checklistWaitingNames_(rec){
+    var required = getChecklistNeeds(rec).filter(function(n){ return n.need; });
+    return required.filter(function(n){ return !n.data || !n.ready(n.data); }).map(function(n){ return n.name; });
+  }
+  // Rev.29 (Issam, voice, 2026-11-15) — the ladder now runs: Waiting
+  // (checklists) → Awaiting Area Manager → Awaiting Controller →
+  // Active → Closed, with Cancelled possible at any point. Status
+  // itself carries all of this — computeWorkflowStatus just colors
+  // whatever Status already says, falling back to the old checklist
+  // computation only while a permit still sits in "Waiting" (or an
+  // older/blank value), same as before. The actual ladder MOVEMENT —
+  // promoting out of Waiting, and the Approve/Close buttons — lives in
+  // promoteReadyPermits() and the approval block below, not here.
   function computeWorkflowStatus(rec){
     var realStatus = String(rec['Status']||'').trim();
     var realStatusLower = realStatus.toLowerCase();
     if (realStatusLower === 'cancelled' || realStatusLower === 'closed'){
       return { label: realStatus, color: realStatusLower === 'cancelled' ? 'red' : 'grn' };
     }
-    var needs = [
-      { need: permitNeedsConfinedSpace(rec), name: 'Confined Space', data: _csEntryCache, idCol: null, ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID']); return f && f.status === 'Closed'; } },
-      { need: permitNeedsLoto(rec), name: 'LOTO', data: _lotoJobCache, idCol: null, ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID']); return f && f.status === 'Closed'; } },
-      { need: permitNeedsCrane(rec), name: 'Crane', data: _craneCache, idCol: null, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Inspection Result', 'Accept Crane'); return f && f.passed; } },
-      { need: permitNeedsHotWork(rec), name: 'Hot Work', data: _hotWorkCache, idCol: null, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Closure Result', 'Cleared'); return f && f.passed; } },
-      { need: permitNeedsScaffold(rec), name: 'Scaffold', data: _scaffoldCache, idCol: 'Permit Number', ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID'], 'Permit Number'); return f && f.status === 'Closed'; } },
-      { need: permitNeedsPainting(rec), name: 'Painting', data: _paintingCache, idCol: null, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
-      { need: permitNeedsCivilWork(rec), name: 'Civil Work', data: _civilCache, idCol: null, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
-      { need: permitNeedsPipeline(rec), name: 'Pipeline', data: _pipelineCache, idCol: null, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } }
-    ];
-    var required = needs.filter(function(n){ return n.need; });
-    if (!required.length){
-      return { label: realStatus || '—', color: realStatusLower === 'active' || realStatusLower === 'open' ? 'blue' : 'nvy' };
+    if (realStatusLower === 'awaiting area manager' || realStatusLower === 'awaiting controller'){
+      return { label: realStatus, color: 'amb' };
     }
-    var waiting = required.filter(function(n){ return !n.data || !n.ready(n.data); }).map(function(n){ return n.name; });
+    if (realStatusLower === 'active' || realStatusLower === 'open'){
+      return { label: realStatus, color: 'blue' };
+    }
+    var waiting = checklistWaitingNames_(rec);
     if (waiting.length){
       return { label: 'Waiting: ' + waiting.join(', '), color: 'amb' };
     }
-    return { label: 'Ready for Approval', color: 'grn' };
+    // Checklists are already clear but the sheet hasn't been promoted
+    // to Awaiting Area Manager yet (promoteReadyPermits catches this
+    // on the next load) — shown amber so it still reads as "about to
+    // move", not a steady state.
+    return { label: realStatus || 'Ready for Approval', color: 'amb' };
+  }
+  // Fire-and-forget notification for one approval-chain step — the
+  // sheet's Status has already been written by the caller via the
+  // ordinary 'update' action; this call only sends the email. Action
+  // goes on the query string, same as every other postJSON call here,
+  // not buried in the JSON body where doPost would never see it.
+  function notifyPtwStage_(permitId, stage, toEmail, toName, rec){
+    if (!toEmail) return;
+    var payload = {
+      permitId: permitId, stage: stage, toEmail: toEmail, toName: toName,
+      area: (rec && rec['Area']) || '', location: (rec && rec['Location']) || '',
+      workInvolved: (rec && rec['Work Involved']) || '', date: (rec && rec['Date']) || ''
+    };
+    fetch(SHEETS_URL + '?action=sendPtwStageEmail', { method:'POST', body: JSON.stringify(payload) })
+      .catch(function(){ /* best-effort — the sheet update already succeeded regardless */ });
+  }
+  // Runs after every load (see loadAll): any permit still "Waiting"
+  // whose required checklists have ALL cleared — completed from one of
+  // the separate checklist pages, so this register had no way to know
+  // until it reloaded — is bumped to "Awaiting Area Manager" and the
+  // Area Manager is emailed. _promotedThisLoad only guards against
+  // firing twice for the same permit within one page session; once the
+  // sheet's own Status says "Awaiting Area Manager" the "st !== waiting"
+  // check below skips it on every later load regardless.
+  var _promotedThisLoad = {};
+  function promoteReadyPermits(){
+    var reg = _cache['register'];
+    if (!reg || !reg.headers || !reg.rows) return;
+    var statusIdx = colIdx(reg.headers, 'Status');
+    var recStatusIdx = colIdx(reg.headers, 'Record Status');
+    if (statusIdx < 0) return;
+    var cfg = TABLES['register'];
+    reg.rows.forEach(function(row){
+      if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+      if (String(row[statusIdx]||'').trim().toLowerCase() !== 'waiting') return;
+      var rec = recFromRow(reg.headers, row);
+      var permitId = rec['Permit ID'];
+      if (!permitId || _promotedThisLoad[permitId]) return;
+      if (checklistWaitingNames_(rec).length > 0) return;
+      _promotedThisLoad[permitId] = true;
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, { 'Status': 'Awaiting Area Manager' })
+        .then(function(res){
+          if (res && res.status === 'error') return;
+          if (rec['Unit Manager Email']) notifyPtwStage_(permitId, 'areaManager', rec['Unit Manager Email'], rec['Unit Manager'], rec);
+          reloadTabAndDashboard('register');
+        })
+        .catch(function(){ /* best-effort — the next load tries again */ });
+    });
+  }
+  // Area Manager's approval — moves the permit on to the Controller,
+  // the second and final sign-off, and emails the Controller.
+  function approveAreaManager(permitId){
+    var rec = (function(){
+      var reg = _cache['register'];
+      if (!reg || !reg.headers || !reg.rows) return {};
+      var idIdx = colIdx(reg.headers, 'Permit ID');
+      var row = reg.rows.find(function(r){ return String(r[idIdx]) === String(permitId); });
+      return row ? recFromRow(reg.headers, row) : {};
+    })();
+    var today = new Date().toISOString().slice(0,10);
+    var cfg = TABLES['register'];
+    postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, {
+      'Status': 'Awaiting Controller',
+      'Area Manager Approval Date': today
+    }).then(function(res){
+      if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); return; }
+      document.getElementById('ptw-modal-root').innerHTML = '';
+      reloadTabAndDashboard('register');
+      if (rec['Permit Controller Email']) notifyPtwStage_(permitId, 'controller', rec['Permit Controller Email'], rec['Permit Controller'], rec);
+    }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+  }
+  // Controller's approval — the permit is now Active and work may
+  // start. No further email: the issuer already has the permit open.
+  function approveController(permitId){
+    var today = new Date().toISOString().slice(0,10);
+    var cfg = TABLES['register'];
+    postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, {
+      'Status': 'Active',
+      'Controller Approval Date': today
+    }).then(function(res){
+      if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); return; }
+      document.getElementById('ptw-modal-root').innerHTML = '';
+      reloadTabAndDashboard('register');
+    }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+  }
+  // Closing a finished job — the only way Status ever becomes Closed
+  // now that it's no longer a typed field.
+  function closePermitFlow(permitId){
+    if (!confirm('Close permit ' + permitId + '? This records the job as finished.')) return;
+    var today = new Date().toISOString().slice(0,10);
+    var cfg = TABLES['register'];
+    postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, {
+      'Status': 'Closed',
+      'Closed By': currentUsername(),
+      'Closed Date': today
+    }).then(function(res){
+      if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); return; }
+      document.getElementById('ptw-modal-root').innerHTML = '';
+      reloadTabAndDashboard('register');
+    }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+  }
+  // Renders the approval ladder inside the Edit modal — the one place
+  // Status is now shown and moved, since it's no longer a typed field
+  // (see the 'Remarks' section replacing 'Status & Remarks' above).
+  function renderPtwApprovalBlock(rec){
+    var status = String(rec['Status']||'').trim();
+    var statusLower = status.toLowerCase();
+    if (statusLower === 'cancelled' || statusLower === 'closed') return ''; // own section already shows this
+    var html = '<div class="ptw-sub-hd">Approval</div>';
+    if (statusLower === 'awaiting area manager'){
+      html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(240,180,60,.12);border:2px solid #E0B43C;border-radius:8px">'
+        + '<div style="font-weight:700;color:#E0B43C;font-size:13px">⏳ Awaiting Area Manager Approval — ' + String(rec['Unit Manager']||'—').replace(/</g,'&lt;') + '</div>'
+        + '<div style="display:flex;gap:8px;margin-top:8px">'
+          + '<button type="button" class="ptw-btn" style="background:var(--pdw-grn, #4FCB9E);color:#fff" onclick="PTW.approveAreaManager(\'' + String(rec['Permit ID']).replace(/'/g,"\\'") + '\')">Approve</button>'
+        + '</div></div>';
+    } else if (statusLower === 'awaiting controller'){
+      html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(240,180,60,.12);border:2px solid #E0B43C;border-radius:8px">'
+        + '<div style="font-weight:700;color:#E0B43C;font-size:13px">⏳ Awaiting Controller Approval — ' + String(rec['Permit Controller']||'—').replace(/</g,'&lt;') + '</div>'
+        + '<div style="font-size:11px;margin-top:4px;opacity:.75">Area Manager approved' + (rec['Area Manager Approval Date'] ? ' on ' + rec['Area Manager Approval Date'] : '') + '.</div>'
+        + '<div style="display:flex;gap:8px;margin-top:8px">'
+          + '<button type="button" class="ptw-btn" style="background:var(--pdw-grn, #4FCB9E);color:#fff" onclick="PTW.approveController(\'' + String(rec['Permit ID']).replace(/'/g,"\\'") + '\')">Approve</button>'
+        + '</div></div>';
+    } else if (statusLower === 'active'){
+      html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(79,203,158,.18);border:2px solid #4FCB9E;border-radius:8px">'
+        + '<div style="font-weight:800;color:#2f9c76">✓ ACTIVE — both approvals complete, work may proceed</div>'
+        + '<div style="display:flex;gap:8px;margin-top:8px">'
+          + '<button type="button" class="ptw-btn" onclick="PTW.closePermitFlow(\'' + String(rec['Permit ID']).replace(/'/g,"\\'") + '\')">Close Permit</button>'
+        + '</div></div>';
+    } else {
+      // 'Waiting', blank, or an older value — still gated on checklists;
+      // the Linked Safety Records panel above already shows what's
+      // outstanding, so this just confirms nothing to approve yet.
+      html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(240,104,92,.1);border-left:3px solid #F0685C;border-radius:0 6px 6px 0;font-size:11px">Not yet sent for approval — waiting on the checklists above.</div>';
+    }
+    return html;
   }
 
   // Cancel Permit (Issam, voice, 2026-11-08) — requires a typed reason,
@@ -1755,6 +2020,31 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // would need extra JS wiring tied to whatever's typed into the
       // free-text Work Involved field above, which isn't reliable
       // enough to gate a field's visibility on.
+      // Rev.29 (Issam, voice, 2026-11-15) — Unit Manager and Permit
+      // Controller are now picked from the User Register (filtered to
+      // managers and to Safety people respectively) instead of typed
+      // free text, so the approval chain below has a real email to
+      // notify. The hidden companion input carries that email — kept
+      // in step with the select via the change listener wired in
+      // showModal — and is collected by the generic [data-field] save
+      // loop exactly like any other field, so it needs no special
+      // handling there.
+      if (f === 'Unit Manager' || f === 'Permit Controller'){
+        var isManagerField = (f === 'Unit Manager');
+        var roleFilterFn = isManagerField ? isManagerUser_ : isSafetyUser_;
+        var emailFieldName = f + ' Email';
+        var storedEmail = (initialValues && initialValues[emailFieldName]) ? initialValues[emailFieldName] : '';
+        var resolvedEmail = emailForSelectedUser_(roleFilterFn, v, storedEmail);
+        var selId = 'ptw-sel-' + fi;
+        var roleHint = isManagerField
+          ? 'gives the first approval once checklists are complete'
+          : 'gives the final approval, after the Area Manager, before the permit is Active';
+        return '<div class="ptw-field"><label>'+f+' <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">('+roleHint+')</span></label>'
+          + '<select id="'+selId+'" data-field="'+f+'" data-emailfield="'+emailFieldName+'">' + userOptionsHtml_(roleFilterFn, v) + '</select>'
+          + '<input type="hidden" data-field="'+emailFieldName+'" id="'+selId+'-email" value="'+String(resolvedEmail).replace(/"/g,'&quot;')+'">'
+          + '</div>';
+      }
+
       if (f === 'Height Access Method'){
         var hamOpts = ['', 'Crane', 'Scaffolding'].map(function(o){
           return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+(o||'— select —')+'</option>';
@@ -1842,6 +2132,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // Permit # yet to link against). See renderLinkedSafetyPanel above.
     var linkedPanelHtml = (tKeyName === 'register' && initialValues) ? '<div id="ptw-linked-safety-root"></div>' : '';
 
+    // Rev.29 (Issam, voice, 2026-11-15) — the Approve/Close ladder,
+    // shown only when editing an existing permit (a brand-new one has
+    // no Status yet to act on — see openAdd, which sets it on save).
+    var approvalBlockHtml = (tKeyName === 'register' && initialValues && initialValues['Permit ID'])
+      ? renderPtwApprovalBlock(initialValues) : '';
+
     // Cancel Permit (Issam, voice, 2026-11-08) — the area manager's
     // only "no" action: a permit either gets approved or cancelled
     // outright, never sent back to the issuer. Only offered on an
@@ -1851,7 +2147,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var cancelBtnHtml = showCancelBtn ? '<button type="button" class="ptw-btn" id="ptw-modal-cancel-permit" style="background:var(--pdw-red);color:#fff;margin-right:auto">Cancel Permit</button>' : '';
 
     root.innerHTML = '<div class="ptw-modal-bg" id="ptw-modal-bg"><div class="ptw-modal'+(useSections?' wide':'')+'">' +
-      '<h3>'+title+'</h3>' + linkedPanelHtml + fieldsHtml + photoFieldHtml +
+      '<h3>'+title+'</h3>' + linkedPanelHtml + approvalBlockHtml + fieldsHtml + photoFieldHtml +
       '<div id="ptw-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
       '<div class="ptw-modal-actions">' + cancelBtnHtml + '<button class="ptw-btn ptw-btn-cancel" id="ptw-modal-cancel">Cancel</button>' +
       '<button class="ptw-btn ptw-btn-add" id="ptw-modal-save">Save</button></div></div></div>';
@@ -1959,6 +2255,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         }
       });
     };
+
+    // Rev.29 (Issam, voice, 2026-11-15) — keeps each Unit Manager /
+    // Permit Controller hidden email input in step with its visible
+    // select, whichever of the two the person actually changes.
+    root.querySelectorAll('select[data-emailfield]').forEach(function(sel){
+      var hidden = document.getElementById(sel.id + '-email');
+      if (!hidden) return;
+      sel.addEventListener('change', function(){
+        var opt = sel.options[sel.selectedIndex];
+        hidden.value = opt ? (opt.getAttribute('data-email')||'') : '';
+      });
+    });
 
     /* Permit Issuer - Name → Permit Issuer - Dept. (ID-matched, see
        lookupIssuerDept). Kept separate from the generic AUTO_FILL_RULES
@@ -2128,6 +2436,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   /* ── Public API used by inline onclick handlers ─────────────────────── */
   window.PTW = {
+    approveAreaManager: approveAreaManager,
+    approveController: approveController,
+    closePermitFlow: closePermitFlow,
     onDateRangeChange: function(){
       var s = document.getElementById('ptw-date-start');
       var e = document.getElementById('ptw-date-end');
@@ -2222,9 +2533,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (suggestedId) initial[cfg.idCol] = suggestedId;
       showModal(tKeyName, 'Add ' + cfg.label, effectiveFields(tKeyName), initial, function(values, close){
         values[STATUS_COL] = 'Active';
+        // Rev.29 (Issam, voice, 2026-11-15) — a brand-new permit's own
+        // Status now starts the approval ladder automatically: "Waiting"
+        // if any ticked work family still needs its checklist, or
+        // straight to "Awaiting Area Manager" if none do (e.g. a plain
+        // Cold work job) — nobody types a starting status by hand.
+        var pendingEmail = null;
+        if (tKeyName === 'register'){
+          if (checklistWaitingNames_(values).length){
+            values['Status'] = 'Waiting';
+          } else {
+            values['Status'] = 'Awaiting Area Manager';
+            if (values['Unit Manager Email']) pendingEmail = { email: values['Unit Manager Email'], name: values['Unit Manager'] };
+          }
+        }
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
           close();
           reloadTabAndDashboard(tKeyName);
+          if (pendingEmail) notifyPtwStage_(values['Permit ID'], 'areaManager', pendingEmail.email, pendingEmail.name, values);
         }).catch(function(){
           alert('Could not save — check your connection.');
           if (window._ptwReenableModalSave) window._ptwReenableModalSave();

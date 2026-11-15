@@ -736,12 +736,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function notifyApprover_(ref, toEmail, toName){
     if (!toEmail) return;
     var r = getRecs().filter(function(x){ return x['Violation Ref']===ref; })[0] || {};
+    // Rev.33 (found 2026-11-15, while building the PTW approval chain,
+    // which copies this same notify-the-next-approver shape) — the
+    // backend's doPost only ever reads `action` from the URL's own
+    // query string (e.parameter.action), never from the POST body, so
+    // this call was never actually reaching sendViolationStageEmail:
+    // the sheet update always saved, but the approver email silently
+    // never sent. Moving action onto the query string, matching every
+    // other call this page already makes via postJSON().
     var payload = {
-      action: 'sendViolationStageEmail', ref: ref, stage: 'approver', toEmail: toEmail, toName: toName,
+      ref: ref, stage: 'approver', toEmail: toEmail, toName: toName,
       employeeName: r['Employee Name']||'', department: r['Department']||'',
       category: r['Violation Category']||'', date: r['Date']||''
     };
-    fetch(SHEETS_URL, { method:'POST', body: JSON.stringify(payload) })
+    fetch(SHEETS_URL + '?action=sendViolationStageEmail', { method:'POST', body: JSON.stringify(payload) })
       .catch(function(){ /* best-effort — the sheet update already succeeded regardless */ });
   }
 
