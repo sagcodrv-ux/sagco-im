@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Painting Checklist</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+.chk-wrap{
+  --ck-bg:#0D1B35; --ck-bg2:#142140; --ck-bg3:#1a2a50;
+  --ck-gold:#C9A84C; --ck-gold-lt:#E8C97A;
+  --ck-text:rgba(255,255,255,.92); --ck-text-muted:rgba(255,255,255,.55);
+  --ck-text-dim:rgba(255,255,255,.35); --ck-border:rgba(255,255,255,.08);
+  --ck-border-gold:rgba(201,168,76,.35);
+  --ck-grn:#4FCB9E; --ck-amb:#E8B339; --ck-red:#F0685C; --ck-blue:#5B9BD5;
+  background:var(--ck-bg); color:var(--ck-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.chk-wrap *{box-sizing:border-box}
+.chk-back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.chk-back-link{display:inline-flex;align-items:center;gap:5px;color:var(--ck-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--ck-bg2);
+  border-radius:8px;border:1px solid var(--ck-border-gold)}
+.chk-req{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--ck-bg2);
+  border-radius:8px;border-left:3px solid var(--ck-gold);margin:10px 0;color:var(--ck-text-muted)}
+.chk-col-warning{display:none;font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(240,104,92,.12);
+  border-radius:8px;border-left:3px solid var(--ck-red);margin:10px 0;color:var(--ck-red)}
+.chk-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+.chk-btn{font-size:11px;font-weight:700;padding:8px 14px;border-radius:7px;border:1px solid var(--ck-border-gold);
+  background:var(--ck-bg3);color:var(--ck-text);cursor:pointer}
+.chk-btn:hover{background:rgba(201,168,76,.15)}
+.chk-btn-add{background:rgba(201,168,76,.85);color:#1a1200;border-color:var(--ck-gold);font-weight:800}
+.chk-btn-add:hover{background:var(--ck-gold-lt)}
+.chk-table-wrap{overflow-x:auto;border:1px solid var(--ck-border-gold);border-radius:10px}
+table.chk-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.chk-tbl thead th{background:var(--ck-bg3);color:var(--ck-gold-lt);font-weight:700;text-align:left;padding:8px 10px;
+  text-transform:uppercase;font-size:9.5px;border-bottom:1px solid var(--ck-border-gold);white-space:nowrap}
+.chk-tbl tbody td{padding:7px 10px;border-bottom:1px solid var(--ck-border);color:var(--ck-text)}
+.chk-tbl tbody tr:hover td{background:var(--ck-bg3);cursor:pointer}
+.chk-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.chk-badge.grn{background:rgba(79,203,158,.18);color:var(--ck-grn)}
+.chk-badge.red{background:rgba(240,104,92,.18);color:var(--ck-red)}
+.chk-empty{text-align:center;padding:20px;color:var(--ck-text-muted);font-size:12px}
+.chk-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;align-items:center;justify-content:center;z-index:9999}
+.chk-modal{background:var(--ck-bg2);border:1px solid var(--ck-border-gold);border-radius:14px;padding:20px;
+  width:480px;max-width:92vw;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.chk-modal h3{margin:0 0 12px;font-size:14px;color:var(--ck-gold-lt)}
+.chk-field{margin-bottom:10px}
+.chk-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--ck-text-dim);margin-bottom:4px}
+.chk-field input,.chk-field textarea{width:100%;background:var(--ck-bg3);border:1px solid var(--ck-border);
+  color:var(--ck-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.chk-item-row{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--ck-bg3);
+  border:1px solid var(--ck-border);border-radius:8px;padding:9px 12px;margin-bottom:6px;font-size:12px}
+.chk-yn{display:flex;gap:6px}
+.chk-yn label{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;cursor:pointer;
+  padding:5px 10px;border-radius:6px;background:var(--ck-bg2);border:1px solid var(--ck-border)}
+.chk-yn input{width:auto;margin:0}
+.chk-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.chk-result-banner{margin:10px 0;padding:10px 14px;border-radius:8px;font-weight:800;font-size:13px;text-align:center}
+.chk-result-banner.grn{background:rgba(79,203,158,.18);color:var(--ck-grn);border:2px solid var(--ck-grn)}
+.chk-result-banner.red{background:rgba(240,104,92,.18);color:var(--ck-red);border:2px solid var(--ck-red)}
+</style>
+</head>
+<body>
+<div class="chk-wrap">
+  <div class="chk-back-row"><a href="ptw-register.html" class="chk-back-link">← PTW Register</a></div>
+  <div class="chk-req"><strong>Painting Checklist</strong> — short checklist linked to a Permit to Work by Permit ID. Required whenever a permit ticks the Painting family on Work Involved.</div>
+  <div id="chk-col-warning" class="chk-col-warning"></div>
+  <div class="chk-toolbar">
+    <div></div>
+    <button class="chk-btn chk-btn-add" onclick="CHK.openAdd()">+ New Checklist</button>
+  </div>
+  <div class="chk-table-wrap"><table class="chk-tbl">
+    <thead><tr><th>ID</th><th>PTW Number</th><th>Date</th><th>Checked By</th><th>Result</th></tr></thead>
+    <tbody id="chk-tbody"><tr><td colspan="5" class="chk-empty">Loading…</td></tr></tbody>
+  </table></div>
+  <div id="chk-modal-root"></div>
+</div>
+
+<script>
+(function(){
+  var TAB_KEY = "painting_checklist";
+  var ID_PREFIX = "PNT-";
+  var ITEMS = ["Ventilation in place in the work area", "Ignition sources removed or controlled", "Paints/thinners stored in the designated area", "Safety Data Sheet (SDS) available on site", "Chemical mask / respirator worn", "Goggles and gloves worn", "Flammable materials nearby covered or removed", "Fire extinguisher available nearby", "Waste / empty containers disposed of properly"];
+  var PASS = "Cleared", FAIL = "Issues Noted";
+  var REQUIRED_COLUMNS = ["Checklist ID","PTW Number","Date","Checked By"].concat(ITEMS).concat(["Result","Remarks","Record Status"]);
+  var _rows = [], _headers = [];
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getCurrentUserName) ? IMS_AUTH.getCurrentUserName() : '';
+    return s || ((typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? ((IMS_AUTH.getUser()||{}).username||'') : '');
+  }
+  function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function colIdx(headers, name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+
+  function checkRequiredColumns(){
+    var el = document.getElementById('chk-col-warning');
+    if (!el) return;
+    var missing = REQUIRED_COLUMNS.filter(function(c){ return colIdx(_headers, c) < 0; });
+    if (!missing.length){ el.style.display='none'; el.innerHTML=''; return; }
+    el.style.display = 'block';
+    el.innerHTML = '⚠ This sheet is missing ' + missing.length + ' expected column' + (missing.length>1?'s':'')
+      + ' — add exactly this header text to row 3: <strong>' + missing.map(vEsc).join('</strong>, <strong>') + '</strong>.'
+      + ' Until added, anything saved to ' + (missing.length>1?'these columns':'this column') + ' will be silently lost.';
+  }
+
+  function nextId(){
+    var idIdx = colIdx(_headers, 'Checklist ID');
+    var maxN = 0;
+    _rows.forEach(function(r){
+      var v = String((idIdx>=0?r[idIdx]:'')||'').trim();
+      if (v.toLowerCase().indexOf(ID_PREFIX.toLowerCase()) !== 0) return;
+      var n = parseInt(v.slice(ID_PREFIX.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    var numStr = String(maxN + 1);
+    while (numStr.length < 4) numStr = '0' + numStr;
+    return ID_PREFIX + numStr;
+  }
+
+  function recFromRow(row){ var o = {}; _headers.forEach(function(h,i){ o[h]=row[i]; }); return o; }
+
+  function render(){
+    checkRequiredColumns();
+    var statusIdx = colIdx(_headers, 'Record Status');
+    var visible = _rows.filter(function(r){ return statusIdx<0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+    var tbody = document.getElementById('chk-tbody');
+    if (!visible.length){ tbody.innerHTML = '<tr><td colspan="5" class="chk-empty">No checklists recorded yet.</td></tr>'; return; }
+    var idIdx = colIdx(_headers,'Checklist ID'), ptwIdx = colIdx(_headers,'PTW Number'), dateIdx = colIdx(_headers,'Date'),
+        byIdx = colIdx(_headers,'Checked By'), resIdx = colIdx(_headers,'Result');
+    tbody.innerHTML = visible.slice().reverse().map(function(r){
+      var res = resIdx>=0 ? String(r[resIdx]||'').trim() : '';
+      var badge = res === PASS ? '<span class="chk-badge grn">' + vEsc(PASS) + '</span>'
+        : (res ? '<span class="chk-badge red">' + vEsc(res) + '</span>' : '<span style="color:var(--ck-text-dim)">—</span>');
+      return '<tr onclick="CHK.openEdit(\'' + String(idIdx>=0?r[idIdx]:'').replace(/'/g,"\\'") + '\')">'
+        + '<td>' + vEsc(idIdx>=0?r[idIdx]:'') + '</td>'
+        + '<td>' + vEsc(ptwIdx>=0?r[ptwIdx]:'') + '</td>'
+        + '<td>' + vEsc(dateIdx>=0?r[dateIdx]:'') + '</td>'
+        + '<td>' + vEsc(byIdx>=0?r[byIdx]:'') + '</td>'
+        + '<td>' + badge + '</td></tr>';
+    }).join('');
+  }
+
+  function loadAll(){
+    return fetch(SHEETS_URL + '?tab=' + TAB_KEY + '&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _headers = (data && data.headers) || [];
+      _rows = (data && data.rows) || [];
+      render();
+      return data;
+    }).catch(function(){
+      document.getElementById('chk-tbody').innerHTML = '<tr><td colspan="5" class="chk-empty">Could not reach Google Sheets.</td></tr>';
+    });
+  }
+
+  function buildModal(rec, isEdit){
+    var root = document.getElementById('chk-modal-root');
+    rec = rec || {};
+    var id = isEdit ? rec['Checklist ID'] : nextId();
+    var itemsHtml = ITEMS.map(function(item, i){
+      var v = String(rec[item]||'').trim();
+      return '<div class="chk-item-row"><span>' + vEsc(item) + '</span>'
+        + '<span class="chk-yn">'
+          + '<label><input type="radio" name="chk-item-' + i + '" value="Yes"' + (v==='Yes'?' checked':'') + '> Yes</label>'
+          + '<label><input type="radio" name="chk-item-' + i + '" value="No"' + (v==='No'?' checked':'') + '> No</label>'
+        + '</span></div>';
+    }).join('');
+    var resultVal = isEdit ? String(rec['Result']||'').trim() : '';
+    var resultBanner = resultVal ? '<div class="chk-result-banner ' + (resultVal===PASS?'grn':'red') + '">' + vEsc(resultVal) + '</div>' : '';
+
+    root.innerHTML = '<div class="chk-modal-bg" id="chk-modal-bg"><div class="chk-modal">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' Painting Checklist — ' + vEsc(id) + '</h3>'
+      + '<div class="chk-field"><label>PTW Number (Permit ID)</label><input type="text" id="chk-ptw" value="' + vEsc(rec['PTW Number']||'') + '"></div>'
+      + '<div class="chk-field"><label>Date</label><input type="date" id="chk-date" value="' + vEsc(rec['Date']||new Date().toISOString().slice(0,10)) + '"></div>'
+      + '<div class="chk-field"><label>Checked By</label><input type="text" id="chk-by" value="' + vEsc(rec['Checked By']||currentUserName()) + '"></div>'
+      + itemsHtml
+      + resultBanner
+      + '<div class="chk-field"><label>Remarks</label><textarea id="chk-remarks">' + vEsc(rec['Remarks']||'') + '</textarea></div>'
+      + '<div class="chk-modal-actions"><button class="chk-btn" id="chk-cancel">Cancel</button><button class="chk-btn chk-btn-add" id="chk-save">Save</button></div>'
+      + '</div></div>';
+
+    document.getElementById('chk-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('chk-modal-bg').onclick = function(e){ if (e.target.id==='chk-modal-bg') root.innerHTML=''; };
+    document.getElementById('chk-save').onclick = function(){
+      var values = {
+        'Checklist ID': id,
+        'PTW Number': document.getElementById('chk-ptw').value.trim(),
+        'Date': document.getElementById('chk-date').value,
+        'Checked By': document.getElementById('chk-by').value.trim(),
+        'Remarks': document.getElementById('chk-remarks').value.trim(),
+        'Record Status': 'Active'
+      };
+      var anyNo = false;
+      ITEMS.forEach(function(item, i){
+        var sel = root.querySelector('input[name="chk-item-' + i + '"]:checked');
+        var v = sel ? sel.value : '';
+        values[item] = v;
+        if (v === 'No') anyNo = true;
+      });
+      values['Result'] = anyNo ? FAIL : PASS;
+      if (!values['PTW Number']){ alert('PTW Number (Permit ID) is required.'); return; }
+      var btn = document.getElementById('chk-save'); btn.disabled = true;
+      var action = isEdit ? 'update' : 'write';
+      var qs = isEdit ? ('&idCol=' + encodeURIComponent('Checklist ID') + '&id=' + encodeURIComponent(id)) : '';
+      fetch(SHEETS_URL + '?action=' + action + '&tab=' + TAB_KEY + qs, {
+        method: 'POST', body: JSON.stringify(isEdit ? values : [values])
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); btn.disabled=false; return; }
+        root.innerHTML = '';
+        loadAll();
+      }).catch(function(){ alert('Could not save — check your connection.'); btn.disabled=false; });
+    };
+  }
+
+  window.CHK = {
+    openAdd: function(){ if (!can('add')) return; buildModal(null, false); },
+    openEdit: function(id){
+      if (!can('edit')) return;
+      var idIdx = colIdx(_headers, 'Checklist ID');
+      var row = _rows.find(function(r){ return String(r[idIdx]) === String(id); });
+      if (!row) return;
+      buildModal(recFromRow(row), true);
+    }
+  };
+
+  // ?permitId= deep link — same convention as crane-inspection.html /
+  // scaffold-inspection.html: opens straight to a New checklist with
+  // PTW Number already filled in, so the person raising it from the
+  // permit register doesn't retype the permit number.
+  function handlePermitIdDeepLink(){
+    var params = new URLSearchParams(window.location.search);
+    var permitId = params.get('permitId');
+    if (!permitId || !can('add')) return;
+    buildModal({ 'PTW Number': permitId }, false);
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof IMS_AUTH !== 'undefined'){
+      IMS_AUTH.init({ onReady: function(){ loadAll().then(handlePermitIdDeepLink); } });
+    } else {
+      loadAll().then(handlePermitIdDeepLink);
+    }
+  });
+})();
+</script>
+</body></html>

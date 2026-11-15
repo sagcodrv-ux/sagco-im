@@ -1053,7 +1053,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     Promise.all(
       keys.map(loadTab).concat([
         loadCsEntryRecords(), loadLotoJobRecords(), loadCraneRecords(),
-        loadHotWorkRecords(), loadScaffoldRecords()
+        loadHotWorkRecords(), loadScaffoldRecords(),
+        loadPaintingRecords(), loadCivilRecords(), loadPipelineRecords()
       ])
     ).then(function(){
       renderDashboard();
@@ -1333,8 +1334,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function permitNeedsConfinedSpace(rec){
     return /confined/i.test(String(rec['Work Involved']||''));
   }
+  // Rev.27 (Issam, voice, 2026-11-12) — LOTO is now also required
+  // whenever Electrical Repairs is ticked, even if nobody separately
+  // ticked a Service Isolation item — Issam's own call, closing the
+  // gap where an electrical job could otherwise show no required
+  // checklist at all.
   function permitNeedsLoto(rec){
-    return !!String(rec['Service Isolation']||'').trim();
+    if (String(rec['Service Isolation']||'').trim()) return true;
+    return /electrical/i.test(String(rec['Work Involved']||''));
   }
   // Rev.20 (Issam, voice, 2026-11-10) — same "Work Involved" matching
   // approach as Confined Space above, extended to the three checklists
@@ -1367,6 +1374,26 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function permitNeedsScaffold(rec){
     var work = String(rec['Work Involved']||'');
     return /height/i.test(work) && String(rec['Height Access Method']||'').trim() === 'Scaffolding';
+  }
+  // Rev.27 (Issam, voice, 2026-11-12) — three new short checklists,
+  // each triggered by its own Work Involved family (Painting, Civil
+  // work, Pipeline works). Electrical Repairs gets no checklist of its
+  // own — Issam's decision was that it should require LOTO instead,
+  // since electrical work is almost always an isolation job; see
+  // permitNeedsLoto() below, now also true for Electrical Repairs even
+  // with no Service Isolation item ticked. Cold work deliberately gets
+  // none — Issam's own reasoning: it's the low-hazard family by
+  // definition, and a checklist there would just be ticked without
+  // reading; any real hazard in a "cold work" job is covered by
+  // whichever OTHER family also applies to it.
+  function permitNeedsPainting(rec){
+    return /paint/i.test(String(rec['Work Involved']||''));
+  }
+  function permitNeedsCivilWork(rec){
+    return /civil/i.test(String(rec['Work Involved']||''));
+  }
+  function permitNeedsPipeline(rec){
+    return /pipeline/i.test(String(rec['Work Involved']||''));
   }
   var _craneCache = null, _craneFetchPromise = null;
   function loadCraneRecords(){
@@ -1438,6 +1465,43 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }).catch(function(){ _lotoJobCache = {headers:[],rows:[]}; return _lotoJobCache; });
     return _lotoJobFetchPromise;
   }
+  // Rev.27 (Issam, voice, 2026-11-12) — same lazy-cached loader pattern
+  // as every other linked checklist above, for the three new short
+  // checklists. Each uses 'PTW Number' + 'Result' with 'Cleared' as
+  // the pass value, same convention as the Hot Work checklist (a
+  // point-in-time check, not an open/close job like Confined Space or
+  // LOTO), since that's what these three are.
+  var _paintingCache = null, _paintingFetchPromise = null;
+  function loadPaintingRecords(){
+    if (_paintingCache) return Promise.resolve(_paintingCache);
+    if (_paintingFetchPromise) return _paintingFetchPromise;
+    _paintingFetchPromise = fetch(SHEETS_URL + '?tab=painting_checklist&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _paintingCache = (data && data.headers && data.rows) ? data : {headers:[],rows:[]};
+      return _paintingCache;
+    }).catch(function(){ _paintingCache = {headers:[],rows:[]}; return _paintingCache; });
+    return _paintingFetchPromise;
+  }
+  var _civilCache = null, _civilFetchPromise = null;
+  function loadCivilRecords(){
+    if (_civilCache) return Promise.resolve(_civilCache);
+    if (_civilFetchPromise) return _civilFetchPromise;
+    _civilFetchPromise = fetch(SHEETS_URL + '?tab=civil_work_checklist&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _civilCache = (data && data.headers && data.rows) ? data : {headers:[],rows:[]};
+      return _civilCache;
+    }).catch(function(){ _civilCache = {headers:[],rows:[]}; return _civilCache; });
+    return _civilFetchPromise;
+  }
+  var _pipelineCache = null, _pipelineFetchPromise = null;
+  function loadPipelineRecords(){
+    if (_pipelineCache) return Promise.resolve(_pipelineCache);
+    if (_pipelineFetchPromise) return _pipelineFetchPromise;
+    _pipelineFetchPromise = fetch(SHEETS_URL + '?tab=pipeline_checklist&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _pipelineCache = (data && data.headers && data.rows) ? data : {headers:[],rows:[]};
+      return _pipelineCache;
+    }).catch(function(){ _pipelineCache = {headers:[],rows:[]}; return _pipelineCache; });
+    return _pipelineFetchPromise;
+  }
+
   function findLinkedRecord(data, permitNum, idColName){
     if (!data || !data.headers || !data.rows || !permitNum) return null;
     // Rev.24 (Issam, upload, 2026-11-11) — scaffold-inspection.html's
@@ -1463,7 +1527,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var needsCrane = permitNeedsCrane(rec);
     var needsHotWork = permitNeedsHotWork(rec);
     var needsScaffold = permitNeedsScaffold(rec);
-    if (!needsCs && !needsLoto && !needsCrane && !needsHotWork && !needsScaffold){ rootEl.innerHTML = ''; return; }
+    var needsPainting = permitNeedsPainting(rec);
+    var needsCivil = permitNeedsCivilWork(rec);
+    var needsPipeline = permitNeedsPipeline(rec);
+    if (!needsCs && !needsLoto && !needsCrane && !needsHotWork && !needsScaffold && !needsPainting && !needsCivil && !needsPipeline){ rootEl.innerHTML = ''; return; }
     var permitId = rec['Permit ID'];
     if (!permitId){
       // Shouldn't happen in practice — Permit ID is auto-suggested the
@@ -1477,9 +1544,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       needsLoto ? loadLotoJobRecords() : Promise.resolve(null),
       needsCrane ? loadCraneRecords() : Promise.resolve(null),
       needsHotWork ? loadHotWorkRecords() : Promise.resolve(null),
-      needsScaffold ? loadScaffoldRecords() : Promise.resolve(null)
+      needsScaffold ? loadScaffoldRecords() : Promise.resolve(null),
+      needsPainting ? loadPaintingRecords() : Promise.resolve(null),
+      needsCivil ? loadCivilRecords() : Promise.resolve(null),
+      needsPipeline ? loadPipelineRecords() : Promise.resolve(null)
     ]).then(function(results){
       var csData = results[0], lotoData = results[1], craneData = results[2], hwData = results[3], scaffoldData = results[4];
+      var paintData = results[5], civilData = results[6], pipelineData = results[7];
       var rowsHtml = '';
       var requiredCount = 0, readyCount = 0, blockedNames = [];
 
@@ -1534,6 +1605,33 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         rowsHtml += '<div class="ptw-linked-row"><strong>Scaffold Inspection</strong> ' + scBadge +
           '<button type="button" class="ptw-btn" onclick="window.open(\'scaffold-inspection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (sc ? 'Open' : 'Raise') + ' Scaffold Inspection</button></div>';
       }
+      if (needsPainting){
+        requiredCount++;
+        var pt = paintData ? findCraneOrHotWorkRecord(paintData, permitId, 'Result', 'Cleared') : null;
+        var ptReady = pt && pt.passed;
+        if (ptReady) readyCount++; else blockedNames.push('Painting Checklist');
+        var ptBadge = !pt ? '<span class="badge kc-red">Not raised</span>' : (ptReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (pt.hasResult ? 'Issues Noted' : 'Open') + '</span>');
+        rowsHtml += '<div class="ptw-linked-row"><strong>Painting Checklist</strong> ' + ptBadge +
+          '<button type="button" class="ptw-btn" onclick="window.open(\'painting-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (pt ? 'Open' : 'Raise') + ' Painting Checklist</button></div>';
+      }
+      if (needsCivil){
+        requiredCount++;
+        var cv = civilData ? findCraneOrHotWorkRecord(civilData, permitId, 'Result', 'Cleared') : null;
+        var cvReady = cv && cv.passed;
+        if (cvReady) readyCount++; else blockedNames.push('Civil Work Checklist');
+        var cvBadge = !cv ? '<span class="badge kc-red">Not raised</span>' : (cvReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (cv.hasResult ? 'Issues Noted' : 'Open') + '</span>');
+        rowsHtml += '<div class="ptw-linked-row"><strong>Civil Work Checklist</strong> ' + cvBadge +
+          '<button type="button" class="ptw-btn" onclick="window.open(\'civil-work-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (cv ? 'Open' : 'Raise') + ' Civil Work Checklist</button></div>';
+      }
+      if (needsPipeline){
+        requiredCount++;
+        var pl = pipelineData ? findCraneOrHotWorkRecord(pipelineData, permitId, 'Result', 'Cleared') : null;
+        var plReady = pl && pl.passed;
+        if (plReady) readyCount++; else blockedNames.push('Pipeline Checklist');
+        var plBadge = !pl ? '<span class="badge kc-red">Not raised</span>' : (plReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (pl.hasResult ? 'Issues Noted' : 'Open') + '</span>');
+        rowsHtml += '<div class="ptw-linked-row"><strong>Pipeline Checklist</strong> ' + plBadge +
+          '<button type="button" class="ptw-btn" onclick="window.open(\'pipeline-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (pl ? 'Open' : 'Raise') + ' Pipeline Checklist</button></div>';
+      }
 
       // Readiness banner — informational today, not an enforced block,
       // since this file has no Submit/Approve action yet to attach a
@@ -1579,7 +1677,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       { need: permitNeedsLoto(rec), name: 'LOTO', data: _lotoJobCache, idCol: null, ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID']); return f && f.status === 'Closed'; } },
       { need: permitNeedsCrane(rec), name: 'Crane', data: _craneCache, idCol: null, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Inspection Result', 'Accept Crane'); return f && f.passed; } },
       { need: permitNeedsHotWork(rec), name: 'Hot Work', data: _hotWorkCache, idCol: null, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Closure Result', 'Cleared'); return f && f.passed; } },
-      { need: permitNeedsScaffold(rec), name: 'Scaffold', data: _scaffoldCache, idCol: 'Permit Number', ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID'], 'Permit Number'); return f && f.status === 'Closed'; } }
+      { need: permitNeedsScaffold(rec), name: 'Scaffold', data: _scaffoldCache, idCol: 'Permit Number', ready: function(d){ var f = findLinkedRecord(d, rec['Permit ID'], 'Permit Number'); return f && f.status === 'Closed'; } },
+      { need: permitNeedsPainting(rec), name: 'Painting', data: _paintingCache, idCol: null, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
+      { need: permitNeedsCivilWork(rec), name: 'Civil Work', data: _civilCache, idCol: null, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
+      { need: permitNeedsPipeline(rec), name: 'Pipeline', data: _pipelineCache, idCol: null, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } }
     ];
     var required = needs.filter(function(n){ return n.need; });
     if (!required.length){
