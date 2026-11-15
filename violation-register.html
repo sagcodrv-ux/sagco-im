@@ -233,8 +233,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   ];
   var SIGNED_OPTS = ['Yes', 'No', 'Refused to Sign', 'Employee Left Company'];
 
-  var _cache = null, _selected = null;
+  var _cache = null, _selected = null, _users = [];
   var _filters = { search:'', category:'', dateFrom:'', dateTo:'' };
+  // Rev.30 (Issam, voice, 2026-11-12) — Supervisor and Manager are now
+  // picked from the real User Register, not typed free text, so the
+  // approval chain has a real email to notify at each step. Same
+  // tolerant field-name fallbacks visitor-induction.html already uses
+  // for this sheet, since header names vary slightly across tabs.
+  function userDisplayName(u){ return (u['Full Name'] || u['Name'] || u.name || u['Username'] || u.username || '').trim(); }
+  function userEmail(u){ return String(u['Email'] || u.email || '').trim(); }
+  function userActive(u){ var s = String(u['Account Status'] || u.status || 'Active').trim().toLowerCase(); return !s || s === 'active'; }
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
   function colIdx(headers, name){
@@ -269,13 +277,47 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return fetch(SHEETS_URL + '?tab=' + tabKey + '&action=read').then(function(r){ return r.json(); });
   }
   function loadAll(){
-    return loadTab(VIOLATION.tabKey).then(function(data){
+    return Promise.all([ loadTab(VIOLATION.tabKey), loadTab('users') ]).then(function(results){
+      var data = results[0];
       if (data && data.headers && data.rows){
         var si = colIdx(data.headers, STATUS_COL);
         if (si >= 0) data.rows = data.rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase() !== 'removed'; });
       }
       _cache = data;
+      var usersData = results[1];
+      _users = (usersData && usersData.headers && usersData.rows)
+        ? usersData.rows.map(function(r){ return recFromRow(usersData.headers, r); }).filter(userActive)
+        : [];
     }).catch(function(){ _cache = null; }).then(render);
+  }
+  // Rev.31 (Issam, voice, 2026-11-12) — replaces the earlier
+  // Supervisor-then-Manager chain with a single Safety approver,
+  // per Issam's own reasoning: an area/line manager reviewing a
+  // violation involving their own people isn't independent, where a
+  // safety person is. Only Safety-department / safety-titled /
+  // superadmin users are offered, same filter logic
+  // visitor-induction.html already uses for its own Safety Controller
+  // dropdown, so "safety people" means the same thing in both places.
+  function isSafetyUser_(u){
+    var role = String(u['Role'] || u.role || '').toLowerCase();
+    var title = String(u['Job Title'] || u.title || '').toLowerCase();
+    var dept  = String(u['Department'] || u.department || '').toLowerCase();
+    if (/superadmin|admin/.test(role)) return true;
+    if (/safety|hse/.test(dept)) return true;
+    if (/safety|hse|controller/.test(title)) return true;
+    if (/safety|hse/.test(role)) return true;
+    return false;
+  }
+  function reviewerOptionsHtml(selectedEmail){
+    var seen = {};
+    var opts = '<option value="">-- none (controller approval only) --</option>';
+    _users.filter(isSafetyUser_).forEach(function(u){
+      var name = userDisplayName(u), email = userEmail(u);
+      if (!name || !email || seen[email.toLowerCase()]) return;
+      seen[email.toLowerCase()] = true;
+      opts += '<option value="' + vEsc(email) + '" data-name="' + vEsc(name) + '"' + (email.toLowerCase()===String(selectedEmail||'').toLowerCase()?' selected':'') + '>' + vEsc(name) + ' (' + vEsc(email) + ')</option>';
+    });
+    return opts;
   }
   function getRecs(){
     if (!_cache || !_cache.headers || !_cache.rows) return [];
@@ -371,10 +413,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         + '<td>' + vEsc(r['Reported By']) + '</td>'
         + '<td><span class="badge ' + signedCls + '">' + vEsc(r['Signed']||'—') + '</span></td>'
         + '<td>' + (r['Photo URL'] ? '<a href="' + vEsc(r['Photo URL']) + '" target="_blank" onclick="event.stopPropagation()">📷 View</a>' : '—') + '</td>'
+        + '<td>' + approvalStageBadge(r['Approval Stage']) + '</td>'
       + '</tr>';
     }).join('');
-    el.innerHTML = '<table class="viw-tbl"><thead><tr><th>Date</th><th>Employee</th><th>Dept.</th><th>Category</th><th>Reason</th><th>Reprimand</th><th>Reported By</th><th>Signed</th><th>Photo</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    el.innerHTML = '<table class="viw-tbl"><thead><tr><th>Date</th><th>Employee</th><th>Dept.</th><th>Category</th><th>Reason</th><th>Reprimand</th><th>Reported By</th><th>Signed</th><th>Photo</th><th>Approval</th></tr></thead><tbody>' + rows + '</tbody></table>';
     updateButtons();
+  }
+  function approvalStageBadge(stage){
+    if (!stage) return '<span style="color:var(--viw-text-dim)">—</span>';
+    var cls = stage === 'Approved' ? 'kc-grn' : (stage === 'Rejected' ? 'kc-red' : 'kc-amb');
+    return '<span class="badge ' + cls + '">' + vEsc(stage) + '</span>';
   }
   function updateButtons(){
     var r = getSelected();
@@ -383,6 +431,62 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   }
   function getSelected(){
     return getRecs().filter(function(r){ return r['Violation Ref'] === _selected; })[0] || null;
+  }
+
+  // Rev.32 (Issam, voice, 2026-11-12) — Department, Location/Area and
+  // Reason all become "pick from history, or add a new one" fields,
+  // instead of plain free text (Department, Location) or a fixed
+  // dropdown with an awkward "Other, specify below" (Reason). Reason
+  // additionally merges the standard list for the chosen category
+  // with whatever's actually been used before for that same category,
+  // so the list shrinks to what's relevant rather than showing every
+  // reason ever typed for every category.
+  function distinctFieldValues(field, filterFn){
+    var counts = {};
+    getRecs().forEach(function(r){
+      if (filterFn && !filterFn(r)) return;
+      var v = String(r[field]||'').trim();
+      if (!v) return;
+      counts[v] = (counts[v]||0) + 1;
+    });
+    return Object.keys(counts).sort(function(a,b){ return counts[b]-counts[a] || a.localeCompare(b); });
+  }
+  function reasonChoicesForCategory(category){
+    var standard = (CATEGORY_REASONS[category] || []).slice();
+    var historical = distinctFieldValues('Reason', function(r){ return r['Violation Category']===category && r['Reason']!=='Other'; });
+    // Reason Other on an older record is the real text behind "Other" — fold those in too.
+    var historicalOther = [];
+    getRecs().forEach(function(r){
+      if (r['Violation Category']===category && r['Reason']==='Other' && r['Reason Other']) historicalOther.push(String(r['Reason Other']).trim());
+    });
+    var seen = {}; var out = [];
+    standard.concat(historical).concat(historicalOther).forEach(function(v){
+      if (!v || seen[v]) return; seen[v]=true; out.push(v);
+    });
+    return out;
+  }
+  function pickerFieldHtml(selectId, newInputId, label, options, selectedValue, placeholder){
+    var isKnown = selectedValue && options.indexOf(selectedValue) >= 0;
+    var showNew = !!selectedValue && !isKnown;
+    var opts = '<option value="">-- select --</option>' + options.map(function(v){
+      return '<option value="' + vEsc(v) + '"' + (v===selectedValue?' selected':'') + '>' + vEsc(v) + '</option>';
+    }).join('') + '<option value="__new__"' + (showNew?' selected':'') + '>+ Add New…</option>';
+    return '<div><label>' + label + '</label>'
+      + '<select id="' + selectId + '" onchange="VIW.onPickerChange(\'' + selectId + '\',\'' + newInputId + '\')">' + opts + '</select>'
+      + '<input type="text" id="' + newInputId + '" placeholder="' + placeholder + '" style="margin-top:6px;display:' + (showNew?'block':'none') + '" value="' + (showNew?vEsc(selectedValue):'') + '">'
+      + '</div>';
+  }
+  function onPickerChange(selectId, newInputId){
+    var sel = document.getElementById(selectId), inp = document.getElementById(newInputId);
+    if (!sel || !inp) return;
+    inp.style.display = sel.value === '__new__' ? 'block' : 'none';
+    if (sel.value === '__new__') inp.focus();
+  }
+  function pickerValue(selectId, newInputId){
+    var sel = document.getElementById(selectId);
+    if (!sel) return '';
+    if (sel.value === '__new__') return ((document.getElementById(newInputId)||{}).value||'').trim();
+    return sel.value;
   }
 
   function reasonOptionsHtml(category, selectedReason){
@@ -419,12 +523,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       + '<div class="viw-hdr-grid">'
         + '<div><label>Date</label><input type="date" id="viw-date" value="' + vEsc(r['Date']||new Date().toISOString().slice(0,10)) + '"></div>'
         + '<div><label>Time</label><input type="time" id="viw-time" value="' + vEsc(r['Time']||'') + '"></div>'
-        + '<div><label>Reported By</label><input type="text" id="viw-reportedby" value="' + vEsc(r['Reported By']||'') + '"></div>'
+        // Rev.32 (Issam, voice, 2026-11-12) — Reported By is no
+        // longer typed. For a new record it's the logged-in user,
+        // filled in automatically; for an existing one it stays as
+        // whoever it was actually reported by when first raised.
+        + '<div><label>Reported By</label><input type="text" id="viw-reportedby" disabled value="' + vEsc(isEdit ? (r['Reported By']||'') : ((typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getCurrentUserName) ? IMS_AUTH.getCurrentUserName() : '')) + '"></div>'
         + '<div><label>Employee Name</label><input type="text" id="viw-empname" value="' + vEsc(r['Employee Name']||'') + '"></div>'
         + '<div><label>Position</label><input type="text" id="viw-position" value="' + vEsc(r['Position']||'') + '"></div>'
         + '<div><label>Card No.</label><input type="text" id="viw-cardno" value="' + vEsc(r['Card No.']||'') + '"></div>'
-        + '<div><label>Department</label><input type="text" id="viw-dept" value="' + vEsc(r['Department']||'') + '"></div>'
-        + '<div><label>Location / Area</label><input type="text" id="viw-location" value="' + vEsc(r['Location']||'') + '"></div>'
+        + pickerFieldHtml('viw-dept-select', 'viw-dept-new', 'Department', distinctFieldValues('Department'), r['Department']||'', 'Type new department')
+        + pickerFieldHtml('viw-location-select', 'viw-location-new', 'Location / Area', distinctFieldValues('Location'), r['Location']||'', 'Type new location')
       + '</div>'
       + '<div class="viw-field">'
         + '<label>Photo of Violation</label>'
@@ -442,10 +550,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       + '</div>'
       + '<div class="viw-hdr-grid" style="grid-template-columns:1fr 1fr">'
         + '<div><label>Violation Category</label><select id="viw-category" onchange="VIW.onCategoryChange()">' + catOpts + '</select></div>'
-        + '<div><label>Reason</label><select id="viw-reason">' + reasonOptionsHtml(r['Violation Category']||'High Risk', r['Reason']) + '</select></div>'
-      + '</div>'
-      + '<div class="viw-field" id="viw-other-reason-wrap" style="display:' + (r['Reason']==='Other'?'block':'none') + '">'
-        + '<label>Reason (specify)</label><input type="text" id="viw-other-reason" value="' + vEsc(r['Reason']==='Other'?(r['Reason Other']||''):'') + '">'
+        + pickerFieldHtml('viw-reason-select', 'viw-reason-new', 'Reason',
+            reasonChoicesForCategory(r['Violation Category']||'High Risk'),
+            r['Reason']==='Other' ? (r['Reason Other']||'') : (r['Reason']||''), 'Type new reason')
       + '</div>'
       + '<div id="viw-hist-box"></div>'
       + '<div class="viw-field"><label>Description of Incident</label><textarea id="viw-description">' + vEsc(r['Description']||'') + '</textarea></div>'
@@ -458,20 +565,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         + '<div><label>Employee Signed?</label><select id="viw-signed">' + signedOpts + '</select></div>'
       + '</div>'
       + '<div class="viw-field"><label>Employee Explanation</label><textarea id="viw-explanation">' + vEsc(r['Employee Explanation']||'') + '</textarea></div>'
-      + '<div class="viw-hdr-grid" style="grid-template-columns:1fr 1fr 1fr">'
-        + '<div><label>Approved By</label><input type="text" id="viw-approvedby" value="' + vEsc(r['Approved By']||'') + '"></div>'
-        + '<div><label>Supervisor / SUI</label><input type="text" id="viw-supervisor" value="' + vEsc(r['Supervisor']||'') + '"></div>'
-        + '<div><label>Manager</label><input type="text" id="viw-manager" value="' + vEsc(r['Manager']||'') + '"></div>'
-      + '</div>'
+      // Rev.32 (Issam, voice, 2026-11-12) — Approved By is no longer
+      // a typed field on the raise form; it's filled in automatically,
+      // with whoever actually clicks Approve, inside approvalChainHtml
+      // below (and stays blank until that happens).
+      + (r['Approved By'] ? '<div class="viw-field"><label>Approved By</label><input type="text" disabled value="' + vEsc(r['Approved By']) + '"></div>' : '')
+      + approvalChainHtml(r, isEdit)
       + '<div class="viw-field"><label>Remarks</label><textarea id="viw-remarks">' + vEsc(r['Remarks']||'') + '</textarea></div>'
       + '<div class="viw-note">This register is internal HSE/HR use only — see the notice at the top of the page before sharing any of this data outside that circle.</div>'
       + '<div class="viw-modal-actions"><button class="viw-btn" id="viw-cancel">Cancel</button><button class="viw-btn viw-btn-add" id="viw-save">Save</button></div>'
     + '</div></div>';
 
-    document.getElementById('viw-reason').onchange = function(){
-      document.getElementById('viw-other-reason-wrap').style.display = this.value === 'Other' ? 'block' : 'none';
-      updateHistBox();
-    };
+    document.getElementById('viw-reason-select').addEventListener('change', updateHistBox);
     document.getElementById('viw-empname').oninput = updateHistBox;
     document.getElementById('viw-cardno').oninput = updateHistBox;
     document.getElementById('viw-cancel').onclick = function(){ root.innerHTML=''; };
@@ -493,6 +598,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         + (suggestion ? ' Standard escalation for a ' + ordinal + ' ' + vEsc(category) + ' offense: <b>' + vEsc(suggestion) + '</b> — adjust the Type of Reprimand above if different.' : '')
         + '</div>';
     }
+    updateHistBoxGlobal_ = updateHistBox; // let onCategoryChange() call the box for THIS open modal
     updateHistBox();
   }
 
@@ -564,15 +670,137 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 
   function onCategoryChange(){
     var category = document.getElementById('viw-category').value;
-    document.getElementById('viw-reason').innerHTML = reasonOptionsHtml(category, '');
-    document.getElementById('viw-other-reason-wrap').style.display = 'none';
+    var wrap = document.getElementById('viw-reason-select').parentNode;
+    wrap.outerHTML = pickerFieldHtml('viw-reason-select', 'viw-reason-new', 'Reason', reasonChoicesForCategory(category), '', 'Type new reason');
+    document.getElementById('viw-reason-select').addEventListener('change', updateHistBoxGlobal_);
+    updateHistBoxGlobal_();
+  }
+  var updateHistBoxGlobal_ = function(){}; // replaced per-modal inside buildModal below
+
+  // Rev.30 (Issam, voice, 2026-11-12) — HSE Violation approval chain:
+  // Safety Controller raises (picks a Supervisor) → Supervisor
+  // confirms (picks the Manager) → Manager gives final approval.
+  // Each step is Confirm-or-Reject only — the content itself (what's
+  // in the fields above) isn't editable at review time, only the
+  // decision and an optional comment, so what the Safety Controller
+  // wrote stays as written. Known limitation, said plainly rather
+  // than implied: anyone who can open this page and reach this stage
+  // can act on it — there's no check that the logged-in person IS the
+  // specific named approver, since the portal's accounts aren't
+  // matched to email elsewhere either. Page access itself is already
+  // limited to Safety/Managers/CEO/Superadmin (see the access gate at
+  // the bottom of this file).
+  function approvalChainHtml(r, isEdit){
+    var stage = r['Approval Stage'] || '';
+    if (!stage){
+      // Brand new record. Picking an approver is OPTIONAL — per
+      // Issam's explicit decision, the Safety Controller's own
+      // approval (the 'Approved By' field above) can stand alone with
+      // no further sign-off, and only starts a review when a safety
+      // approver is actually picked here.
+      return '<div class="viw-field"><label>Send for Safety Approval (optional)</label>'
+        + '<select id="viw-approver-select">' + reviewerOptionsHtml('') + '</select></div>';
+    }
+    var html = '<input type="hidden" id="viw-approver-email" value="' + vEsc(r['Approver Email']||'') + '">'
+      + '<div class="viw-field"><label>Safety Approver</label><input type="text" disabled value="' + vEsc(r['Approver']||'') + '"></div>';
+    if (stage === 'Pending Approval'){
+      html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(240,180,60,.12);border:2px solid #E0B43C;border-radius:8px">'
+        + '<div style="font-weight:700;color:#E0B43C;font-size:13px">⏳ Awaiting Safety Approval</div>'
+        + '<div class="viw-field" style="margin-top:8px"><label>Comment (optional)</label><textarea id="viw-approval-comment"></textarea></div>'
+        + '<div class="viw-field"><label>Reject Reason (only if rejecting)</label><textarea id="viw-approval-reject-reason"></textarea></div>'
+        + '<div style="display:flex;gap:8px;margin-top:6px">'
+          + '<button type="button" class="viw-btn" style="background:var(--viw-grn)" onclick="VIW.approveViolation(\'' + vEsc(r['Violation Ref']) + '\')">Approve</button>'
+          + '<button type="button" class="viw-btn" style="background:var(--viw-red)" onclick="VIW.rejectViolation(\'' + vEsc(r['Violation Ref']) + '\')">Reject</button>'
+        + '</div></div>';
+    } else if (stage === 'Approved'){
+      html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(79,203,158,.18);border:2px solid var(--viw-grn);border-radius:8px;text-align:center">'
+        + '<div style="font-weight:800;color:var(--viw-grn)">✓ APPROVED' + (r['Approval Action Date'] ? ' — ' + vEsc(r['Approval Action Date']) : '') + '</div>'
+        + (r['Approval Comment'] ? '<div style="font-size:11px;color:var(--viw-text-muted);margin-top:4px">' + vEsc(r['Approval Comment']) + '</div>' : '')
+        + '</div>';
+    } else if (stage === 'Rejected'){
+      html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(224,96,96,.15);border:2px solid var(--viw-red);border-radius:8px">'
+        + '<div style="font-weight:800;color:var(--viw-red)">✗ REJECTED' + (r['Approval Action Date'] ? ' — ' + vEsc(r['Approval Action Date']) : '') + '</div>'
+        + '<div style="font-size:12px;margin-top:4px">' + vEsc(r['Rejection Reason']||'') + '</div>'
+        + '</div>';
+    }
+    return html;
+  }
+
+  function reviewerEmailAndName_(selectId){
+    var sel = document.getElementById(selectId);
+    if (!sel || !sel.value) return null;
+    var opt = sel.options[sel.selectedIndex];
+    return { email: sel.value, name: opt ? (opt.getAttribute('data-name')||'') : '' };
+  }
+
+  function notifyApprover_(ref, toEmail, toName){
+    if (!toEmail) return;
+    var r = getRecs().filter(function(x){ return x['Violation Ref']===ref; })[0] || {};
+    var payload = {
+      action: 'sendViolationStageEmail', ref: ref, stage: 'approver', toEmail: toEmail, toName: toName,
+      employeeName: r['Employee Name']||'', department: r['Department']||'',
+      category: r['Violation Category']||'', date: r['Date']||''
+    };
+    fetch(SHEETS_URL, { method:'POST', body: JSON.stringify(payload) })
+      .catch(function(){ /* best-effort — the sheet update already succeeded regardless */ });
+  }
+
+  function approveViolation(ref){
+    var comment = (document.getElementById('viw-approval-comment')||{}).value || '';
+    var today = new Date().toISOString().slice(0,10);
+    var rec = getRecs().filter(function(r){ return r['Violation Ref']===ref; })[0] || {};
+    postJSON('update', {tab: VIOLATION.tabKey, idCol: VIOLATION.idCol, id: ref}, {
+      'Approval Stage': 'Approved',
+      'Approval Action Date': today,
+      'Approval Comment': comment,
+      // Rev.32 (Issam, voice, 2026-11-12) — Approved By is filled in
+      // automatically with whoever actually approves (the Approver
+      // already picked when this was raised), not typed by anyone.
+      'Approved By': rec['Approver'] || ''
+    }).then(function(res){
+      if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); return; }
+      document.getElementById('viw-modal-root').innerHTML = ''; loadAll();
+    }).catch(function(){ alert('Could not save — check your connection.'); });
+  }
+
+  function rejectViolation(ref){
+    var reason = (document.getElementById('viw-approval-reject-reason')||{}).value || '';
+    if (!reason.trim()){ alert('Please give a reason for rejecting.'); return; }
+    var today = new Date().toISOString().slice(0,10);
+    postJSON('update', {tab: VIOLATION.tabKey, idCol: VIOLATION.idCol, id: ref}, {
+      'Approval Stage': 'Rejected',
+      'Approval Action Date': today,
+      'Rejection Reason': reason
+    }).then(function(res){
+      if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); return; }
+      document.getElementById('viw-modal-root').innerHTML = ''; loadAll();
+    }).catch(function(){ alert('Could not save — check your connection.'); });
+  }
+
+  // Rev.30 (Issam, voice, 2026-11-12) — opens straight to a specific
+  // violation when linked from a stage-notification email
+  // (?ref=VIO-2026-01), so the Supervisor/Manager doesn't have to
+  // search for it themselves.
+  function handleViolationRefDeepLink(){
+    var params = new URLSearchParams(window.location.search);
+    var ref = params.get('ref');
+    if (!ref || params.get('source') === 'spotcheck') return;
+    var rec = getRecs().filter(function(r){ return r['Violation Ref'] === ref; })[0];
+    if (!rec) return;
+    _selected = ref; render();
+    buildModal(rec);
   }
 
   function save(ref, isEdit){
     var root = document.getElementById('viw-modal-root');
     var btn = document.getElementById('viw-save'); btn.disabled = true;
     var reenable = function(){ if (btn) btn.disabled = false; };
-    var reasonSel = document.getElementById('viw-reason').value;
+    // Rev.32 (Issam, voice, 2026-11-12) — Department, Location and
+    // Reason now come from the picker helper (historical dropdown or
+    // a typed new value); Reported By is no longer read from the form
+    // at all for a new record (it's whoever is logged in, filled in
+    // when the modal opened); Approved By isn't written here either —
+    // it's set automatically once someone actually clicks Approve.
     var values = {
       'Violation Ref': ref,
       'Date': document.getElementById('viw-date').value,
@@ -581,23 +809,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       'Employee Name': document.getElementById('viw-empname').value.trim(),
       'Position': document.getElementById('viw-position').value.trim(),
       'Card No.': document.getElementById('viw-cardno').value.trim(),
-      'Department': document.getElementById('viw-dept').value.trim(),
-      'Location': document.getElementById('viw-location').value.trim(),
+      'Department': pickerValue('viw-dept-select', 'viw-dept-new'),
+      'Location': pickerValue('viw-location-select', 'viw-location-new'),
       'Photo URL': document.getElementById('viw-photo-url').value,
       'Photo File ID': document.getElementById('viw-photo-fileid').value,
       'Photo': document.getElementById('viw-photo-url').value ? 'Yes' : 'No',
       'Violation Category': document.getElementById('viw-category').value,
-      'Reason': reasonSel,
-      'Reason Other': reasonSel==='Other' ? document.getElementById('viw-other-reason').value.trim() : '',
+      'Reason': pickerValue('viw-reason-select', 'viw-reason-new'),
+      'Reason Other': '',
       'Description': document.getElementById('viw-description').value.trim(),
       'Witnesses': document.getElementById('viw-witnesses').value.trim(),
       'Rules Violated': document.getElementById('viw-rules').value.trim(),
       'Type of Reprimand': document.getElementById('viw-reprimand').value,
       'Signed': document.getElementById('viw-signed').value,
       'Employee Explanation': document.getElementById('viw-explanation').value.trim(),
-      'Approved By': document.getElementById('viw-approvedby').value.trim(),
-      'Supervisor': document.getElementById('viw-supervisor').value.trim(),
-      'Manager': document.getElementById('viw-manager').value.trim(),
       'Remarks': document.getElementById('viw-remarks').value.trim()
     };
     if (!values['Employee Name']){ alert('Employee Name is required.'); reenable(); return; }
@@ -607,10 +832,22 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         root.innerHTML=''; loadAll();
       }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
     } else {
+      // Rev.31 (Issam, voice, 2026-11-12) — picking a Safety approver
+      // is OPTIONAL. If none is picked, the violation saves complete
+      // with just the Safety Controller's own approval (no Approval
+      // Stage set at all — the list shows '—'). Only picking someone
+      // here starts a review, and emails that approver right away.
+      var appr = reviewerEmailAndName_('viw-approver-select');
+      if (appr){
+        values['Approver'] = appr.name;
+        values['Approver Email'] = appr.email;
+        values['Approval Stage'] = 'Pending Approval';
+      }
       values[STATUS_COL] = 'Active';
       postJSON('write', {tab: VIOLATION.tabKey}, [values]).then(function(res){
         if (res && res.status==='error'){ alert('Save failed: '+(res.message||'unknown error')); reenable(); return; }
         root.innerHTML=''; loadAll();
+        if (appr) notifyApprover_(ref, appr.email, appr.name);
       }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
     }
   }
@@ -624,7 +861,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     openAdd: function(){ if (can('add')) buildModal(null); },
     openEditSelected: function(){ var r=getSelected(); if(!r) return alert('Select a row first.'); buildModal(r); },
     onCategoryChange: onCategoryChange,
+    onPickerChange: onPickerChange,
     onPhotoSelected: onPhotoSelected,
+    approveViolation: approveViolation,
+    rejectViolation: rejectViolation,
     removeSelected: function(){
       if (!can('delete')) return;
       var r = getSelected(); if(!r) return alert('Select a row first.');
@@ -648,9 +888,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (params.get('source') !== 'spotcheck') return; // only one source exists today; checked explicitly so an unrelated query string never mis-opens this form
     if (!can('add')) return;
     var dateVal = params.get('date') || '';
+    var timeVal = params.get('time') || '';
     var photoUrl = params.get('photoUrl') || '';
     var prefill = {
       'Date': /^\d{4}-\d{2}-\d{2}$/.test(dateVal) ? dateVal : new Date().toISOString().slice(0,10),
+      // Rev.30 (Issam, voice, 2026-11-12) — the actual local time the
+      // spot check happened (already converted to Riyadh time by
+      // visitor-induction.html before it's sent), not left blank.
+      'Time': /^\d{2}:\d{2}$/.test(timeVal) ? timeVal : '',
       'Reported By': params.get('checkedBy') || '',
       'Employee Name': params.get('name') || '',
       'Position': params.get('company') || '', // no dedicated Company field on this form; Position is the closest free-text slot and is editable before saving
@@ -668,7 +913,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   }
 
   document.addEventListener('DOMContentLoaded', function(){
-    setTimeout(function(){ loadAll().then(handleViolationDeepLink); }, 100);
+    setTimeout(function(){ loadAll().then(handleViolationDeepLink).then(handleViolationRefDeepLink); }, 100);
   });
 })();
 </script>
