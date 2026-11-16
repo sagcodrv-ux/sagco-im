@@ -157,7 +157,12 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     "Within Manufacturer's Service Life"
   ];
   var PASS = "Satisfactory", FAIL = "Unsatisfactory";
-  var FIELDS = ["Inspection ID","Date","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type"]
+  // Rev.46 (Issam, voice, 2026-11-16) — optional PTW Number ties a
+  // check to a specific height-work permit; the permit needs enough
+  // Satisfactory checks tied to it to cover the whole crew (see
+  // harnessIsReady_ in ptw-register.html). Left blank, this is just
+  // the ordinary routine/6-monthly inspection it always was.
+  var FIELDS = ["Inspection ID","Date","PTW Number","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type"]
     .concat(ITEMS)
     .concat(["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Inspected By","Remarks","Status"]);
   var SELECT_FIELDS = {
@@ -185,6 +190,54 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
 
   var _headers = [], _rows = [], _selected = null;
 
+  // Rev.46 (Issam, voice, 2026-11-16) — PTW linking, same pattern as
+  // confined-space.html's loadOpenPTWPermits/checkLinkedPermitStatus.
+  var _ptwOpenPermits = null, _ptwFetchPromise = null;
+  function loadOpenPTWPermits(){
+    if (_ptwOpenPermits) return Promise.resolve(_ptwOpenPermits);
+    if (_ptwFetchPromise) return _ptwFetchPromise;
+    _ptwFetchPromise = fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
+      if (!data || !data.headers || !data.rows) { _ptwOpenPermits = []; return _ptwOpenPermits; }
+      var h = data.headers;
+      var numIdx = colIdx(h, 'Permit ID'), validToIdx = colIdx(h, 'Permit Valid To'), statusColIdx = colIdx(h, 'Record Status');
+      var today = new Date(); today.setHours(0,0,0,0);
+      var seen = {}; var out = [];
+      data.rows.forEach(function(row){
+        if (statusColIdx >= 0 && String(row[statusColIdx]||'').trim().toLowerCase() === 'removed') return;
+        var num = numIdx >= 0 ? String(row[numIdx]||'').trim() : '';
+        if (!num || seen[num]) return;
+        if (validToIdx >= 0){
+          var vt = String(row[validToIdx]||'').trim();
+          if (vt){ var d = new Date(vt); if (!isNaN(d.getTime()) && d < today) return; }
+        }
+        seen[num] = true; out.push(num);
+      });
+      _ptwOpenPermits = out;
+      return out;
+    }).catch(function(){ _ptwOpenPermits = []; return []; });
+    return _ptwFetchPromise;
+  }
+  function checkLinkedPermitStatus(permitId){
+    return fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
+      if (!data || !data.headers || !data.rows) return null;
+      var numIdx = colIdx(data.headers, 'Permit ID'), statusIdx = colIdx(data.headers, 'Status');
+      var hit = null;
+      data.rows.forEach(function(row){
+        if (numIdx >= 0 && String(row[numIdx]||'').trim() === String(permitId).trim()) hit = row;
+      });
+      if (!hit) return null;
+      return { status: statusIdx >= 0 ? hit[statusIdx] : '' };
+    }).catch(function(){ return null; });
+  }
+  // A Satisfactory check tied to a permit should tell the PTW Register
+  // right away, same as every other linked checklist's
+  // notifyPtwIfClosed_ — otherwise the register only finds out on its
+  // next full reload.
+  function notifyPtwIfPassed_(values){
+    if (values['Overall Result'] !== PASS) return;
+    if (!values['PTW Number']) return;
+    fetch(SHEETS_URL + '?action=checkAndPromotePtwPermit', { method:'POST', body: JSON.stringify({ permitId: values['PTW Number'] }) }).catch(function(){});
+  }
   function postJSON(action, params, body){
     var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
     return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
@@ -276,7 +329,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
 
   function showModal(title, initialValues, onSubmit){
     var root = document.getElementById('hf-modal-root');
-    var headerFields = ["Inspection ID","Date","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type"];
+    var headerFields = ["Inspection ID","Date","PTW Number","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type"];
     var tailFields = ["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Inspected By","Remarks","Status"];
     var fullWidthFields = {"Corrective Action Details":1, "Remarks":1};
 
@@ -284,6 +337,13 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEscV = vEsc(v);
       var cls = 'hf-field' + (fullWidthFields[f] ? ' full' : '');
+      // Rev.46 (Issam, voice, 2026-11-16) — optional, so a datalist of
+      // open permits rather than a required dropdown; same pattern as
+      // confined-space.html's own PTW Number field.
+      if (f === 'PTW Number'){
+        return '<div class="'+cls+'"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(only for a work-at-height permit — leave blank for a routine check)</span></label>'
+          + '<input type="text" data-field="PTW Number" value="'+vEscV+'" list="hf-dl-ptw-open" placeholder="Loading open permits…"><datalist id="hf-dl-ptw-open"></datalist></div>';
+      }
       if (SELECT_FIELDS[f]){
         var opts = '<option value=""></option>' + SELECT_FIELDS[f].map(function(o){
           return '<option value="'+vEsc(o)+'"'+(o===v?' selected':'')+'>'+o+'</option>';
@@ -326,6 +386,32 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     document.getElementById('hf-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('hf-modal-bg').onclick = function(e){ if (e.target.id==='hf-modal-bg') root.innerHTML=''; };
 
+    // Rev.46 (Issam, voice, 2026-11-16) — populate the open-permits
+    // datalist and warn if this record is already tied to a cancelled
+    // permit, same pattern as confined-space.html.
+    loadOpenPTWPermits().then(function(nums){
+      var inp = root.querySelector('[data-field="PTW Number"]');
+      var dl = document.getElementById('hf-dl-ptw-open');
+      if (!inp || !dl) return;
+      inp.placeholder = nums.length ? 'Type or pick a permit number' : 'No open permits found — type one';
+      dl.innerHTML = nums.map(function(n){ return '<option value="'+String(n).replace(/"/g,'&quot;')+'">'; }).join('');
+    });
+    var existingPermitId = initialValues && initialValues['PTW Number'];
+    if (existingPermitId){
+      checkLinkedPermitStatus(existingPermitId).then(function(hit){
+        if (hit && String(hit.status).toLowerCase() === 'cancelled'){
+          var h3 = root.querySelector('.hf-modal h3');
+          if (h3){
+            var warn = document.createElement('div');
+            warn.className = 'hf-field full';
+            warn.style.cssText = 'background:rgba(240,104,92,.15);border-left:3px solid #F0685C;border-radius:0 5px 5px 0;padding:8px 12px;font-size:11px;color:#F0685C;grid-column:1/-1';
+            warn.textContent = '⚠ This record is linked to permit ' + existingPermitId + ', which has been CANCELLED. Treat this entry as void unless it is reissued against a new permit.';
+            h3.insertAdjacentElement('afterend', warn);
+          }
+        }
+      });
+    }
+
     document.getElementById('hf-modal-save').onclick = function(){
       var values = collectValues(root);
       // Rev.38 (Issam, voice, 2026-11-15) — same rule as every other
@@ -354,13 +440,15 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     selectRow: function(id){ _selected = (_selected === id) ? null : id; render(); updateToolbar(); },
     getSelected: function(){ return _selected; },
     onFilterChange: function(){ render(); },
-    openAdd: function(){
+    openAdd: function(overrides){
       if (!can('add')) return;
       var initial = { 'Inspection ID': nextId(), 'Inspected By': currentUserName() };
+      if (overrides){ Object.keys(overrides).forEach(function(k){ initial[k] = overrides[k]; }); }
       showModal('New Harness & Fall Protection Equipment Inspection', initial, function(values, close, reenable){
         values[STATUS_COL] = 'Active';
         postJSON('write', {tab: TAB_KEY}, [values]).then(function(res){
           if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          notifyPtwIfPassed_(values);
           close(); loadAll();
         }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
       });
@@ -376,6 +464,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
       showModal('Edit Inspection — ' + id, initial, function(values, close, reenable){
         postJSON('update', {tab: TAB_KEY, idCol: 'Inspection ID', id: id}, values).then(function(res){
           if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          notifyPtwIfPassed_(values);
           close(); loadAll();
         }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
       });
