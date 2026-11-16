@@ -110,6 +110,19 @@ var TREE = [
         { id:'oc1-fak',  label:'First Aid Kit Register',           file:'first-aid-kit.html',         level:'L4', tag:'HSE-FRM-14' },
         { id:'oc1-fkl',  label:'Forklift & Mobile Equipment Log',  file:'forklift-log.html',          level:'L4', tag:'Sh.60' },
         { id:'oc1-vis',  label:'Visitor Register & Induction Log', file:'visitor-register.html',      level:'L4', tag:'Sh.61' },
+        /* Rev.47 (Issam, voice, 2026-11-16) — seven registers built from
+           the CAMP01 legal-gap review this week; none had a nav entry
+           yet, so none were visible on the Operations Hub. */
+        { id:'oc1-msg',  label:'Machine Safeguarding Inspection',   file:'machine-safeguarding.html',      level:'L4', badge:'NEW', bc:'amb' },
+        { id:'oc1-cgi',  label:'Compressed Gas Inspection',         file:'compressed-gas-inspection.html', level:'L4', badge:'NEW', bc:'amb' },
+        { id:'oc1-hfp',  label:'Harness & Fall Protection Inspection', file:'harness-fall-protection.html', level:'L4', badge:'NEW', bc:'amb' },
+        { id:'oc1-fps',  label:'Fire Protection Systems Testing',   file:'fire-protection-systems-log.html', level:'L4', badge:'NEW', bc:'amb' },
+        { id:'oc1-spl',  label:'Security Patrol Register',          file:'security-patrol-log.html',       level:'L4', badge:'NEW', bc:'amb' },
+        { id:'oc1-ewt',  label:'Eyewash & Shower Flush Testing',    file:'eyewash-shower-testing.html',    level:'L4', badge:'NEW', bc:'amb' },
+        // Logistics-owned, not Safety — kept here only because no
+        // separate Logistics node exists in this tree yet; flagged to
+        // Issam to revisit once one does.
+        { id:'oc1-vpi',  label:'Vehicle Pre-Use Inspection (Logistics)', file:'vehicle-preuse-inspection.html', level:'L4', badge:'NEW', bc:'amb' },
       ]},
 
       { id:'oc2', label:'OC-02 Environment & Energy', file:'oc02-environment.html', level:'L3', badge:'L3', children:[
