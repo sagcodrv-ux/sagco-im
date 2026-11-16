@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Fire Protection Systems Testing</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+.fp-wrap{
+  --fp-bg:#0D1B35; --fp-bg2:#142140; --fp-bg3:#1a2a50;
+  --fp-gold:#C9A84C; --fp-gold-lt:#E8C97A;
+  --fp-text:rgba(255,255,255,.92); --fp-text-muted:rgba(255,255,255,.55);
+  --fp-text-dim:rgba(255,255,255,.35); --fp-border:rgba(255,255,255,.08);
+  --fp-border-gold:rgba(201,168,76,.35);
+  --fp-grn:#4FCB9E; --fp-amb:#E8B339; --fp-red:#F0685C; --fp-blue:#5B9BD5;
+  background:var(--fp-bg); color:var(--fp-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.fp-wrap *{box-sizing:border-box}
+.fp-back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.fp-back-link{display:inline-flex;align-items:center;gap:5px;color:var(--fp-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--fp-bg2);
+  border-radius:8px;border:1px solid var(--fp-border-gold)}
+.fp-req{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--fp-bg2);
+  border-radius:8px;border-left:3px solid var(--fp-gold);margin:10px 0;color:var(--fp-text-muted)}
+.fp-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+.fp-kpi-card{background:var(--fp-bg2);border:1px solid var(--fp-border);border-radius:12px;padding:12px 16px;position:relative;overflow:hidden}
+.fp-kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.fp-kpi-card.nvy::before{background:var(--fp-blue)}
+.fp-kpi-card.grn::before{background:var(--fp-grn)}
+.fp-kpi-card.red::before{background:var(--fp-red)}
+.fp-kpi-card.amb::before{background:var(--fp-amb)}
+.fp-kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--fp-text-dim);font-weight:700}
+.fp-kpi-value{font-size:22px;font-weight:800;margin-top:4px}
+.fp-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+.fp-toolbar-left{display:flex;gap:8px;flex-wrap:wrap}
+.fp-btn{font-size:11px;font-weight:700;padding:8px 14px;border-radius:7px;border:1px solid var(--fp-border-gold);
+  background:var(--fp-bg3);color:var(--fp-text);cursor:pointer}
+.fp-btn:hover{background:rgba(201,168,76,.15)}
+.fp-btn:disabled{opacity:.4;cursor:not-allowed}
+.fp-btn-add{background:rgba(201,168,76,.85);color:#1a1200;border-color:var(--fp-gold);font-weight:800}
+.fp-btn-add:hover{background:var(--fp-gold-lt)}
+.fp-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.fp-filters input,.fp-filters select{background:var(--fp-bg3);border:1px solid var(--fp-border);color:var(--fp-text);
+  border-radius:7px;padding:6px 10px;font-size:11px;font-family:inherit}
+.fp-table-wrap{overflow-x:auto;border:1px solid var(--fp-border-gold);border-radius:10px}
+table.fp-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.fp-tbl thead th{background:var(--fp-bg3);color:var(--fp-gold-lt);font-weight:700;text-align:left;padding:8px 10px;
+  text-transform:uppercase;font-size:9.5px;border-bottom:1px solid var(--fp-border-gold);white-space:nowrap}
+.fp-tbl tbody td{padding:7px 10px;border-bottom:1px solid var(--fp-border);color:var(--fp-text);white-space:nowrap}
+.fp-tbl tbody tr:hover td{background:var(--fp-bg3);cursor:pointer}
+.fp-tbl tbody tr.sel td{background:rgba(201,168,76,.12)}
+.fp-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.fp-badge.grn{background:rgba(79,203,158,.18);color:var(--fp-grn)}
+.fp-badge.red{background:rgba(240,104,92,.18);color:var(--fp-red)}
+.fp-badge.amb{background:rgba(232,179,57,.18);color:var(--fp-amb)}
+.fp-empty{text-align:center;padding:20px;color:var(--fp-text-muted);font-size:12px}
+.fp-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;align-items:center;justify-content:center;z-index:9999}
+.fp-modal{background:var(--fp-bg2);border:1px solid var(--fp-border-gold);border-radius:14px;padding:20px;
+  width:560px;max-width:92vw;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+/* Rev.39 (Issam, voice, 2026-11-15) — aligned to the same wide,
+   2-column form layout the rest of this project's Add/Edit windows
+   already use (ptw-register.html's .ptw-modal.wide /
+   .ptw-modal-grid): a wider window, header and result fields paired
+   up two to a row, and each section introduced by a full-width
+   divider heading — not one field stacked under the next. */
+.fp-modal.wide{width:820px;max-width:94vw}
+.fp-modal h3{margin:0 0 12px;font-size:14px;color:var(--fp-gold-lt)}
+.fp-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.fp-modal-grid .full{grid-column:1/-1}
+.fp-sec-hd{grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--fp-gold-lt);border-top:1px solid var(--fp-border);padding-top:10px;margin-top:2px}
+.fp-sec-hd:first-child{border-top:none;padding-top:0;margin-top:0}
+.fp-field{margin-bottom:0}
+.fp-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--fp-text-dim);margin-bottom:4px}
+.fp-field input,.fp-field select,.fp-field textarea{width:100%;background:var(--fp-bg3);border:1px solid var(--fp-border);
+  color:var(--fp-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.fp-field textarea{min-height:60px;resize:vertical}
+.fp-item-row{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--fp-bg3);
+  border:1px solid var(--fp-border);border-radius:8px;padding:9px 12px;font-size:12px}
+.fp-item-row label.fp-item-label{flex:1;font-weight:600}
+.fp-item-row select{width:120px;flex-shrink:0}
+.fp-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+@media (max-width:640px){
+  .fp-wrap{padding:14px 12px}
+  .fp-modal.wide{width:100%;max-width:100vw;border-radius:0;max-height:100vh;height:100vh}
+  .fp-modal-grid{grid-template-columns:1fr}
+  /* Rev.42 (Issam, voice, 2026-11-16) — real mobile pass: full-width
+     stacked toolbar and filter controls instead of a cramped row of
+     small buttons, 44px-tall tap targets throughout (Apple/Android's
+     own minimum), and 16px form font so iOS Safari does not auto-zoom
+     when a field is focused. */
+  .fp-toolbar{flex-direction:column;align-items:stretch}
+  .fp-toolbar-left{flex-direction:column;width:100%}
+  .fp-btn{width:100%;min-height:44px;font-size:13px;padding:10px 14px}
+  .fp-filters{flex-direction:column;align-items:stretch}
+  .fp-filters input,.fp-filters select{width:100%;min-height:42px;font-size:15px}
+  .fp-field input,.fp-field select,.fp-field textarea{min-height:42px;font-size:16px}
+  .fp-item-row{flex-direction:column;align-items:stretch;gap:8px}
+  .fp-item-row select{width:100%;min-height:42px;font-size:15px}
+  .fp-modal-actions{flex-direction:column-reverse}
+  .fp-modal-actions button{width:100%;min-height:44px}
+  table.fp-tbl{font-size:10.5px}
+  .fp-tbl thead th,.fp-tbl tbody td{padding:7px 8px;white-space:normal}
+}
+.fp-result-banner{margin:10px 0;padding:10px 14px;border-radius:8px;font-weight:800;font-size:13px;text-align:center}
+.fp-result-banner.grn{background:rgba(79,203,158,.18);color:var(--fp-grn);border:2px solid var(--fp-grn)}
+.fp-result-banner.red{background:rgba(240,104,92,.18);color:var(--fp-red);border:2px solid var(--fp-red)}
+</style>
+</head>
+<body>
+<div class="fp-wrap">
+  <div class="fp-back-row"><a href="index.html" class="fp-back-link">← IMS Portal</a></div>
+  <h2 style="margin:4px 0 2px;color:var(--fp-gold-lt);font-size:18px">🔥 Fire Protection Systems Testing Register</h2>
+  <div class="fp-req">
+    Periodic test record for fire alarm and detection panels, sprinkler systems, fire hose reels and special suppression systems (FM200, foam, CO2).
+    This is separate from the Fire Pump Test Log and the Fire Extinguisher Inspection Log, which already have their own registers.
+    Pick the system type being tested — items that do not apply to that system are answered N/A.
+  </div>
+  <div class="fp-kpi-grid" id="fp-kpi-grid"></div>
+  <div class="fp-toolbar">
+    <div class="fp-toolbar-left">
+      <button class="fp-btn fp-btn-add" onclick="FP.openAdd()">+ New Inspection</button>
+      <button class="fp-btn" id="fp-tb-edit" disabled onclick="FP.openEdit(FP.getSelected())">✏️ Edit</button>
+      <button class="fp-btn" id="fp-tb-remove" disabled onclick="FP.remove(FP.getSelected())">🗑️ Remove</button>
+    </div>
+    <div class="fp-filters">
+      <input type="text" id="fp-search" placeholder="Search system, location…" oninput="FP.onFilterChange()">
+      <select id="fp-filter-result" onchange="FP.onFilterChange()">
+        <option value="">All Results</option>
+        <option value="Satisfactory">Satisfactory</option>
+        <option value="Unsatisfactory">Unsatisfactory</option>
+      </select>
+    </div>
+  </div>
+  <div class="fp-table-wrap"><table class="fp-tbl">
+    <thead><tr><th>Test ID</th><th>Date</th><th>System Type</th><th>Location / Zone</th><th>Result</th><th>Corrective Action</th><th>Tested By</th></tr></thead>
+    <tbody id="fp-tbody"><tr><td colspan="7" class="fp-empty">Loading…</td></tr></tbody>
+  </table></div>
+  <div id="fp-modal-root"></div>
+</div>
+
+<script>
+(function(){
+  var TAB_KEY = "fire_protection_systems";
+  var ID_PREFIX = "FPS";
+  // Every item below is answered Yes / No / N/A - items that do not
+  // apply to the system type being tested (e.g. sprinkler heads on an
+  // alarm-only test) are answered N/A, same pattern as every other
+  // checklist in this project. No blank item is allowed to sit behind
+  // a Satisfactory result.
+  var ITEMS = [
+    "Panel / System Powered and Showing Normal Status (No Faults)",
+    "Alarm Sounders and Strobes Activate and Are Audible / Visible on Test",
+    "Detection Devices Tested and Responding (Smoke / Heat / Flame as applicable)",
+    "Sprinkler Heads Free of Obstruction, Paint or Physical Damage",
+    "Control Valves in Correct (Open) Position and Sealed or Locked",
+    "Hose Reel Unwinds Freely and Nozzle Operates Correctly",
+    "Suppression System Pressure / Charge Within Normal Range",
+    "No Visible Leaks, Corrosion or Physical Damage"
+  ];
+  var PASS = "Satisfactory", FAIL = "Unsatisfactory";
+  var FIELDS = ["Inspection ID","Date","System Type","Location / Zone","Test Type","Third-Party Company / Certificate No."]
+    .concat(ITEMS)
+    .concat(["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Inspected By","Remarks","Status"]);
+  var SELECT_FIELDS = {
+    "System Type": ["Fire Alarm Panel / Detection","Sprinkler System","Fire Hose Reel","Special Suppression (FM200 / Foam / CO2)","Other"],
+    "Test Type": ["Weekly Functional Test","Monthly Test","Quarterly Test","Annual Third-Party Test"],
+    "Corrective Action Required": ["Yes","No"],
+    "Status": ["Open","Closed"]
+  };
+  ITEMS.forEach(function(it){ SELECT_FIELDS[it] = ["Yes","No","N/A"]; });
+  var STATUS_COL = "Record Status";
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getCurrentUserName) ? IMS_AUTH.getCurrentUserName() : '';
+    return s || ((typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? ((IMS_AUTH.getUser()||{}).username||'') : '');
+  }
+  function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function colIdx(headers, name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+
+  var _headers = [], _rows = [], _selected = null;
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  function nextId(){
+    var recIdx = colIdx(_headers, 'Inspection ID');
+    if (recIdx < 0) return '';
+    var max = 0;
+    _rows.forEach(function(r){
+      var m = /^FPS-(\d+)$/.exec(String(r[recIdx]||''));
+      if (m) max = Math.max(max, parseInt(m[1],10));
+    });
+    return ID_PREFIX + '-' + String(max+1).padStart(4,'0');
+  }
+
+  function loadAll(){
+    document.getElementById('fp-tbody').innerHTML = '<tr><td colspan="7" class="fp-empty">⏳ Loading…</td></tr>';
+    fetch(SHEETS_URL + '?tab=' + TAB_KEY + '&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _headers = (data && data.headers) || [];
+      _rows = (data && data.rows) || [];
+      render();
+    }).catch(function(){
+      document.getElementById('fp-tbody').innerHTML = '<tr><td colspan="7" class="fp-empty">Connection unavailable — could not reach Google Sheets.</td></tr>';
+    });
+  }
+
+  function visibleRows(){
+    var recStatusIdx = colIdx(_headers, 'Record Status');
+    var resIdx = colIdx(_headers, 'Overall Result');
+    var machIdx = colIdx(_headers, 'System Type');
+    var locIdx = colIdx(_headers, 'Location / Zone');
+    var search = (document.getElementById('fp-search').value||'').trim().toLowerCase();
+    var resultFilter = document.getElementById('fp-filter-result').value;
+    return _rows.filter(function(r){
+      if (recStatusIdx >= 0 && String(r[recStatusIdx]||'').trim().toLowerCase() === 'removed') return false;
+      if (resultFilter && resIdx >= 0 && String(r[resIdx]||'') !== resultFilter) return false;
+      if (search){
+        var hay = ((machIdx>=0?r[machIdx]:'') + ' ' + (locIdx>=0?r[locIdx]:'')).toLowerCase();
+        if (hay.indexOf(search) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderKpis(){
+    var rows = visibleRows();
+    var resIdx = colIdx(_headers, 'Overall Result');
+    var carIdx = colIdx(_headers, 'Corrective Action Required');
+    var statusIdx = colIdx(_headers, 'Status');
+    var total = rows.length;
+    var unsat = rows.filter(function(r){ return resIdx>=0 && String(r[resIdx]||'')===FAIL; }).length;
+    var openCar = rows.filter(function(r){ return statusIdx>=0 && String(r[statusIdx]||'').trim()==='Open'; }).length;
+    document.getElementById('fp-kpi-grid').innerHTML =
+      '<div class="fp-kpi-card nvy"><div class="fp-kpi-label">Total Inspections</div><div class="fp-kpi-value">'+total+'</div></div>'
+      + '<div class="fp-kpi-card red"><div class="fp-kpi-label">Unsatisfactory</div><div class="fp-kpi-value">'+unsat+'</div></div>'
+      + '<div class="fp-kpi-card amb"><div class="fp-kpi-label">Open Corrective Actions</div><div class="fp-kpi-value">'+openCar+'</div></div>';
+  }
+
+  function render(){
+    renderKpis();
+    var rows = visibleRows();
+    var tbody = document.getElementById('fp-tbody');
+    if (!rows.length){ tbody.innerHTML = '<tr><td colspan="7" class="fp-empty">No inspections recorded yet.</td></tr>'; return; }
+    var idIdx = colIdx(_headers,'Inspection ID'), dateIdx = colIdx(_headers,'Date'),
+        machIdx = colIdx(_headers,'System Type'), locIdx = colIdx(_headers,'Location / Zone'),
+        resIdx = colIdx(_headers,'Overall Result'), carIdx = colIdx(_headers,'Corrective Action Required'),
+        byIdx = colIdx(_headers,'Inspected By'), statusIdx = colIdx(_headers,'Status');
+    tbody.innerHTML = rows.map(function(r){
+      var id = r[idIdx];
+      var result = resIdx>=0 ? String(r[resIdx]||'') : '';
+      var resultBadge = result === PASS ? '<span class="fp-badge grn">Satisfactory</span>'
+        : result === FAIL ? '<span class="fp-badge red">Unsatisfactory</span>' : '';
+      var car = carIdx>=0 ? String(r[carIdx]||'') : '';
+      var status = statusIdx>=0 ? String(r[statusIdx]||'') : '';
+      var carBadge = car === 'Yes' ? (status === 'Closed' ? '<span class="fp-badge grn">Closed</span>' : '<span class="fp-badge amb">Open</span>') : '—';
+      return '<tr class="'+(String(id)===String(_selected)?'sel':'')+'" onclick="FP.selectRow(\''+vEsc(id)+'\')">'
+        + '<td>'+vEsc(id)+'</td><td>'+vEsc(r[dateIdx])+'</td><td>'+vEsc(r[machIdx])+'</td><td>'+vEsc(r[locIdx])+'</td>'
+        + '<td>'+resultBadge+'</td><td>'+carBadge+'</td><td>'+vEsc(r[byIdx])+'</td></tr>';
+    }).join('');
+  }
+
+  function collectValues(root){
+    var values = {};
+    root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+    return values;
+  }
+
+  function showModal(title, initialValues, onSubmit){
+    var root = document.getElementById('fp-modal-root');
+    var headerFields = ["Inspection ID","Date","System Type","Location / Zone","Test Type","Third-Party Company / Certificate No."];
+    var tailFields = ["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Inspected By","Remarks","Status"];
+    var fullWidthFields = {"Corrective Action Details":1, "Remarks":1};
+
+    function fieldHtml(f){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEscV = vEsc(v);
+      var cls = 'fp-field' + (fullWidthFields[f] ? ' full' : '');
+      if (SELECT_FIELDS[f]){
+        var opts = '<option value=""></option>' + SELECT_FIELDS[f].map(function(o){
+          return '<option value="'+vEsc(o)+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="'+cls+'"><label>'+f+'</label><select data-field="'+f+'">'+opts+'</select></div>';
+      }
+      if (fullWidthFields[f]){
+        return '<div class="'+cls+'"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+      }
+      var fLower = f.toLowerCase();
+      var inputType = fLower.indexOf('date') > -1 ? 'date' : 'text';
+      return '<div class="'+cls+'"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEscV+'"></div>';
+    }
+
+    // Rev.39 (Issam, voice, 2026-11-15) — aligned to the same
+    // shaded-section / 2-column form layout the rest of this project's
+    // Add/Edit windows use, rather than one field after another.
+    // Header and result fields pair up two to a row; each checklist
+    // item is still its own full-width row with its Yes/No/N/A answer
+    // beside it (ptw-register.html's own Linked Safety Records rows
+    // use the same shape), all inside one shared grid so the section
+    // headings can span both columns.
+    var itemsHtml = ITEMS.map(function(it){
+      var v = (initialValues && initialValues[it]) || '';
+      var opts = ['Yes','No','N/A'].map(function(o){ return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+o+'</option>'; }).join('');
+      return '<div class="fp-item-row"><label class="fp-item-label">'+it+'</label><select data-field="'+it+'"><option value=""></option>'+opts+'</select></div>';
+    }).join('');
+
+    root.innerHTML = '<div class="fp-modal-bg" id="fp-modal-bg"><div class="fp-modal wide">'
+      + '<h3>'+title+'</h3>'
+      + '<div class="fp-modal-grid">'
+      + '<div class="fp-sec-hd">Inspection Details</div>' + headerFields.map(fieldHtml).join('')
+      + '<div class="fp-sec-hd">System Test Checks</div>' + itemsHtml
+      + '<div class="fp-sec-hd">Result &amp; Corrective Action</div>' + tailFields.map(fieldHtml).join('')
+      + '</div>'
+      + '<div class="fp-modal-actions"><button class="fp-btn" id="fp-modal-cancel">Cancel</button>'
+      + '<button class="fp-btn fp-btn-add" id="fp-modal-save">Save</button></div>'
+      + '</div></div>';
+
+    document.getElementById('fp-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('fp-modal-bg').onclick = function(e){ if (e.target.id==='fp-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('fp-modal-save').onclick = function(){
+      var values = collectValues(root);
+      // Rev.38 (Issam, voice, 2026-11-15) — same rule as every other
+      // checklist in this project: a Satisfactory result can't save
+      // with items left blank. An untouched select reads as "", never
+      // flagged as a fail on its own, so this is checked explicitly.
+      var missing = ITEMS.filter(function(it){ return !String(values[it]||'').trim(); });
+      if (missing.length){
+        alert('This inspection cannot be saved yet — the following items must be answered first:\n\n- ' + missing.join('\n- '));
+        return;
+      }
+      var anyNo = ITEMS.some(function(it){ return values[it] === 'No'; });
+      values['Overall Result'] = anyNo ? FAIL : PASS;
+      if (values['Corrective Action Required'] === 'Yes' && !values['Corrective Action Details']){
+        alert('Please describe the corrective action needed.');
+        return;
+      }
+      if (!values['Status']) values['Status'] = (values['Corrective Action Required'] === 'Yes') ? 'Open' : 'Closed';
+      var saveBtn = document.getElementById('fp-modal-save');
+      saveBtn.disabled = true;
+      onSubmit(values, function(){ root.innerHTML = ''; }, function(){ saveBtn.disabled = false; });
+    };
+  }
+
+  window.FP = {
+    selectRow: function(id){ _selected = (_selected === id) ? null : id; render(); updateToolbar(); },
+    getSelected: function(){ return _selected; },
+    onFilterChange: function(){ render(); },
+    openAdd: function(){
+      if (!can('add')) return;
+      var initial = { 'Inspection ID': nextId(), 'Inspected By': currentUserName() };
+      showModal('New Fire Protection Systems Testing', initial, function(values, close, reenable){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: TAB_KEY}, [values]).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          close(); loadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+      });
+    },
+    openEdit: function(id){
+      if (!can('edit')) return;
+      if (!id) return alert('Select a row first.');
+      var idIdx = colIdx(_headers, 'Inspection ID');
+      var row = _rows.find(function(r){ return String(r[idIdx]) === String(id); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      _headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal('Edit Inspection — ' + id, initial, function(values, close, reenable){
+        postJSON('update', {tab: TAB_KEY, idCol: 'Inspection ID', id: id}, values).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          close(); loadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+      });
+    },
+    remove: function(id){
+      if (!can('delete')) return;
+      if (!id) return alert('Select a row first.');
+      if (!confirm('Remove inspection ' + id + '?')) return;
+      postJSON('update', {tab: TAB_KEY, idCol: 'Inspection ID', id: id}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message||'unknown error')); return; }
+        _selected = null; loadAll();
+      }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+    }
+  };
+
+  function updateToolbar(){
+    var disabled = !_selected;
+    document.getElementById('fp-tb-edit').disabled = disabled;
+    document.getElementById('fp-tb-remove').disabled = disabled;
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(loadAll, 100); });
+})();
+</script>
+</body>
+</html>

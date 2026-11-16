@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Harness & Fall Protection Equipment Inspection</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+.hf-wrap{
+  --hf-bg:#0D1B35; --hf-bg2:#142140; --hf-bg3:#1a2a50;
+  --hf-gold:#C9A84C; --hf-gold-lt:#E8C97A;
+  --hf-text:rgba(255,255,255,.92); --hf-text-muted:rgba(255,255,255,.55);
+  --hf-text-dim:rgba(255,255,255,.35); --hf-border:rgba(255,255,255,.08);
+  --hf-border-gold:rgba(201,168,76,.35);
+  --hf-grn:#4FCB9E; --hf-amb:#E8B339; --hf-red:#F0685C; --hf-blue:#5B9BD5;
+  background:var(--hf-bg); color:var(--hf-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.hf-wrap *{box-sizing:border-box}
+.hf-back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.hf-back-link{display:inline-flex;align-items:center;gap:5px;color:var(--hf-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--hf-bg2);
+  border-radius:8px;border:1px solid var(--hf-border-gold)}
+.hf-req{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--hf-bg2);
+  border-radius:8px;border-left:3px solid var(--hf-gold);margin:10px 0;color:var(--hf-text-muted)}
+.hf-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+.hf-kpi-card{background:var(--hf-bg2);border:1px solid var(--hf-border);border-radius:12px;padding:12px 16px;position:relative;overflow:hidden}
+.hf-kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.hf-kpi-card.nvy::before{background:var(--hf-blue)}
+.hf-kpi-card.grn::before{background:var(--hf-grn)}
+.hf-kpi-card.red::before{background:var(--hf-red)}
+.hf-kpi-card.amb::before{background:var(--hf-amb)}
+.hf-kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--hf-text-dim);font-weight:700}
+.hf-kpi-value{font-size:22px;font-weight:800;margin-top:4px}
+.hf-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+.hf-toolbar-left{display:flex;gap:8px;flex-wrap:wrap}
+.hf-btn{font-size:11px;font-weight:700;padding:8px 14px;border-radius:7px;border:1px solid var(--hf-border-gold);
+  background:var(--hf-bg3);color:var(--hf-text);cursor:pointer}
+.hf-btn:hover{background:rgba(201,168,76,.15)}
+.hf-btn:disabled{opacity:.4;cursor:not-allowed}
+.hf-btn-add{background:rgba(201,168,76,.85);color:#1a1200;border-color:var(--hf-gold);font-weight:800}
+.hf-btn-add:hover{background:var(--hf-gold-lt)}
+.hf-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.hf-filters input,.hf-filters select{background:var(--hf-bg3);border:1px solid var(--hf-border);color:var(--hf-text);
+  border-radius:7px;padding:6px 10px;font-size:11px;font-family:inherit}
+.hf-table-wrap{overflow-x:auto;border:1px solid var(--hf-border-gold);border-radius:10px}
+table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.hf-tbl thead th{background:var(--hf-bg3);color:var(--hf-gold-lt);font-weight:700;text-align:left;padding:8px 10px;
+  text-transform:uppercase;font-size:9.5px;border-bottom:1px solid var(--hf-border-gold);white-space:nowrap}
+.hf-tbl tbody td{padding:7px 10px;border-bottom:1px solid var(--hf-border);color:var(--hf-text);white-space:nowrap}
+.hf-tbl tbody tr:hover td{background:var(--hf-bg3);cursor:pointer}
+.hf-tbl tbody tr.sel td{background:rgba(201,168,76,.12)}
+.hf-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.hf-badge.grn{background:rgba(79,203,158,.18);color:var(--hf-grn)}
+.hf-badge.red{background:rgba(240,104,92,.18);color:var(--hf-red)}
+.hf-badge.amb{background:rgba(232,179,57,.18);color:var(--hf-amb)}
+.hf-empty{text-align:center;padding:20px;color:var(--hf-text-muted);font-size:12px}
+.hf-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;align-items:center;justify-content:center;z-index:9999}
+.hf-modal{background:var(--hf-bg2);border:1px solid var(--hf-border-gold);border-radius:14px;padding:20px;
+  width:560px;max-width:92vw;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+/* Rev.39 (Issam, voice, 2026-11-15) — aligned to the same wide,
+   2-column form layout the rest of this project's Add/Edit windows
+   already use (ptw-register.html's .ptw-modal.wide /
+   .ptw-modal-grid): a wider window, header and result fields paired
+   up two to a row, and each section introduced by a full-width
+   divider heading — not one field stacked under the next. */
+.hf-modal.wide{width:820px;max-width:94vw}
+.hf-modal h3{margin:0 0 12px;font-size:14px;color:var(--hf-gold-lt)}
+.hf-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.hf-modal-grid .full{grid-column:1/-1}
+.hf-sec-hd{grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--hf-gold-lt);border-top:1px solid var(--hf-border);padding-top:10px;margin-top:2px}
+.hf-sec-hd:first-child{border-top:none;padding-top:0;margin-top:0}
+.hf-field{margin-bottom:0}
+.hf-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--hf-text-dim);margin-bottom:4px}
+.hf-field input,.hf-field select,.hf-field textarea{width:100%;background:var(--hf-bg3);border:1px solid var(--hf-border);
+  color:var(--hf-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.hf-field textarea{min-height:60px;resize:vertical}
+.hf-item-row{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--hf-bg3);
+  border:1px solid var(--hf-border);border-radius:8px;padding:9px 12px;font-size:12px}
+.hf-item-row label.hf-item-label{flex:1;font-weight:600}
+.hf-item-row select{width:120px;flex-shrink:0}
+.hf-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+@media (max-width:640px){
+  .hf-wrap{padding:14px 12px}
+  .hf-modal.wide{width:100%;max-width:100vw;border-radius:0;max-height:100vh;height:100vh}
+  .hf-modal-grid{grid-template-columns:1fr}
+  /* Rev.42 (Issam, voice, 2026-11-16) — real mobile pass: full-width
+     stacked toolbar and filter controls instead of a cramped row of
+     small buttons, 44px-tall tap targets throughout (Apple/Android's
+     own minimum), and 16px form font so iOS Safari does not auto-zoom
+     when a field is focused. */
+  .hf-toolbar{flex-direction:column;align-items:stretch}
+  .hf-toolbar-left{flex-direction:column;width:100%}
+  .hf-btn{width:100%;min-height:44px;font-size:13px;padding:10px 14px}
+  .hf-filters{flex-direction:column;align-items:stretch}
+  .hf-filters input,.hf-filters select{width:100%;min-height:42px;font-size:15px}
+  .hf-field input,.hf-field select,.hf-field textarea{min-height:42px;font-size:16px}
+  .hf-item-row{flex-direction:column;align-items:stretch;gap:8px}
+  .hf-item-row select{width:100%;min-height:42px;font-size:15px}
+  .hf-modal-actions{flex-direction:column-reverse}
+  .hf-modal-actions button{width:100%;min-height:44px}
+  table.hf-tbl{font-size:10.5px}
+  .hf-tbl thead th,.hf-tbl tbody td{padding:7px 8px;white-space:normal}
+}
+.hf-result-banner{margin:10px 0;padding:10px 14px;border-radius:8px;font-weight:800;font-size:13px;text-align:center}
+.hf-result-banner.grn{background:rgba(79,203,158,.18);color:var(--hf-grn);border:2px solid var(--hf-grn)}
+.hf-result-banner.red{background:rgba(240,104,92,.18);color:var(--hf-red);border:2px solid var(--hf-red)}
+</style>
+</head>
+<body>
+<div class="hf-wrap">
+  <div class="hf-back-row"><a href="index.html" class="hf-back-link">← IMS Portal</a></div>
+  <h2 style="margin:4px 0 2px;color:var(--hf-gold-lt);font-size:18px">⚙ Harness & Fall Protection Equipment Inspection Register</h2>
+  <div class="hf-req">
+    Per-item inspection record for harnesses, lanyards, lifelines and anchor points — pre-use and the 6-monthly formal check.
+    The Working at Height register tracks that an inspection happened on a given date; this register is the inspection itself, item by item.
+    Any equipment that fails is marked Removed from Service and must not be reissued until closed here.
+  </div>
+  <div class="hf-kpi-grid" id="hf-kpi-grid"></div>
+  <div class="hf-toolbar">
+    <div class="hf-toolbar-left">
+      <button class="hf-btn hf-btn-add" onclick="HF.openAdd()">+ New Inspection</button>
+      <button class="hf-btn" id="hf-tb-edit" disabled onclick="HF.openEdit(HF.getSelected())">✏️ Edit</button>
+      <button class="hf-btn" id="hf-tb-remove" disabled onclick="HF.remove(HF.getSelected())">🗑️ Remove</button>
+    </div>
+    <div class="hf-filters">
+      <input type="text" id="hf-search" placeholder="Search equipment ID, user…" oninput="HF.onFilterChange()">
+      <select id="hf-filter-result" onchange="HF.onFilterChange()">
+        <option value="">All Results</option>
+        <option value="Satisfactory">Satisfactory</option>
+        <option value="Unsatisfactory">Unsatisfactory</option>
+      </select>
+    </div>
+  </div>
+  <div class="hf-table-wrap"><table class="hf-tbl">
+    <thead><tr><th>Inspection ID</th><th>Date</th><th>Equipment Type</th><th>Equipment ID</th><th>Result</th><th>Status</th><th>Inspected By</th></tr></thead>
+    <tbody id="hf-tbody"><tr><td colspan="7" class="hf-empty">Loading…</td></tr></tbody>
+  </table></div>
+  <div id="hf-modal-root"></div>
+</div>
+
+<script>
+(function(){
+  var TAB_KEY = "harness_fall_protection";
+  var ID_PREFIX = "HFP";
+  // Every item below is answered Yes / No / N/A — no blank item is
+  // allowed to sit behind a Satisfactory result (same "no blank items
+  // behind a passing result" rule this project applies to every other
+  // checklist — see hot-work.html / crane-inspection.html / etc.).
+  var ITEMS = [
+    "Webbing / Straps Free of Cuts, Fraying, Burns or Chemical Damage",
+    "Stitching Intact, No Loose or Broken Threads",
+    "D-Rings, Buckles and Hardware Free of Cracks, Corrosion or Deformation",
+    "Lanyard / Lifeline Free of Damage, Kinks or Excessive Wear",
+    "Shock / Energy Absorber Pack Intact and Not Previously Deployed",
+    "Labels and Tags Legible (Manufacture Date, Capacity, Standard)",
+    "Within Manufacturer's Service Life"
+  ];
+  var PASS = "Satisfactory", FAIL = "Unsatisfactory";
+  var FIELDS = ["Inspection ID","Date","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type"]
+    .concat(ITEMS)
+    .concat(["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Inspected By","Remarks","Status"]);
+  var SELECT_FIELDS = {
+    "Equipment Type": ["Full-Body Harness","Lanyard","Lifeline","Anchor Point","Self-Retracting Lifeline (SRL)","Other"],
+    "Inspection Type": ["Pre-Use","6-Monthly Formal"],
+    "Corrective Action Required": ["Yes","No"],
+    // Rev.41 (Issam, voice, 2026-11-16) — a failed harness/lanyard can't
+    // just sit "Open" like a corrective-action item elsewhere: it must
+    // come out of circulation immediately. "Removed from Service" is a
+    // distinct state from "Open" (fixable) — it means withdrawn, not
+    // pending a fix, and only moves to "Closed" if the item is formally
+    // returned to service or disposed of.
+    "Status": ["In Service","Removed from Service","Closed"]
+  };
+  ITEMS.forEach(function(it){ SELECT_FIELDS[it] = ["Yes","No","N/A"]; });
+  var STATUS_COL = "Record Status";
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getCurrentUserName) ? IMS_AUTH.getCurrentUserName() : '';
+    return s || ((typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? ((IMS_AUTH.getUser()||{}).username||'') : '');
+  }
+  function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function colIdx(headers, name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+
+  var _headers = [], _rows = [], _selected = null;
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  function nextId(){
+    var recIdx = colIdx(_headers, 'Inspection ID');
+    if (recIdx < 0) return '';
+    var max = 0;
+    _rows.forEach(function(r){
+      var m = /^HFP-(\d+)$/.exec(String(r[recIdx]||''));
+      if (m) max = Math.max(max, parseInt(m[1],10));
+    });
+    return ID_PREFIX + '-' + String(max+1).padStart(4,'0');
+  }
+
+  function loadAll(){
+    document.getElementById('hf-tbody').innerHTML = '<tr><td colspan="7" class="hf-empty">⏳ Loading…</td></tr>';
+    fetch(SHEETS_URL + '?tab=' + TAB_KEY + '&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _headers = (data && data.headers) || [];
+      _rows = (data && data.rows) || [];
+      render();
+    }).catch(function(){
+      document.getElementById('hf-tbody').innerHTML = '<tr><td colspan="7" class="hf-empty">Connection unavailable — could not reach Google Sheets.</td></tr>';
+    });
+  }
+
+  function visibleRows(){
+    var recStatusIdx = colIdx(_headers, 'Record Status');
+    var resIdx = colIdx(_headers, 'Overall Result');
+    var machIdx = colIdx(_headers, 'Equipment Type');
+    var locIdx = colIdx(_headers, 'Equipment ID / Tag No.');
+    var search = (document.getElementById('hf-search').value||'').trim().toLowerCase();
+    var resultFilter = document.getElementById('hf-filter-result').value;
+    return _rows.filter(function(r){
+      if (recStatusIdx >= 0 && String(r[recStatusIdx]||'').trim().toLowerCase() === 'removed') return false;
+      if (resultFilter && resIdx >= 0 && String(r[resIdx]||'') !== resultFilter) return false;
+      if (search){
+        var hay = ((machIdx>=0?r[machIdx]:'') + ' ' + (locIdx>=0?r[locIdx]:'')).toLowerCase();
+        if (hay.indexOf(search) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderKpis(){
+    var rows = visibleRows();
+    var resIdx = colIdx(_headers, 'Overall Result');
+    var carIdx = colIdx(_headers, 'Corrective Action Required');
+    var statusIdx = colIdx(_headers, 'Status');
+    var total = rows.length;
+    var unsat = rows.filter(function(r){ return resIdx>=0 && String(r[resIdx]||'')===FAIL; }).length;
+    var removedCount = rows.filter(function(r){ return statusIdx>=0 && String(r[statusIdx]||'').trim()==='Removed from Service'; }).length;
+    document.getElementById('hf-kpi-grid').innerHTML =
+      '<div class="hf-kpi-card nvy"><div class="hf-kpi-label">Total Inspections</div><div class="hf-kpi-value">'+total+'</div></div>'
+      + '<div class="hf-kpi-card red"><div class="hf-kpi-label">Unsatisfactory</div><div class="hf-kpi-value">'+unsat+'</div></div>'
+      + '<div class="hf-kpi-card amb"><div class="hf-kpi-label">Removed from Service</div><div class="hf-kpi-value">'+removedCount+'</div></div>';
+  }
+
+  function render(){
+    renderKpis();
+    var rows = visibleRows();
+    var tbody = document.getElementById('hf-tbody');
+    if (!rows.length){ tbody.innerHTML = '<tr><td colspan="7" class="hf-empty">No inspections recorded yet.</td></tr>'; return; }
+    var idIdx = colIdx(_headers,'Inspection ID'), dateIdx = colIdx(_headers,'Date'),
+        machIdx = colIdx(_headers,'Equipment Type'), locIdx = colIdx(_headers,'Equipment ID / Tag No.'),
+        resIdx = colIdx(_headers,'Overall Result'), byIdx = colIdx(_headers,'Inspected By'),
+        statusIdx = colIdx(_headers,'Status');
+    tbody.innerHTML = rows.map(function(r){
+      var id = r[idIdx];
+      var result = resIdx>=0 ? String(r[resIdx]||'') : '';
+      var resultBadge = result === PASS ? '<span class="hf-badge grn">Satisfactory</span>'
+        : result === FAIL ? '<span class="hf-badge red">Unsatisfactory</span>' : '';
+      var status = statusIdx>=0 ? String(r[statusIdx]||'') : '';
+      var statusBadge = status === 'Removed from Service' ? '<span class="hf-badge red">Removed from Service</span>'
+        : status === 'Closed' ? '<span class="hf-badge grn">Closed</span>'
+        : status === 'In Service' ? '<span class="hf-badge grn">In Service</span>' : '—';
+      return '<tr class="'+(String(id)===String(_selected)?'sel':'')+'" onclick="HF.selectRow(\''+vEsc(id)+'\')">'
+        + '<td>'+vEsc(id)+'</td><td>'+vEsc(r[dateIdx])+'</td><td>'+vEsc(r[machIdx])+'</td><td>'+vEsc(r[locIdx])+'</td>'
+        + '<td>'+resultBadge+'</td><td>'+statusBadge+'</td><td>'+vEsc(r[byIdx])+'</td></tr>';
+    }).join('');
+  }
+
+  function collectValues(root){
+    var values = {};
+    root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+    return values;
+  }
+
+  function showModal(title, initialValues, onSubmit){
+    var root = document.getElementById('hf-modal-root');
+    var headerFields = ["Inspection ID","Date","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type"];
+    var tailFields = ["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Inspected By","Remarks","Status"];
+    var fullWidthFields = {"Corrective Action Details":1, "Remarks":1};
+
+    function fieldHtml(f){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEscV = vEsc(v);
+      var cls = 'hf-field' + (fullWidthFields[f] ? ' full' : '');
+      if (SELECT_FIELDS[f]){
+        var opts = '<option value=""></option>' + SELECT_FIELDS[f].map(function(o){
+          return '<option value="'+vEsc(o)+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="'+cls+'"><label>'+f+'</label><select data-field="'+f+'">'+opts+'</select></div>';
+      }
+      if (fullWidthFields[f]){
+        return '<div class="'+cls+'"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+      }
+      var fLower = f.toLowerCase();
+      var inputType = fLower.indexOf('date') > -1 ? 'date' : 'text';
+      return '<div class="'+cls+'"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEscV+'"></div>';
+    }
+
+    // Rev.39 (Issam, voice, 2026-11-15) — aligned to the same
+    // shaded-section / 2-column form layout the rest of this project's
+    // Add/Edit windows use, rather than one field after another.
+    // Header and result fields pair up two to a row; each checklist
+    // item is still its own full-width row with its Yes/No/N/A answer
+    // beside it (ptw-register.html's own Linked Safety Records rows
+    // use the same shape), all inside one shared grid so the section
+    // headings can span both columns.
+    var itemsHtml = ITEMS.map(function(it){
+      var v = (initialValues && initialValues[it]) || '';
+      var opts = ['Yes','No','N/A'].map(function(o){ return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+o+'</option>'; }).join('');
+      return '<div class="hf-item-row"><label class="hf-item-label">'+it+'</label><select data-field="'+it+'"><option value=""></option>'+opts+'</select></div>';
+    }).join('');
+
+    root.innerHTML = '<div class="hf-modal-bg" id="hf-modal-bg"><div class="hf-modal wide">'
+      + '<h3>'+title+'</h3>'
+      + '<div class="hf-modal-grid">'
+      + '<div class="hf-sec-hd">Inspection Details</div>' + headerFields.map(fieldHtml).join('')
+      + '<div class="hf-sec-hd">Equipment Condition Checks</div>' + itemsHtml
+      + '<div class="hf-sec-hd">Result &amp; Corrective Action</div>' + tailFields.map(fieldHtml).join('')
+      + '</div>'
+      + '<div class="hf-modal-actions"><button class="hf-btn" id="hf-modal-cancel">Cancel</button>'
+      + '<button class="hf-btn hf-btn-add" id="hf-modal-save">Save</button></div>'
+      + '</div></div>';
+
+    document.getElementById('hf-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('hf-modal-bg').onclick = function(e){ if (e.target.id==='hf-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('hf-modal-save').onclick = function(){
+      var values = collectValues(root);
+      // Rev.38 (Issam, voice, 2026-11-15) — same rule as every other
+      // checklist in this project: a Satisfactory result can't save
+      // with items left blank. An untouched select reads as "", never
+      // flagged as a fail on its own, so this is checked explicitly.
+      var missing = ITEMS.filter(function(it){ return !String(values[it]||'').trim(); });
+      if (missing.length){
+        alert('This inspection cannot be saved yet — the following items must be answered first:\n\n- ' + missing.join('\n- '));
+        return;
+      }
+      var anyNo = ITEMS.some(function(it){ return values[it] === 'No'; });
+      values['Overall Result'] = anyNo ? FAIL : PASS;
+      if (values['Corrective Action Required'] === 'Yes' && !values['Corrective Action Details']){
+        alert('Please describe the corrective action needed.');
+        return;
+      }
+      if (!values['Status']) values['Status'] = (values['Overall Result'] === FAIL) ? 'Removed from Service' : 'In Service';
+      var saveBtn = document.getElementById('hf-modal-save');
+      saveBtn.disabled = true;
+      onSubmit(values, function(){ root.innerHTML = ''; }, function(){ saveBtn.disabled = false; });
+    };
+  }
+
+  window.HF = {
+    selectRow: function(id){ _selected = (_selected === id) ? null : id; render(); updateToolbar(); },
+    getSelected: function(){ return _selected; },
+    onFilterChange: function(){ render(); },
+    openAdd: function(){
+      if (!can('add')) return;
+      var initial = { 'Inspection ID': nextId(), 'Inspected By': currentUserName() };
+      showModal('New Harness & Fall Protection Equipment Inspection', initial, function(values, close, reenable){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: TAB_KEY}, [values]).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          close(); loadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+      });
+    },
+    openEdit: function(id){
+      if (!can('edit')) return;
+      if (!id) return alert('Select a row first.');
+      var idIdx = colIdx(_headers, 'Inspection ID');
+      var row = _rows.find(function(r){ return String(r[idIdx]) === String(id); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      _headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal('Edit Inspection — ' + id, initial, function(values, close, reenable){
+        postJSON('update', {tab: TAB_KEY, idCol: 'Inspection ID', id: id}, values).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          close(); loadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+      });
+    },
+    remove: function(id){
+      if (!can('delete')) return;
+      if (!id) return alert('Select a row first.');
+      if (!confirm('Remove inspection ' + id + '?')) return;
+      postJSON('update', {tab: TAB_KEY, idCol: 'Inspection ID', id: id}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message||'unknown error')); return; }
+        _selected = null; loadAll();
+      }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+    }
+  };
+
+  function updateToolbar(){
+    var disabled = !_selected;
+    document.getElementById('hf-tb-edit').disabled = disabled;
+    document.getElementById('hf-tb-remove').disabled = disabled;
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(loadAll, 100); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Compressed Gas Inspection</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+.cg-wrap{
+  --cg-bg:#0D1B35; --cg-bg2:#142140; --cg-bg3:#1a2a50;
+  --cg-gold:#C9A84C; --cg-gold-lt:#E8C97A;
+  --cg-text:rgba(255,255,255,.92); --cg-text-muted:rgba(255,255,255,.55);
+  --cg-text-dim:rgba(255,255,255,.35); --cg-border:rgba(255,255,255,.08);
+  --cg-border-gold:rgba(201,168,76,.35);
+  --cg-grn:#4FCB9E; --cg-amb:#E8B339; --cg-red:#F0685C; --cg-blue:#5B9BD5;
+  background:var(--cg-bg); color:var(--cg-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.cg-wrap *{box-sizing:border-box}
+.cg-back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.cg-back-link{display:inline-flex;align-items:center;gap:5px;color:var(--cg-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--cg-bg2);
+  border-radius:8px;border:1px solid var(--cg-border-gold)}
+.cg-req{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--cg-bg2);
+  border-radius:8px;border-left:3px solid var(--cg-gold);margin:10px 0;color:var(--cg-text-muted)}
+.cg-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+.cg-kpi-card{background:var(--cg-bg2);border:1px solid var(--cg-border);border-radius:12px;padding:12px 16px;position:relative;overflow:hidden}
+.cg-kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.cg-kpi-card.nvy::before{background:var(--cg-blue)}
+.cg-kpi-card.grn::before{background:var(--cg-grn)}
+.cg-kpi-card.red::before{background:var(--cg-red)}
+.cg-kpi-card.amb::before{background:var(--cg-amb)}
+.cg-kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--cg-text-dim);font-weight:700}
+.cg-kpi-value{font-size:22px;font-weight:800;margin-top:4px}
+.cg-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+.cg-toolbar-left{display:flex;gap:8px;flex-wrap:wrap}
+.cg-btn{font-size:11px;font-weight:700;padding:8px 14px;border-radius:7px;border:1px solid var(--cg-border-gold);
+  background:var(--cg-bg3);color:var(--cg-text);cursor:pointer}
+.cg-btn:hover{background:rgba(201,168,76,.15)}
+.cg-btn:disabled{opacity:.4;cursor:not-allowed}
+.cg-btn-add{background:rgba(201,168,76,.85);color:#1a1200;border-color:var(--cg-gold);font-weight:800}
+.cg-btn-add:hover{background:var(--cg-gold-lt)}
+.cg-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.cg-filters input,.cg-filters select{background:var(--cg-bg3);border:1px solid var(--cg-border);color:var(--cg-text);
+  border-radius:7px;padding:6px 10px;font-size:11px;font-family:inherit}
+.cg-table-wrap{overflow-x:auto;border:1px solid var(--cg-border-gold);border-radius:10px}
+table.cg-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.cg-tbl thead th{background:var(--cg-bg3);color:var(--cg-gold-lt);font-weight:700;text-align:left;padding:8px 10px;
+  text-transform:uppercase;font-size:9.5px;border-bottom:1px solid var(--cg-border-gold);white-space:nowrap}
+.cg-tbl tbody td{padding:7px 10px;border-bottom:1px solid var(--cg-border);color:var(--cg-text);white-space:nowrap}
+.cg-tbl tbody tr:hover td{background:var(--cg-bg3);cursor:pointer}
+.cg-tbl tbody tr.sel td{background:rgba(201,168,76,.12)}
+.cg-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.cg-badge.grn{background:rgba(79,203,158,.18);color:var(--cg-grn)}
+.cg-badge.red{background:rgba(240,104,92,.18);color:var(--cg-red)}
+.cg-badge.amb{background:rgba(232,179,57,.18);color:var(--cg-amb)}
+.cg-empty{text-align:center;padding:20px;color:var(--cg-text-muted);font-size:12px}
+.cg-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;align-items:center;justify-content:center;z-index:9999}
+.cg-modal{background:var(--cg-bg2);border:1px solid var(--cg-border-gold);border-radius:14px;padding:20px;
+  width:560px;max-width:92vw;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+/* Rev.39 (Issam, voice, 2026-11-15) — aligned to the same wide,
+   2-column form layout the rest of this project's Add/Edit windows
+   already use (ptw-register.html's .ptw-modal.wide /
+   .ptw-modal-grid): a wider window, header and result fields paired
+   up two to a row, and each section introduced by a full-width
+   divider heading — not one field stacked under the next. */
+.cg-modal.wide{width:820px;max-width:94vw}
+.cg-modal h3{margin:0 0 12px;font-size:14px;color:var(--cg-gold-lt)}
+.cg-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.cg-modal-grid .full{grid-column:1/-1}
+.cg-sec-hd{grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--cg-gold-lt);border-top:1px solid var(--cg-border);padding-top:10px;margin-top:2px}
+.cg-sec-hd:first-child{border-top:none;padding-top:0;margin-top:0}
+.cg-field{margin-bottom:0}
+.cg-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--cg-text-dim);margin-bottom:4px}
+.cg-field input,.cg-field select,.cg-field textarea{width:100%;background:var(--cg-bg3);border:1px solid var(--cg-border);
+  color:var(--cg-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.cg-field textarea{min-height:60px;resize:vertical}
+.cg-item-row{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--cg-bg3);
+  border:1px solid var(--cg-border);border-radius:8px;padding:9px 12px;font-size:12px}
+.cg-item-row label.cg-item-label{flex:1;font-weight:600}
+.cg-item-row select{width:120px;flex-shrink:0}
+.cg-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+@media (max-width:640px){
+  .cg-wrap{padding:14px 12px}
+  .cg-modal.wide{width:100%;max-width:100vw;border-radius:0;max-height:100vh;height:100vh}
+  .cg-modal-grid{grid-template-columns:1fr}
+  /* Rev.42 (Issam, voice, 2026-11-16) — real mobile pass: full-width
+     stacked toolbar and filter controls instead of a cramped row of
+     small buttons, 44px-tall tap targets throughout (Apple/Android's
+     own minimum), and 16px form font so iOS Safari does not auto-zoom
+     when a field is focused. */
+  .cg-toolbar{flex-direction:column;align-items:stretch}
+  .cg-toolbar-left{flex-direction:column;width:100%}
+  .cg-btn{width:100%;min-height:44px;font-size:13px;padding:10px 14px}
+  .cg-filters{flex-direction:column;align-items:stretch}
+  .cg-filters input,.cg-filters select{width:100%;min-height:42px;font-size:15px}
+  .cg-field input,.cg-field select,.cg-field textarea{min-height:42px;font-size:16px}
+  .cg-item-row{flex-direction:column;align-items:stretch;gap:8px}
+  .cg-item-row select{width:100%;min-height:42px;font-size:15px}
+  .cg-modal-actions{flex-direction:column-reverse}
+  .cg-modal-actions button{width:100%;min-height:44px}
+  table.cg-tbl{font-size:10.5px}
+  .cg-tbl thead th,.cg-tbl tbody td{padding:7px 8px;white-space:normal}
+}
+.cg-result-banner{margin:10px 0;padding:10px 14px;border-radius:8px;font-weight:800;font-size:13px;text-align:center}
+.cg-result-banner.grn{background:rgba(79,203,158,.18);color:var(--cg-grn);border:2px solid var(--cg-grn)}
+.cg-result-banner.red{background:rgba(240,104,92,.18);color:var(--cg-red);border:2px solid var(--cg-red)}
+</style>
+</head>
+<body>
+<div class="cg-wrap">
+  <div class="cg-back-row"><a href="index.html" class="cg-back-link">← IMS Portal</a></div>
+  <h2 style="margin:4px 0 2px;color:var(--cg-gold-lt);font-size:18px">🛢 Compressed Gas Handling &amp; Storage Inspection Register</h2>
+  <div class="cg-req">
+    Regular inspection of compressed gas cylinder storage and handling — a routine log, checked on a schedule (recommended: monthly), not tied to a Permit to Work.
+    Gas welding and pipeline work already have their cylinders and hoses covered by the Hot Work and Pipeline checklists; this register is about ongoing storage, not a single job.
+  </div>
+  <div class="cg-kpi-grid" id="cg-kpi-grid"></div>
+  <div class="cg-toolbar">
+    <div class="cg-toolbar-left">
+      <button class="cg-btn cg-btn-add" onclick="CG.openAdd()">+ New Inspection</button>
+      <button class="cg-btn" id="cg-tb-edit" disabled onclick="CG.openEdit(CG.getSelected())">✏️ Edit</button>
+      <button class="cg-btn" id="cg-tb-remove" disabled onclick="CG.remove(CG.getSelected())">🗑️ Remove</button>
+    </div>
+    <div class="cg-filters">
+      <input type="text" id="cg-search" placeholder="Search storage location, gas type…" oninput="CG.onFilterChange()">
+      <select id="cg-filter-result" onchange="CG.onFilterChange()">
+        <option value="">All Results</option>
+        <option value="Satisfactory">Satisfactory</option>
+        <option value="Unsatisfactory">Unsatisfactory</option>
+      </select>
+    </div>
+  </div>
+  <div class="cg-table-wrap"><table class="cg-tbl">
+    <thead><tr><th>Inspection ID</th><th>Date</th><th>Storage Location</th><th>Gas Type(s)</th><th>Result</th><th>Corrective Action</th><th>Inspected By</th></tr></thead>
+    <tbody id="cg-tbody"><tr><td colspan="7" class="cg-empty">Loading…</td></tr></tbody>
+  </table></div>
+  <div id="cg-modal-root"></div>
+</div>
+
+<script>
+(function(){
+  var TAB_KEY = "compressed_gas_inspection";
+  var ID_PREFIX = "CGI";
+  // Every item below is answered Yes / No / N/A — no blank item is
+  // allowed to sit behind a Satisfactory result (same "no blank items
+  // behind a passing result" rule this project applies to every other
+  // checklist — see hot-work.html / crane-inspection.html / etc.).
+  var ITEMS = [
+    "Cylinders Secured / Chained Upright",
+    "Valve Caps or Protection Fitted When Not in Use",
+    "Oxidizing Gases Segregated From Fuel Gases (min. 6m or fire wall)",
+    "Full and Empty Cylinders Segregated and Labelled",
+    "No Leaks Detected (soap test / odour / gas detector)",
+    "Cylinder Labels and Colour-Coding Legible",
+    "Storage Area Adequately Ventilated",
+    "No Smoking / Hot Work Warning Signage in Place",
+    "Storage Area Clear of Combustible Materials"
+  ];
+  var PASS = "Satisfactory", FAIL = "Unsatisfactory";
+  var FIELDS = ["Inspection ID","Date","Storage Location / Area","Gas Type(s) Stored","Approx. No. of Cylinders"]
+    .concat(ITEMS)
+    .concat(["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Inspected By","Remarks","Status"]);
+  var SELECT_FIELDS = {
+    "Corrective Action Required": ["Yes","No"],
+    "Status": ["Open","Closed"]
+  };
+  ITEMS.forEach(function(it){ SELECT_FIELDS[it] = ["Yes","No","N/A"]; });
+  var STATUS_COL = "Record Status";
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getCurrentUserName) ? IMS_AUTH.getCurrentUserName() : '';
+    return s || ((typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? ((IMS_AUTH.getUser()||{}).username||'') : '');
+  }
+  function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function colIdx(headers, name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+
+  var _headers = [], _rows = [], _selected = null;
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  function nextId(){
+    var recIdx = colIdx(_headers, 'Inspection ID');
+    if (recIdx < 0) return '';
+    var max = 0;
+    _rows.forEach(function(r){
+      var m = /^CGI-(\d+)$/.exec(String(r[recIdx]||''));
+      if (m) max = Math.max(max, parseInt(m[1],10));
+    });
+    return ID_PREFIX + '-' + String(max+1).padStart(4,'0');
+  }
+
+  function loadAll(){
+    document.getElementById('cg-tbody').innerHTML = '<tr><td colspan="7" class="cg-empty">⏳ Loading…</td></tr>';
+    fetch(SHEETS_URL + '?tab=' + TAB_KEY + '&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _headers = (data && data.headers) || [];
+      _rows = (data && data.rows) || [];
+      render();
+    }).catch(function(){
+      document.getElementById('cg-tbody').innerHTML = '<tr><td colspan="7" class="cg-empty">Connection unavailable — could not reach Google Sheets.</td></tr>';
+    });
+  }
+
+  function visibleRows(){
+    var recStatusIdx = colIdx(_headers, 'Record Status');
+    var resIdx = colIdx(_headers, 'Overall Result');
+    var machIdx = colIdx(_headers, 'Storage Location / Area');
+    var locIdx = colIdx(_headers, 'Gas Type(s) Stored');
+    var search = (document.getElementById('cg-search').value||'').trim().toLowerCase();
+    var resultFilter = document.getElementById('cg-filter-result').value;
+    return _rows.filter(function(r){
+      if (recStatusIdx >= 0 && String(r[recStatusIdx]||'').trim().toLowerCase() === 'removed') return false;
+      if (resultFilter && resIdx >= 0 && String(r[resIdx]||'') !== resultFilter) return false;
+      if (search){
+        var hay = ((machIdx>=0?r[machIdx]:'') + ' ' + (locIdx>=0?r[locIdx]:'')).toLowerCase();
+        if (hay.indexOf(search) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderKpis(){
+    var rows = visibleRows();
+    var resIdx = colIdx(_headers, 'Overall Result');
+    var carIdx = colIdx(_headers, 'Corrective Action Required');
+    var statusIdx = colIdx(_headers, 'Status');
+    var total = rows.length;
+    var unsat = rows.filter(function(r){ return resIdx>=0 && String(r[resIdx]||'')===FAIL; }).length;
+    var openCar = rows.filter(function(r){ return statusIdx>=0 && String(r[statusIdx]||'').trim()==='Open'; }).length;
+    document.getElementById('cg-kpi-grid').innerHTML =
+      '<div class="cg-kpi-card nvy"><div class="cg-kpi-label">Total Inspections</div><div class="cg-kpi-value">'+total+'</div></div>'
+      + '<div class="cg-kpi-card red"><div class="cg-kpi-label">Unsatisfactory</div><div class="cg-kpi-value">'+unsat+'</div></div>'
+      + '<div class="cg-kpi-card amb"><div class="cg-kpi-label">Open Corrective Actions</div><div class="cg-kpi-value">'+openCar+'</div></div>';
+  }
+
+  function render(){
+    renderKpis();
+    var rows = visibleRows();
+    var tbody = document.getElementById('cg-tbody');
+    if (!rows.length){ tbody.innerHTML = '<tr><td colspan="7" class="cg-empty">No inspections recorded yet.</td></tr>'; return; }
+    var idIdx = colIdx(_headers,'Inspection ID'), dateIdx = colIdx(_headers,'Date'),
+        machIdx = colIdx(_headers,'Storage Location / Area'), locIdx = colIdx(_headers,'Gas Type(s) Stored'),
+        resIdx = colIdx(_headers,'Overall Result'), carIdx = colIdx(_headers,'Corrective Action Required'),
+        byIdx = colIdx(_headers,'Inspected By'), statusIdx = colIdx(_headers,'Status');
+    tbody.innerHTML = rows.map(function(r){
+      var id = r[idIdx];
+      var result = resIdx>=0 ? String(r[resIdx]||'') : '';
+      var resultBadge = result === PASS ? '<span class="cg-badge grn">Satisfactory</span>'
+        : result === FAIL ? '<span class="cg-badge red">Unsatisfactory</span>' : '';
+      var car = carIdx>=0 ? String(r[carIdx]||'') : '';
+      var status = statusIdx>=0 ? String(r[statusIdx]||'') : '';
+      var carBadge = car === 'Yes' ? (status === 'Closed' ? '<span class="cg-badge grn">Closed</span>' : '<span class="cg-badge amb">Open</span>') : '—';
+      return '<tr class="'+(String(id)===String(_selected)?'sel':'')+'" onclick="CG.selectRow(\''+vEsc(id)+'\')">'
+        + '<td>'+vEsc(id)+'</td><td>'+vEsc(r[dateIdx])+'</td><td>'+vEsc(r[machIdx])+'</td><td>'+vEsc(r[locIdx])+'</td>'
+        + '<td>'+resultBadge+'</td><td>'+carBadge+'</td><td>'+vEsc(r[byIdx])+'</td></tr>';
+    }).join('');
+  }
+
+  function collectValues(root){
+    var values = {};
+    root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+    return values;
+  }
+
+  function showModal(title, initialValues, onSubmit){
+    var root = document.getElementById('cg-modal-root');
+    var headerFields = ["Inspection ID","Date","Storage Location / Area","Gas Type(s) Stored","Approx. No. of Cylinders"];
+    var tailFields = ["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Inspected By","Remarks","Status"];
+    var fullWidthFields = {"Corrective Action Details":1, "Remarks":1};
+
+    function fieldHtml(f){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEscV = vEsc(v);
+      var cls = 'cg-field' + (fullWidthFields[f] ? ' full' : '');
+      if (SELECT_FIELDS[f]){
+        var opts = '<option value=""></option>' + SELECT_FIELDS[f].map(function(o){
+          return '<option value="'+vEsc(o)+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="'+cls+'"><label>'+f+'</label><select data-field="'+f+'">'+opts+'</select></div>';
+      }
+      if (fullWidthFields[f]){
+        return '<div class="'+cls+'"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+      }
+      var fLower = f.toLowerCase();
+      var inputType = fLower.indexOf('date') > -1 ? 'date' : 'text';
+      return '<div class="'+cls+'"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEscV+'"></div>';
+    }
+
+    // Rev.39 (Issam, voice, 2026-11-15) — aligned to the same
+    // shaded-section / 2-column form layout the rest of this project's
+    // Add/Edit windows use, rather than one field after another.
+    // Header and result fields pair up two to a row; each checklist
+    // item is still its own full-width row with its Yes/No/N/A answer
+    // beside it, all inside one shared grid so the section headings
+    // can span both columns.
+    var itemsHtml = ITEMS.map(function(it){
+      var v = (initialValues && initialValues[it]) || '';
+      var opts = ['Yes','No','N/A'].map(function(o){ return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+o+'</option>'; }).join('');
+      return '<div class="cg-item-row"><label class="cg-item-label">'+it+'</label><select data-field="'+it+'"><option value=""></option>'+opts+'</select></div>';
+    }).join('');
+
+    root.innerHTML = '<div class="cg-modal-bg" id="cg-modal-bg"><div class="cg-modal wide">'
+      + '<h3>'+title+'</h3>'
+      + '<div class="cg-modal-grid">'
+      + '<div class="cg-sec-hd">Inspection Details</div>' + headerFields.map(fieldHtml).join('')
+      + '<div class="cg-sec-hd">Storage &amp; Handling Checks</div>' + itemsHtml
+      + '<div class="cg-sec-hd">Result &amp; Corrective Action</div>' + tailFields.map(fieldHtml).join('')
+      + '</div>'
+      + '<div class="cg-modal-actions"><button class="cg-btn" id="cg-modal-cancel">Cancel</button>'
+      + '<button class="cg-btn cg-btn-add" id="cg-modal-save">Save</button></div>'
+      + '</div></div>';
+
+    document.getElementById('cg-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('cg-modal-bg').onclick = function(e){ if (e.target.id==='cg-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('cg-modal-save').onclick = function(){
+      var values = collectValues(root);
+      // Rev.38 (Issam, voice, 2026-11-15) — same rule as every other
+      // checklist in this project: a Satisfactory result can't save
+      // with items left blank. An untouched select reads as "", never
+      // flagged as a fail on its own, so this is checked explicitly.
+      var missing = ITEMS.filter(function(it){ return !String(values[it]||'').trim(); });
+      if (missing.length){
+        alert('This inspection cannot be saved yet — the following items must be answered first:\n\n- ' + missing.join('\n- '));
+        return;
+      }
+      var anyNo = ITEMS.some(function(it){ return values[it] === 'No'; });
+      values['Overall Result'] = anyNo ? FAIL : PASS;
+      if (values['Corrective Action Required'] === 'Yes' && !values['Corrective Action Details']){
+        alert('Please describe the corrective action needed.');
+        return;
+      }
+      if (!values['Status']) values['Status'] = (values['Corrective Action Required'] === 'Yes') ? 'Open' : 'Closed';
+      var saveBtn = document.getElementById('cg-modal-save');
+      saveBtn.disabled = true;
+      onSubmit(values, function(){ root.innerHTML = ''; }, function(){ saveBtn.disabled = false; });
+    };
+  }
+
+  window.CG = {
+    selectRow: function(id){ _selected = (_selected === id) ? null : id; render(); updateToolbar(); },
+    getSelected: function(){ return _selected; },
+    onFilterChange: function(){ render(); },
+    openAdd: function(){
+      if (!can('add')) return;
+      var initial = { 'Inspection ID': nextId(), 'Inspected By': currentUserName() };
+      showModal('New Compressed Gas Inspection', initial, function(values, close, reenable){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: TAB_KEY}, [values]).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          close(); loadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+      });
+    },
+    openEdit: function(id){
+      if (!can('edit')) return;
+      if (!id) return alert('Select a row first.');
+      var idIdx = colIdx(_headers, 'Inspection ID');
+      var row = _rows.find(function(r){ return String(r[idIdx]) === String(id); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      _headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal('Edit Inspection — ' + id, initial, function(values, close, reenable){
+        postJSON('update', {tab: TAB_KEY, idCol: 'Inspection ID', id: id}, values).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          close(); loadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+      });
+    },
+    remove: function(id){
+      if (!can('delete')) return;
+      if (!id) return alert('Select a row first.');
+      if (!confirm('Remove inspection ' + id + '?')) return;
+      postJSON('update', {tab: TAB_KEY, idCol: 'Inspection ID', id: id}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message||'unknown error')); return; }
+        _selected = null; loadAll();
+      }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+    }
+  };
+
+  function updateToolbar(){
+    var disabled = !_selected;
+    document.getElementById('cg-tb-edit').disabled = disabled;
+    document.getElementById('cg-tb-remove').disabled = disabled;
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(loadAll, 100); });
+})();
+</script>
+</body>
+</html>

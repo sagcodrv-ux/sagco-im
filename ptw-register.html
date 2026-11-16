@@ -1879,6 +1879,39 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (!found) return false;
     return safeIdx >= 0 && String(found[safeIdx]||'').trim() === 'Yes';
   }
+  // Rev.36 (Issam, voice, 2026-11-15) — Hot Work's own paper checklist
+  // has three real stages (Pre Hot Work, Execution, Post Hot Work),
+  // and the permit only needs the first: Pre Hot Work done and
+  // confirmed, not the full Closure Result, which only happens once
+  // the job itself has finished. Every Pre Hot Work item must be
+  // "Yes" or "N/A" where it genuinely doesn't apply — a blank or "No"
+  // means the job isn't actually ready. Mirrors the matching rule in
+  // hot-work.html's own PRE_HOT_WORK_ITEMS and
+  // google-apps-script.js's ptwChecklistIsReady_; keep all three in
+  // step if this list ever changes.
+  var HOT_WORK_PRE_ITEMS = [
+    'Job Site Inspected For Flammables (Y/N/NA)','Work Area Free Of Explosive Atmospheres (Y/N/NA)','Hazardous Gas Assessment Conducted (Y/N/NA)',
+    'Fire Extinguishers Available (Y/N/NA)','Firewatch Assigned And Equipped (Y/N/NA)','Sprinkler Systems Operational (Y/N/NA)','Fixed Fire Suppression Not Impaired (Y/N/NA)',
+    'Combustibles Removed Or Shielded (Y/N/NA)','Fire-Resistant Blankets Or Shields Used (Y/N/NA)','Floor And Wall Openings Covered (Y/N/NA)','Work Area Within 35ft Cleared (Y/N/NA)','Flammable Containers Moved To Safe Distance (Y/N/NA)','Area Adequately Ventilated (Y/N/NA)',
+    'Workers Trained In Hot Work Procedures (Y/N/NA)','Workers Provided Proper PPE (Y/N/NA)','Hearing Protection Available (Y/N/NA)','Respirators Provided If Needed (Y/N/NA)'
+  ];
+  function hotWorkPreTaskIsReady_(data, permitNum){
+    if (!data || !data.headers || !data.rows || !permitNum) return false;
+    var numIdx = colIdx(data.headers, 'PTW Number');
+    var recStatusIdx = colIdx(data.headers, 'Record Status');
+    if (numIdx < 0) return false;
+    var found = null;
+    data.rows.forEach(function(row){
+      if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+      if (String(row[numIdx]||'').trim() === String(permitNum).trim()) found = row;
+    });
+    if (!found) return false;
+    return HOT_WORK_PRE_ITEMS.every(function(f){
+      var idx = colIdx(data.headers, f);
+      var v = idx >= 0 ? String(found[idx]||'').trim() : '';
+      return v === 'Yes' || v === 'N/A';
+    });
+  }
   function renderLinkedSafetyPanel(rootEl, rec){
     var needsCs = permitNeedsConfinedSpace(rec);
     var needsLoto = permitNeedsLoto(rec);
@@ -1949,10 +1982,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       }
       if (needsHotWork){
         requiredCount++;
+        // Rev.36 (Issam, voice, 2026-11-15) — ready once Pre Hot Work
+        // is confirmed, not once the whole job is Closed; see
+        // hotWorkPreTaskIsReady_ above. `hw` (existence/result) is
+        // still used just to pick the right badge text.
         var hw = hwData ? findCraneOrHotWorkRecord(hwData, permitId, 'Closure Result', 'Cleared') : null;
-        var hwReady = hw && hw.passed;
+        var hwReady = hwData ? hotWorkPreTaskIsReady_(hwData, permitId) : false;
         if (hwReady) readyCount++; else blockedNames.push('Hot Work Checklist');
-        var hwBadge = !hw ? '<span class="badge kc-red">Not raised</span>' : (hwReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (hw.hasResult ? 'Issues Noted' : 'Open') + '</span>');
+        var hwBadge = !hw ? '<span class="badge kc-red">Not raised</span>' : (hwReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (hw.hasResult ? 'Issues Noted' : 'Pre Hot Work incomplete') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Hot Work Checklist</strong> ' + hwBadge +
           (hw ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="hotwork" data-idcol="PTW Number" data-title="Hot Work Checklist">👁️ View</button>' : '') +
           '<button type="button" class="ptw-btn" onclick="window.open(\'hot-work.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (hw ? 'Open' : 'Raise') + ' Hot Work Checklist</button></div>';
@@ -2071,7 +2108,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // counts, not just Closed; see lotoJobIsReady_.
       { need: permitNeedsLoto(rec), name: 'LOTO', data: _lotoJobCache, ready: function(d){ return lotoJobIsReady_(d, rec['Permit ID']); } },
       { need: permitNeedsCrane(rec), name: 'Crane', data: _craneCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Inspection Result', 'Accept Crane'); return f && f.passed; } },
-      { need: permitNeedsHotWork(rec), name: 'Hot Work', data: _hotWorkCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Closure Result', 'Cleared'); return f && f.passed; } },
+      // Rev.36 (Issam, voice, 2026-11-15) — ready once Pre Hot Work is
+      // confirmed, not once the whole job is Closed; see
+      // hotWorkPreTaskIsReady_.
+      { need: permitNeedsHotWork(rec), name: 'Hot Work', data: _hotWorkCache, ready: function(d){ return hotWorkPreTaskIsReady_(d, rec['Permit ID']); } },
       // Rev.32 (Issam, voice, 2026-11-15) — a green tag counts, not
       // just Closed; see scaffoldIsReady_.
       { need: permitNeedsScaffold(rec), name: 'Scaffold', data: _scaffoldCache, ready: function(d){ return scaffoldIsReady_(d, rec['Permit ID']); } },
@@ -2201,7 +2241,90 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   }
   // Closing a finished job — the only way Status ever becomes Closed
   // now that it's no longer a typed field.
+  // Rev.36 (Issam, voice, 2026-11-15) — two separate gates, not one:
+  // releasing the permit only needs Pre Hot Work / the LOTO pre-task
+  // checks (getChecklistNeeds' own ready() above), but CLOSING it
+  // needs every linked checklist fully finished — Hot Work's whole
+  // job Closed with a Cleared result, LOTO's job actually Closed
+  // (reinstated), not just the pre-task stage. The other checklists
+  // (Confined Space, Crane, Scaffold, Painting, Civil Work, Pipeline)
+  // have no separate post-task stage of their own, so their release
+  // check IS their closing requirement too — nothing more to ask of
+  // them here.
+  function closeGateBlockers_(rec){
+    var needs = getChecklistNeeds(rec).filter(function(n){ return n.need; });
+    return needs.filter(function(n){
+      if (n.name === 'LOTO'){
+        var f = n.data ? findLinkedRecord(n.data, rec['Permit ID']) : null;
+        return !(f && f.status === 'Closed');
+      }
+      if (n.name === 'Hot Work'){
+        var f2 = n.data ? findCraneOrHotWorkRecord(n.data, rec['Permit ID'], 'Closure Result', 'Cleared') : null;
+        return !(f2 && f2.passed);
+      }
+      return !(n.data && n.ready(n.data));
+    }).map(function(n){ return n.name; });
+  }
+  // Rev.37 (Issam, voice, 2026-11-15) — closing a permit is the Safety
+  // Controller's call alone, not a second approval step for the Area
+  // Manager — he's kept aware once it happens, but doesn't approve
+  // it. Matches the logged-in session to a real User Register row the
+  // SAME way the Controller dropdown itself gets its names
+  // (userDisplayName), so the comparison is apples to apples. Honest
+  // caveat: this depends on IMS_AUTH.getUser() actually exposing a
+  // username or email that also appears on that person's own User
+  // Register row — worth confirming against the real production
+  // shape rather than assuming.
+  function currentUserDisplayName_(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    if (!s) return '';
+    var sUsername = String(s.username||'').trim().toLowerCase();
+    var sEmail = String(s.email||'').trim().toLowerCase();
+    var match = (_usersCache||[]).filter(function(u){
+      var uname = String(u['Username']||u.username||'').trim().toLowerCase();
+      var uemail = String(u['Email']||u.email||'').trim().toLowerCase();
+      return (sUsername && uname === sUsername) || (sEmail && uemail === sEmail);
+    })[0];
+    return match ? userDisplayName(match) : (s.username || '');
+  }
+  function isCurrentUserPermitController_(rec){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    // Bypass checked via IMS_AUTH.getUserById(s.userId) — superadmin,
+    // or Safety/SHEE department (IMS/HSE admin staff), same department
+    // test this page's own access gate (allowed()) and isSafetyUser_
+    // already use elsewhere. Deliberately NOT the access gate's
+    // manager/head title bypass — that one's meant to be broad (any
+    // manager can see the register), but "Area Manager" is exactly
+    // the title Issam asked to exclude from closing: he approves
+    // release, the Safety Controller alone approves closure. Safety
+    // department already covers genuine IMS/Safety admin staff
+    // without reopening that hole. (IMS_AUTH.getUser() itself may not
+    // carry a role field at all — this file's own test coverage
+    // caught exactly that gap — so role is read from getUserById
+    // first, getUser() only as a fallback.)
+    var u = (s && typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var role = String((u && u.role) || (s && s.role) || '').toLowerCase();
+    var dept = String((u && u.department) || '').toLowerCase();
+    if (/superadmin|admin/.test(role) || /^(shee|safety)$/.test(dept)) return true;
+    var controllerName = String(rec['Permit Controller']||'').trim().toLowerCase();
+    if (!controllerName) return true; // no controller set on the permit — don't lock everyone out
+    var myName = currentUserDisplayName_().trim().toLowerCase();
+    return !!myName && myName === controllerName;
+  }
   function closePermitFlow(permitId){
+    var reg = _cache['register'];
+    var idIdx = reg && reg.headers ? colIdx(reg.headers, 'Permit ID') : -1;
+    var row = (idIdx >= 0) ? reg.rows.find(function(r){ return String(r[idIdx]) === String(permitId); }) : null;
+    var rec = row ? recFromRow(reg.headers, row) : {};
+    var blockers = closeGateBlockers_(rec);
+    if (blockers.length){
+      alert('This permit cannot be closed yet — the following checklists are not fully finished:\n\n- ' + blockers.join('\n- '));
+      return;
+    }
+    if (!isCurrentUserPermitController_(rec)){
+      alert('Only this permit\'s own Safety Controller, ' + (rec['Permit Controller']||'(not set)') + ', can close it.');
+      return;
+    }
     if (!confirm('Close permit ' + permitId + '? This records the job as finished.')) return;
     var today = new Date().toISOString().slice(0,10);
     var cfg = TABLES['register'];
@@ -2213,6 +2336,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); return; }
       document.getElementById('ptw-modal-root').innerHTML = '';
       reloadTabAndDashboard('register');
+      // Area Manager is kept aware the permit closed — no approval
+      // action for him here, just an FYI.
+      if (rec['Unit Manager Email']){
+        notifyPtwStage_(permitId, 'closed', rec['Unit Manager Email'], rec['Unit Manager'], rec);
+      }
     }).catch(function(){ alert('Could not reach the server — check your connection.'); });
   }
   // Renders the approval ladder inside the Edit modal — the one place

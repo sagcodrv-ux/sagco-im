@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Eyewash &amp; Shower Flush Testing</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+.ew-wrap{
+  --ew-bg:#0D1B35; --ew-bg2:#142140; --ew-bg3:#1a2a50;
+  --ew-gold:#C9A84C; --ew-gold-lt:#E8C97A;
+  --ew-text:rgba(255,255,255,.92); --ew-text-muted:rgba(255,255,255,.55);
+  --ew-text-dim:rgba(255,255,255,.35); --ew-border:rgba(255,255,255,.08);
+  --ew-border-gold:rgba(201,168,76,.35);
+  --ew-grn:#4FCB9E; --ew-amb:#E8B339; --ew-red:#F0685C; --ew-blue:#5B9BD5;
+  background:var(--ew-bg); color:var(--ew-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.ew-wrap *{box-sizing:border-box}
+.ew-back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.ew-back-link{display:inline-flex;align-items:center;gap:5px;color:var(--ew-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--ew-bg2);
+  border-radius:8px;border:1px solid var(--ew-border-gold)}
+.ew-req{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--ew-bg2);
+  border-radius:8px;border-left:3px solid var(--ew-gold);margin:10px 0;color:var(--ew-text-muted)}
+.ew-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+.ew-kpi-card{background:var(--ew-bg2);border:1px solid var(--ew-border);border-radius:12px;padding:12px 16px;position:relative;overflow:hidden}
+.ew-kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.ew-kpi-card.nvy::before{background:var(--ew-blue)}
+.ew-kpi-card.grn::before{background:var(--ew-grn)}
+.ew-kpi-card.red::before{background:var(--ew-red)}
+.ew-kpi-card.amb::before{background:var(--ew-amb)}
+.ew-kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--ew-text-dim);font-weight:700}
+.ew-kpi-value{font-size:22px;font-weight:800;margin-top:4px}
+.ew-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+.ew-toolbar-left{display:flex;gap:8px;flex-wrap:wrap}
+.ew-btn{font-size:11px;font-weight:700;padding:8px 14px;border-radius:7px;border:1px solid var(--ew-border-gold);
+  background:var(--ew-bg3);color:var(--ew-text);cursor:pointer}
+.ew-btn:hover{background:rgba(201,168,76,.15)}
+.ew-btn:disabled{opacity:.4;cursor:not-allowed}
+.ew-btn-add{background:rgba(201,168,76,.85);color:#1a1200;border-color:var(--ew-gold);font-weight:800}
+.ew-btn-add:hover{background:var(--ew-gold-lt)}
+.ew-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.ew-filters input,.ew-filters select{background:var(--ew-bg3);border:1px solid var(--ew-border);color:var(--ew-text);
+  border-radius:7px;padding:6px 10px;font-size:11px;font-family:inherit}
+.ew-table-wrap{overflow-x:auto;border:1px solid var(--ew-border-gold);border-radius:10px}
+table.ew-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.ew-tbl thead th{background:var(--ew-bg3);color:var(--ew-gold-lt);font-weight:700;text-align:left;padding:8px 10px;
+  text-transform:uppercase;font-size:9.5px;border-bottom:1px solid var(--ew-border-gold);white-space:nowrap}
+.ew-tbl tbody td{padding:7px 10px;border-bottom:1px solid var(--ew-border);color:var(--ew-text);white-space:nowrap}
+.ew-tbl tbody tr:hover td{background:var(--ew-bg3);cursor:pointer}
+.ew-tbl tbody tr.sel td{background:rgba(201,168,76,.12)}
+.ew-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.ew-badge.grn{background:rgba(79,203,158,.18);color:var(--ew-grn)}
+.ew-badge.red{background:rgba(240,104,92,.18);color:var(--ew-red)}
+.ew-badge.amb{background:rgba(232,179,57,.18);color:var(--ew-amb)}
+.ew-empty{text-align:center;padding:20px;color:var(--ew-text-muted);font-size:12px}
+.ew-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;align-items:center;justify-content:center;z-index:9999}
+.ew-modal{background:var(--ew-bg2);border:1px solid var(--ew-border-gold);border-radius:14px;padding:20px;
+  width:560px;max-width:92vw;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+/* Rev.39 (Issam, voice, 2026-11-15) — aligned to the same wide,
+   2-column form layout the rest of this project's Add/Edit windows
+   already use (ptw-register.html's .ptw-modal.wide /
+   .ptw-modal-grid): a wider window, header and result fields paired
+   up two to a row, and each section introduced by a full-width
+   divider heading — not one field stacked under the next. */
+.ew-modal.wide{width:820px;max-width:94vw}
+.ew-modal h3{margin:0 0 12px;font-size:14px;color:var(--ew-gold-lt)}
+.ew-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.ew-modal-grid .full{grid-column:1/-1}
+.ew-sec-hd{grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--ew-gold-lt);border-top:1px solid var(--ew-border);padding-top:10px;margin-top:2px}
+.ew-sec-hd:first-child{border-top:none;padding-top:0;margin-top:0}
+.ew-field{margin-bottom:0}
+.ew-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--ew-text-dim);margin-bottom:4px}
+.ew-field input,.ew-field select,.ew-field textarea{width:100%;background:var(--ew-bg3);border:1px solid var(--ew-border);
+  color:var(--ew-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.ew-field textarea{min-height:60px;resize:vertical}
+.ew-item-row{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--ew-bg3);
+  border:1px solid var(--ew-border);border-radius:8px;padding:9px 12px;font-size:12px}
+.ew-item-row label.ew-item-label{flex:1;font-weight:600}
+.ew-item-row select{width:120px;flex-shrink:0}
+.ew-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+@media (max-width:640px){
+  .ew-wrap{padding:14px 12px}
+  .ew-modal.wide{width:100%;max-width:100vw;border-radius:0;max-height:100vh;height:100vh}
+  .ew-modal-grid{grid-template-columns:1fr}
+  /* Rev.42 (Issam, voice, 2026-11-16) — real mobile pass: full-width
+     stacked toolbar and filter controls instead of a cramped row of
+     small buttons, 44px-tall tap targets throughout (Apple/Android's
+     own minimum), and 16px form font so iOS Safari does not auto-zoom
+     when a field is focused. */
+  .ew-toolbar{flex-direction:column;align-items:stretch}
+  .ew-toolbar-left{flex-direction:column;width:100%}
+  .ew-btn{width:100%;min-height:44px;font-size:13px;padding:10px 14px}
+  .ew-filters{flex-direction:column;align-items:stretch}
+  .ew-filters input,.ew-filters select{width:100%;min-height:42px;font-size:15px}
+  .ew-field input,.ew-field select,.ew-field textarea{min-height:42px;font-size:16px}
+  .ew-item-row{flex-direction:column;align-items:stretch;gap:8px}
+  .ew-item-row select{width:100%;min-height:42px;font-size:15px}
+  .ew-modal-actions{flex-direction:column-reverse}
+  .ew-modal-actions button{width:100%;min-height:44px}
+  table.ew-tbl{font-size:10.5px}
+  .ew-tbl thead th,.ew-tbl tbody td{padding:7px 8px;white-space:normal}
+}
+.ew-result-banner{margin:10px 0;padding:10px 14px;border-radius:8px;font-weight:800;font-size:13px;text-align:center}
+.ew-result-banner.grn{background:rgba(79,203,158,.18);color:var(--ew-grn);border:2px solid var(--ew-grn)}
+.ew-result-banner.red{background:rgba(240,104,92,.18);color:var(--ew-red);border:2px solid var(--ew-red)}
+</style>
+</head>
+<body>
+<div class="ew-wrap">
+  <div class="ew-back-row"><a href="index.html" class="ew-back-link">← IMS Portal</a></div>
+  <h2 style="margin:4px 0 2px;color:var(--ew-gold-lt);font-size:18px">🚿 Eyewash &amp; Shower Flush Testing Register</h2>
+  <div class="ew-req">
+    Weekly flush record for every emergency eyewash and shower unit, plus the annual full inspection.
+    Weekly is the general best-practice interval (ANSI Z358.1), not yet confirmed against SAGCO's own legal register (MODON 3.6.1) — confirm the exact figure there and adjust if it differs.
+    A weekly flush is a hands-on check: run the water, look at it, don't just look at the unit.
+  </div>
+  <div class="ew-kpi-grid" id="ew-kpi-grid"></div>
+  <div class="ew-toolbar">
+    <div class="ew-toolbar-left">
+      <button class="ew-btn ew-btn-add" onclick="EW.openAdd()">+ New Inspection</button>
+      <button class="ew-btn" id="ew-tb-edit" disabled onclick="EW.openEdit(EW.getSelected())">✏️ Edit</button>
+      <button class="ew-btn" id="ew-tb-remove" disabled onclick="EW.remove(EW.getSelected())">🗑️ Remove</button>
+    </div>
+    <div class="ew-filters">
+      <input type="text" id="ew-search" placeholder="Search unit ID, location…" oninput="EW.onFilterChange()">
+      <select id="ew-filter-result" onchange="EW.onFilterChange()">
+        <option value="">All Results</option>
+        <option value="Satisfactory">Satisfactory</option>
+        <option value="Unsatisfactory">Unsatisfactory</option>
+      </select>
+    </div>
+  </div>
+  <div class="ew-table-wrap"><table class="ew-tbl">
+    <thead><tr><th>Test ID</th><th>Date</th><th>Unit ID / Location</th><th>Test Type</th><th>Result</th><th>Corrective Action</th><th>Tested By</th></tr></thead>
+    <tbody id="ew-tbody"><tr><td colspan="7" class="ew-empty">Loading…</td></tr></tbody>
+  </table></div>
+  <div id="ew-modal-root"></div>
+</div>
+
+<script>
+(function(){
+  var TAB_KEY = "eyewash_shower_testing";
+  var ID_PREFIX = "EWT";
+  // Every item below is answered Yes / No / N/A. The last item (flow
+  // rate / temperature) only applies to the Annual Full Inspection and
+  // is answered N/A on a Weekly Flush - same N/A escape hatch used on
+  // every other checklist in this project. No blank item is allowed to
+  // sit behind a Satisfactory result.
+  // Rev.43 (Issam, voice, 2026-11-16) - Weekly is the suggested default
+  // per ANSI Z358.1, NOT yet confirmed against SAGCO's own legal
+  // register (MODON 3.6.1). Flagged on the page itself; update this
+  // list and default once Issam confirms the exact wording.
+  var ITEMS = [
+    "Water Flows Freely From Both Eyewash Nozzles / Shower Head",
+    "Water Runs Clear (Not Rusty or Discoloured) Within a Reasonable Time",
+    "Flow Steady and Even, No Blockage",
+    "Unit Unobstructed and Reachable (No Boxes / Equipment Blocking Access)",
+    "Activation Valve / Handle Operates Easily",
+    "Protective Covers / Caps Replaced After Test",
+    "Signage Visible and Legible",
+    "Flow Rate and Water Temperature Within Acceptable Range (Annual Only)"
+  ];
+  var PASS = "Satisfactory", FAIL = "Unsatisfactory";
+  var FIELDS = ["Inspection ID","Date","Unit ID / Location","Unit Type","Test Type"]
+    .concat(ITEMS)
+    .concat(["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Tested By","Remarks","Status"]);
+  var SELECT_FIELDS = {
+    "Unit Type": ["Eyewash Station","Emergency Shower","Combination Unit"],
+    "Test Type": ["Weekly Flush","Annual Full Inspection"],
+    "Corrective Action Required": ["Yes","No"],
+    "Status": ["Open","Closed"]
+  };
+  ITEMS.forEach(function(it){ SELECT_FIELDS[it] = ["Yes","No","N/A"]; });
+  var STATUS_COL = "Record Status";
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getCurrentUserName) ? IMS_AUTH.getCurrentUserName() : '';
+    return s || ((typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? ((IMS_AUTH.getUser()||{}).username||'') : '');
+  }
+  function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function colIdx(headers, name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+
+  var _headers = [], _rows = [], _selected = null;
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  function nextId(){
+    var recIdx = colIdx(_headers, 'Inspection ID');
+    if (recIdx < 0) return '';
+    var max = 0;
+    _rows.forEach(function(r){
+      var m = /^EWT-(\d+)$/.exec(String(r[recIdx]||''));
+      if (m) max = Math.max(max, parseInt(m[1],10));
+    });
+    return ID_PREFIX + '-' + String(max+1).padStart(4,'0');
+  }
+
+  function loadAll(){
+    document.getElementById('ew-tbody').innerHTML = '<tr><td colspan="7" class="ew-empty">⏳ Loading…</td></tr>';
+    fetch(SHEETS_URL + '?tab=' + TAB_KEY + '&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _headers = (data && data.headers) || [];
+      _rows = (data && data.rows) || [];
+      render();
+    }).catch(function(){
+      document.getElementById('ew-tbody').innerHTML = '<tr><td colspan="7" class="ew-empty">Connection unavailable — could not reach Google Sheets.</td></tr>';
+    });
+  }
+
+  function visibleRows(){
+    var recStatusIdx = colIdx(_headers, 'Record Status');
+    var resIdx = colIdx(_headers, 'Overall Result');
+    var machIdx = colIdx(_headers, 'Unit ID / Location');
+    var locIdx = colIdx(_headers, 'Test Type');
+    var search = (document.getElementById('ew-search').value||'').trim().toLowerCase();
+    var resultFilter = document.getElementById('ew-filter-result').value;
+    return _rows.filter(function(r){
+      if (recStatusIdx >= 0 && String(r[recStatusIdx]||'').trim().toLowerCase() === 'removed') return false;
+      if (resultFilter && resIdx >= 0 && String(r[resIdx]||'') !== resultFilter) return false;
+      if (search){
+        var hay = ((machIdx>=0?r[machIdx]:'') + ' ' + (locIdx>=0?r[locIdx]:'')).toLowerCase();
+        if (hay.indexOf(search) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderKpis(){
+    var rows = visibleRows();
+    var resIdx = colIdx(_headers, 'Overall Result');
+    var carIdx = colIdx(_headers, 'Corrective Action Required');
+    var statusIdx = colIdx(_headers, 'Status');
+    var total = rows.length;
+    var unsat = rows.filter(function(r){ return resIdx>=0 && String(r[resIdx]||'')===FAIL; }).length;
+    var openCar = rows.filter(function(r){ return statusIdx>=0 && String(r[statusIdx]||'').trim()==='Open'; }).length;
+    document.getElementById('ew-kpi-grid').innerHTML =
+      '<div class="ew-kpi-card nvy"><div class="ew-kpi-label">Total Inspections</div><div class="ew-kpi-value">'+total+'</div></div>'
+      + '<div class="ew-kpi-card red"><div class="ew-kpi-label">Unsatisfactory</div><div class="ew-kpi-value">'+unsat+'</div></div>'
+      + '<div class="ew-kpi-card amb"><div class="ew-kpi-label">Open Corrective Actions</div><div class="ew-kpi-value">'+openCar+'</div></div>';
+  }
+
+  function render(){
+    renderKpis();
+    var rows = visibleRows();
+    var tbody = document.getElementById('ew-tbody');
+    if (!rows.length){ tbody.innerHTML = '<tr><td colspan="7" class="ew-empty">No inspections recorded yet.</td></tr>'; return; }
+    var idIdx = colIdx(_headers,'Inspection ID'), dateIdx = colIdx(_headers,'Date'),
+        machIdx = colIdx(_headers,'Unit ID / Location'), locIdx = colIdx(_headers,'Test Type'),
+        resIdx = colIdx(_headers,'Overall Result'), carIdx = colIdx(_headers,'Corrective Action Required'),
+        byIdx = colIdx(_headers,'Tested By'), statusIdx = colIdx(_headers,'Status');
+    tbody.innerHTML = rows.map(function(r){
+      var id = r[idIdx];
+      var result = resIdx>=0 ? String(r[resIdx]||'') : '';
+      var resultBadge = result === PASS ? '<span class="ew-badge grn">Satisfactory</span>'
+        : result === FAIL ? '<span class="ew-badge red">Unsatisfactory</span>' : '';
+      var car = carIdx>=0 ? String(r[carIdx]||'') : '';
+      var status = statusIdx>=0 ? String(r[statusIdx]||'') : '';
+      var carBadge = car === 'Yes' ? (status === 'Closed' ? '<span class="ew-badge grn">Closed</span>' : '<span class="ew-badge amb">Open</span>') : '—';
+      return '<tr class="'+(String(id)===String(_selected)?'sel':'')+'" onclick="EW.selectRow(\''+vEsc(id)+'\')">'
+        + '<td>'+vEsc(id)+'</td><td>'+vEsc(r[dateIdx])+'</td><td>'+vEsc(r[machIdx])+'</td><td>'+vEsc(r[locIdx])+'</td>'
+        + '<td>'+resultBadge+'</td><td>'+carBadge+'</td><td>'+vEsc(r[byIdx])+'</td></tr>';
+    }).join('');
+  }
+
+  function collectValues(root){
+    var values = {};
+    root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+    return values;
+  }
+
+  function showModal(title, initialValues, onSubmit){
+    var root = document.getElementById('ew-modal-root');
+    var headerFields = ["Inspection ID","Date","Unit ID / Location","Unit Type","Test Type"];
+    var tailFields = ["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Tested By","Remarks","Status"];
+    var fullWidthFields = {"Corrective Action Details":1, "Remarks":1};
+
+    function fieldHtml(f){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEscV = vEsc(v);
+      var cls = 'ew-field' + (fullWidthFields[f] ? ' full' : '');
+      if (SELECT_FIELDS[f]){
+        var opts = '<option value=""></option>' + SELECT_FIELDS[f].map(function(o){
+          return '<option value="'+vEsc(o)+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="'+cls+'"><label>'+f+'</label><select data-field="'+f+'">'+opts+'</select></div>';
+      }
+      if (fullWidthFields[f]){
+        return '<div class="'+cls+'"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+      }
+      var fLower = f.toLowerCase();
+      var inputType = fLower.indexOf('date') > -1 ? 'date' : 'text';
+      return '<div class="'+cls+'"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEscV+'"></div>';
+    }
+
+    // Rev.39 (Issam, voice, 2026-11-15) — aligned to the same
+    // shaded-section / 2-column form layout the rest of this project's
+    // Add/Edit windows use, rather than one field after another.
+    // Header and result fields pair up two to a row; each checklist
+    // item is still its own full-width row with its Yes/No/N/A answer
+    // beside it (ptw-register.html's own Linked Safety Records rows
+    // use the same shape), all inside one shared grid so the section
+    // headings can span both columns.
+    var itemsHtml = ITEMS.map(function(it){
+      var v = (initialValues && initialValues[it]) || '';
+      var opts = ['Yes','No','N/A'].map(function(o){ return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+o+'</option>'; }).join('');
+      return '<div class="ew-item-row"><label class="ew-item-label">'+it+'</label><select data-field="'+it+'"><option value=""></option>'+opts+'</select></div>';
+    }).join('');
+
+    root.innerHTML = '<div class="ew-modal-bg" id="ew-modal-bg"><div class="ew-modal wide">'
+      + '<h3>'+title+'</h3>'
+      + '<div class="ew-modal-grid">'
+      + '<div class="ew-sec-hd">Inspection Details</div>' + headerFields.map(fieldHtml).join('')
+      + '<div class="ew-sec-hd">Weekly / Annual Test Checks</div>' + itemsHtml
+      + '<div class="ew-sec-hd">Result &amp; Corrective Action</div>' + tailFields.map(fieldHtml).join('')
+      + '</div>'
+      + '<div class="ew-modal-actions"><button class="ew-btn" id="ew-modal-cancel">Cancel</button>'
+      + '<button class="ew-btn ew-btn-add" id="ew-modal-save">Save</button></div>'
+      + '</div></div>';
+
+    document.getElementById('ew-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('ew-modal-bg').onclick = function(e){ if (e.target.id==='ew-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('ew-modal-save').onclick = function(){
+      var values = collectValues(root);
+      // Rev.38 (Issam, voice, 2026-11-15) — same rule as every other
+      // checklist in this project: a Satisfactory result can't save
+      // with items left blank. An untouched select reads as "", never
+      // flagged as a fail on its own, so this is checked explicitly.
+      var missing = ITEMS.filter(function(it){ return !String(values[it]||'').trim(); });
+      if (missing.length){
+        alert('This inspection cannot be saved yet — the following items must be answered first:\n\n- ' + missing.join('\n- '));
+        return;
+      }
+      var anyNo = ITEMS.some(function(it){ return values[it] === 'No'; });
+      values['Overall Result'] = anyNo ? FAIL : PASS;
+      if (values['Corrective Action Required'] === 'Yes' && !values['Corrective Action Details']){
+        alert('Please describe the corrective action needed.');
+        return;
+      }
+      if (!values['Status']) values['Status'] = (values['Corrective Action Required'] === 'Yes') ? 'Open' : 'Closed';
+      var saveBtn = document.getElementById('ew-modal-save');
+      saveBtn.disabled = true;
+      onSubmit(values, function(){ root.innerHTML = ''; }, function(){ saveBtn.disabled = false; });
+    };
+  }
+
+  window.EW = {
+    selectRow: function(id){ _selected = (_selected === id) ? null : id; render(); updateToolbar(); },
+    getSelected: function(){ return _selected; },
+    onFilterChange: function(){ render(); },
+    openAdd: function(){
+      if (!can('add')) return;
+      var initial = { 'Inspection ID': nextId(), 'Tested By': currentUserName() };
+      showModal('New Eyewash &amp; Shower Flush Testing', initial, function(values, close, reenable){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: TAB_KEY}, [values]).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          close(); loadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+      });
+    },
+    openEdit: function(id){
+      if (!can('edit')) return;
+      if (!id) return alert('Select a row first.');
+      var idIdx = colIdx(_headers, 'Inspection ID');
+      var row = _rows.find(function(r){ return String(r[idIdx]) === String(id); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      _headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal('Edit Inspection — ' + id, initial, function(values, close, reenable){
+        postJSON('update', {tab: TAB_KEY, idCol: 'Inspection ID', id: id}, values).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          close(); loadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+      });
+    },
+    remove: function(id){
+      if (!can('delete')) return;
+      if (!id) return alert('Select a row first.');
+      if (!confirm('Remove inspection ' + id + '?')) return;
+      postJSON('update', {tab: TAB_KEY, idCol: 'Inspection ID', id: id}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message||'unknown error')); return; }
+        _selected = null; loadAll();
+      }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+    }
+  };
+
+  function updateToolbar(){
+    var disabled = !_selected;
+    document.getElementById('ew-tb-edit').disabled = disabled;
+    document.getElementById('ew-tb-remove').disabled = disabled;
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(loadAll, 100); });
+})();
+</script>
+</body>
+</html>

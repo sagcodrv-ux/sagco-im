@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Vehicle &amp; Mobile Equipment Pre-Use Inspection</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+.vp-wrap{
+  --vp-bg:#0D1B35; --vp-bg2:#142140; --vp-bg3:#1a2a50;
+  --vp-gold:#C9A84C; --vp-gold-lt:#E8C97A;
+  --vp-text:rgba(255,255,255,.92); --vp-text-muted:rgba(255,255,255,.55);
+  --vp-text-dim:rgba(255,255,255,.35); --vp-border:rgba(255,255,255,.08);
+  --vp-border-gold:rgba(201,168,76,.35);
+  --vp-grn:#4FCB9E; --vp-amb:#E8B339; --vp-red:#F0685C; --vp-blue:#5B9BD5;
+  background:var(--vp-bg); color:var(--vp-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.vp-wrap *{box-sizing:border-box}
+.vp-back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.vp-back-link{display:inline-flex;align-items:center;gap:5px;color:var(--vp-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--vp-bg2);
+  border-radius:8px;border:1px solid var(--vp-border-gold)}
+.vp-req{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--vp-bg2);
+  border-radius:8px;border-left:3px solid var(--vp-gold);margin:10px 0;color:var(--vp-text-muted)}
+.vp-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+.vp-kpi-card{background:var(--vp-bg2);border:1px solid var(--vp-border);border-radius:12px;padding:12px 16px;position:relative;overflow:hidden}
+.vp-kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.vp-kpi-card.nvy::before{background:var(--vp-blue)}
+.vp-kpi-card.grn::before{background:var(--vp-grn)}
+.vp-kpi-card.red::before{background:var(--vp-red)}
+.vp-kpi-card.amb::before{background:var(--vp-amb)}
+.vp-kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--vp-text-dim);font-weight:700}
+.vp-kpi-value{font-size:22px;font-weight:800;margin-top:4px}
+.vp-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+.vp-toolbar-left{display:flex;gap:8px;flex-wrap:wrap}
+.vp-btn{font-size:11px;font-weight:700;padding:8px 14px;border-radius:7px;border:1px solid var(--vp-border-gold);
+  background:var(--vp-bg3);color:var(--vp-text);cursor:pointer}
+.vp-btn:hover{background:rgba(201,168,76,.15)}
+.vp-btn:disabled{opacity:.4;cursor:not-allowed}
+.vp-btn-add{background:rgba(201,168,76,.85);color:#1a1200;border-color:var(--vp-gold);font-weight:800}
+.vp-btn-add:hover{background:var(--vp-gold-lt)}
+.vp-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.vp-filters input,.vp-filters select{background:var(--vp-bg3);border:1px solid var(--vp-border);color:var(--vp-text);
+  border-radius:7px;padding:6px 10px;font-size:11px;font-family:inherit}
+.vp-table-wrap{overflow-x:auto;border:1px solid var(--vp-border-gold);border-radius:10px}
+table.vp-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.vp-tbl thead th{background:var(--vp-bg3);color:var(--vp-gold-lt);font-weight:700;text-align:left;padding:8px 10px;
+  text-transform:uppercase;font-size:9.5px;border-bottom:1px solid var(--vp-border-gold);white-space:nowrap}
+.vp-tbl tbody td{padding:7px 10px;border-bottom:1px solid var(--vp-border);color:var(--vp-text);white-space:nowrap}
+.vp-tbl tbody tr:hover td{background:var(--vp-bg3);cursor:pointer}
+.vp-tbl tbody tr.sel td{background:rgba(201,168,76,.12)}
+.vp-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.vp-badge.grn{background:rgba(79,203,158,.18);color:var(--vp-grn)}
+.vp-badge.red{background:rgba(240,104,92,.18);color:var(--vp-red)}
+.vp-badge.amb{background:rgba(232,179,57,.18);color:var(--vp-amb)}
+.vp-empty{text-align:center;padding:20px;color:var(--vp-text-muted);font-size:12px}
+.vp-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;align-items:center;justify-content:center;z-index:9999}
+.vp-modal{background:var(--vp-bg2);border:1px solid var(--vp-border-gold);border-radius:14px;padding:20px;
+  width:560px;max-width:92vw;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+/* Rev.39 (Issam, voice, 2026-11-15) — aligned to the same wide,
+   2-column form layout the rest of this project's Add/Edit windows
+   already use (ptw-register.html's .ptw-modal.wide /
+   .ptw-modal-grid): a wider window, header and result fields paired
+   up two to a row, and each section introduced by a full-width
+   divider heading — not one field stacked under the next. */
+.vp-modal.wide{width:820px;max-width:94vw}
+.vp-modal h3{margin:0 0 12px;font-size:14px;color:var(--vp-gold-lt)}
+.vp-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.vp-modal-grid .full{grid-column:1/-1}
+.vp-sec-hd{grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--vp-gold-lt);border-top:1px solid var(--vp-border);padding-top:10px;margin-top:2px}
+.vp-sec-hd:first-child{border-top:none;padding-top:0;margin-top:0}
+.vp-field{margin-bottom:0}
+.vp-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--vp-text-dim);margin-bottom:4px}
+.vp-field input,.vp-field select,.vp-field textarea{width:100%;background:var(--vp-bg3);border:1px solid var(--vp-border);
+  color:var(--vp-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.vp-field textarea{min-height:60px;resize:vertical}
+.vp-item-row{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--vp-bg3);
+  border:1px solid var(--vp-border);border-radius:8px;padding:9px 12px;font-size:12px}
+.vp-item-row label.vp-item-label{flex:1;font-weight:600}
+.vp-item-row select{width:120px;flex-shrink:0}
+.vp-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+@media (max-width:640px){
+  .vp-wrap{padding:14px 12px}
+  .vp-modal.wide{width:100%;max-width:100vw;border-radius:0;max-height:100vh;height:100vh}
+  .vp-modal-grid{grid-template-columns:1fr}
+  /* Rev.42 (Issam, voice, 2026-11-16) — real mobile pass: full-width
+     stacked toolbar and filter controls instead of a cramped row of
+     small buttons, 44px-tall tap targets throughout (Apple/Android's
+     own minimum), and 16px form font so iOS Safari does not auto-zoom
+     when a field is focused. */
+  .vp-toolbar{flex-direction:column;align-items:stretch}
+  .vp-toolbar-left{flex-direction:column;width:100%}
+  .vp-btn{width:100%;min-height:44px;font-size:13px;padding:10px 14px}
+  .vp-filters{flex-direction:column;align-items:stretch}
+  .vp-filters input,.vp-filters select{width:100%;min-height:42px;font-size:15px}
+  .vp-field input,.vp-field select,.vp-field textarea{min-height:42px;font-size:16px}
+  .vp-item-row{flex-direction:column;align-items:stretch;gap:8px}
+  .vp-item-row select{width:100%;min-height:42px;font-size:15px}
+  .vp-modal-actions{flex-direction:column-reverse}
+  .vp-modal-actions button{width:100%;min-height:44px}
+  table.vp-tbl{font-size:10.5px}
+  .vp-tbl thead th,.vp-tbl tbody td{padding:7px 8px;white-space:normal}
+}
+.vp-result-banner{margin:10px 0;padding:10px 14px;border-radius:8px;font-weight:800;font-size:13px;text-align:center}
+.vp-result-banner.grn{background:rgba(79,203,158,.18);color:var(--vp-grn);border:2px solid var(--vp-grn)}
+.vp-result-banner.red{background:rgba(240,104,92,.18);color:var(--vp-red);border:2px solid var(--vp-red)}
+</style>
+</head>
+<body>
+<div class="vp-wrap">
+  <div class="vp-back-row"><a href="index.html" class="vp-back-link">← IMS Portal</a></div>
+  <h2 style="margin:4px 0 2px;color:var(--vp-gold-lt);font-size:18px">🚚 Vehicle &amp; Mobile Equipment Pre-Use Inspection Register</h2>
+  <div class="vp-req">
+    <strong>Owned by Logistics, not Safety</strong> — the driver fills this in every time they take over a vehicle or piece of equipment, not once a day or once a shift. A vehicle running 24 hours with one driver gets one check; a vehicle changing hands twice in a day gets two.
+    A failed item is reviewed and signed off by the Logistics Supervisor and marks the equipment Removed from Service until closed here. Safety can view these records to monitor the programme, but does not fill them in.
+    No legal reference is attached to this register in the CAMP01 roadmap — it is built as good practice, matching the existing forklift and crane checks, kept short on purpose so it stays quick to fill in.
+  </div>
+  <div class="vp-kpi-grid" id="vp-kpi-grid"></div>
+  <div class="vp-toolbar">
+    <div class="vp-toolbar-left">
+      <button class="vp-btn vp-btn-add" onclick="VP.openAdd()">+ New Inspection</button>
+      <button class="vp-btn" id="vp-tb-edit" disabled onclick="VP.openEdit(VP.getSelected())">✏️ Edit</button>
+      <button class="vp-btn" id="vp-tb-remove" disabled onclick="VP.remove(VP.getSelected())">🗑️ Remove</button>
+    </div>
+    <div class="vp-filters">
+      <input type="text" id="vp-search" placeholder="Search vehicle ID, driver…" oninput="VP.onFilterChange()">
+      <select id="vp-filter-result" onchange="VP.onFilterChange()">
+        <option value="">All Results</option>
+        <option value="Satisfactory">Satisfactory</option>
+        <option value="Unsatisfactory">Unsatisfactory</option>
+      </select>
+    </div>
+  </div>
+  <div class="vp-table-wrap"><table class="vp-tbl">
+    <thead><tr><th>Inspection ID</th><th>Date</th><th>Vehicle / Equipment Type</th><th>Vehicle / Plate No.</th><th>Result</th><th>Status</th><th>Driver / Operator</th></tr></thead>
+    <tbody id="vp-tbody"><tr><td colspan="7" class="vp-empty">Loading…</td></tr></tbody>
+  </table></div>
+  <div id="vp-modal-root"></div>
+</div>
+
+<script>
+(function(){
+  var TAB_KEY = "vehicle_preuse_inspection";
+  var ID_PREFIX = "VPI";
+  // Rev.45 (Issam, voice, 2026-11-16) — shortened from 10 items to the
+  // 6 that matter most for a quick driver-handover check (dropped seat
+  // belt, mirrors, windscreen, fire extinguisher — those stay covered
+  // by the vehicle's own periodic maintenance, not this handover check).
+  // Every item below is answered Yes / No / N/A - no blank item is
+  // allowed to sit behind a Satisfactory result, same rule as every
+  // other checklist in this project.
+  var ITEMS = [
+    "Brakes Functioning Correctly (Service and Parking Brake)",
+    "Steering Operates Smoothly, No Excessive Play",
+    "Lights, Indicators and Horn Working",
+    "Reverse Alarm / Camera Working (Where Fitted)",
+    "Tyres in Good Condition, Correct Pressure, No Visible Damage",
+    "No Fluid Leaks (Oil, Fuel, Coolant, Hydraulic)"
+  ];
+  var PASS = "Satisfactory", FAIL = "Unsatisfactory";
+  // Rev.45 — "Shift" replaced with "Time Vehicle Taken Over": the
+  // record is keyed to a driver handover, not a shift or a day, so the
+  // handover time is what actually identifies which check this is.
+  // "Inspected By" (the driver doing the check) and "Reviewed By
+  // (Logistics Supervisor)" (who signs off a failed item) are now two
+  // separate people, matching the owner/reviewer split Issam set.
+  var FIELDS = ["Inspection ID","Date","Time Vehicle Taken Over","Vehicle / Equipment Type","Vehicle / Equipment ID / Plate No.","Driver / Operator Name"]
+    .concat(ITEMS)
+    .concat(["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Inspected By","Reviewed By (Logistics Supervisor)","Remarks","Status"]);
+  var SELECT_FIELDS = {
+    "Vehicle / Equipment Type": ["Light Vehicle","Pickup Truck","Bus / Van","Wheel Loader","Excavator","Mobile Generator","Other"],
+    "Corrective Action Required": ["Yes","No"],
+    // Rev.43 (Issam, voice, 2026-11-16) - a vehicle that fails a safety
+    // item (brakes, steering, tyres) can't just sit "Open" like a
+    // corrective-action item elsewhere: it has to come off the road
+    // immediately, same logic as the harness/fall-protection register.
+    "Status": ["In Service","Removed from Service","Closed"]
+  };
+  ITEMS.forEach(function(it){ SELECT_FIELDS[it] = ["Yes","No","N/A"]; });
+  var STATUS_COL = "Record Status";
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getCurrentUserName) ? IMS_AUTH.getCurrentUserName() : '';
+    return s || ((typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? ((IMS_AUTH.getUser()||{}).username||'') : '');
+  }
+  function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function colIdx(headers, name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+
+  var _headers = [], _rows = [], _selected = null;
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  function nextId(){
+    var recIdx = colIdx(_headers, 'Inspection ID');
+    if (recIdx < 0) return '';
+    var max = 0;
+    _rows.forEach(function(r){
+      var m = /^VPI-(\d+)$/.exec(String(r[recIdx]||''));
+      if (m) max = Math.max(max, parseInt(m[1],10));
+    });
+    return ID_PREFIX + '-' + String(max+1).padStart(4,'0');
+  }
+
+  function loadAll(){
+    document.getElementById('vp-tbody').innerHTML = '<tr><td colspan="7" class="vp-empty">⏳ Loading…</td></tr>';
+    fetch(SHEETS_URL + '?tab=' + TAB_KEY + '&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _headers = (data && data.headers) || [];
+      _rows = (data && data.rows) || [];
+      render();
+    }).catch(function(){
+      document.getElementById('vp-tbody').innerHTML = '<tr><td colspan="7" class="vp-empty">Connection unavailable — could not reach Google Sheets.</td></tr>';
+    });
+  }
+
+  function visibleRows(){
+    var recStatusIdx = colIdx(_headers, 'Record Status');
+    var resIdx = colIdx(_headers, 'Overall Result');
+    var machIdx = colIdx(_headers, 'Vehicle / Equipment Type');
+    var locIdx = colIdx(_headers, 'Vehicle / Equipment ID / Plate No.');
+    var search = (document.getElementById('vp-search').value||'').trim().toLowerCase();
+    var resultFilter = document.getElementById('vp-filter-result').value;
+    return _rows.filter(function(r){
+      if (recStatusIdx >= 0 && String(r[recStatusIdx]||'').trim().toLowerCase() === 'removed') return false;
+      if (resultFilter && resIdx >= 0 && String(r[resIdx]||'') !== resultFilter) return false;
+      if (search){
+        var hay = ((machIdx>=0?r[machIdx]:'') + ' ' + (locIdx>=0?r[locIdx]:'')).toLowerCase();
+        if (hay.indexOf(search) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderKpis(){
+    var rows = visibleRows();
+    var resIdx = colIdx(_headers, 'Overall Result');
+    var statusIdx = colIdx(_headers, 'Status');
+    var total = rows.length;
+    var unsat = rows.filter(function(r){ return resIdx>=0 && String(r[resIdx]||'')===FAIL; }).length;
+    var removedCount = rows.filter(function(r){ return statusIdx>=0 && String(r[statusIdx]||'').trim()==='Removed from Service'; }).length;
+    document.getElementById('vp-kpi-grid').innerHTML =
+      '<div class="vp-kpi-card nvy"><div class="vp-kpi-label">Total Inspections</div><div class="vp-kpi-value">'+total+'</div></div>'
+      + '<div class="vp-kpi-card red"><div class="vp-kpi-label">Unsatisfactory</div><div class="vp-kpi-value">'+unsat+'</div></div>'
+      + '<div class="vp-kpi-card amb"><div class="vp-kpi-label">Removed from Service</div><div class="vp-kpi-value">'+removedCount+'</div></div>';
+  }
+
+  function render(){
+    renderKpis();
+    var rows = visibleRows();
+    var tbody = document.getElementById('vp-tbody');
+    if (!rows.length){ tbody.innerHTML = '<tr><td colspan="7" class="vp-empty">No inspections recorded yet.</td></tr>'; return; }
+    var idIdx = colIdx(_headers,'Inspection ID'), dateIdx = colIdx(_headers,'Date'),
+        machIdx = colIdx(_headers,'Vehicle / Equipment Type'), locIdx = colIdx(_headers,'Vehicle / Equipment ID / Plate No.'),
+        resIdx = colIdx(_headers,'Overall Result'), byIdx = colIdx(_headers,'Inspected By'),
+        statusIdx = colIdx(_headers,'Status');
+    tbody.innerHTML = rows.map(function(r){
+      var id = r[idIdx];
+      var result = resIdx>=0 ? String(r[resIdx]||'') : '';
+      var resultBadge = result === PASS ? '<span class="vp-badge grn">Satisfactory</span>'
+        : result === FAIL ? '<span class="vp-badge red">Unsatisfactory</span>' : '';
+      var status = statusIdx>=0 ? String(r[statusIdx]||'') : '';
+      var statusBadge = status === 'Removed from Service' ? '<span class="vp-badge red">Removed from Service</span>'
+        : status === 'Closed' ? '<span class="vp-badge grn">Closed</span>'
+        : status === 'In Service' ? '<span class="vp-badge grn">In Service</span>' : '—';
+      return '<tr class="'+(String(id)===String(_selected)?'sel':'')+'" onclick="VP.selectRow(\''+vEsc(id)+'\')">'
+        + '<td>'+vEsc(id)+'</td><td>'+vEsc(r[dateIdx])+'</td><td>'+vEsc(r[machIdx])+'</td><td>'+vEsc(r[locIdx])+'</td>'
+        + '<td>'+resultBadge+'</td><td>'+statusBadge+'</td><td>'+vEsc(r[byIdx])+'</td></tr>';
+    }).join('');
+  }
+
+  function collectValues(root){
+    var values = {};
+    root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+    return values;
+  }
+
+  function showModal(title, initialValues, onSubmit){
+    var root = document.getElementById('vp-modal-root');
+    var headerFields = ["Inspection ID","Date","Time Vehicle Taken Over","Vehicle / Equipment Type","Vehicle / Equipment ID / Plate No.","Driver / Operator Name"];
+    var tailFields = ["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Inspected By","Reviewed By (Logistics Supervisor)","Remarks","Status"];
+    var fullWidthFields = {"Corrective Action Details":1, "Remarks":1};
+
+    function fieldHtml(f){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEscV = vEsc(v);
+      var cls = 'vp-field' + (fullWidthFields[f] ? ' full' : '');
+      if (SELECT_FIELDS[f]){
+        var opts = '<option value=""></option>' + SELECT_FIELDS[f].map(function(o){
+          return '<option value="'+vEsc(o)+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="'+cls+'"><label>'+f+'</label><select data-field="'+f+'">'+opts+'</select></div>';
+      }
+      if (fullWidthFields[f]){
+        return '<div class="'+cls+'"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+      }
+      var fLower = f.toLowerCase();
+      // Rev.45 - "Time Vehicle Taken Over" needs a time picker, not a
+      // plain text box, so the handover moment is captured cleanly.
+      var inputType = fLower.indexOf('date') > -1 ? 'date' : (fLower.indexOf('time') > -1 ? 'time' : 'text');
+      return '<div class="'+cls+'"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEscV+'"></div>';
+    }
+
+    // Rev.39 (Issam, voice, 2026-11-15) — aligned to the same
+    // shaded-section / 2-column form layout the rest of this project's
+    // Add/Edit windows use, rather than one field after another.
+    // Header and result fields pair up two to a row; each checklist
+    // item is still its own full-width row with its Yes/No/N/A answer
+    // beside it (ptw-register.html's own Linked Safety Records rows
+    // use the same shape), all inside one shared grid so the section
+    // headings can span both columns.
+    var itemsHtml = ITEMS.map(function(it){
+      var v = (initialValues && initialValues[it]) || '';
+      var opts = ['Yes','No','N/A'].map(function(o){ return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+o+'</option>'; }).join('');
+      return '<div class="vp-item-row"><label class="vp-item-label">'+it+'</label><select data-field="'+it+'"><option value=""></option>'+opts+'</select></div>';
+    }).join('');
+
+    root.innerHTML = '<div class="vp-modal-bg" id="vp-modal-bg"><div class="vp-modal wide">'
+      + '<h3>'+title+'</h3>'
+      + '<div class="vp-modal-grid">'
+      + '<div class="vp-sec-hd">Inspection Details</div>' + headerFields.map(fieldHtml).join('')
+      + '<div class="vp-sec-hd">Pre-Use Condition Checks</div>' + itemsHtml
+      + '<div class="vp-sec-hd">Result &amp; Corrective Action</div>' + tailFields.map(fieldHtml).join('')
+      + '</div>'
+      + '<div class="vp-modal-actions"><button class="vp-btn" id="vp-modal-cancel">Cancel</button>'
+      + '<button class="vp-btn vp-btn-add" id="vp-modal-save">Save</button></div>'
+      + '</div></div>';
+
+    document.getElementById('vp-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('vp-modal-bg').onclick = function(e){ if (e.target.id==='vp-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('vp-modal-save').onclick = function(){
+      var values = collectValues(root);
+      // Rev.38 (Issam, voice, 2026-11-15) — same rule as every other
+      // checklist in this project: a Satisfactory result can't save
+      // with items left blank. An untouched select reads as "", never
+      // flagged as a fail on its own, so this is checked explicitly.
+      var missing = ITEMS.filter(function(it){ return !String(values[it]||'').trim(); });
+      if (missing.length){
+        alert('This inspection cannot be saved yet — the following items must be answered first:\n\n- ' + missing.join('\n- '));
+        return;
+      }
+      var anyNo = ITEMS.some(function(it){ return values[it] === 'No'; });
+      values['Overall Result'] = anyNo ? FAIL : PASS;
+      if (values['Corrective Action Required'] === 'Yes' && !values['Corrective Action Details']){
+        alert('Please describe the corrective action needed.');
+        return;
+      }
+      // Rev.45 (Issam, voice, 2026-11-16) - logistics enters the data,
+      // but a failed item is reviewed and signed off by the Logistics
+      // Supervisor specifically, not just "someone". A Removed from
+      // Service result can't save without that name on it.
+      if (values['Overall Result'] === FAIL && !values['Reviewed By (Logistics Supervisor)']){
+        alert('A failed item needs sign-off from the Logistics Supervisor before this can be saved.');
+        return;
+      }
+      if (!values['Status']) values['Status'] = (values['Overall Result'] === FAIL) ? 'Removed from Service' : 'In Service';
+      var saveBtn = document.getElementById('vp-modal-save');
+      saveBtn.disabled = true;
+      onSubmit(values, function(){ root.innerHTML = ''; }, function(){ saveBtn.disabled = false; });
+    };
+  }
+
+  window.VP = {
+    selectRow: function(id){ _selected = (_selected === id) ? null : id; render(); updateToolbar(); },
+    getSelected: function(){ return _selected; },
+    onFilterChange: function(){ render(); },
+    openAdd: function(){
+      if (!can('add')) return;
+      var initial = { 'Inspection ID': nextId(), 'Inspected By': currentUserName() };
+      showModal('New Vehicle &amp; Mobile Equipment Pre-Use Inspection', initial, function(values, close, reenable){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: TAB_KEY}, [values]).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          close(); loadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+      });
+    },
+    openEdit: function(id){
+      if (!can('edit')) return;
+      if (!id) return alert('Select a row first.');
+      var idIdx = colIdx(_headers, 'Inspection ID');
+      var row = _rows.find(function(r){ return String(r[idIdx]) === String(id); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      _headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal('Edit Inspection — ' + id, initial, function(values, close, reenable){
+        postJSON('update', {tab: TAB_KEY, idCol: 'Inspection ID', id: id}, values).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          close(); loadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+      });
+    },
+    remove: function(id){
+      if (!can('delete')) return;
+      if (!id) return alert('Select a row first.');
+      if (!confirm('Remove inspection ' + id + '?')) return;
+      postJSON('update', {tab: TAB_KEY, idCol: 'Inspection ID', id: id}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message||'unknown error')); return; }
+        _selected = null; loadAll();
+      }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+    }
+  };
+
+  function updateToolbar(){
+    var disabled = !_selected;
+    document.getElementById('vp-tb-edit').disabled = disabled;
+    document.getElementById('vp-tb-remove').disabled = disabled;
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(loadAll, 100); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Security Patrol</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+.sp-wrap{
+  --sp-bg:#0D1B35; --sp-bg2:#142140; --sp-bg3:#1a2a50;
+  --sp-gold:#C9A84C; --sp-gold-lt:#E8C97A;
+  --sp-text:rgba(255,255,255,.92); --sp-text-muted:rgba(255,255,255,.55);
+  --sp-text-dim:rgba(255,255,255,.35); --sp-border:rgba(255,255,255,.08);
+  --sp-border-gold:rgba(201,168,76,.35);
+  --sp-grn:#4FCB9E; --sp-amb:#E8B339; --sp-red:#F0685C; --sp-blue:#5B9BD5;
+  background:var(--sp-bg); color:var(--sp-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.sp-wrap *{box-sizing:border-box}
+.sp-back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.sp-back-link{display:inline-flex;align-items:center;gap:5px;color:var(--sp-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--sp-bg2);
+  border-radius:8px;border:1px solid var(--sp-border-gold)}
+.sp-req{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--sp-bg2);
+  border-radius:8px;border-left:3px solid var(--sp-gold);margin:10px 0;color:var(--sp-text-muted)}
+.sp-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+.sp-kpi-card{background:var(--sp-bg2);border:1px solid var(--sp-border);border-radius:12px;padding:12px 16px;position:relative;overflow:hidden}
+.sp-kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.sp-kpi-card.nvy::before{background:var(--sp-blue)}
+.sp-kpi-card.grn::before{background:var(--sp-grn)}
+.sp-kpi-card.red::before{background:var(--sp-red)}
+.sp-kpi-card.amb::before{background:var(--sp-amb)}
+.sp-kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--sp-text-dim);font-weight:700}
+.sp-kpi-value{font-size:22px;font-weight:800;margin-top:4px}
+.sp-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+.sp-toolbar-left{display:flex;gap:8px;flex-wrap:wrap}
+.sp-btn{font-size:11px;font-weight:700;padding:8px 14px;border-radius:7px;border:1px solid var(--sp-border-gold);
+  background:var(--sp-bg3);color:var(--sp-text);cursor:pointer}
+.sp-btn:hover{background:rgba(201,168,76,.15)}
+.sp-btn:disabled{opacity:.4;cursor:not-allowed}
+.sp-btn-add{background:rgba(201,168,76,.85);color:#1a1200;border-color:var(--sp-gold);font-weight:800}
+.sp-btn-add:hover{background:var(--sp-gold-lt)}
+.sp-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.sp-filters input,.sp-filters select{background:var(--sp-bg3);border:1px solid var(--sp-border);color:var(--sp-text);
+  border-radius:7px;padding:6px 10px;font-size:11px;font-family:inherit}
+.sp-table-wrap{overflow-x:auto;border:1px solid var(--sp-border-gold);border-radius:10px}
+table.sp-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.sp-tbl thead th{background:var(--sp-bg3);color:var(--sp-gold-lt);font-weight:700;text-align:left;padding:8px 10px;
+  text-transform:uppercase;font-size:9.5px;border-bottom:1px solid var(--sp-border-gold);white-space:nowrap}
+.sp-tbl tbody td{padding:7px 10px;border-bottom:1px solid var(--sp-border);color:var(--sp-text);white-space:nowrap}
+.sp-tbl tbody tr:hover td{background:var(--sp-bg3);cursor:pointer}
+.sp-tbl tbody tr.sel td{background:rgba(201,168,76,.12)}
+.sp-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.sp-badge.grn{background:rgba(79,203,158,.18);color:var(--sp-grn)}
+.sp-badge.red{background:rgba(240,104,92,.18);color:var(--sp-red)}
+.sp-badge.amb{background:rgba(232,179,57,.18);color:var(--sp-amb)}
+.sp-empty{text-align:center;padding:20px;color:var(--sp-text-muted);font-size:12px}
+.sp-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;align-items:center;justify-content:center;z-index:9999}
+.sp-modal{background:var(--sp-bg2);border:1px solid var(--sp-border-gold);border-radius:14px;padding:20px;
+  width:560px;max-width:92vw;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+/* Rev.39 (Issam, voice, 2026-11-15) — aligned to the same wide,
+   2-column form layout the rest of this project's Add/Edit windows
+   already use (ptw-register.html's .ptw-modal.wide /
+   .ptw-modal-grid): a wider window, header and result fields paired
+   up two to a row, and each section introduced by a full-width
+   divider heading — not one field stacked under the next. */
+.sp-modal.wide{width:820px;max-width:94vw}
+.sp-modal h3{margin:0 0 12px;font-size:14px;color:var(--sp-gold-lt)}
+.sp-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.sp-modal-grid .full{grid-column:1/-1}
+.sp-sec-hd{grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--sp-gold-lt);border-top:1px solid var(--sp-border);padding-top:10px;margin-top:2px}
+.sp-sec-hd:first-child{border-top:none;padding-top:0;margin-top:0}
+.sp-field{margin-bottom:0}
+.sp-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--sp-text-dim);margin-bottom:4px}
+.sp-field input,.sp-field select,.sp-field textarea{width:100%;background:var(--sp-bg3);border:1px solid var(--sp-border);
+  color:var(--sp-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.sp-field textarea{min-height:60px;resize:vertical}
+.sp-item-row{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--sp-bg3);
+  border:1px solid var(--sp-border);border-radius:8px;padding:9px 12px;font-size:12px}
+.sp-item-row label.sp-item-label{flex:1;font-weight:600}
+.sp-item-row select{width:120px;flex-shrink:0}
+.sp-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+@media (max-width:640px){
+  .sp-wrap{padding:14px 12px}
+  .sp-modal.wide{width:100%;max-width:100vw;border-radius:0;max-height:100vh;height:100vh}
+  .sp-modal-grid{grid-template-columns:1fr}
+  /* Rev.42 (Issam, voice, 2026-11-16) — real mobile pass: full-width
+     stacked toolbar and filter controls instead of a cramped row of
+     small buttons, 44px-tall tap targets throughout (Apple/Android's
+     own minimum), and 16px form font so iOS Safari does not auto-zoom
+     when a field is focused. */
+  .sp-toolbar{flex-direction:column;align-items:stretch}
+  .sp-toolbar-left{flex-direction:column;width:100%}
+  .sp-btn{width:100%;min-height:44px;font-size:13px;padding:10px 14px}
+  .sp-filters{flex-direction:column;align-items:stretch}
+  .sp-filters input,.sp-filters select{width:100%;min-height:42px;font-size:15px}
+  .sp-field input,.sp-field select,.sp-field textarea{min-height:42px;font-size:16px}
+  .sp-item-row{flex-direction:column;align-items:stretch;gap:8px}
+  .sp-item-row select{width:100%;min-height:42px;font-size:15px}
+  .sp-modal-actions{flex-direction:column-reverse}
+  .sp-modal-actions button{width:100%;min-height:44px}
+  table.sp-tbl{font-size:10.5px}
+  .sp-tbl thead th,.sp-tbl tbody td{padding:7px 8px;white-space:normal}
+}
+.sp-result-banner{margin:10px 0;padding:10px 14px;border-radius:8px;font-weight:800;font-size:13px;text-align:center}
+.sp-result-banner.grn{background:rgba(79,203,158,.18);color:var(--sp-grn);border:2px solid var(--sp-grn)}
+.sp-result-banner.red{background:rgba(240,104,92,.18);color:var(--sp-red);border:2px solid var(--sp-red)}
+</style>
+</head>
+<body>
+<div class="sp-wrap">
+  <div class="sp-back-row"><a href="index.html" class="sp-back-link">← IMS Portal</a></div>
+  <h2 style="margin:4px 0 2px;color:var(--sp-gold-lt);font-size:18px">🛡 Security Patrol Register</h2>
+  <div class="sp-req">
+    Record of each security patrol round: time, route covered, and what the guard observed.
+    No fixed interval is written into this page — set the expected rounds per shift with your security supervisor and keep to it, so the log matches your own standard.
+    Any finding that needs follow-up (a breach, tampering, an unauthorised person) should also go into the Gate/Boundary Control Log or the Incident Register as appropriate.
+  </div>
+  <div class="sp-kpi-grid" id="sp-kpi-grid"></div>
+  <div class="sp-toolbar">
+    <div class="sp-toolbar-left">
+      <button class="sp-btn sp-btn-add" onclick="SP.openAdd()">+ New Inspection</button>
+      <button class="sp-btn" id="sp-tb-edit" disabled onclick="SP.openEdit(SP.getSelected())">✏️ Edit</button>
+      <button class="sp-btn" id="sp-tb-remove" disabled onclick="SP.remove(SP.getSelected())">🗑️ Remove</button>
+    </div>
+    <div class="sp-filters">
+      <input type="text" id="sp-search" placeholder="Search route, guard name…" oninput="SP.onFilterChange()">
+      <select id="sp-filter-result" onchange="SP.onFilterChange()">
+        <option value="">All Results</option>
+        <option value="Satisfactory">Satisfactory</option>
+        <option value="Unsatisfactory">Unsatisfactory</option>
+      </select>
+    </div>
+  </div>
+  <div class="sp-table-wrap"><table class="sp-tbl">
+    <thead><tr><th>Patrol ID</th><th>Date</th><th>Time</th><th>Area / Route</th><th>Result</th><th>Corrective Action</th><th>Guard Name</th></tr></thead>
+    <tbody id="sp-tbody"><tr><td colspan="7" class="sp-empty">Loading…</td></tr></tbody>
+  </table></div>
+  <div id="sp-modal-root"></div>
+</div>
+
+<script>
+(function(){
+  var TAB_KEY = "security_patrol";
+  var ID_PREFIX = "SPL";
+  // Every item below is answered Yes / No / N/A - no blank item is
+  // allowed to sit behind a Satisfactory result, same rule as every
+  // other checklist in this project.
+  var ITEMS = [
+    "Perimeter Fencing Intact, No Signs of Damage or Tampering",
+    "All Gates Closed and Secured",
+    "No Unauthorized Persons or Vehicles Observed",
+    "Lighting Adequate Along Patrol Route",
+    "CCTV Cameras Appear Operational (Where Applicable)",
+    "No Suspicious Activity, Packages or Vehicles Observed"
+  ];
+  var PASS = "Satisfactory", FAIL = "Unsatisfactory";
+  var FIELDS = ["Patrol ID","Date","Shift","Patrol Time","Area / Route Covered","Guard Name"]
+    .concat(ITEMS)
+    .concat(["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Reported By","Remarks","Status"]);
+  var SELECT_FIELDS = {
+    "Shift": ["Day","Night"],
+    "Corrective Action Required": ["Yes","No"],
+    "Status": ["Open","Closed"]
+  };
+  ITEMS.forEach(function(it){ SELECT_FIELDS[it] = ["Yes","No","N/A"]; });
+  var STATUS_COL = "Record Status";
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){ /* unused on this page - kept for parity */
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getCurrentUserName) ? IMS_AUTH.getCurrentUserName() : '';
+    return s || ((typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? ((IMS_AUTH.getUser()||{}).username||'') : '');
+  }
+  function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function colIdx(headers, name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+
+  var _headers = [], _rows = [], _selected = null;
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  function nextId(){
+    var recIdx = colIdx(_headers, 'Patrol ID');
+    if (recIdx < 0) return '';
+    var max = 0;
+    _rows.forEach(function(r){
+      var m = /^SPL-(\d+)$/.exec(String(r[recIdx]||''));
+      if (m) max = Math.max(max, parseInt(m[1],10));
+    });
+    return ID_PREFIX + '-' + String(max+1).padStart(4,'0');
+  }
+
+  function loadAll(){
+    document.getElementById('sp-tbody').innerHTML = '<tr><td colspan="7" class="sp-empty">⏳ Loading…</td></tr>';
+    fetch(SHEETS_URL + '?tab=' + TAB_KEY + '&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _headers = (data && data.headers) || [];
+      _rows = (data && data.rows) || [];
+      render();
+    }).catch(function(){
+      document.getElementById('sp-tbody').innerHTML = '<tr><td colspan="7" class="sp-empty">Connection unavailable — could not reach Google Sheets.</td></tr>';
+    });
+  }
+
+  function visibleRows(){
+    var recStatusIdx = colIdx(_headers, 'Record Status');
+    var resIdx = colIdx(_headers, 'Overall Result');
+    var machIdx = colIdx(_headers, 'Patrol Time');
+    var locIdx = colIdx(_headers, 'Area / Route Covered');
+    var search = (document.getElementById('sp-search').value||'').trim().toLowerCase();
+    var resultFilter = document.getElementById('sp-filter-result').value;
+    return _rows.filter(function(r){
+      if (recStatusIdx >= 0 && String(r[recStatusIdx]||'').trim().toLowerCase() === 'removed') return false;
+      if (resultFilter && resIdx >= 0 && String(r[resIdx]||'') !== resultFilter) return false;
+      if (search){
+        var hay = ((machIdx>=0?r[machIdx]:'') + ' ' + (locIdx>=0?r[locIdx]:'')).toLowerCase();
+        if (hay.indexOf(search) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderKpis(){
+    var rows = visibleRows();
+    var resIdx = colIdx(_headers, 'Overall Result');
+    var carIdx = colIdx(_headers, 'Corrective Action Required');
+    var statusIdx = colIdx(_headers, 'Status');
+    var total = rows.length;
+    var unsat = rows.filter(function(r){ return resIdx>=0 && String(r[resIdx]||'')===FAIL; }).length;
+    var openCar = rows.filter(function(r){ return statusIdx>=0 && String(r[statusIdx]||'').trim()==='Open'; }).length;
+    document.getElementById('sp-kpi-grid').innerHTML =
+      '<div class="sp-kpi-card nvy"><div class="sp-kpi-label">Total Inspections</div><div class="sp-kpi-value">'+total+'</div></div>'
+      + '<div class="sp-kpi-card red"><div class="sp-kpi-label">Unsatisfactory</div><div class="sp-kpi-value">'+unsat+'</div></div>'
+      + '<div class="sp-kpi-card amb"><div class="sp-kpi-label">Open Corrective Actions</div><div class="sp-kpi-value">'+openCar+'</div></div>';
+  }
+
+  function render(){
+    renderKpis();
+    var rows = visibleRows();
+    var tbody = document.getElementById('sp-tbody');
+    if (!rows.length){ tbody.innerHTML = '<tr><td colspan="7" class="sp-empty">No inspections recorded yet.</td></tr>'; return; }
+    var idIdx = colIdx(_headers,'Patrol ID'), dateIdx = colIdx(_headers,'Date'),
+        machIdx = colIdx(_headers,'Patrol Time'), locIdx = colIdx(_headers,'Area / Route Covered'),
+        resIdx = colIdx(_headers,'Overall Result'), carIdx = colIdx(_headers,'Corrective Action Required'),
+        byIdx = colIdx(_headers,'Reported By'), statusIdx = colIdx(_headers,'Status');
+    tbody.innerHTML = rows.map(function(r){
+      var id = r[idIdx];
+      var result = resIdx>=0 ? String(r[resIdx]||'') : '';
+      var resultBadge = result === PASS ? '<span class="sp-badge grn">Satisfactory</span>'
+        : result === FAIL ? '<span class="sp-badge red">Unsatisfactory</span>' : '';
+      var car = carIdx>=0 ? String(r[carIdx]||'') : '';
+      var status = statusIdx>=0 ? String(r[statusIdx]||'') : '';
+      var carBadge = car === 'Yes' ? (status === 'Closed' ? '<span class="sp-badge grn">Closed</span>' : '<span class="sp-badge amb">Open</span>') : '—';
+      return '<tr class="'+(String(id)===String(_selected)?'sel':'')+'" onclick="SP.selectRow(\''+vEsc(id)+'\')">'
+        + '<td>'+vEsc(id)+'</td><td>'+vEsc(r[dateIdx])+'</td><td>'+vEsc(r[machIdx])+'</td><td>'+vEsc(r[locIdx])+'</td>'
+        + '<td>'+resultBadge+'</td><td>'+carBadge+'</td><td>'+vEsc(r[byIdx])+'</td></tr>';
+    }).join('');
+  }
+
+  function collectValues(root){
+    var values = {};
+    root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
+    return values;
+  }
+
+  function showModal(title, initialValues, onSubmit){
+    var root = document.getElementById('sp-modal-root');
+    var headerFields = ["Patrol ID","Date","Shift","Patrol Time","Area / Route Covered","Guard Name"];
+    var tailFields = ["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Reported By","Remarks","Status"];
+    var fullWidthFields = {"Corrective Action Details":1, "Remarks":1};
+
+    function fieldHtml(f){
+      var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
+      var vEscV = vEsc(v);
+      var cls = 'sp-field' + (fullWidthFields[f] ? ' full' : '');
+      if (SELECT_FIELDS[f]){
+        var opts = '<option value=""></option>' + SELECT_FIELDS[f].map(function(o){
+          return '<option value="'+vEsc(o)+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="'+cls+'"><label>'+f+'</label><select data-field="'+f+'">'+opts+'</select></div>';
+      }
+      if (fullWidthFields[f]){
+        return '<div class="'+cls+'"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+      }
+      var fLower = f.toLowerCase();
+      var inputType = fLower.indexOf('date') > -1 ? 'date' : 'text';
+      return '<div class="'+cls+'"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEscV+'"></div>';
+    }
+
+    // Rev.39 (Issam, voice, 2026-11-15) — aligned to the same
+    // shaded-section / 2-column form layout the rest of this project's
+    // Add/Edit windows use, rather than one field after another.
+    // Header and result fields pair up two to a row; each checklist
+    // item is still its own full-width row with its Yes/No/N/A answer
+    // beside it (ptw-register.html's own Linked Safety Records rows
+    // use the same shape), all inside one shared grid so the section
+    // headings can span both columns.
+    var itemsHtml = ITEMS.map(function(it){
+      var v = (initialValues && initialValues[it]) || '';
+      var opts = ['Yes','No','N/A'].map(function(o){ return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+o+'</option>'; }).join('');
+      return '<div class="sp-item-row"><label class="sp-item-label">'+it+'</label><select data-field="'+it+'"><option value=""></option>'+opts+'</select></div>';
+    }).join('');
+
+    root.innerHTML = '<div class="sp-modal-bg" id="sp-modal-bg"><div class="sp-modal wide">'
+      + '<h3>'+title+'</h3>'
+      + '<div class="sp-modal-grid">'
+      + '<div class="sp-sec-hd">Inspection Details</div>' + headerFields.map(fieldHtml).join('')
+      + '<div class="sp-sec-hd">Patrol Checks</div>' + itemsHtml
+      + '<div class="sp-sec-hd">Result &amp; Corrective Action</div>' + tailFields.map(fieldHtml).join('')
+      + '</div>'
+      + '<div class="sp-modal-actions"><button class="sp-btn" id="sp-modal-cancel">Cancel</button>'
+      + '<button class="sp-btn sp-btn-add" id="sp-modal-save">Save</button></div>'
+      + '</div></div>';
+
+    document.getElementById('sp-modal-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('sp-modal-bg').onclick = function(e){ if (e.target.id==='sp-modal-bg') root.innerHTML=''; };
+
+    document.getElementById('sp-modal-save').onclick = function(){
+      var values = collectValues(root);
+      // Rev.38 (Issam, voice, 2026-11-15) — same rule as every other
+      // checklist in this project: a Satisfactory result can't save
+      // with items left blank. An untouched select reads as "", never
+      // flagged as a fail on its own, so this is checked explicitly.
+      var missing = ITEMS.filter(function(it){ return !String(values[it]||'').trim(); });
+      if (missing.length){
+        alert('This inspection cannot be saved yet — the following items must be answered first:\n\n- ' + missing.join('\n- '));
+        return;
+      }
+      var anyNo = ITEMS.some(function(it){ return values[it] === 'No'; });
+      values['Overall Result'] = anyNo ? FAIL : PASS;
+      if (values['Corrective Action Required'] === 'Yes' && !values['Corrective Action Details']){
+        alert('Please describe the corrective action needed.');
+        return;
+      }
+      if (!values['Status']) values['Status'] = (values['Corrective Action Required'] === 'Yes') ? 'Open' : 'Closed';
+      var saveBtn = document.getElementById('sp-modal-save');
+      saveBtn.disabled = true;
+      onSubmit(values, function(){ root.innerHTML = ''; }, function(){ saveBtn.disabled = false; });
+    };
+  }
+
+  window.SP = {
+    selectRow: function(id){ _selected = (_selected === id) ? null : id; render(); updateToolbar(); },
+    getSelected: function(){ return _selected; },
+    onFilterChange: function(){ render(); },
+    openAdd: function(){
+      if (!can('add')) return;
+      var initial = { 'Patrol ID': nextId(), 'Reported By': currentUserName() };
+      showModal('New Security Patrol', initial, function(values, close, reenable){
+        values[STATUS_COL] = 'Active';
+        postJSON('write', {tab: TAB_KEY}, [values]).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          close(); loadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+      });
+    },
+    openEdit: function(id){
+      if (!can('edit')) return;
+      if (!id) return alert('Select a row first.');
+      var idIdx = colIdx(_headers, 'Patrol ID');
+      var row = _rows.find(function(r){ return String(r[idIdx]) === String(id); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      _headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal('Edit Inspection — ' + id, initial, function(values, close, reenable){
+        postJSON('update', {tab: TAB_KEY, idCol: 'Patrol ID', id: id}, values).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); reenable(); return; }
+          close(); loadAll();
+        }).catch(function(){ alert('Could not save — check your connection.'); reenable(); });
+      });
+    },
+    remove: function(id){
+      if (!can('delete')) return;
+      if (!id) return alert('Select a row first.');
+      if (!confirm('Remove inspection ' + id + '?')) return;
+      postJSON('update', {tab: TAB_KEY, idCol: 'Patrol ID', id: id}, {'Record Status':'Removed'}).then(function(res){
+        if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message||'unknown error')); return; }
+        _selected = null; loadAll();
+      }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+    }
+  };
+
+  function updateToolbar(){
+    var disabled = !_selected;
+    document.getElementById('sp-tb-edit').disabled = disabled;
+    document.getElementById('sp-tb-remove').disabled = disabled;
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(loadAll, 100); });
+})();
+</script>
+</body>
+</html>
