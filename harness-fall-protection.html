@@ -125,7 +125,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
       <button class="hf-btn" id="hf-tb-remove" disabled onclick="HF.remove(HF.getSelected())">🗑️ Remove</button>
     </div>
     <div class="hf-filters">
-      <input type="text" id="hf-search" placeholder="Search equipment ID, user…" oninput="HF.onFilterChange()">
+      <input type="text" id="hf-search" placeholder="Search equipment type, failure notes…" oninput="HF.onFilterChange()">
       <select id="hf-filter-result" onchange="HF.onFilterChange()">
         <option value="">All Results</option>
         <option value="Satisfactory">Satisfactory</option>
@@ -134,7 +134,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     </div>
   </div>
   <div class="hf-table-wrap"><table class="hf-tbl">
-    <thead><tr><th>Inspection ID</th><th>Date</th><th>Equipment Type</th><th>Equipment ID</th><th>Result</th><th>Status</th><th>Inspected By</th></tr></thead>
+    <thead><tr><th>Inspection ID</th><th>Date</th><th>Equipment Type</th><th>Harnesses</th><th>Result</th><th>Status</th><th>Inspected By</th></tr></thead>
     <tbody id="hf-tbody"><tr><td colspan="7" class="hf-empty">Loading…</td></tr></tbody>
   </table></div>
   <div id="hf-modal-root"></div>
@@ -179,7 +179,14 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
   // summing this field instead of counting records). 'Failed Harness
   // Tag(s) / Notes' is required whenever any item is No, since a
   // single Yes/No answer can't say which harness failed on its own.
-  var FIELDS = ["Inspection ID","Date","PTW Number","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type","Number of Harnesses Checked"]
+  // Rev.54 (Issam, voice, 2026-11-17) — Equipment ID / Tag No. and
+  // Assigned To / User dropped: both assumed one harness and one
+  // worker per form, which stopped being true once one form started
+  // covering the whole crew (Rev.53). A specific tag only matters when
+  // a harness fails, and that's what 'Failed Harness Tag(s) / Notes'
+  // is for. Equipment Type stays — Issam's call, the job is still
+  // normally one kind of equipment even for a crew.
+  var FIELDS = ["Inspection ID","Date","PTW Number","Equipment Type","Inspection Type","Number of Harnesses Checked"]
     .concat(ITEMS)
     .concat(["Overall Result","Failed Harness Tag(s) / Notes","Target Close Date","Inspected By","Remarks","Status","Action Reference"]);
   var SELECT_FIELDS = {
@@ -299,14 +306,17 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     var recStatusIdx = colIdx(_headers, 'Record Status');
     var resIdx = colIdx(_headers, 'Overall Result');
     var machIdx = colIdx(_headers, 'Equipment Type');
-    var locIdx = colIdx(_headers, 'Equipment ID / Tag No.');
+    // Rev.54 — Equipment ID / Tag No. is gone; search now also matches
+    // the failure notes, since that's where a specific tag would show
+    // up now (only on a failed harness).
+    var notesIdx = colIdx(_headers, 'Failed Harness Tag(s) / Notes');
     var search = (document.getElementById('hf-search').value||'').trim().toLowerCase();
     var resultFilter = document.getElementById('hf-filter-result').value;
     return _rows.filter(function(r){
       if (recStatusIdx >= 0 && String(r[recStatusIdx]||'').trim().toLowerCase() === 'removed') return false;
       if (resultFilter && resIdx >= 0 && String(r[resIdx]||'') !== resultFilter) return false;
       if (search){
-        var hay = ((machIdx>=0?r[machIdx]:'') + ' ' + (locIdx>=0?r[locIdx]:'')).toLowerCase();
+        var hay = ((machIdx>=0?r[machIdx]:'') + ' ' + (notesIdx>=0?r[notesIdx]:'')).toLowerCase();
         if (hay.indexOf(search) < 0) return false;
       }
       return true;
@@ -333,7 +343,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     var tbody = document.getElementById('hf-tbody');
     if (!rows.length){ tbody.innerHTML = '<tr><td colspan="7" class="hf-empty">No inspections recorded yet.</td></tr>'; return; }
     var idIdx = colIdx(_headers,'Inspection ID'), dateIdx = colIdx(_headers,'Date'),
-        machIdx = colIdx(_headers,'Equipment Type'), locIdx = colIdx(_headers,'Equipment ID / Tag No.'),
+        machIdx = colIdx(_headers,'Equipment Type'), countIdx = colIdx(_headers,'Number of Harnesses Checked'),
         resIdx = colIdx(_headers,'Overall Result'), byIdx = colIdx(_headers,'Inspected By'),
         statusIdx = colIdx(_headers,'Status');
     tbody.innerHTML = rows.map(function(r){
@@ -346,7 +356,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
         : status === 'Closed' ? '<span class="hf-badge grn">Closed</span>'
         : status === 'In Service' ? '<span class="hf-badge grn">In Service</span>' : '—';
       return '<tr class="'+(String(id)===String(_selected)?'sel':'')+'" onclick="HF.selectRow(\''+vEsc(id)+'\')">'
-        + '<td>'+vEsc(id)+'</td><td>'+vEsc(r[dateIdx])+'</td><td>'+vEsc(r[machIdx])+'</td><td>'+vEsc(r[locIdx])+'</td>'
+        + '<td>'+vEsc(id)+'</td><td>'+vEsc(r[dateIdx])+'</td><td>'+vEsc(r[machIdx])+'</td><td>'+vEsc(countIdx>=0?r[countIdx]:'')+'</td>'
         + '<td>'+resultBadge+'</td><td>'+statusBadge+'</td><td>'+vEsc(r[byIdx])+'</td></tr>';
     }).join('');
   }
@@ -359,7 +369,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
 
   function showModal(title, initialValues, onSubmit){
     var root = document.getElementById('hf-modal-root');
-    var headerFields = ["Inspection ID","Date","PTW Number","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type","Number of Harnesses Checked"];
+    var headerFields = ["Inspection ID","Date","PTW Number","Equipment Type","Inspection Type","Number of Harnesses Checked"];
     var tailFields = ["Overall Result","Failed Harness Tag(s) / Notes","Target Close Date","Inspected By","Remarks","Status"];
     var fullWidthFields = {"Remarks":1, "Failed Harness Tag(s) / Notes":1};
 
@@ -539,10 +549,13 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
       if (String(rec['Action Reference']||'').trim()){
         return alert('This inspection was already escalated — see Action Register record ' + rec['Action Reference'] + '.');
       }
+      // Rev.54 — Equipment ID / Tag No. dropped; the failure notes are
+      // the useful detail now (they name which harness(es) failed).
       var descParts = [];
       descParts.push('Harness Inspection: ' + _selected);
-      if (rec['Equipment ID / Tag No.']) descParts.push('Equipment: ' + rec['Equipment ID / Tag No.']);
+      if (rec['Equipment Type']) descParts.push('Equipment Type: ' + rec['Equipment Type']);
       if (rec['Overall Result']) descParts.push('Result: ' + rec['Overall Result']);
+      if (rec['Failed Harness Tag(s) / Notes']) descParts.push('Failed: ' + rec['Failed Harness Tag(s) / Notes']);
       if (rec['Remarks']) descParts.push('Remarks: ' + rec['Remarks']);
       var ctx = {
         inspectionId: _selected,
