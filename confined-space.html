@@ -1310,15 +1310,42 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       CS.openEdit('preentry', entryId);
       return;
     }
-    // Arrived via the PTW Register's "Raise Confined Space Form" button
-    // (Issam, voice, 2026-11-07, updated 2026-11-08) — opens the Add
-    // form for the Pre-Entry/Atmospheric Test Record with that
-    // permit's Permit ID already filled in, instead of making the
-    // person retype it.
+    // Rev.60 (Issam, voice, 2026-11-17) — arrived via the PTW
+    // Register's "Open Confined Space Form" button. Used to always
+    // open a blank Add form with the next sequential Entry ID, even
+    // when a Pre-Entry record for this permit already existed — so
+    // clicking it on an active permit showed a brand new entry
+    // instead of the real one still needing its Entry/Exit stage.
+    // Now it looks for an existing, non-removed record tied to this
+    // permit first: Open → straight to Continue (Entry/Exit); Closed
+    // → the read-only print view; none found → the ordinary Add
+    // form, same as before.
     var permitId = params.get('permitId');
     if (permitId){
       CS.jumpTo('preentry');
-      CS.openAdd('preentry', {'PTW Number': permitId});
+      var csData = _cache['preentry'];
+      var existing = null;
+      if (csData && csData.headers && csData.rows){
+        var numIdx = colIdx(csData.headers, 'PTW Number');
+        var recStatusIdx = colIdx(csData.headers, 'Record Status');
+        csData.rows.forEach(function(row){
+          if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+          if (numIdx >= 0 && String(row[numIdx]||'').trim() === String(permitId).trim()) existing = row;
+        });
+      }
+      if (!existing){
+        CS.openAdd('preentry', {'PTW Number': permitId});
+        return;
+      }
+      var idIdx = colIdx(csData.headers, 'Entry ID');
+      var existingId = existing[idIdx];
+      var statusIdx = colIdx(csData.headers, 'Status');
+      var existingStatus = statusIdx >= 0 ? String(existing[statusIdx]||'').trim().toLowerCase() : '';
+      if (existingStatus === 'closed'){
+        CS.printPreEntry(existingId);
+      } else {
+        CS.openContinue(existingId);
+      }
     }
   }
   document.addEventListener('DOMContentLoaded', function(){

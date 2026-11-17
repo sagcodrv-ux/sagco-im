@@ -1132,10 +1132,35 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // Number', confirmed against the real file, not 'PTW Number' like
     // most of the other linked pages — see the matching fix on
     // ptw-register.html's findLinkedRecord() call for this page.
+    // Rev.60 (Issam, voice, 2026-11-17) — arrived via the PTW
+    // Register's "Open Scaffold Inspection" button. Used to always
+    // open a blank Add form, even when a passing inspection for this
+    // permit already existed. Scaffold has no further stage after a
+    // Green tag, so an existing passing inspection now opens as the
+    // read-only print view instead; a Red tag (or none yet) still
+    // opens the ordinary Add form, since that's a real re-inspection
+    // needed, not a duplicate of something already done.
     var permitId = params.get('permitId');
     if (permitId){
       SI.jumpTo('inspection');
-      SI.openAdd('inspection', {'Permit Number': permitId});
+      var siData = _cache['inspection'];
+      var existing = null;
+      if (siData && siData.headers && siData.rows){
+        var numIdx = colIdx(siData.headers, 'Permit Number');
+        var recStatusIdx = colIdx(siData.headers, 'Record Status');
+        siData.rows.forEach(function(row){
+          if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+          if (numIdx >= 0 && String(row[numIdx]||'').trim() === String(permitId).trim()) existing = row;
+        });
+      }
+      var tagIdx = siData ? colIdx(siData.headers, 'Tag Status') : -1;
+      var existingTag = (existing && tagIdx >= 0) ? String(existing[tagIdx]||'').trim() : '';
+      if (existing && existingTag === 'Green — Safe to Use'){
+        var idIdx = colIdx(siData.headers, 'Inspection ID');
+        SI.printInspection(existing[idIdx]);
+      } else {
+        SI.openAdd('inspection', {'Permit Number': permitId});
+      }
     }
   }
   document.addEventListener('DOMContentLoaded', function(){

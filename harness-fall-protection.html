@@ -594,7 +594,29 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     if (permitId){
       // Rev.56 pre-filled a crew-size count here; removed in Rev.57
       // along with the field itself.
-      HF.openAdd({'PTW Number': permitId});
+      // Rev.60 (Issam, voice, 2026-11-17) — used to always open a
+      // blank Add form, even when a Satisfactory check for this
+      // permit already existed. This page has no separate read-only
+      // print view (unlike confined-space.html/scaffold-inspection.html),
+      // so a passing existing record opens in Edit instead — the real
+      // data, not a view-only screen; a failed or missing record
+      // still opens the ordinary Add form, since another check is
+      // genuinely needed.
+      var existing = null;
+      var numIdx = colIdx(_headers, 'PTW Number');
+      var recStatusIdx = colIdx(_headers, 'Record Status');
+      _rows.forEach(function(row){
+        if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+        if (numIdx >= 0 && String(row[numIdx]||'').trim() === String(permitId).trim()) existing = row;
+      });
+      var resultIdx = colIdx(_headers, 'Overall Result');
+      var existingResult = (existing && resultIdx >= 0) ? String(existing[resultIdx]||'').trim() : '';
+      if (existing && existingResult === PASS){
+        var idIdx = colIdx(_headers, 'Inspection ID');
+        HF.openEdit(existing[idIdx]);
+      } else {
+        HF.openAdd({'PTW Number': permitId});
+      }
     }
   }
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ loadAll().then(handleHarnessDeepLink); }, 100); });

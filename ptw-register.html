@@ -875,6 +875,25 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       + '<div class="pf-sign-line">Name: <span class="pf-value-inline">'+pfEsc(name||'')+'</span></div>'
       + '<div class="pf-sign-line">Sign: ______________________&nbsp;&nbsp;&nbsp;Time: __________</div></div>';
   }
+  // Rev.59 (Issam, voice, 2026-11-17) — once a step has actually
+  // happened in the system (the permit was created, an approval was
+  // clicked, closure was recorded), the printed report shows that as
+  // signed, with the name and date already on file, instead of a
+  // blank line waiting for a wet-ink signature. signedDate is the
+  // specific field proving that step happened — undefined/empty means
+  // it hasn't, so this falls back to the ordinary blank pfSignBlock.
+  // note is optional small print under the name, for a signature
+  // recorded on someone else's behalf (the Receiver has no login).
+  function pfSignBlockDigital(role, roleAr, name, signedDate, note){
+    if (!signedDate){
+      return pfSignBlock(role, roleAr, name);
+    }
+    return '<div class="pf-sign-block pf-sign-block-signed"><div class="pf-sign-role">'+pfEsc(role)+(roleAr?' <span class="pf-ar">'+pfEsc(roleAr)+'</span>':'')+'</div>'
+      + '<div class="pf-sign-line">Name: <span class="pf-value-inline">'+pfEsc(name||'')+'</span></div>'
+      + '<div class="pf-sign-line pf-sign-done">✓ Signed on <strong>'+pfEsc(signedDate)+'</strong></div>'
+      + (note ? '<div class="pf-sign-note">'+pfEsc(note)+'</div>' : '')
+      + '</div>';
+  }
 
   function buildPermitPrintHtml(rec){
     var workVal = rec['Work Involved'] || '';
@@ -931,8 +950,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     + '.pf-note{font-size:10px;color:#a05a00;margin-top:4px;font-style:italic}'
     + '.pf-sign-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}'
     + '.pf-sign-block{border:1px dashed #999;padding:6px;font-size:10px}'
+    + '.pf-sign-block-signed{border:1px solid #2e7d4f;background:#f3faf5}'
     + '.pf-sign-role{font-weight:700;margin-bottom:4px}'
     + '.pf-sign-line{margin-bottom:4px}'
+    + '.pf-sign-done{color:#2e7d4f;font-weight:700}'
+    + '.pf-sign-note{font-size:9px;color:#666;font-style:italic;margin-top:2px}'
     + '.pf-footer{margin-top:10px;font-size:9px;color:#666;border-top:1px solid #999;padding-top:6px}'
     + '.pf-sysref{margin-top:10px;border:1px dashed #999;padding:6px;font-size:10px;background:#fafafa}'
     + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}}'
@@ -981,17 +1003,27 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       + '<div class="pf-section"><div class="pf-section-title">Service Isolation <span style="font-weight:400;text-transform:none">(tick on site)</span></div>'
         + '<div class="pf-grid4">' + isolationHtml + '</div></div>'
 
+      // Rev.59 (Issam, voice, 2026-11-17) — Issuer and Receiver show
+      // signed from the moment the permit is created (rec['Date']):
+      // the Receiver has no login of their own, so the Issuer's act
+      // of creating the permit is what records it on their behalf,
+      // noted as such. Unit Manager / HSE Attendant show signed once
+      // their own approval date is on file.
       + '<div class="pf-section"><div class="pf-section-title">Responsibility — Start PTW</div><div class="pf-sign-grid">'
-        + pfSignBlock('Permit Issuer', 'مانح التصريح', rec['Permit Issuer - Name'])
-        + pfSignBlock('Permit Receiver', 'مستقبل التصريح', rec['Permit Receiver - Name'])
-        + pfSignBlock('Unit Manager', 'مدير الوحدة', rec['Unit Manager'])
-        + pfSignBlock('HSE Attendant', 'ضابط السلامة', rec['Permit Controller'])
+        + pfSignBlockDigital('Permit Issuer', 'مانح التصريح', rec['Permit Issuer - Name'], rec['Date'])
+        + pfSignBlockDigital('Permit Receiver', 'مستقبل التصريح', rec['Permit Receiver - Name'], rec['Date'], 'Recorded by the Permit Issuer — the Receiver has no system account.')
+        + pfSignBlockDigital('Unit Manager', 'مدير الوحدة', rec['Unit Manager'], rec['Area Manager Approval Date'])
+        + pfSignBlockDigital('HSE Attendant', 'ضابط السلامة', rec['Permit Controller'], rec['Controller Approval Date'])
       + '</div></div>'
 
+      // Closure is recorded once, by the Controller alone (the only
+      // one who can close a permit) — Issuer and Receiver show signed
+      // from that same closure record, both noted as recorded by the
+      // Controller rather than confirmed by each of them directly.
       + '<div class="pf-section"><div class="pf-section-title">Responsibility — Close PTW</div><div class="pf-sign-grid">'
-        + pfSignBlock('Permit Issuer', 'مانح التصريح', '')
-        + pfSignBlock('Permit Receiver', 'مستقبل التصريح', '')
-        + pfSignBlock('HSE Attendant', 'ضابط السلامة', '')
+        + pfSignBlockDigital('Permit Issuer', 'مانح التصريح', rec['Permit Issuer - Name'], rec['Closed Date'], rec['Closed Date'] ? 'Recorded at closure by ' + (rec['Closed By']||'the Controller') + '.' : '')
+        + pfSignBlockDigital('Permit Receiver', 'مستقبل التصريح', rec['Permit Receiver - Name'], rec['Closed Date'], rec['Closed Date'] ? 'Recorded at closure by ' + (rec['Closed By']||'the Controller') + '.' : '')
+        + pfSignBlockDigital('HSE Attendant', 'ضابط السلامة', rec['Permit Controller'], rec['Closed Date'])
       + '</div></div>'
 
       + '<div class="pf-sysref"><strong>Digital record reference</strong> (not part of the official HSE-FRM-01 form) — '
@@ -1993,9 +2025,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         var csReady = csData ? confinedSpaceIsReady_(csData, permitId) : false;
         if (csReady) readyCount++; else blockedNames.push('Confined Space Entry');
         var csBadge = !cs ? '<span class="badge kc-red">Not raised</span>' : (csReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (cs.status || 'Open') + '</span>');
+        // Rev.60 (Issam, voice, 2026-11-17) — label now matches what
+        // confined-space.html's own deep link actually does with an
+        // existing record: Continue (Entry/Exit) while Open, View
+        // once Closed, Raise only when nothing exists yet.
+        var csClosed = cs && String(cs.status||'').trim().toLowerCase() === 'closed';
+        var csBtnLabel = !cs ? 'Raise' : (csClosed ? 'View' : 'Continue');
         rowsHtml += '<div class="ptw-linked-row"><strong>Confined Space Entry</strong> ' + csBadge +
           (cs ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="cs" data-idcol="PTW Number" data-title="Confined Space Entry">👁️ View</button>' : '') +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'confined-space.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (cs ? 'Open' : 'Raise') + ' Confined Space Form</button></div>';
+          '<button type="button" class="ptw-btn" onclick="window.open(\'confined-space.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + csBtnLabel + ' Confined Space Form</button></div>';
       }
       if (needsLoto){
         requiredCount++;
@@ -2006,9 +2044,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         var ljReady = lotoData ? lotoJobIsReady_(lotoData, permitId) : false;
         if (ljReady) readyCount++; else blockedNames.push('LOTO Job');
         var ljBadge = !lj ? '<span class="badge kc-red">Not raised</span>' : (ljReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (lj.status || 'Open') + '</span>');
+        // Rev.60 (Issam, voice, 2026-11-17) — label now matches what
+        // loto-register.html's own deep link actually does with an
+        // existing job: Continue (post-task) while Open, View once
+        // Closed, Raise only when nothing exists yet for this permit.
+        var ljClosed = lj && String(lj.status||'').trim().toLowerCase() === 'closed';
+        var ljBtnLabel = !lj ? 'Raise' : (ljClosed ? 'View' : 'Continue');
         rowsHtml += '<div class="ptw-linked-row"><strong>LOTO Job</strong> ' + ljBadge +
           (lj ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="loto" data-idcol="PTW Number" data-title="LOTO Job">👁️ View</button>' : '') +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'loto-register.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (lj ? 'Open' : 'Raise') + ' LOTO Job</button></div>';
+          '<button type="button" class="ptw-btn" onclick="window.open(\'loto-register.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + ljBtnLabel + ' LOTO Job</button></div>';
       }
       if (needsCrane){
         requiredCount++;
@@ -2016,9 +2060,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         var crReady = cr && cr.passed;
         if (crReady) readyCount++; else blockedNames.push('Crane Inspection');
         var crBadge = !cr ? '<span class="badge kc-red">Not raised</span>' : (crReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (cr.hasResult ? 'Rejected' : 'Open') + '</span>');
+        // Rev.61 (Issam, voice, 2026-11-17) — label now matches what
+        // crane-inspection.html's own deep link does: an Accept Crane
+        // result already on file is View, otherwise it's Raise —
+        // crane has no Continue stage, and a Reject result genuinely
+        // needs a fresh re-inspection.
         rowsHtml += '<div class="ptw-linked-row"><strong>Crane Inspection</strong> ' + crBadge +
           (cr ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="crane" data-idcol="PTW Number" data-title="Crane Inspection">👁️ View</button>' : '') +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'crane-inspection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (cr ? 'Open' : 'Raise') + ' Crane Inspection</button></div>';
+          '<button type="button" class="ptw-btn" onclick="window.open(\'crane-inspection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (crReady ? 'View' : 'Raise') + ' Crane Inspection</button></div>';
       }
       if (needsHotWork){
         requiredCount++;
@@ -2030,9 +2079,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         var hwReady = hwData ? hotWorkPreTaskIsReady_(hwData, permitId) : false;
         if (hwReady) readyCount++; else blockedNames.push('Hot Work Checklist');
         var hwBadge = !hw ? '<span class="badge kc-red">Not raised</span>' : (hwReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (hw.hasResult ? 'Issues Noted' : 'Pre Hot Work incomplete') + '</span>');
+        // Rev.60 (Issam, voice, 2026-11-17) — label now matches what
+        // hot-work.html's own deep link actually does with an existing
+        // record: Continue (Execution/Post) while no Closure Result is
+        // on file, View once one is, Raise only when nothing exists
+        // yet for this permit.
+        var hwBtnLabel = !hw ? 'Raise' : (hw.hasResult ? 'View' : 'Continue');
         rowsHtml += '<div class="ptw-linked-row"><strong>Hot Work Checklist</strong> ' + hwBadge +
           (hw ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="hotwork" data-idcol="PTW Number" data-title="Hot Work Checklist">👁️ View</button>' : '') +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'hot-work.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (hw ? 'Open' : 'Raise') + ' Hot Work Checklist</button></div>';
+          '<button type="button" class="ptw-btn" onclick="window.open(\'hot-work.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + hwBtnLabel + ' Hot Work Checklist</button></div>';
       }
       if (needsScaffold){
         requiredCount++;
@@ -2048,9 +2103,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         var scReady = scaffoldData ? scaffoldIsReady_(scaffoldData, permitId) : false;
         if (scReady) readyCount++; else blockedNames.push('Scaffold Inspection');
         var scBadge = !sc ? '<span class="badge kc-red">Not raised</span>' : (scReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (sc.status || 'Open') + '</span>');
+        // Rev.60 (Issam, voice, 2026-11-17) — label now matches what
+        // scaffold-inspection.html's own deep link does: a Green tag
+        // already on file is View (it opens the read-only print),
+        // otherwise it's Raise — scaffold has no Continue stage, and
+        // a Red tag genuinely needs a fresh re-inspection, not a
+        // reopened one.
         rowsHtml += '<div class="ptw-linked-row"><strong>Scaffold Inspection</strong> ' + scBadge +
           (sc ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="scaffold" data-idcol="Permit Number" data-title="Scaffold Inspection">👁️ View</button>' : '') +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'scaffold-inspection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (sc ? 'Open' : 'Raise') + ' Scaffold Inspection</button></div>';
+          '<button type="button" class="ptw-btn" onclick="window.open(\'scaffold-inspection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (scReady ? 'View' : 'Raise') + ' Scaffold Inspection</button></div>';
       }
       if (needsHarness){
         requiredCount++;
@@ -2065,9 +2126,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         var hfReady = hf && hf.passed;
         if (hfReady) readyCount++; else blockedNames.push('Harness/Fall Protection');
         var hfBadge = !hf ? '<span class="badge kc-red">Not raised</span>' : (hfReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (hf.hasResult ? 'Unsatisfactory' : 'Open') + '</span>');
+        // Rev.60 (Issam, voice, 2026-11-17) — label now matches what
+        // harness-fall-protection.html's own deep link does: a
+        // Satisfactory result already on file is View (opens the
+        // existing record rather than a blank form), otherwise it's
+        // Raise — an Unsatisfactory result genuinely needs a fresh
+        // check, not a reopened one.
         rowsHtml += '<div class="ptw-linked-row"><strong>Harness / Fall Protection</strong> ' + hfBadge +
           (hf ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="harness" data-idcol="PTW Number" data-title="Harness / Fall Protection">👁️ View</button>' : '') +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'harness-fall-protection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (hf ? 'Open' : 'Raise') + ' Harness Check</button></div>';
+          '<button type="button" class="ptw-btn" onclick="window.open(\'harness-fall-protection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (hfReady ? 'View' : 'Raise') + ' Harness Check</button></div>';
       }
       if (needsPainting){
         requiredCount++;
@@ -2077,7 +2144,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         var ptBadge = !pt ? '<span class="badge kc-red">Not raised</span>' : (ptReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (pt.hasResult ? 'Issues Noted' : 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Painting Checklist</strong> ' + ptBadge +
           (pt ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="painting" data-idcol="PTW Number" data-title="Painting Checklist">👁️ View</button>' : '') +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'painting-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (pt ? 'Open' : 'Raise') + ' Painting Checklist</button></div>';
+          '<button type="button" class="ptw-btn" onclick="window.open(\'painting-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (ptReady ? 'View' : 'Raise') + ' Painting Checklist</button></div>';
       }
       if (needsCivil){
         requiredCount++;
@@ -2087,7 +2154,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         var cvBadge = !cv ? '<span class="badge kc-red">Not raised</span>' : (cvReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (cv.hasResult ? 'Issues Noted' : 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Civil Work Checklist</strong> ' + cvBadge +
           (cv ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="civil" data-idcol="PTW Number" data-title="Civil Work Checklist">👁️ View</button>' : '') +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'civil-work-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (cv ? 'Open' : 'Raise') + ' Civil Work Checklist</button></div>';
+          '<button type="button" class="ptw-btn" onclick="window.open(\'civil-work-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (cvReady ? 'View' : 'Raise') + ' Civil Work Checklist</button></div>';
       }
       if (needsPipeline){
         requiredCount++;
@@ -2097,7 +2164,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         var plBadge = !pl ? '<span class="badge kc-red">Not raised</span>' : (plReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (pl.hasResult ? 'Issues Noted' : 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Pipeline Checklist</strong> ' + plBadge +
           (pl ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="pipeline" data-idcol="PTW Number" data-title="Pipeline Checklist">👁️ View</button>' : '') +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'pipeline-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (pl ? 'Open' : 'Raise') + ' Pipeline Checklist</button></div>';
+          '<button type="button" class="ptw-btn" onclick="window.open(\'pipeline-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (plReady ? 'View' : 'Raise') + ' Pipeline Checklist</button></div>';
       }
 
       // Readiness banner — informational today, not an enforced block,

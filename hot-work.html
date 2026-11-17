@@ -955,9 +955,40 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       HW.openEdit(recId);
       return;
     }
+    // Rev.60 (Issam, voice, 2026-11-17) — arrived via the PTW
+    // Register's "Open Hot Work Checklist" button. Used to always
+    // open a blank Add form with the next sequential Record ID, even
+    // when a checklist for this permit already existed — so clicking
+    // it on an active permit showed a brand new record instead of the
+    // real one still needing its Execution/Post stage. Now it looks
+    // for an existing, non-removed record tied to this permit first:
+    // no Closure Result yet → straight to Continue; a Closure Result
+    // already on file → the read-only print view; none found → the
+    // ordinary Add form, same as before.
     var permitId = params.get('permitId');
     if (permitId){
-      HW.openAdd({'PTW Number': permitId});
+      var numIdx = colIdx(_cache.headers, 'PTW Number');
+      var recStatusIdx = colIdx(_cache.headers, 'Record Status');
+      var resultIdx = colIdx(_cache.headers, RESULT_FIELD);
+      var existing = null;
+      if (_cache && _cache.rows){
+        _cache.rows.forEach(function(row){
+          if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+          if (numIdx >= 0 && String(row[numIdx]||'').trim() === String(permitId).trim()) existing = row;
+        });
+      }
+      if (!existing){
+        HW.openAdd({'PTW Number': permitId});
+        return;
+      }
+      var idIdx = colIdx(_cache.headers, ID_COL);
+      var existingId = existing[idIdx];
+      var existingResult = resultIdx >= 0 ? String(existing[resultIdx]||'').trim() : '';
+      if (existingResult){
+        HW.printOne(existingId);
+      } else {
+        HW.openContinue(existingId);
+      }
     }
   }
   document.addEventListener('DOMContentLoaded', function(){
