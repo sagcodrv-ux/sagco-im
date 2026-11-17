@@ -274,7 +274,10 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
 
   function loadAll(){
     document.getElementById('hf-tbody').innerHTML = '<tr><td colspan="7" class="hf-empty">⏳ Loading…</td></tr>';
-    fetch(SHEETS_URL + '?tab=' + TAB_KEY + '&action=read').then(function(r){ return r.json(); }).then(function(data){
+    // Rev.52 (Issam, voice, 2026-11-17) — returns the fetch chain now
+    // (it didn't before) so the deep-link handler can open the Add
+    // form only once real data has loaded, not on a guessed timeout.
+    return fetch(SHEETS_URL + '?tab=' + TAB_KEY + '&action=read').then(function(r){ return r.json(); }).then(function(data){
       _headers = (data && data.headers) || [];
       _rows = (data && data.rows) || [];
       render();
@@ -531,7 +534,21 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     escBtn.title = alreadyEscalated ? ('Already escalated — see ' + rec['Action Reference']) : '';
   }
 
-  document.addEventListener('DOMContentLoaded', function(){ setTimeout(loadAll, 100); });
+  // Rev.52 (Issam, voice, 2026-11-17) — arrived via the PTW Register's
+  // "Check a Harness" button, same deep-link pattern as
+  // confined-space.html/scaffold-inspection.html: opens the Add form
+  // with that permit's Permit ID already filled in, instead of just
+  // landing on the page with nothing happening. This page never read
+  // ?permitId= at all before — the button linked here, but no inspection
+  // form ever opened on arrival.
+  function handleHarnessDeepLink(){
+    var params = new URLSearchParams(window.location.search);
+    var permitId = params.get('permitId');
+    if (permitId){
+      HF.openAdd({'PTW Number': permitId});
+    }
+  }
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ loadAll().then(handleHarnessDeepLink); }, 100); });
 })();
 </script>
 </body>
