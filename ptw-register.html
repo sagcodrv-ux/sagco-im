@@ -1781,35 +1781,41 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // skip the gate). A harness that fails doesn't count toward the
   // total — the worker needs a different one, checked and passing, to
   // be covered; failed attempts are simply not counted, not subtracted.
+  // Rev.53 (Issam, voice, 2026-11-17) — harness-fall-protection.html
+  // no longer raises one record per harness; one form now covers the
+  // whole job, with 'Number of Harnesses Checked' saying how many it
+  // covers. So this sums that field across Satisfactory, non-removed
+  // records tied to the permit instead of counting records — a job
+  // can still be split across more than one form (e.g. a crew that
+  // arrives in two batches), so the sum is kept rather than assuming
+  // one form per permit.
   function harnessIsReady_(data, permitNum, numberOfWorkersRaw){
     if (!data || !data.headers || !data.rows || !permitNum) return false;
-    var numIdx = colIdx(data.headers, 'PTW Number');
-    var resIdx = colIdx(data.headers, 'Overall Result');
-    var recStatusIdx = colIdx(data.headers, 'Record Status');
-    if (numIdx < 0 || resIdx < 0) return false;
     var required = parseInt(numberOfWorkersRaw, 10);
     if (!required || required < 1) required = 1;
-    var passCount = 0;
-    data.rows.forEach(function(row){
-      if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
-      if (String(row[numIdx]||'').trim() !== String(permitNum).trim()) return;
-      if (String(row[resIdx]||'').trim() === 'Satisfactory') passCount++;
-    });
-    return passCount >= required;
+    return harnessPassCount_(data, permitNum) >= required;
   }
-  // Rev.46 — how many Satisfactory harness checks exist for this
-  // permit right now, for display (not just the pass/fail gate above).
+  // Rev.46, updated Rev.53 — total harnesses covered by Satisfactory
+  // forms tied to this permit right now, for display and for the
+  // pass/fail gate above.
   function harnessPassCount_(data, permitNum){
     if (!data || !data.headers || !data.rows || !permitNum) return 0;
     var numIdx = colIdx(data.headers, 'PTW Number');
     var resIdx = colIdx(data.headers, 'Overall Result');
+    var countIdx = colIdx(data.headers, 'Number of Harnesses Checked');
     var recStatusIdx = colIdx(data.headers, 'Record Status');
     if (numIdx < 0 || resIdx < 0) return 0;
     var n = 0;
     data.rows.forEach(function(row){
       if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
       if (String(row[numIdx]||'').trim() !== String(permitNum).trim()) return;
-      if (String(row[resIdx]||'').trim() === 'Satisfactory') n++;
+      if (String(row[resIdx]||'').trim() !== 'Satisfactory') return;
+      // A record saved before Rev.53 has no count column at all — treat
+      // it as covering 1 harness (its own original one-per-record
+      // meaning) rather than 0, so old passing checks aren't silently
+      // dropped from the total.
+      var cnt = countIdx >= 0 ? parseInt(row[countIdx], 10) : NaN;
+      n += (!isNaN(cnt) && cnt > 0) ? cnt : 1;
     });
     return n;
   }

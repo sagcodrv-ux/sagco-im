@@ -164,6 +164,30 @@ var TABS = {
      'fire_pump_log' instead, pointed at its own tab — dropping
      numbered-sheet naming for the same reason as 'scaffold_inspection'. */
   'fire_pump_log':    'Fire Pump Log',
+  // Rev.38 (Issam, voice, 2026-11-15) — two new standalone inspection
+  // registers, both regular/periodic rather than PTW-triggered (see
+  // machine-safeguarding.html and compressed-gas-inspection.html):
+  // machine guarding is fixed equipment checked on a schedule, and
+  // compressed-gas storage is likewise a routine log — Hot Work's own
+  // checklist already covers cylinders actually in use for welding,
+  // so this is specifically about ongoing storage/handling, not a
+  // second PTW checklist.
+  'machine_safeguarding':      'Machine Safeguarding Inspection',
+  'compressed_gas_inspection': 'Compressed Gas Inspection',
+  // Rev.41 (Issam, voice, 2026-11-16) — two more standalone periodic
+  // registers, picked from the CAMP01 gap list as genuine shop-floor
+  // checks rather than office paperwork.
+  'harness_fall_protection':   'Harness Fall Protection Inspection',
+  'fire_protection_systems':   'Fire Protection Systems Testing',
+  // Rev.44 (Issam, voice, 2026-11-16) — last three shop-floor registers
+  // from this gap-review pass: security rounds, the eyewash/shower
+  // flush (weekly default per ANSI Z358.1, flagged on the page itself
+  // as unconfirmed against SAGCO's own MODON 3.6.1 text), and a
+  // pre-use check for vehicles/mobile equipment other than forklifts
+  // and cranes, which already have their own checks.
+  'security_patrol':           'Security Patrol',
+  'eyewash_shower_testing':    'Eyewash Shower Flush Testing',
+  'vehicle_preuse_inspection': 'Vehicle Pre-Use Inspection',
   'fe_master':        'FE Master Inventory',
   'fe_inspection_log': 'FE Monthly Inspection Log',
   'fe_service_log':    'FE Annual Service Log',
@@ -365,6 +389,14 @@ var TABS = {
      ID, same pattern as Confined Space / LOTO / crane_checklist. */
   'hot_work':          '56 – Hot Work Log',
   'hot_work_checklist': 'Hot Work Checklist',
+  // Rev.27 (Issam, voice, 2026-11-12) — three new short checklists,
+  // each linked to the PTW Register by Permit ID, same pattern as
+  // crane_checklist / hot_work_checklist / scaffold_inspection above.
+  // No numbered-sheet naming, for the same reason those three already
+  // dropped it. Add each tab with this exact name on the live sheet.
+  'painting_checklist':   'Painting Checklist',
+  'civil_work_checklist': 'Civil Work Checklist',
+  'pipeline_checklist':   'Pipeline Checklist',
   'electrical_safety': '57 – Electrical Safety Log',
   'furnace_leakage':   '58 – Furnace Leakage Log',
   'first_aid':         '59 – First Aid Records',
@@ -667,6 +699,49 @@ function doPost(e) {
       var bodyAppr = JSON.parse(e.postData ? e.postData.contents : '{}');
       return ContentService
         .createTextOutput(JSON.stringify(approveVisitorAndSendCard(bodyAppr)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Rev.30 (Issam, voice, 2026-11-12) — HSE Violation approval
+    // chain: Safety Controller raises → Supervisor confirms (picks
+    // the Manager) → Manager gives final approval, each step
+    // notifying the next person by email. violation-register.html
+    // calls this once per step, right after it saves that step's
+    // own fields with the ordinary 'update' action — this call only
+    // sends the email, it never changes the sheet itself.
+    if (pAction === 'sendViolationStageEmail') {
+      var bodyViol = JSON.parse(e.postData ? e.postData.contents : '{}');
+      return ContentService
+        .createTextOutput(JSON.stringify(sendViolationStageEmail(bodyViol)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Rev.29 (Issam, voice, 2026-11-15) — PTW two-step approval chain:
+    // once every required checklist is complete, the Area Manager is
+    // emailed first; once they approve, the Controller is emailed
+    // next. ptw-register.html calls this right after it saves that
+    // step's own Status change with the ordinary 'update' action —
+    // this call only sends the email.
+    if (pAction === 'sendPtwStageEmail') {
+      var bodyPtw = JSON.parse(e.postData ? e.postData.contents : '{}');
+      return ContentService
+        .createTextOutput(JSON.stringify(sendPtwStageEmail(bodyPtw)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Rev.30 (Issam, voice, 2026-11-15) — called by each individual
+    // checklist page (confined-space.html, loto-register.html,
+    // crane-inspection.html, hot-work.html, scaffold-inspection.html,
+    // painting/civil-work/pipeline-checklist.html) right after IT
+    // saves a passing/Closed result, so a Waiting permit can move on
+    // to Awaiting Area Manager the moment its LAST outstanding
+    // checklist clears — not only the next time someone happens to
+    // open the PTW Register (ptw-register.html's own
+    // promoteReadyPermits() still runs on every load, as a backstop).
+    if (pAction === 'checkAndPromotePtwPermit') {
+      var bodyPromote = JSON.parse(e.postData ? e.postData.contents : '{}');
+      return ContentService
+        .createTextOutput(JSON.stringify(checkAndPromotePtwPermit(bodyPromote.permitId)))
         .setMimeType(ContentService.MimeType.JSON);
     }
   } catch(routeErr) {
@@ -2404,6 +2479,11 @@ function setDocumentStatusDraft(docId) {
 // SAFETY_CONTROLLER_EMAIL removed – selection is now compulsory on the invitation form
 // var SAFETY_CONTROLLER_EMAIL = 'safety@sagco.com.sa';
 var IMS_FROM_NAME           = 'SAGCO IMS – Visitor Gate';
+// Rev.33 (Issam, voice, 2026-11-12) — the real GitHub Pages address of
+// visitor-induction.html, confirmed by Issam, used to build the
+// direct "Review and Approve" link in the submission-notification
+// email below.
+var VC_PORTAL_URL = 'https://sagcodrv-ux.github.io/sagco-im/visitor-induction.html';
 
 /**
  * Called by the public registration page after the visitor submits the form.
@@ -2419,6 +2499,24 @@ var IMS_FROM_NAME           = 'SAGCO IMS – Visitor Gate';
 // MailApp call is now wrapped so a send failure is LOGGED and
 // reported back in the response, instead of throwing silently or
 // being swallowed by doPost's outer catch.
+// Rev.24 (Issam, voice, 2026-11-12) — GROUP SUBMISSIONS. One
+// invitation link can now carry more than one person: the external
+// person who opens the public link (the requester) may be coming
+// alone or bringing a group from the same company, and fills in one
+// row per person plus their OWN email once (new 'Requester Email'
+// column — distinct from 'Registered By Email', which is the SAGCO
+// colleague who created the invitation link itself). The Invitation
+// Token is the group key: every person submitted together shares it,
+// the same way they already shared it as a single row before this.
+//
+// Backward compatible: if the request body has no `people` array
+// (an older cached copy of visitor-register.html, or a direct API
+// call), this still works exactly as before — data.firstName etc. at
+// the top level is treated as a single-person group of one, and
+// data.email (not data.requesterEmail) is used for both that
+// person's own Email and, since there is no separate requester in
+// that case, is also treated as the requester's email for the group
+// email at approval time.
 function submitVisitorRegistration(data) {
   try {
     Logger.log('submitVisitorRegistration: started, token=' + (data && data.token));
@@ -2457,44 +2555,94 @@ function submitVisitorRegistration(data) {
     }
     Logger.log('submitVisitorRegistration: matched invitation at row ' + targetRow);
 
-    // Build updates
-    var updates = {
-      'First Name':           data.firstName || '',
-      'Family Name':          data.familyName || '',
-      'ID Number':            data.idNumber || '',
-      'Phone':                data.phone || '',
-      'Email':                data.email || '',
-      'Company':              data.company || '',
-      'Registration Status':  'Submitted',
-      'Submitted Date':       Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd')
-    };
+    // Normalize to an array of people, old-flat-fields style falls
+    // back to a single-person array of one.
+    var people = Array.isArray(data.people) && data.people.length ? data.people : [{
+      firstName: data.firstName || '', familyName: data.familyName || '',
+      idNumber: data.idNumber || '', phone: data.phone || '',
+      email: data.email || '', company: data.company || ''
+    }];
+    var requesterEmail = String(data.requesterEmail || data.email || '').trim();
+    Logger.log('submitVisitorRegistration: ' + people.length + ' person(s) in this submission, requesterEmail=' + requesterEmail);
 
-    // Apply update
+    var submittedDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    var requesterEmailColIdx = headerRow.indexOf('Requester Email');
+
+    // First person updates the EXISTING invitation row (same as
+    // before this change) — this keeps every other part of the sheet
+    // (the row created at invitation time, its Person ID) working
+    // exactly as it always has for a single-person submission.
+    var firstUpdates = {
+      'First Name':          people[0].firstName || '',
+      'Family Name':         people[0].familyName || '',
+      'ID Number':           people[0].idNumber || '',
+      'Phone':               people[0].phone || '',
+      'Email':               people[0].email || '',
+      'Company':             people[0].company || '',
+      'Registration Status': 'Submitted',
+      'Submitted Date':      submittedDate
+    };
+    if (requesterEmailColIdx >= 0) firstUpdates['Requester Email'] = requesterEmail;
+
     var existingRow = sheet.getRange(targetRow, 1, 1, headerRow.length).getValues()[0];
     var newRow = headerRow.map(function(header, idx) {
-      return updates[header] !== undefined ? updates[header] : existingRow[idx];
+      return firstUpdates[header] !== undefined ? firstUpdates[header] : existingRow[idx];
     });
     sheet.getRange(targetRow, 1, 1, headerRow.length).setValues([newRow]);
-    Logger.log('submitVisitorRegistration: row ' + targetRow + ' updated to Registration Status = Submitted');
+    Logger.log('submitVisitorRegistration: row ' + targetRow + ' (person 1 of ' + people.length + ') updated to Registration Status = Submitted');
 
-    // Prepare person object for email
-    var person = {};
-    headerRow.forEach(function(h, idx) { person[h] = newRow[idx]; });
+    var primaryPerson = {};
+    headerRow.forEach(function(h, idx) { primaryPerson[h] = newRow[idx]; });
+    var personIds = [primaryPerson['Person ID']];
 
-    // Send notification to invitation owner
-    var ownerEmail = person['Registered By Email'] || person['Creator Email'] || '';
+    // Any ADDITIONAL people in the group get brand-new rows, sharing
+    // the same Invitation Token, Destination/Host/Type (copied from
+    // the primary row), and Requester Email, so every member of the
+    // group is still a real, individually-trackable row for Induction
+    // and PPE — this is a group SUBMISSION, not a group PERSON.
+    if (people.length > 1){
+      var personIdColIdx = headerRow.indexOf('Person ID');
+      var carryFields = ['Invitation Token','Type','Destination Department','Host Name','Host Department',
+        'Registered By','Registered By Email','Registered Date','Record Status','Safety Controllers','Notes'];
+      for (var p = 1; p < people.length; p++){
+        var personRow = headerRow.map(function(header){
+          if (header === 'First Name') return people[p].firstName || '';
+          if (header === 'Family Name') return people[p].familyName || '';
+          if (header === 'ID Number') return people[p].idNumber || '';
+          if (header === 'Phone') return people[p].phone || '';
+          if (header === 'Email') return people[p].email || '';
+          if (header === 'Company') return people[p].company || '';
+          if (header === 'Registration Status') return 'Submitted';
+          if (header === 'Submitted Date') return submittedDate;
+          if (header === 'Requester Email') return requesterEmail;
+          if (header === 'Induction Status') return 'Not Inducted';
+          if (header === 'PPE Status') return 'Not Issued';
+          if (header === 'Person ID') return nextVcPersonId_(sheet, headerRow, personIdColIdx);
+          if (carryFields.indexOf(header) >= 0) return primaryPerson[header] || '';
+          return '';
+        });
+        sheet.appendRow(personRow);
+        var addedId = personIdColIdx >= 0 ? personRow[personIdColIdx] : '';
+        personIds.push(addedId);
+        Logger.log('submitVisitorRegistration: appended row for person ' + (p+1) + ' of ' + people.length + ', Person ID=' + addedId);
+      }
+    }
+
+    // Send notification to invitation owner (the SAGCO colleague who
+    // created the link) — unchanged from before, still one email,
+    // now mentioning the group size.
+    var ownerEmail = primaryPerson['Registered By Email'] || primaryPerson['Creator Email'] || '';
     var emailSource = ownerEmail ? 'Registered By Email / Creator Email column' : '';
-    // Fallback: try to find the creator in User Register
-    if (!ownerEmail && person['Registered By']) {
-      ownerEmail = lookupUserEmailByName(person['Registered By']);
-      if (ownerEmail) emailSource = 'name lookup in User Register for "' + person['Registered By'] + '"';
+    if (!ownerEmail && primaryPerson['Registered By']) {
+      ownerEmail = lookupUserEmailByName(primaryPerson['Registered By']);
+      if (ownerEmail) emailSource = 'name lookup in User Register for "' + primaryPerson['Registered By'] + '"';
     }
     Logger.log('submitVisitorRegistration: owner email resolved to "' + ownerEmail + '" (source: ' + (emailSource || 'none found') + ')');
 
     var mailStatus = 'not attempted — no owner email found';
     if (ownerEmail) {
       try {
-        sendVisitorSubmittedEmail(person, ownerEmail);
+        sendVisitorSubmittedEmail(primaryPerson, ownerEmail, people.length, personIds);
         mailStatus = 'sent';
         Logger.log('submitVisitorRegistration: MailApp.sendEmail succeeded, to=' + ownerEmail);
       } catch (mailErr) {
@@ -2504,17 +2652,10 @@ function submitVisitorRegistration(data) {
     }
 
     // Rev.23 (Issam, voice, 2026-11-12) — writes the mail outcome onto
-    // the row itself, in two new columns: 'Notification Status' and
-    // 'Notification Time'. Before this, the only way to see whether
-    // the submission email actually sent was reading the Executions
-    // log line by line — now it's visible directly on the sheet, and
-    // visitor-induction.html's Pending Approvals list can show a badge
-    // from it without any extra lookup. Written as a second, separate
-    // update so a failure here never risks the Registration Status
-    // write above, which already succeeded. If either column doesn't
-    // exist yet on the live sheet, this silently does nothing to that
-    // column (same tolerant pattern as every other optional column in
-    // this project) — add them to row 3 to start seeing the badge.
+    // the PRIMARY row, in two columns: 'Notification Status' and
+    // 'Notification Time'. One write per submission (not per person
+    // in the group) — it's the submission-to-creator email, not a
+    // per-person thing.
     var notifyColIdx = headerRow.indexOf('Notification Status');
     var notifyTimeColIdx = headerRow.indexOf('Notification Time');
     if (notifyColIdx >= 0) sheet.getRange(targetRow, notifyColIdx + 1).setValue(mailStatus);
@@ -2525,16 +2666,16 @@ function submitVisitorRegistration(data) {
       Logger.log('submitVisitorRegistration: "Notification Status"/"Notification Time" columns not found on VC Persons — mail status not written to sheet (log only).');
     }
 
-    appendAuditLog('VC_SUBMIT', 'Visitor submitted registration via token ' + token + ' — notification email: ' + mailStatus, 'public', 'Public Registration');
+    appendAuditLog('VC_SUBMIT', 'Group of ' + people.length + ' submitted via token ' + token + ' — notification email: ' + mailStatus, 'public', 'Public Registration');
     Logger.log('submitVisitorRegistration: finished, mailStatus=' + mailStatus);
 
     return {
       status: 'ok',
-      message: 'Registration submitted successfully. The invitation owner has been notified.',
-      personId: person['Person ID'],
-      // Rev.22 — surfaced so the visitor-register.html confirmation
-      // screen (or anyone reading the raw response) can show whether
-      // the email genuinely sent, instead of assuming it did.
+      message: people.length > 1
+        ? 'Registration submitted for ' + people.length + ' people. The invitation owner has been notified.'
+        : 'Registration submitted successfully. The invitation owner has been notified.',
+      personId: primaryPerson['Person ID'],
+      personIds: personIds,
       mailStatus: mailStatus,
       ownerEmail: ownerEmail
     };
@@ -2545,50 +2686,457 @@ function submitVisitorRegistration(data) {
   }
 }
 
+// Rev.31 (Issam, voice, 2026-11-12) — one email to the single Safety
+// approver the Safety Controller picked when raising the violation
+// (replaces the earlier Supervisor-then-Manager chain — Issam's own
+// reasoning was that an area/line manager reviewing a violation
+// involving their own people isn't independent, where a Safety
+// person is). Links straight back to violation-register.html with
+// ?ref=<Violation Ref>, which the page's own init reads to auto-open
+// that exact record — the approver doesn't need to search for it.
+function sendViolationStageEmail(data) {
+  try {
+    if (!data || !data.toEmail || !data.ref) {
+      return { status: 'error', message: 'Missing toEmail or ref' };
+    }
+    var subject = 'SAGCO IMS – HSE Violation ' + vEscPlain_(data.ref) + ' Awaiting Your Approval';
+    var link = (data.pageUrl || 'violation-register.html') + '?ref=' + encodeURIComponent(data.ref);
+    var body = ''
+      + 'Dear ' + (data.toName || 'Colleague') + ',\n\n'
+      + 'An HSE violation has been raised and needs your review.\n\n'
+      + 'Violation Ref   : ' + (data.ref || '') + '\n'
+      + 'Employee        : ' + (data.employeeName || '') + '\n'
+      + 'Department      : ' + (data.department || '') + '\n'
+      + 'Category        : ' + (data.category || '') + '\n'
+      + 'Date            : ' + (data.date || '') + '\n'
+      + '\nOpen the Violation Register and review this record:\n' + link + '\n\n'
+      + 'SAGCO IMS – HSE Violation Register';
+
+    MailApp.sendEmail({ to: data.toEmail, subject: subject, body: body, name: IMS_FROM_NAME });
+    return { status: 'ok', message: 'Notification sent to ' + data.toEmail };
+  } catch (err) {
+    Logger.log('sendViolationStageEmail: THREW — ' + err);
+    return { status: 'error', message: err.toString() };
+  }
+}
+function vEscPlain_(v){ return String(v==null?'':v); }
+
+// Rev.29 (Issam, voice, 2026-11-15) — PTW two-step approval chain.
+// Mirrors sendViolationStageEmail's shape: ptw-register.html has
+// already written the Status change itself via the ordinary 'update'
+// action before calling this — this only sends the email to whichever
+// person is next in line (data.stage: 'areaManager' or 'controller').
+function sendPtwStageEmail(data) {
+  try {
+    if (!data || !data.toEmail || !data.permitId) {
+      return { status: 'error', message: 'Missing toEmail or permitId' };
+    }
+    // Rev.37 (Issam, voice, 2026-11-15) — closing a permit is now the
+    // Safety Controller's call alone, not a second approval step for
+    // the Area Manager — he's only kept aware it happened. 'closed'
+    // gets its own wording (no "awaiting approval", nothing to
+    // approve) rather than reusing the approval-stage subject/body.
+    var isClosedNotice = data.stage === 'closed';
+    var stageLabel = data.stage === 'controller' ? 'Controller Approval' : 'Area Manager Approval';
+    var subject = isClosedNotice
+      ? 'SAGCO IMS – Permit ' + vEscPlain_(data.permitId) + ' Closed'
+      : 'SAGCO IMS – Permit ' + vEscPlain_(data.permitId) + ' Awaiting Your Approval';
+    var link = (data.pageUrl || 'ptw-register.html') + '?permitId=' + encodeURIComponent(data.permitId);
+    // Rev.33 (Issam, voice, 2026-11-15) — a second link straight to the
+    // read-only Permit Pack (the permit plus every linked checklist,
+    // real filled data, not just a "Completed" badge), so the approver
+    // can actually review what they're signing off on before even
+    // opening Edit.
+    var packLink = link + '&pack=1';
+    var body = isClosedNotice
+      ? ''
+        + 'Dear ' + (data.toName || 'Colleague') + ',\n\n'
+        + 'This Permit to Work has been closed by the Safety Controller. No action is needed from you — this is for your awareness only.\n\n'
+        + 'Permit ID       : ' + (data.permitId || '') + '\n'
+        + 'Area            : ' + (data.area || '') + '\n'
+        + 'Location        : ' + (data.location || '') + '\n'
+        + 'Work Involved   : ' + (data.workInvolved || '') + '\n'
+        + 'Date            : ' + (data.date || '') + '\n'
+        + '\nView the closed permit:\n' + link + '\n\n'
+        + 'SAGCO IMS – Permit to Work Register'
+      : ''
+        + 'Dear ' + (data.toName || 'Colleague') + ',\n\n'
+        + 'A Permit to Work needs your ' + stageLabel + '.\n\n'
+        + 'Permit ID       : ' + (data.permitId || '') + '\n'
+        + 'Area            : ' + (data.area || '') + '\n'
+        + 'Location        : ' + (data.location || '') + '\n'
+        + 'Work Involved   : ' + (data.workInvolved || '') + '\n'
+        + 'Date            : ' + (data.date || '') + '\n'
+        + '\nOpen the PTW Register and review this permit:\n' + link + '\n'
+        + '\nOr view the full Permit Pack — the permit plus every linked checklist already filled in:\n' + packLink + '\n\n'
+        + 'SAGCO IMS – Permit to Work Register';
+
+    MailApp.sendEmail({ to: data.toEmail, subject: subject, body: body, name: IMS_FROM_NAME });
+    return { status: 'ok', message: 'Notification sent to ' + data.toEmail };
+  } catch (err) {
+    Logger.log('sendPtwStageEmail: THREW — ' + err);
+    return { status: 'error', message: err.toString() };
+  }
+}
+
+// Rev.30 (Issam, voice, 2026-11-15) — mirrors ptw-register.html's own
+// getChecklistNeeds()/permitNeeds*() rules, server-side, since a
+// single checklist page only has ITS OWN sheet loaded, not every
+// linked tab the register itself caches. Only acts on a permit
+// that's still "Waiting" — if it's already past that stage (or was
+// promoted a moment ago by a different checklist finishing first),
+// this is a no-op, so two checklists finishing close together can't
+// double-promote or double-email.
+function checkAndPromotePtwPermit(permitId) {
+  try {
+    if (!permitId) return { status: 'error', message: 'Missing permitId' };
+    var regSheet = findSheet(TABS['ptw_register']);
+    if (!regSheet) return { status: 'error', message: 'PTW Register sheet not found' };
+    var regHeaders = regSheet.getRange(3, 1, 1, regSheet.getLastColumn()).getValues()[0];
+    var idIdx = regHeaders.indexOf('Permit ID');
+    var statusIdx = regHeaders.indexOf('Status');
+    var workIdx = regHeaders.indexOf('Work Involved');
+    var hamIdx = regHeaders.indexOf('Height Access Method');
+    var siIdx = regHeaders.indexOf('Service Isolation');
+    var workersIdx = regHeaders.indexOf('Number of Workers');
+    var umIdx = regHeaders.indexOf('Unit Manager');
+    var umEmailIdx = regHeaders.indexOf('Unit Manager Email');
+    var areaIdx = regHeaders.indexOf('Area');
+    var locIdx = regHeaders.indexOf('Location');
+    var dateIdx = regHeaders.indexOf('Date');
+    if (idIdx < 0 || statusIdx < 0) return { status: 'error', message: 'PTW Register missing Permit ID / Status column' };
+
+    var lastRow = regSheet.getLastRow();
+    if (lastRow < 4) return { status: 'ok', promoted: false };
+    var allRows = regSheet.getRange(4, 1, lastRow - 3, regHeaders.length).getValues();
+    var rowOffset = -1, rowVals = null;
+    for (var i = 0; i < allRows.length; i++) {
+      if (String(allRows[i][idIdx]) === String(permitId)) { rowOffset = i; rowVals = allRows[i]; break; }
+    }
+    if (rowOffset < 0) return { status: 'ok', promoted: false, message: 'Permit not found' };
+    if (String(rowVals[statusIdx]||'').trim().toLowerCase() !== 'waiting') {
+      return { status: 'ok', promoted: false, message: 'Permit is not Waiting' };
+    }
+
+    var work = (workIdx >= 0 ? String(rowVals[workIdx]||'') : '');
+    var height = (hamIdx >= 0 ? String(rowVals[hamIdx]||'').trim() : '');
+    var serviceIso = (siIdx >= 0 ? String(rowVals[siIdx]||'').trim() : '');
+    var wl = work.toLowerCase();
+
+    // Same families/rules as permitNeeds*() in ptw-register.html.
+    var needed = [];
+    // Rev.32 (Issam, voice, 2026-11-15) — "safe to enter" counts, not
+    // just Closed — see ptwChecklistIsReady_'s 'confinedSpace' mode.
+    if (/confined/.test(wl)) needed.push({ tab: 'cs_entry', idCol: 'PTW Number', mode: 'confinedSpace' });
+    // Rev.31 (Issam, voice, 2026-11-15) — an Open LOTO job (with its
+    // pre-task isolation checks confirmed) is enough, not just a
+    // Closed one — see ptwChecklistIsReady_'s 'loto' mode below.
+    if (serviceIso || /electrical/.test(wl)) needed.push({ tab: 'loto_register', idCol: 'PTW Number', mode: 'loto' });
+    if (/lifting/.test(wl) || (/height/.test(wl) && height === 'Crane')) needed.push({ tab: 'crane_checklist', idCol: 'PTW Number', mode: 'result', resultCol: 'Inspection Result', passVal: 'Accept Crane' });
+    // Rev.36 (Issam, voice, 2026-11-15) — the permit only needs Pre
+    // Hot Work confirmed, not the whole job Closed — see
+    // ptwChecklistIsReady_'s 'hotWorkPre' mode.
+    if (/hot work/.test(wl)) needed.push({ tab: 'hot_work_checklist', idCol: 'PTW Number', mode: 'hotWorkPre' });
+    // Rev.32 (Issam, voice, 2026-11-15) — a green tag counts, not
+    // just Closed — see ptwChecklistIsReady_'s 'scaffold' mode.
+    if (/height/.test(wl) && height === 'Scaffolding') needed.push({ tab: 'scaffold_inspection', idCol: 'Permit Number', mode: 'scaffold' });
+    // Rev.46 (Issam, voice, 2026-11-16) — needed for ANY height permit
+    // regardless of Height Access Method (unlike Crane/Scaffold just
+    // above, which split on it) — fall protection applies whether the
+    // crew gets up by crane basket or by scaffold. 'requiredCount' is
+    // the crew size off the permit itself, minimum 1 so a blank
+    // Number of Workers can't silently skip the gate — mirrors
+    // harnessIsReady_ in ptw-register.html; keep both in step.
+    if (/height/.test(wl)) {
+      var requiredWorkers = workersIdx >= 0 ? (parseInt(rowVals[workersIdx], 10) || 1) : 1;
+      needed.push({ tab: 'harness_fall_protection', idCol: 'PTW Number', mode: 'harnessCount', requiredCount: requiredWorkers });
+    }
+    if (/paint/.test(wl)) needed.push({ tab: 'painting_checklist', idCol: 'PTW Number', mode: 'result', resultCol: 'Result', passVal: 'Cleared' });
+    if (/civil/.test(wl)) needed.push({ tab: 'civil_work_checklist', idCol: 'PTW Number', mode: 'result', resultCol: 'Result', passVal: 'Cleared' });
+    if (/pipeline/.test(wl)) needed.push({ tab: 'pipeline_checklist', idCol: 'PTW Number', mode: 'result', resultCol: 'Result', passVal: 'Cleared' });
+
+    if (!needed.length) return { status: 'ok', promoted: false, message: 'Permit needs no checklist' };
+
+    var allReady = needed.every(function(n){ return ptwChecklistIsReady_(n, permitId); });
+    if (!allReady) return { status: 'ok', promoted: false, message: 'Still waiting on other checklists' };
+
+    // Every required checklist is complete — promote and notify.
+    regSheet.getRange(4 + rowOffset, statusIdx + 1).setValue('Awaiting Area Manager');
+
+    var toEmail = umEmailIdx >= 0 ? String(rowVals[umEmailIdx]||'') : '';
+    var toName  = umIdx >= 0 ? String(rowVals[umIdx]||'') : '';
+    if (toEmail) {
+      sendPtwStageEmail({
+        permitId: permitId, stage: 'areaManager', toEmail: toEmail, toName: toName,
+        area: areaIdx >= 0 ? rowVals[areaIdx] : '', location: locIdx >= 0 ? rowVals[locIdx] : '',
+        workInvolved: work, date: dateIdx >= 0 ? rowVals[dateIdx] : ''
+      });
+    }
+    return { status: 'ok', promoted: true, emailed: !!toEmail };
+  } catch (err) {
+    Logger.log('checkAndPromotePtwPermit: THREW — ' + err);
+    return { status: 'error', message: err.toString() };
+  }
+}
+
+// Checks whether ONE required checklist already has a passing/Closed
+// record for this permit — most-recent matching non-removed row wins,
+// same convention as ptw-register.html's own findLinkedRecord() /
+// findCraneOrHotWorkRecord().
+function ptwChecklistIsReady_(need, permitId) {
+  // Rev.46 (Issam, voice, 2026-11-16) — harness/fall-protection is a
+  // COUNT check, not a single-record one: the permit needs enough
+  // Satisfactory harness checks tied to it, not just one matching row
+  // (every other mode below finds the LAST matching row and checks
+  // it — that logic doesn't apply here). Mirrors harnessIsReady_ in
+  // ptw-register.html; keep both in step.
+  // Rev.53 (Issam, voice, 2026-11-17) — harness-fall-protection.html
+  // no longer raises one record per harness; one form now covers the
+  // whole job, with 'Number of Harnesses Checked' saying how many.
+  // Sums that field across Satisfactory, non-removed rows instead of
+  // counting rows — a row saved before Rev.53 has no such column, so
+  // it's treated as covering 1 harness (its original one-per-row
+  // meaning) rather than 0, same fallback as harnessPassCount_.
+  if (need.mode === 'harnessCount') {
+    var hfSheet = findSheet(TABS[need.tab]);
+    if (!hfSheet) return false;
+    var hfLastRow = hfSheet.getLastRow();
+    if (hfLastRow < 4) return false;
+    var hfHeaders = hfSheet.getRange(3, 1, 1, hfSheet.getLastColumn()).getValues()[0];
+    var hfIdIdx = hfHeaders.indexOf(need.idCol);
+    var hfRecStatusIdx = hfHeaders.indexOf('Record Status');
+    var hfResultIdx = hfHeaders.indexOf('Overall Result');
+    var hfCountIdx = hfHeaders.indexOf('Number of Harnesses Checked');
+    if (hfIdIdx < 0 || hfResultIdx < 0) return false;
+    var hfRows = hfSheet.getRange(4, 1, hfLastRow - 3, hfHeaders.length).getValues();
+    var passCount = 0;
+    for (var hi = 0; hi < hfRows.length; hi++) {
+      if (hfRecStatusIdx >= 0 && String(hfRows[hi][hfRecStatusIdx]||'').trim().toLowerCase() === 'removed') continue;
+      if (String(hfRows[hi][hfIdIdx]||'').trim() !== String(permitId).trim()) continue;
+      if (String(hfRows[hi][hfResultIdx]||'').trim() !== 'Satisfactory') continue;
+      var hfCnt = hfCountIdx >= 0 ? parseInt(hfRows[hi][hfCountIdx], 10) : NaN;
+      passCount += (!isNaN(hfCnt) && hfCnt > 0) ? hfCnt : 1;
+    }
+    return passCount >= (need.requiredCount || 1);
+  }
+  var sheet = findSheet(TABS[need.tab]);
+  if (!sheet) return false;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 4) return false;
+  var headers = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var idIdx = headers.indexOf(need.idCol);
+  var recStatusIdx = headers.indexOf('Record Status');
+  if (idIdx < 0) return false;
+  var rows = sheet.getRange(4, 1, lastRow - 3, headers.length).getValues();
+  var found = null;
+  for (var i = 0; i < rows.length; i++) {
+    if (recStatusIdx >= 0 && String(rows[i][recStatusIdx]||'').trim().toLowerCase() === 'removed') continue;
+    if (String(rows[i][idIdx]) === String(permitId)) found = rows[i];
+  }
+  if (!found) return false;
+  // Rev.31 (Issam, voice, 2026-11-15) — LOTO's own rule: Open or
+  // Closed both count, but only once every pre-task isolation check
+  // is actually Yes — a job that merely exists isn't isolation.
+  // Mirrors lotoJobIsReady_ in ptw-register.html; keep both in step.
+  if (need.mode === 'loto') {
+    var lotoStatusIdx = headers.indexOf('Status');
+    var lotoStatus = lotoStatusIdx >= 0 ? String(found[lotoStatusIdx]||'').trim().toLowerCase() : '';
+    if (lotoStatus !== 'open' && lotoStatus !== 'closed') return false;
+    var preTaskChecks = ['Equipment Shutdown Safely','All Energy Sources Isolated','Locks and Tags Applied',
+      'Stored Energy Released or Restrained','Zero-Energy Condition Verified',
+      'Absence-of-Voltage Test Completed','Work Area Confirmed Safe and PTW Conditions Satisfied'];
+    return preTaskChecks.every(function(f){
+      var ci = headers.indexOf(f);
+      return ci >= 0 && String(found[ci]||'').trim() === 'Yes';
+    });
+  }
+  // Rev.32 (Issam, voice, 2026-11-15) — Scaffold counts once its Tag
+  // Status reads green, Open or Closed. Mirrors scaffoldIsReady_ in
+  // ptw-register.html; keep both in step.
+  if (need.mode === 'scaffold') {
+    var tagIdx = headers.indexOf('Tag Status');
+    var tagVal = tagIdx >= 0 ? String(found[tagIdx]||'').trim() : '';
+    return /green/i.test(tagVal);
+  }
+  // Confined Space counts once its own atmospheric test says safe,
+  // Open or Closed. Mirrors confinedSpaceIsReady_ in
+  // ptw-register.html; keep both in step.
+  if (need.mode === 'confinedSpace') {
+    var safeIdx = headers.indexOf('All Safe to Enter (Y/N)');
+    return safeIdx >= 0 && String(found[safeIdx]||'').trim() === 'Yes';
+  }
+  // Rev.36 (Issam, voice, 2026-11-15) — Hot Work counts once Pre Hot
+  // Work is confirmed (every item Yes or N/A), not once the whole job
+  // is Closed with a Cleared result — Execution and Post Hot Work
+  // only matter later, when the PERMIT is being closed (see
+  // checkAndPromotePtwPermit's caller for that separate gate).
+  // Mirrors hotWorkPreTaskIsReady_ in ptw-register.html and
+  // PRE_HOT_WORK_ITEMS in hot-work.html; keep all three in step.
+  if (need.mode === 'hotWorkPre') {
+    var preItems = ['Job Site Inspected For Flammables (Y/N/NA)','Work Area Free Of Explosive Atmospheres (Y/N/NA)','Hazardous Gas Assessment Conducted (Y/N/NA)',
+      'Fire Extinguishers Available (Y/N/NA)','Firewatch Assigned And Equipped (Y/N/NA)','Sprinkler Systems Operational (Y/N/NA)','Fixed Fire Suppression Not Impaired (Y/N/NA)',
+      'Combustibles Removed Or Shielded (Y/N/NA)','Fire-Resistant Blankets Or Shields Used (Y/N/NA)','Floor And Wall Openings Covered (Y/N/NA)','Work Area Within 35ft Cleared (Y/N/NA)','Flammable Containers Moved To Safe Distance (Y/N/NA)','Area Adequately Ventilated (Y/N/NA)',
+      'Workers Trained In Hot Work Procedures (Y/N/NA)','Workers Provided Proper PPE (Y/N/NA)','Hearing Protection Available (Y/N/NA)','Respirators Provided If Needed (Y/N/NA)'];
+    return preItems.every(function(f){
+      var fi = headers.indexOf(f);
+      var v = fi >= 0 ? String(found[fi]||'').trim() : '';
+      return v === 'Yes' || v === 'N/A';
+    });
+  }
+  if (need.mode === 'status') {
+    var statusIdx = headers.indexOf('Status');
+    return statusIdx >= 0 && String(found[statusIdx]||'').trim() === 'Closed';
+  }
+  var resIdx = headers.indexOf(need.resultCol);
+  return resIdx >= 0 && String(found[resIdx]||'').trim() === need.passVal;
+}
+
+// Shared Person ID generator for additional group members appended
+// within submitVisitorRegistration — same VC-NNNNN sequence the page
+// uses for the primary row, scanning headerRow + this sheet's actual
+// current rows (including any already appended earlier in the same
+// loop, via getLastRow() re-read each call) so two people in one
+// group never collide.
+function nextVcPersonId_(sheet, headerRow, personIdColIdx){
+  if (personIdColIdx < 0) return '';
+  var lastRow = sheet.getLastRow();
+  var maxN = 0;
+  if (lastRow >= 4){
+    var ids = sheet.getRange(4, personIdColIdx + 1, lastRow - 3, 1).getValues();
+    ids.forEach(function(r){
+      var m = /^VC-(\d+)$/.exec(String(r[0]||'').trim());
+      if (m) { var n = parseInt(m[1], 10); if (n > maxN) maxN = n; }
+    });
+  }
+  var numStr = String(maxN + 1);
+  while (numStr.length < 5) numStr = '0' + numStr;
+  return 'VC-' + numStr;
+}
+
 /**
  * Called from the main management page when the invitation owner clicks Approve.
  * 1. Sets Registration Status = Approved
  * 2. Sends confirmation email to the visitor (CC Host + Safety Controller)
  *    containing the QR access information
  */
+// Rev.24 (Issam, voice, 2026-11-12) — GROUP APPROVAL. Approving now
+// covers every row in the same Invitation Token group that is still
+// Registration Status = Submitted (a person already individually
+// Rejected is left alone — rejectPerson() already marks that row
+// Rejected, and this skips it rather than silently re-approving it).
+// Called with data.token (preferred) or the older data.personId
+// (looked up to find its own token) — both still work, so an older
+// cached page calling this with just a personId keeps functioning
+// exactly as before for a lone registration.
+//
+// Email design agreed with Issam: the REQUESTER (whoever filled the
+// public page — 'Requester Email' on the group's rows) always
+// receives one email with the full table, every person in the group,
+// every QR code — whether the group is one person or several. Any
+// individual guest who also gave their OWN email additionally gets a
+// personal copy of just their own QR. A guest with no email gets
+// nothing directly; their QR still appears in the requester's table.
 function approveVisitorAndSendCard(data) {
   try {
-    if (!data || !data.personId) {
-      return { status: 'error', message: 'Missing Person ID' };
+    if (!data || (!data.token && !data.personId)) {
+      return { status: 'error', message: 'Missing token or Person ID' };
     }
-
-    var personId = String(data.personId).trim();
     var approvedBy = data.approvedBy || 'Safety';
 
-    // Update the row
-    var result = JSON.parse(updateRowById('vc_persons', 'Person ID', personId, {
-      'Registration Status': 'Approved',
-      'Approved By': approvedBy,
-      'Approved Date': Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
-      'Record Status': 'Active'
-    }, false));
-
-    if (result.status !== 'ok') return result;
-
-    // Re-read the full person record
-    var person = getPersonById(personId);
-    if (!person) return { status: 'error', message: 'Person not found after update' };
-
-    // Send confirmation email with QR info
-    var visitorEmail = person['Email'];
-    if (visitorEmail) {
-      sendVisitorApprovedEmail(person);
+    var sheetName = TABS['vc_persons'];
+    var sheet = findSheet(sheetName);
+    if (!sheet) return { status: 'error', message: 'VC Persons sheet not found' };
+    var headerRow = sheet.getRange(3, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var tokenColIdx = headerRow.indexOf('Invitation Token');
+    var idColIdx = headerRow.indexOf('Person ID');
+    var statusColIdx = headerRow.indexOf('Registration Status');
+    if (tokenColIdx < 0 || idColIdx < 0 || statusColIdx < 0) {
+      return { status: 'error', message: 'VC Persons sheet is missing Invitation Token, Person ID or Registration Status' };
     }
 
-    appendAuditLog('VC_APPROVE', 'Visitor ' + personId + ' approved and card email sent', approvedBy, approvedBy);
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 4) return { status: 'error', message: 'No registrations found' };
+    var allRows = sheet.getRange(4, 1, lastRow - 3, headerRow.length).getValues();
+
+    // Resolve the group's token: either given directly, or looked up
+    // from the one personId's own row (backward-compat path).
+    var token = data.token ? String(data.token).trim() : '';
+    if (!token && data.personId) {
+      var pid = String(data.personId).trim();
+      for (var i = 0; i < allRows.length; i++) {
+        if (String(allRows[i][idColIdx]) === pid) { token = String(allRows[i][tokenColIdx]); break; }
+      }
+      if (!token) return { status: 'error', message: 'Person not found: ' + pid };
+    }
+
+    var approvedDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    var approvedPersons = [];
+    for (var r = 0; r < allRows.length; r++) {
+      if (String(allRows[r][tokenColIdx]) !== token) continue;
+      if (String(allRows[r][statusColIdx]).trim() !== 'Submitted') continue; // leave Rejected / already-Approved rows untouched
+      var rowNum = r + 4;
+      var updates = { 'Registration Status': 'Approved', 'Approved By': approvedBy, 'Approved Date': approvedDate, 'Record Status': 'Active' };
+      var newRow = headerRow.map(function(header, idx){ return updates[header] !== undefined ? updates[header] : allRows[r][idx]; });
+      sheet.getRange(rowNum, 1, 1, headerRow.length).setValues([newRow]);
+      var personObj = {};
+      headerRow.forEach(function(h, idx){ personObj[h] = newRow[idx]; });
+      approvedPersons.push(personObj);
+    }
+
+    if (!approvedPersons.length) {
+      return { status: 'error', message: 'No pending (Submitted) registrations found for this invitation' };
+    }
+    Logger.log('approveVisitorAndSendCard: approved ' + approvedPersons.length + ' person(s) for token ' + token);
+
+    var requesterEmail = String(approvedPersons[0]['Requester Email'] || approvedPersons[0]['Email'] || '').trim();
+    var hostEmail = lookupUserEmailByName(approvedPersons[0]['Host Name']) || '';
+    var ccList = [];
+    if (hostEmail) ccList.push(hostEmail);
+    var safetyRaw = String(approvedPersons[0]['Safety Controllers'] || '').trim();
+    if (safetyRaw) {
+      safetyRaw.split(';').forEach(function(part) {
+        var m = part.match(/<([^>]+)>/);
+        var em = m && m[1] ? m[1].trim() : (part.trim().indexOf('@') > 0 ? part.trim() : '');
+        if (em && ccList.indexOf(em) < 0) ccList.push(em);
+      });
+    }
+
+    var groupMailStatus = 'not attempted — no requester email found';
+    if (requesterEmail) {
+      try {
+        sendVisitorGroupApprovedEmail_(approvedPersons, requesterEmail, hostEmail, ccList);
+        groupMailStatus = 'sent';
+      } catch (mailErr) {
+        groupMailStatus = 'FAILED: ' + mailErr;
+        Logger.log('approveVisitorAndSendCard: group email THREW — ' + mailErr);
+      }
+    }
+
+    // Personal copy to each guest who gave their OWN email, distinct
+    // from the requester's email (no point double-sending if a solo
+    // visitor's own email and requester email are the same address).
+    approvedPersons.forEach(function(p){
+      var guestEmail = String(p['Email'] || '').trim();
+      if (guestEmail && guestEmail.toLowerCase() !== requesterEmail.toLowerCase()) {
+        try { sendVisitorGuestOwnCopyEmail_(p); }
+        catch (guestMailErr) { Logger.log('approveVisitorAndSendCard: guest copy to ' + guestEmail + ' THREW — ' + guestMailErr); }
+      }
+    });
+
+    appendAuditLog('VC_APPROVE', 'Group of ' + approvedPersons.length + ' approved for token ' + token + ' — requester email: ' + groupMailStatus, approvedBy, approvedBy);
 
     return {
       status: 'ok',
-      message: 'Visitor approved and confirmation email sent.',
-      personId: personId
+      message: approvedPersons.length > 1
+        ? approvedPersons.length + ' people approved and the requester has been emailed the full group.'
+        : 'Visitor approved and confirmation email sent.',
+      personIds: approvedPersons.map(function(p){ return p['Person ID']; }),
+      mailStatus: groupMailStatus,
+      requesterEmail: requesterEmail
     };
 
   } catch (err) {
+    Logger.log('approveVisitorAndSendCard: THREW — ' + err);
     return { status: 'error', message: err.toString() };
   }
 }
@@ -2629,11 +3177,33 @@ function lookupUserEmailByName(name) {
 }
 
 /* ── Email: Visitor has submitted the registration form ──────── */
-function sendVisitorSubmittedEmail(person, ownerEmail) {
-  var subject = 'SAGCO IMS – New Visitor Registration Submitted for Review';
-  var body = ''
-    + 'Dear Colleague,\n\n'
-    + 'A visitor/contractor has completed the online registration form.\n\n'
+// Rev.24 — groupSize mentioned when more than one person was
+// submitted together, so the creator knows at a glance this isn't
+// a single visitor.
+// Rev.33 (Issam, voice, 2026-11-12) — the notification to the host now
+// carries a direct "Review and Approve" button, linking straight to
+// Pending Approvals on visitor-induction.html, already open on this
+// exact group (?tab=approvals&token=...) — not just a general
+// instruction to go find the tab and the row themselves. The button
+// only opens that screen; approving still takes a real click there,
+// and the host still needs to be logged in to the portal first.
+// Rev.35 (Issam, voice, 2026-11-12) — the VC code is now highlighted,
+// bold and gold, not just a plain line among the other details, and
+// for a group every person's code is listed up front (not just the
+// first person's) — personIds is the full list submitVisitorRegistration
+// already builds while creating each row.
+function sendVisitorSubmittedEmail(person, ownerEmail, groupSize, personIds) {
+  var isGroup = groupSize && groupSize > 1;
+  var codes = (personIds && personIds.length ? personIds : [person['Person ID']]).filter(function(x){ return x; });
+  var codesStr = codes.join(', ');
+  var subject = isGroup
+    ? 'SAGCO IMS – New Visitor Group Registration (' + groupSize + ' people, ' + codesStr + ') Submitted for Review'
+    : 'SAGCO IMS – New Visitor Registration ' + codesStr + ' Submitted for Review';
+  var reviewLink = VC_PORTAL_URL + '?tab=approvals&token=' + encodeURIComponent(person['Invitation Token'] || '');
+  var intro = isGroup
+    ? 'A group of ' + groupSize + ' visitors/contractors has completed the online registration form. First person in the group:'
+    : 'A visitor/contractor has completed the online registration form.';
+  var detailsText = ''
     + 'Person ID      : ' + (person['Person ID'] || '') + '\n'
     + 'Name           : ' + (person['First Name'] || '') + ' ' + (person['Family Name'] || '') + '\n'
     + 'Company        : ' + (person['Company'] || '') + '\n'
@@ -2642,69 +3212,146 @@ function sendVisitorSubmittedEmail(person, ownerEmail) {
     + 'Host           : ' + (person['Host Name'] || '') + '\n'
     + 'ID Number      : ' + (person['ID Number'] || '') + '\n'
     + 'Phone          : ' + (person['Phone'] || '') + '\n'
-    + 'Email          : ' + (person['Email'] || '') + '\n\n'
-    + 'Please open the Visitor & Contractor Management page, go to the “Pending Approvals” tab, review the details and Approve or Reject.\n\n'
+    + 'Email          : ' + (person['Email'] || '') + '\n';
+  var body = 'Dear Colleague,\n\n' + intro + '\n\n'
+    + '*** VC CODE' + (codes.length>1?'S':'') + ': ' + codesStr + ' ***\n\n'
+    + detailsText
+    + '\nReview and approve here: ' + reviewLink + '\n\n'
     + 'SAGCO IMS – Visitor Gate System';
+  var htmlBody = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#1B2A4A;max-width:560px">'
+    + '<p>Dear Colleague,</p>'
+    + '<p>' + intro + '</p>'
+    + '<p style="font-size:20px;font-weight:800;color:#C9A84C;background:#1B2A4A;display:inline-block;padding:8px 18px;border-radius:8px;letter-spacing:.5px">' + vEscPlain_(codesStr) + '</p>'
+    + '<pre style="font-family:Arial,sans-serif;font-size:13px;white-space:pre-wrap;background:#F4F6F9;padding:10px 14px;border-radius:8px">' + detailsText.replace(/</g,'&lt;') + '</pre>'
+    + '<p style="margin-top:16px"><a href="' + reviewLink + '" style="background:#1B2A4A;color:#C9A84C;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">Review and Approve</a></p>'
+    + '<p style="font-size:11px;color:#7a869a;margin-top:20px">— SAGCO IMS Visitor Gate System</p>'
+    + '</div>';
 
   MailApp.sendEmail({
     to: ownerEmail,
     subject: subject,
     body: body,
+    htmlBody: htmlBody,
     name: IMS_FROM_NAME
   });
 }
 
-/* ── Email: Visitor approved + QR access card info ───────────── */
-function sendVisitorApprovedEmail(person) {
-  var visitorEmail = person['Email'];
-  if (!visitorEmail) return;
+// Rev.24 (Issam, voice, 2026-11-12) — generates a real, scannable QR
+// image for one person, fetched server-side from a public QR image
+// API (no key needed) and returned as a Blob so MailApp can embed it
+// inline in an HTML email via inlineImages — a plain cid: reference
+// in an <img> tag, which is the only reliable way to show an image
+// inside an email body (most mail clients block remote images loaded
+// from a URL, which is why the old text-only "QR Code content: ..."
+// line was never actually usable at the gate).
+function buildVisitorQrBlob_(personId) {
+  var text = 'SAGCO-VC:' + personId;
+  var url = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' + encodeURIComponent(text);
+  var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  return response.getBlob().setName('qr_' + personId + '.png');
+}
 
-  var hostEmail = lookupUserEmailByName(person['Host Name']) || '';
-  var ccList = [];
-  if (hostEmail) ccList.push(hostEmail);
+// Builds the HTML table of guests (name, ID number, company, QR
+// image) shared by both the requester's full-group email and reused
+// as a single-row table for one guest's own copy — same markup
+// either way, just a different subset of rows.
+// Rev.35 (Issam, voice, 2026-11-12) — added a VC Code column, bold
+// and gold like the rest of the portal, so this table doubles as the
+// quick reference for matching a QR back to a sheet row or a Gate
+// scan result — the name and ID number alone didn't give that.
+function buildVisitorQrTableHtml_(persons, cidPrefix) {
+  var rows = persons.map(function(p, i){
+    var cid = cidPrefix + i;
+    return '<tr>'
+      + '<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;font-weight:800;color:#C9A84C">' + (p['Person ID']||'') + '</td>'
+      + '<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px">' + (p['First Name']||'') + ' ' + (p['Family Name']||'') + '</td>'
+      + '<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px">' + (p['ID Number']||'') + '</td>'
+      + '<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px">' + (p['Company']||'') + '</td>'
+      + '<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:center"><img src="cid:' + cid + '" width="110" height="110" alt="QR code"></td>'
+      + '</tr>';
+  }).join('');
+  return '<table style="border-collapse:collapse;width:100%;max-width:560px;margin:14px 0">'
+    + '<thead><tr>'
+      + '<th style="text-align:left;padding:8px 12px;font-size:11px;text-transform:uppercase;color:#7a869a;border-bottom:2px solid #1B2A4A">VC Code</th>'
+      + '<th style="text-align:left;padding:8px 12px;font-size:11px;text-transform:uppercase;color:#7a869a;border-bottom:2px solid #1B2A4A">Name</th>'
+      + '<th style="text-align:left;padding:8px 12px;font-size:11px;text-transform:uppercase;color:#7a869a;border-bottom:2px solid #1B2A4A">ID Number</th>'
+      + '<th style="text-align:left;padding:8px 12px;font-size:11px;text-transform:uppercase;color:#7a869a;border-bottom:2px solid #1B2A4A">Company</th>'
+      + '<th style="text-align:center;padding:8px 12px;font-size:11px;text-transform:uppercase;color:#7a869a;border-bottom:2px solid #1B2A4A">QR Code</th>'
+    + '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
 
-  // Parse Safety Controllers stored as "Name <email>; Name <email>"
-  // Selection is compulsory on the invitation form, so this should always have values.
-  var safetyRaw = String(person['Safety Controllers'] || '').trim();
-  if (safetyRaw) {
-    var parts = safetyRaw.split(';');
-    parts.forEach(function(part) {
-      var m = part.match(/<([^>]+)>/);
-      if (m && m[1]) {
-        var em = m[1].trim();
-        if (em && ccList.indexOf(em) < 0) ccList.push(em);
-      } else {
-        var em2 = part.trim();
-        if (em2 && em2.indexOf('@') > 0 && ccList.indexOf(em2) < 0) ccList.push(em2);
-      }
-    });
-  }
+/* ── Email: group approved — full table to the requester, plus a
+   personal copy to each guest who gave their own email ─────────
+   Rev.24 (Issam, voice, 2026-11-12) — replaces the old single-person
+   sendVisitorApprovedEmail with the agreed design: the person who
+   filled the public page ALWAYS gets one email with the full table
+   (every guest, every QR), whether they registered alone or brought
+   a group. Any guest who also gave their own email additionally gets
+   a personal copy with just their own QR. A guest with no email gets
+   nothing directly — their QR is still in the requester's table. */
+function sendVisitorGroupApprovedEmail_(persons, requesterEmail, hostEmail, ccList) {
+  var isGroup = persons.length > 1;
+  var subject = isGroup
+    ? 'SAGCO IMS – Your Group Visit Access Cards (' + persons.length + ' QR Codes)'
+    : 'SAGCO IMS – Your Visit Access Card (QR Code)';
 
-  var subject = 'SAGCO IMS – Your Visit Access Card (QR Code)';
-  var body = ''
-    + 'Dear ' + (person['First Name'] || 'Visitor') + ',\n\n'
-    + 'Your registration has been approved by SAGCO Safety / Management.\n\n'
-    + '=== YOUR ACCESS DETAILS ===\n'
-    + 'Person ID     : ' + (person['Person ID'] || '') + '\n'
-    + 'Name          : ' + (person['First Name'] || '') + ' ' + (person['Family Name'] || '') + '\n'
-    + 'Company       : ' + (person['Company'] || '') + '\n'
-    + 'Destination   : ' + (person['Destination Department'] || '') + '\n'
-    + 'Host          : ' + (person['Host Name'] || '') + '\n\n'
-    + 'Please present the QR code (or this Person ID) at the main gate.\n'
-    + 'QR Code content: SAGCO-VC:' + (person['Person ID'] || '') + '\n\n'
-    + 'Important:\n'
-    + '• You must complete Safety Induction and receive PPE before entering operational areas.\n'
-    + '• Keep this email / QR code with you during the visit.\n\n'
-    + 'Welcome to SAGCO.\n\n'
-    + 'SAGCO IMS – Visitor Gate System';
+  var inlineImages = {};
+  persons.forEach(function(p, i){ inlineImages['grp' + i] = buildVisitorQrBlob_(p['Person ID']); });
+  var tableHtml = buildVisitorQrTableHtml_(persons, 'grp');
 
-  var options = {
-    to: visitorEmail,
-    subject: subject,
-    body: body,
-    name: IMS_FROM_NAME
-  };
-  if (ccList.length) options.cc = ccList.join(',');
+  var first = persons[0];
+  var htmlBody = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#1B2A4A;max-width:600px">'
+    + '<p>Dear ' + (first['First Name'] || 'Visitor') + ',</p>'
+    + '<p>Your registration has been approved by SAGCO Safety / Management.'
+    + (isGroup ? ' Below is the access card for each person in your group.' : '') + '</p>'
+    + '<p><strong>Destination:</strong> ' + (first['Destination Department']||'') + ' &nbsp; <strong>Host:</strong> ' + (first['Host Name']||'') + '</p>'
+    + tableHtml
+    + '<p style="margin-top:16px"><strong>Important:</strong></p>'
+    + '<ul style="margin:4px 0 0;padding-left:18px">'
+      + '<li>Present each person\'s own QR code at the main gate.</li>'
+      + '<li>Each person must complete Safety Induction and receive PPE before entering operational areas.</li>'
+      + '<li>Keep this email with you during the visit.</li>'
+    + '</ul>'
+    + '<p style="margin-top:18px">Welcome to SAGCO.</p>'
+    + '<p style="font-size:11px;color:#7a869a;margin-top:24px">— SAGCO IMS Visitor Gate System</p>'
+    + '</div>';
 
+  var plainLines = persons.map(function(p){ return '• ' + (p['First Name']||'') + ' ' + (p['Family Name']||'') + ' (' + (p['ID Number']||'') + ') — QR Code content: SAGCO-VC:' + (p['Person ID']||''); });
+  var plainBody = 'Dear ' + (first['First Name'] || 'Visitor') + ',\n\nYour registration has been approved.\n\n'
+    + plainLines.join('\n') + '\n\nPresent each QR code at the main gate. Safety Induction and PPE are required before entering operational areas.\n\nSAGCO IMS – Visitor Gate System';
+
+  var options = { to: requesterEmail, subject: subject, htmlBody: htmlBody, body: plainBody, inlineImages: inlineImages, name: IMS_FROM_NAME };
+  if (ccList && ccList.length) options.cc = ccList.join(',');
   MailApp.sendEmail(options);
+}
+
+/* Personal copy to one guest who gave their own email — one-row
+   version of the same table, their own QR only. */
+function sendVisitorGuestOwnCopyEmail_(person) {
+  var guestEmail = String(person['Email'] || '').trim();
+  if (!guestEmail) return;
+  var inlineImages = { own0: buildVisitorQrBlob_(person['Person ID']) };
+  var tableHtml = buildVisitorQrTableHtml_([person], 'own');
+  var htmlBody = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#1B2A4A;max-width:600px">'
+    + '<p>Dear ' + (person['First Name'] || 'Visitor') + ',</p>'
+    + '<p>Your registration has been approved by SAGCO Safety / Management.</p>'
+    + '<p><strong>Destination:</strong> ' + (person['Destination Department']||'') + ' &nbsp; <strong>Host:</strong> ' + (person['Host Name']||'') + '</p>'
+    + tableHtml
+    + '<p style="margin-top:16px"><strong>Important:</strong></p>'
+    + '<ul style="margin:4px 0 0;padding-left:18px">'
+      + '<li>Present this QR code at the main gate.</li>'
+      + '<li>You must complete Safety Induction and receive PPE before entering operational areas.</li>'
+      + '<li>Keep this email with you during the visit.</li>'
+    + '</ul>'
+    + '<p style="margin-top:18px">Welcome to SAGCO.</p>'
+    + '<p style="font-size:11px;color:#7a869a;margin-top:24px">— SAGCO IMS Visitor Gate System</p>'
+    + '</div>';
+  MailApp.sendEmail({
+    to: guestEmail,
+    subject: 'SAGCO IMS – Your Visit Access Card (QR Code)',
+    htmlBody: htmlBody,
+    body: 'Dear ' + (person['First Name']||'Visitor') + ',\n\nYour registration has been approved. QR Code content: SAGCO-VC:' + (person['Person ID']||'') + '\n\nSAGCO IMS – Visitor Gate System',
+    inlineImages: inlineImages,
+    name: IMS_FROM_NAME
+  });
 }

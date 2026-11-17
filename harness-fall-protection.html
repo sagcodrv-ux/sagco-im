@@ -170,9 +170,18 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
   // below), so the real corrective action lives once in the Action
   // Register rather than half-typed here too. 'Action Reference'
   // added so the escalate button has a column to write to.
-  var FIELDS = ["Inspection ID","Date","PTW Number","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type"]
+  // Rev.53 (Issam, voice, 2026-11-17) — one form now covers every
+  // harness on the job, not one form per harness: each check item is
+  // one answer for the whole crew (Yes = every harness checked passed
+  // that point). 'Number of Harnesses Checked' replaces the old
+  // one-record-per-harness count the permit used to add up (see
+  // harnessIsReady_/harnessPassCount_ in ptw-register.html, now
+  // summing this field instead of counting records). 'Failed Harness
+  // Tag(s) / Notes' is required whenever any item is No, since a
+  // single Yes/No answer can't say which harness failed on its own.
+  var FIELDS = ["Inspection ID","Date","PTW Number","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type","Number of Harnesses Checked"]
     .concat(ITEMS)
-    .concat(["Overall Result","Target Close Date","Inspected By","Remarks","Status","Action Reference"]);
+    .concat(["Overall Result","Failed Harness Tag(s) / Notes","Target Close Date","Inspected By","Remarks","Status","Action Reference"]);
   var SELECT_FIELDS = {
     "Equipment Type": ["Full-Body Harness","Lanyard","Lifeline","Anchor Point","Self-Retracting Lifeline (SRL)","Other"],
     "Inspection Type": ["Pre-Use","6-Monthly Formal"],
@@ -350,9 +359,9 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
 
   function showModal(title, initialValues, onSubmit){
     var root = document.getElementById('hf-modal-root');
-    var headerFields = ["Inspection ID","Date","PTW Number","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type"];
-    var tailFields = ["Overall Result","Target Close Date","Inspected By","Remarks","Status"];
-    var fullWidthFields = {"Remarks":1};
+    var headerFields = ["Inspection ID","Date","PTW Number","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type","Number of Harnesses Checked"];
+    var tailFields = ["Overall Result","Failed Harness Tag(s) / Notes","Target Close Date","Inspected By","Remarks","Status"];
+    var fullWidthFields = {"Remarks":1, "Failed Harness Tag(s) / Notes":1};
 
     function fieldHtml(f){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
@@ -380,7 +389,12 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
         return '<div class="'+cls+'"><label>'+f+'</label><select data-field="'+f+'">'+opts+'</select></div>';
       }
       if (fullWidthFields[f]){
-        return '<div class="'+cls+'"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+        var hint = f === 'Failed Harness Tag(s) / Notes' ? ' <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(required if any item above is No — name which harness(es) failed)</span>' : '';
+        return '<div class="'+cls+'"><label>'+f+hint+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+      }
+      if (f === 'Number of Harnesses Checked'){
+        return '<div class="'+cls+'"><label>Number of Harnesses Checked <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(every harness covered by this inspection)</span></label>'
+          + '<input type="number" min="1" step="1" data-field="Number of Harnesses Checked" value="'+vEscV+'"></div>';
       }
       var fLower = f.toLowerCase();
       var inputType = fLower.indexOf('date') > -1 ? 'date' : 'text';
@@ -406,7 +420,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
       + '<div class="hf-modal-grid">'
       + '<div class="hf-sec-hd">Inspection Details</div>' + headerFields.map(fieldHtml).join('')
       + '<div class="hf-sec-hd">Equipment Condition Checks</div>' + itemsHtml
-      + '<div class="hf-sec-hd">Result &amp; Corrective Action</div>' + tailFields.map(fieldHtml).join('')
+      + '<div class="hf-sec-hd">Result</div>' + tailFields.map(fieldHtml).join('')
       + '</div>'
       + '<div class="hf-modal-actions"><button class="hf-btn" id="hf-modal-cancel">Cancel</button>'
       + '<button class="hf-btn hf-btn-add" id="hf-modal-save">Save</button></div>'
@@ -452,7 +466,19 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
         alert('This inspection cannot be saved yet — the following items must be answered first:\n\n- ' + missing.join('\n- '));
         return;
       }
+      // Rev.53 (Issam, voice, 2026-11-17) — one form now covers every
+      // harness on the job, so it needs to say how many, and a No on
+      // any item needs to say which harness(es) failed since the
+      // Yes/No answer alone can't.
+      if (!String(values['Number of Harnesses Checked']||'').trim() || parseInt(values['Number of Harnesses Checked'],10) < 1){
+        alert('Please enter how many harnesses this inspection covers (1 or more).');
+        return;
+      }
       var anyNo = ITEMS.some(function(it){ return values[it] === 'No'; });
+      if (anyNo && !String(values['Failed Harness Tag(s) / Notes']||'').trim()){
+        alert('At least one item is No — please name which harness(es) failed in "Failed Harness Tag(s) / Notes" before saving.');
+        return;
+      }
       values['Overall Result'] = anyNo ? FAIL : PASS;
       if (!values['Status']) values['Status'] = (values['Overall Result'] === FAIL) ? 'Removed from Service' : 'In Service';
       var saveBtn = document.getElementById('hf-modal-save');
