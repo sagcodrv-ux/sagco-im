@@ -122,19 +122,46 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .cs-dark-wrap .cs-row-selected td,
 .cs-dark-wrap .cs-row-selected:hover td{background:rgba(201,168,76,.22)!important;box-shadow:inset 3px 0 0 var(--csw-gold)}
 .cs-dark-wrap .cs-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;
-  align-items:center;justify-content:center;z-index:9999}
+  align-items:center;justify-content:center;z-index:9999;padding:20px}
 .cs-dark-wrap .cs-modal{background:var(--csw-bg2);border:1px solid var(--csw-border-gold);border-radius:14px;
   padding:20px;width:460px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--csw-text)}
+/* Rev.49 (Issam, voice, 2026-11-16) — aligned to the same wide,
+   2-column form layout the rest of this project's Add/Edit windows
+   now use: a wider window, fields paired two to a row, each stage
+   (Pre-Entry / Entry & Re-Testing / Exit & Closure) under its own
+   full-width divider, and every Y/N check on its own row with the
+   answer beside it — not one field stacked under the next. */
+.cs-dark-wrap .cs-modal.wide{width:820px;max-width:94vw}
 .cs-dark-wrap .cs-modal h3{margin:0 0 12px;font-size:14px;color:var(--csw-gold-lt)}
-.cs-dark-wrap .cs-field{margin-bottom:10px}
+.cs-dark-wrap .cs-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.cs-dark-wrap .cs-modal-grid .cs-field.full{grid-column:1/-1}
+.cs-dark-wrap .cs-modal-sec{grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--csw-gold-lt);margin:14px 0 6px;padding-top:8px;border-top:1px solid var(--csw-border)}
+.cs-dark-wrap .cs-modal-sec:first-child{margin-top:0;padding-top:0;border-top:none}
+.cs-dark-wrap .cs-field{margin-bottom:0}
 .cs-dark-wrap .cs-field label{display:block;font-size:10px;font-weight:600;color:var(--csw-text-muted);margin-bottom:3px}
 .cs-dark-wrap .cs-field input,.cs-dark-wrap .cs-field select,.cs-dark-wrap .cs-field textarea{width:100%;padding:6px 8px;font-size:12px;
   border:1px solid var(--csw-border);border-radius:6px;font-family:inherit;box-sizing:border-box;
   background:var(--csw-bg3);color:var(--csw-text)}
 .cs-dark-wrap .cs-field textarea{min-height:56px;resize:vertical}
 .cs-dark-wrap .cs-field .cs-hint{font-size:9px;color:var(--csw-text-dim);margin-top:3px;display:block}
+.cs-dark-wrap .cs-item-row{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;
+  background:var(--csw-bg3);border:1px solid var(--csw-border);border-radius:8px;padding:9px 12px;font-size:12px}
+.cs-dark-wrap .cs-item-row label{flex:1;font-weight:600;margin-bottom:0}
+.cs-dark-wrap .cs-item-row select{width:120px;flex-shrink:0}
 .cs-dark-wrap .cs-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .cs-dark-wrap .cs-modal-actions .cs-btn-cancel{background:var(--csw-bg3)}
+@media (max-width:640px){
+  .cs-dark-wrap{padding:14px 12px}
+  .cs-dark-wrap .cs-modal.wide{width:100%;max-width:100vw;border-radius:0;max-height:100vh;height:100vh}
+  .cs-dark-wrap .cs-modal-grid{grid-template-columns:1fr}
+  .cs-dark-wrap .cs-btn{min-height:44px;padding:10px 14px}
+  .cs-dark-wrap .cs-modal-actions{flex-direction:column-reverse}
+  .cs-dark-wrap .cs-modal-actions .cs-btn{width:100%}
+  .cs-dark-wrap .cs-field input,.cs-dark-wrap .cs-field select,.cs-dark-wrap .cs-field textarea{min-height:42px;font-size:16px}
+  .cs-dark-wrap .cs-item-row{flex-direction:column;align-items:stretch;gap:8px}
+  .cs-dark-wrap .cs-item-row select{width:100%;min-height:42px}
+}
 .cs-dark-wrap .cs-jump-btn{font-size:11px;font-weight:600;padding:6px 12px;border-radius:8px;
   border:1px solid var(--csw-border-gold);background:var(--csw-bg2);cursor:pointer;font-family:inherit;color:var(--csw-gold-lt)}
 .cs-dark-wrap .cs-jump-btn:hover{background:var(--csw-bg3);border-color:var(--csw-gold)}
@@ -254,6 +281,27 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       crossRef: { 'CS Ref': 'register' }
     }
   };
+  // Rev.49 (Issam, voice, 2026-11-16) — the Pre-Entry / Atmospheric
+  // Test Record used to be one flat form with no real order to it:
+  // nothing stopped recording an exit time before the gas test, or
+  // closing an entry with nobody confirmed out. Split into three real
+  // stages, same staged-save pattern as hot-work.html's Pre/Execution/
+  // Post: Pre-Entry gates the permit (unchanged logic, just laid out
+  // in sections now), Entry records who went in and any re-testing
+  // while people are inside, and Exit & Closure can't mark the entry
+  // Closed without an Exit Time on file.
+  var PRE_ENTRY_SECTIONS = [
+    { title: 'Entry Details', fields: ['Entry ID','Date','CS Ref','PTW Number','Entrant(s)','Standby / Attendant Person'] },
+    { title: 'Isolation & Access Controls', fields: ['Isolation Confirmed (LOTO) (Y/N)','LOTO Reference','Ventilation Provided (Y/N)','Ventilation Type','Communication Method','Rescue Equipment Ready (Y/N)','PPE / Breathing Apparatus Confirmed (Y/N)'] },
+    { title: 'Atmospheric Testing', fields: ['Gas Detector Instrument ID','Instrument Calibration Due Date','O2 (%)','CO (ppm)','H2S (ppm)','LEL (%)','Test Time','All Safe to Enter (Y/N)'] },
+    { title: 'Result & Corrective Action', fields: ['Comment','Corrective Action Required (Y/N)','Proposed Corrective Action','Responsible Person','Target Close Date'] }
+  ];
+  var ENTRY_EXIT_SECTIONS = [
+    { title: 'Entry', fields: ['Entry Time'] },
+    { title: 'Re-Testing While Inside (If Re-Entry Required)', fields: ['Re-Entry Required (Y/N)','Re-Test O2 (%)','Re-Test CO (ppm)','Re-Test H2S (ppm)','Re-Test LEL (%)','Re-Test Time'] },
+    { title: 'Exit & Closure', fields: ['Exit Time','Status','Remarks','Action Reference'] }
+  ];
+  var ENTRY_EXIT_FIELDS = ENTRY_EXIT_SECTIONS.reduce(function(acc, sec){ return acc.concat(sec.fields); }, []);
   var _filters = {};
   var _selected = {};
   var _expandedRows = {};
@@ -322,6 +370,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   /* ── Print helpers (same pf- convention as loto-register.html's
      buildLotoPrintHtml / buildAuditPrintHtml) ─────────────────────── */
   function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  // Rev.49 (Issam, voice, 2026-11-16) — called from renderTableArea()
+  // and the row-detail expander but never defined anywhere in this
+  // file: every row click threw "formatCell is not defined" and broke
+  // selection entirely, which also silently broke Edit/Continue/
+  // Remove (all depend on a row being selectable first). Not
+  // something this session's own edits touched — confirmed present
+  // in the live repo copy too, so this was already broken in
+  // production before today, not something this layout pass caused.
+  function formatCell(v){ var s = String(v==null?'':v).trim(); return s ? pfEsc(s) : '—'; }
   function pfCb(label, checked){ return '<span class="pf-item"><span class="pf-box">'+(checked?'&#9746;':'&#9744;')+'</span><span class="pf-item-label">'+pfEsc(label)+'</span></span>'; }
   function pfYes(val){ return String(val||'').trim().toLowerCase() === 'yes'; }
   function pfField(label, value){ return '<div class="pf-field"><span class="pf-label">'+pfEsc(label)+'</span><span class="pf-value">'+pfEsc(value||'')+'</span></div>'; }
@@ -460,6 +517,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var toolbarHtml = '';
     if (can('add')) toolbarHtml += '<button class="cs-btn cs-btn-add" onclick="CS.openAdd(\''+tKeyName+'\')">+ Add Record</button>';
     var disabledAttr = sel ? '' : ' disabled';
+    // Rev.49 (Issam, voice, 2026-11-16) — shown only for an entry that
+    // has been raised (Pre-Entry done) but not yet closed, same
+    // "▶ Continue" pattern hot-work.html uses for its own staged job.
+    if (tKeyName === 'preentry' && can('edit')){
+      var exitTimeVal = sel ? String(getFieldOfSelected(tKeyName, 'Exit Time')||'').trim() : '';
+      var canContinue = sel && !exitTimeVal;
+      toolbarHtml += '<button class="cs-btn cs-btn-add" id="cs-tb-continue-'+tKeyName+'"'+(canContinue?'':' disabled')+' onclick="CS.openContinue(CS.getSelected(\''+tKeyName+'\'))">▶ Continue (Entry / Exit)</button>';
+    }
     if (cfg.hasPrintCS){
       toolbarHtml += '<button class="cs-btn" id="cs-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="CS.printPreEntry(CS.getSelected(\''+tKeyName+'\'))">🖨️ Print Pre-Entry Checklist</button>';
     }
@@ -845,17 +910,45 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }).catch(function(){ return null; });
   }
 
-  function showModal(tKeyName, title, fields, initialValues, onSubmit){
+  // Rev.49 (Issam, voice, 2026-11-16) — a field renders as a full-width
+  // item-row (label left, answer beside it) when its options are
+  // exactly Yes/No — the checklist-style fields — and as a normal
+  // half-width grid field otherwise. Matches the pattern already used
+  // on every checklist built this week.
+  function isYesNoField_(f, selFields){
+    var opts = selFields[f];
+    if (!opts) return false;
+    return opts.join('|') === 'Yes|No';
+  }
+  // fieldsOrSections accepts either a flat array of field names (the
+  // old call shape, still used by the Confined Space Site Register's
+  // simple one-stage modal) or an array of {title, fields} section
+  // objects (used by the staged Pre-Entry / Entry & Exit forms below)
+  // — normalized to sections either way so one render path covers both.
+  function showModal(tKeyName, title, fieldsOrSections, initialValues, onSubmit){
     var root = document.getElementById('cs-modal-root');
     var cfg = TABLES[tKeyName];
     var selFields = cfg.selectFields || {};
     var taFields = cfg.textareaFields || [];
-    var fieldsHtml = fields.map(function(f, fi){
+    var fullWidthFields = {'PTW Number':1};
+    taFields.forEach(function(f){ fullWidthFields[f] = 1; });
+    var sections = (fieldsOrSections.length && fieldsOrSections[0] && fieldsOrSections[0].fields)
+      ? fieldsOrSections
+      : [{ title: null, fields: fieldsOrSections }];
+    var allFields = sections.reduce(function(acc, sec){ return acc.concat(sec.fields); }, []);
+
+    function fieldHtml(f, fi, secTitle){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
       var vEsc = String(v).replace(/"/g,'&quot;');
       if (f === 'PTW Number'){
-        return '<div class="cs-field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(the permit\'s Permit ID — pick an open one, or type one not yet in the list)</span></label>'
+        return '<div class="cs-field full"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(the permit\'s Permit ID — pick an open one, or type one not yet in the list)</span></label>'
           + '<input type="text" data-field="PTW Number" value="'+vEsc+'" list="cs-dl-ptw-open" placeholder="Loading open permits…"><datalist id="cs-dl-ptw-open"></datalist></div>';
+      }
+      if (isYesNoField_(f, selFields)){
+        var itemOpts = '<option value=""></option>' + selFields[f].map(function(o){
+          return '<option value="'+String(o).replace(/"/g,'&quot;')+'"'+(o===v?' selected':'')+'>'+o+'</option>';
+        }).join('');
+        return '<div class="cs-item-row"><label>'+f+'</label><select data-field="'+f+'">'+itemOpts+'</select></div>';
       }
       if (selFields[f]){
         var optsHtml = '<option value=""></option>' + selFields[f].map(function(o){
@@ -864,14 +957,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         return '<div class="cs-field"><label>'+f+'</label><select data-field="'+f+'">'+optsHtml+'</select></div>';
       }
       if (taFields.indexOf(f) > -1){
-        return '<div class="cs-field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+        return '<div class="cs-field full"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
       }
       var fLower = f.trim().toLowerCase();
       var hasDate = fLower.indexOf('date') > -1;
       var hasTime = fLower.indexOf('time') > -1;
       var inputType = (hasDate && hasTime) ? 'datetime-local' : (hasDate ? 'date' : (hasTime ? 'time' : 'text'));
       var suggestions = (hasDate || hasTime) ? [] : getSuggestions(tKeyName, f);
-      var dlId = 'cs-dl-' + tKeyName + '-' + fi;
+      var dlId = 'cs-dl-' + tKeyName + '-' + secTitle + '-' + fi;
       var dlHtml = '';
       if (suggestions.length){
         dlHtml = '<datalist id="'+dlId+'">' + suggestions.map(function(s){
@@ -879,10 +972,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         }).join('') + '</datalist>';
       }
       return '<div class="cs-field"><label>'+f+'</label><input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"'+(suggestions.length?' list="'+dlId+'"':'')+'>'+dlHtml+'</div>';
+    }
+
+    var fieldsHtml = sections.map(function(sec){
+      var secHtml = sec.fields.map(function(f, fi){ return fieldHtml(f, fi, String(sec.title || '')); }).join('');
+      return (sec.title ? '<div class="cs-modal-sec">'+sec.title+'</div>' : '') + secHtml;
     }).join('');
 
-    root.innerHTML = '<div class="cs-modal-bg" id="cs-modal-bg"><div class="cs-modal">' +
-      '<h3>'+title+'</h3>' + fieldsHtml +
+    root.innerHTML = '<div class="cs-modal-bg" id="cs-modal-bg"><div class="cs-modal wide">' +
+      '<h3>'+title+'</h3>' + '<div class="cs-modal-grid">' + fieldsHtml + '</div>' +
       '<div id="cs-modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
       '<div class="cs-modal-actions"><button class="cs-btn cs-btn-cancel" id="cs-modal-cancel">Cancel</button>' +
       '<button class="cs-btn cs-btn-add" id="cs-modal-save">Save</button></div></div></div>';
@@ -890,7 +988,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     document.getElementById('cs-modal-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('cs-modal-bg').onclick = function(e){ if(e.target.id==='cs-modal-bg') root.innerHTML=''; };
 
-    if (fields.indexOf('PTW Number') > -1){
+    if (allFields.indexOf('PTW Number') > -1){
       loadOpenPTWPermits().then(function(nums){
         var inp = root.querySelector('[data-field="PTW Number"]');
         var dl = document.getElementById('cs-dl-ptw-open');
@@ -1024,7 +1122,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var suggestedId = nextSequentialId(tKeyName);
       if (suggestedId) initial[cfg.idCol] = suggestedId;
       if (extraInitial) Object.keys(extraInitial).forEach(function(k){ initial[k] = extraInitial[k]; });
-      showModal(tKeyName, 'Add ' + cfg.label, cfg.fields, initial, function(values, close){
+      // Rev.49 (Issam, voice, 2026-11-16) — Add is now Pre-Entry ONLY
+      // for 'preentry': Entry time, re-testing and Exit & Closure are
+      // filled in later via Continue, once people actually go in and
+      // come out. The Site Register ('register') is unaffected — it
+      // has no stages, so its full flat field list still goes straight
+      // into one implicit section.
+      var sectionsForAdd = tKeyName === 'preentry' ? PRE_ENTRY_SECTIONS : cfg.fields;
+      showModal(tKeyName, 'Add ' + cfg.label + (tKeyName === 'preentry' ? ' — Pre-Entry' : ''), sectionsForAdd, initial, function(values, close){
         if (tKeyName === 'preentry'){
           var missing = missingConfinedSpaceItems_(values);
           if (missing.length){
@@ -1037,6 +1142,42 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
           close(); reloadAll();
           notifyPtwIfClosed_(tKeyName, values);
+        }).catch(function(){ alert('Could not save — check your connection.'); if (window._csReenableModalSave) window._csReenableModalSave(); });
+      });
+    },
+    // Rev.49 (Issam, voice, 2026-11-16) — Entry & Exit stage on an
+    // EXISTING Pre-Entry record: entry time, any re-testing while
+    // people are inside, and exit/closure. A record can't be marked
+    // Closed without an Exit Time on file — closing with nobody
+    // confirmed out was exactly the gap Issam flagged.
+    openContinue: function(idVal){
+      var cfg = TABLES['preentry'];
+      if (!can('edit')) return;
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      var data = _cache['preentry'];
+      var idIdx = colIdx(data.headers, cfg.idCol);
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var initial = {};
+      data.headers.forEach(function(h,i){ initial[h] = row[i]; });
+      showModal('preentry', 'Continue Pre-Entry ' + idVal + ' — Entry &amp; Exit', ENTRY_EXIT_SECTIONS, initial, function(values, close){
+        if (String(values['Status']||'').trim() === 'Closed' && !String(values['Exit Time']||'').trim()){
+          alert('This entry cannot be Closed without an Exit Time — confirm everyone is out first.');
+          if (window._csReenableModalSave) window._csReenableModalSave();
+          return;
+        }
+        // Continue only touches the Entry/Exit fields — merge them
+        // onto the existing record rather than overwrite the whole
+        // row, so Pre-Entry's own answers are never lost.
+        var merged = {};
+        ENTRY_EXIT_FIELDS.forEach(function(f){ merged[f] = values[f]; });
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, merged).then(function(res){
+          if (res && res.status === 'error'){
+            alert('Save failed: ' + (res.message || 'unknown error') + '\n\nYour changes were NOT saved — please try again.');
+            if (window._csReenableModalSave) window._csReenableModalSave();
+            return;
+          }
+          close(); reloadAll();
         }).catch(function(){ alert('Could not save — check your connection.'); if (window._csReenableModalSave) window._csReenableModalSave(); });
       });
     },
@@ -1107,11 +1248,21 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (!row) return alert('Record not found — try refreshing.');
       var initial = {};
       data.headers.forEach(function(h,i){ initial[h] = row[i]; });
-      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, cfg.fields, initial, function(values, close){
+      // Rev.49 (Issam, voice, 2026-11-16) — Edit is the full-form admin
+      // correction (all stages at once), now grouped into the same
+      // sections as the staged Add/Continue forms for 'preentry' —
+      // 'register' is unchanged, one plain section.
+      var sectionsForEdit = tKeyName === 'preentry' ? PRE_ENTRY_SECTIONS.concat(ENTRY_EXIT_SECTIONS) : cfg.fields;
+      showModal(tKeyName, 'Edit ' + cfg.label + ' — ' + idVal, sectionsForEdit, initial, function(values, close){
         if (tKeyName === 'preentry'){
           var missing = missingConfinedSpaceItems_(values);
           if (missing.length){
             alert('This record cannot be saved as "Safe to Enter" yet — the following must be confirmed first:\n\n- ' + missing.join('\n- '));
+            if (window._csReenableModalSave) window._csReenableModalSave();
+            return;
+          }
+          if (String(values['Status']||'').trim() === 'Closed' && !String(values['Exit Time']||'').trim()){
+            alert('This entry cannot be Closed without an Exit Time — confirm everyone is out first.');
             if (window._csReenableModalSave) window._csReenableModalSave();
             return;
           }
