@@ -134,7 +134,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     </div>
   </div>
   <div class="hf-table-wrap"><table class="hf-tbl">
-    <thead><tr><th>Inspection ID</th><th>Date</th><th>Inspection Type</th><th>Harnesses</th><th>Result</th><th>Status</th><th>Inspected By</th></tr></thead>
+    <thead><tr><th>Inspection ID</th><th>Date</th><th>Inspection Type</th><th>Failed Harness(es)</th><th>Result</th><th>Status</th><th>Inspected By</th></tr></thead>
     <tbody id="hf-tbody"><tr><td colspan="7" class="hf-empty">Loading…</td></tr></tbody>
   </table></div>
   <div id="hf-modal-root"></div>
@@ -173,12 +173,16 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
   // Rev.53 (Issam, voice, 2026-11-17) — one form now covers every
   // harness on the job, not one form per harness: each check item is
   // one answer for the whole crew (Yes = every harness checked passed
-  // that point). 'Number of Harnesses Checked' replaces the old
-  // one-record-per-harness count the permit used to add up (see
-  // harnessIsReady_/harnessPassCount_ in ptw-register.html, now
-  // summing this field instead of counting records). 'Failed Harness
-  // Tag(s) / Notes' is required whenever any item is No, since a
-  // single Yes/No answer can't say which harness failed on its own.
+  // that point). 'Failed Harness Tag(s) / Notes' is required whenever
+  // any item is No, since a single Yes/No answer can't say which
+  // harness failed on its own.
+  // Rev.57 (Issam, voice, 2026-11-17) — 'Number of Harnesses Checked'
+  // removed again: comparing it against the permit's crew size kept
+  // producing a stuck "1 of 4"-style badge, which is exactly the
+  // confusion this was meant to prevent. The rule is simpler now —
+  // one Satisfactory checklist tied to the permit covers the whole
+  // crew, no number to enter or compare, same single-record readiness
+  // every other linked checklist already uses.
   // Rev.54 (Issam, voice, 2026-11-17) — Equipment ID / Tag No. and
   // Assigned To / User dropped: both assumed one harness and one
   // worker per form, which stopped being true once one form started
@@ -190,7 +194,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
   // a mix of harnesses, lanyards and lifelines — exactly the splitting
   // Rev.53 was meant to get rid of. The checklist items now just cover
   // whatever equipment was actually inspected.
-  var FIELDS = ["Inspection ID","Date","PTW Number","Inspection Type","Number of Harnesses Checked"]
+  var FIELDS = ["Inspection ID","Date","PTW Number","Inspection Type"]
     .concat(ITEMS)
     .concat(["Overall Result","Failed Harness Tag(s) / Notes","Target Close Date","Inspected By","Remarks","Status","Action Reference"]);
   var SELECT_FIELDS = {
@@ -264,26 +268,6 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
       });
       if (!hit) return null;
       return { status: statusIdx >= 0 ? hit[statusIdx] : '' };
-    }).catch(function(){ return null; });
-  }
-  // Rev.56 (Issam, voice, 2026-11-17) — reads the permit's own Number
-  // of Workers, so arriving from the permit link can pre-fill Number
-  // of Harnesses Checked with the crew size instead of leaving the
-  // inspector to type a number that has to match it by memory. Still
-  // just a starting value — editable, in case not everyone on the
-  // permit needs a harness checked that day.
-  function fetchPermitWorkerCount(permitId){
-    return fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
-      if (!data || !data.headers || !data.rows) return null;
-      var numIdx = colIdx(data.headers, 'Permit ID'), workersIdx = colIdx(data.headers, 'Number of Workers');
-      if (numIdx < 0 || workersIdx < 0) return null;
-      var hit = null;
-      data.rows.forEach(function(row){
-        if (String(row[numIdx]||'').trim() === String(permitId).trim()) hit = row;
-      });
-      if (!hit) return null;
-      var n = parseInt(hit[workersIdx], 10);
-      return (!isNaN(n) && n > 0) ? n : null;
     }).catch(function(){ return null; });
   }
   // A Satisfactory check tied to a permit should tell the PTW Register
@@ -367,7 +351,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     var tbody = document.getElementById('hf-tbody');
     if (!rows.length){ tbody.innerHTML = '<tr><td colspan="7" class="hf-empty">No inspections recorded yet.</td></tr>'; return; }
     var idIdx = colIdx(_headers,'Inspection ID'), dateIdx = colIdx(_headers,'Date'),
-        typeIdx = colIdx(_headers,'Inspection Type'), countIdx = colIdx(_headers,'Number of Harnesses Checked'),
+        typeIdx = colIdx(_headers,'Inspection Type'), notesColIdx = colIdx(_headers,'Failed Harness Tag(s) / Notes'),
         resIdx = colIdx(_headers,'Overall Result'), byIdx = colIdx(_headers,'Inspected By'),
         statusIdx = colIdx(_headers,'Status');
     tbody.innerHTML = rows.map(function(r){
@@ -380,7 +364,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
         : status === 'Closed' ? '<span class="hf-badge grn">Closed</span>'
         : status === 'In Service' ? '<span class="hf-badge grn">In Service</span>' : '—';
       return '<tr class="'+(String(id)===String(_selected)?'sel':'')+'" onclick="HF.selectRow(\''+vEsc(id)+'\')">'
-        + '<td>'+vEsc(id)+'</td><td>'+vEsc(r[dateIdx])+'</td><td>'+vEsc(r[typeIdx])+'</td><td>'+vEsc(countIdx>=0?r[countIdx]:'')+'</td>'
+        + '<td>'+vEsc(id)+'</td><td>'+vEsc(r[dateIdx])+'</td><td>'+vEsc(r[typeIdx])+'</td><td>'+vEsc(notesColIdx>=0?r[notesColIdx]:'')+'</td>'
         + '<td>'+resultBadge+'</td><td>'+statusBadge+'</td><td>'+vEsc(r[byIdx])+'</td></tr>';
     }).join('');
   }
@@ -393,7 +377,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
 
   function showModal(title, initialValues, onSubmit){
     var root = document.getElementById('hf-modal-root');
-    var headerFields = ["Inspection ID","Date","PTW Number","Inspection Type","Number of Harnesses Checked"];
+    var headerFields = ["Inspection ID","Date","PTW Number","Inspection Type"];
     var tailFields = ["Overall Result","Failed Harness Tag(s) / Notes","Target Close Date","Inspected By","Remarks","Status"];
     var fullWidthFields = {"Remarks":1, "Failed Harness Tag(s) / Notes":1};
 
@@ -425,10 +409,6 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
       if (fullWidthFields[f]){
         var hint = f === 'Failed Harness Tag(s) / Notes' ? ' <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(required if any item above is No — name which harness(es) failed)</span>' : '';
         return '<div class="'+cls+'"><label>'+f+hint+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
-      }
-      if (f === 'Number of Harnesses Checked'){
-        return '<div class="'+cls+'"><label>Number of Harnesses Checked <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(every harness covered by this inspection)</span></label>'
-          + '<input type="number" min="1" step="1" data-field="Number of Harnesses Checked" value="'+vEscV+'"></div>';
       }
       var fLower = f.toLowerCase();
       var inputType = fLower.indexOf('date') > -1 ? 'date' : 'text';
@@ -500,14 +480,9 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
         alert('This inspection cannot be saved yet — the following items must be answered first:\n\n- ' + missing.join('\n- '));
         return;
       }
-      // Rev.53 (Issam, voice, 2026-11-17) — one form now covers every
-      // harness on the job, so it needs to say how many, and a No on
-      // any item needs to say which harness(es) failed since the
-      // Yes/No answer alone can't.
-      if (!String(values['Number of Harnesses Checked']||'').trim() || parseInt(values['Number of Harnesses Checked'],10) < 1){
-        alert('Please enter how many harnesses this inspection covers (1 or more).');
-        return;
-      }
+      // Rev.53 (Issam, voice, 2026-11-17) — a No on any item needs to
+      // say which harness(es) failed, since the Yes/No answer alone
+      // can't (Rev.57 dropped the harness-count field, this stayed).
       var anyNo = ITEMS.some(function(it){ return values[it] === 'No'; });
       if (anyNo && !String(values['Failed Harness Tag(s) / Notes']||'').trim()){
         alert('At least one item is No — please name which harness(es) failed in "Failed Harness Tag(s) / Notes" before saving.');
@@ -617,14 +592,9 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     var params = new URLSearchParams(window.location.search);
     var permitId = params.get('permitId');
     if (permitId){
-      // Rev.56 — pre-fill the crew size from the permit itself rather
-      // than opening blank; still just a starting value the inspector
-      // can change.
-      fetchPermitWorkerCount(permitId).then(function(workerCount){
-        var overrides = {'PTW Number': permitId};
-        if (workerCount) overrides['Number of Harnesses Checked'] = String(workerCount);
-        HF.openAdd(overrides);
-      });
+      // Rev.56 pre-filled a crew-size count here; removed in Rev.57
+      // along with the field itself.
+      HF.openAdd({'PTW Number': permitId});
     }
   }
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ loadAll().then(handleHarnessDeepLink); }, 100); });

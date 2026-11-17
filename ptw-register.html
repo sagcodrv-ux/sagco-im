@@ -1071,16 +1071,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var data = src ? src.cache() : null;
     var rows = findAllLinkedRows_(data, permitId, idColName);
     if (!rows.length){ alert('No record found — it may not have been raised yet, or the data hasn\'t loaded. Try reopening this permit.'); return; }
-    // Rev.46 (Issam, voice, 2026-11-16) — harness/fall-protection is
-    // one row per harness: showing only the latest would hide the
-    // rest of the crew's checks, so this one key shows every row.
-    var bodyHtml;
-    if (key === 'harness'){
-      bodyHtml = rows.map(function(r){ return recordKvTableHtml_(data.headers, r); }).join('<div style="height:14px"></div>');
-    } else {
-      var latest = rows[rows.length - 1]; // most recently appended row wins, same convention as findLinkedRecord
-      bodyHtml = recordKvTableHtml_(data.headers, latest);
-    }
+    // Rev.46, reverted Rev.57 (Issam, voice, 2026-11-17) — harness/
+    // fall-protection was briefly one row per harness; now it's back
+    // to one checklist covering the whole crew, so it shows the
+    // latest record like every other linked checklist.
+    var latest = rows[rows.length - 1]; // most recently appended row wins, same convention as findLinkedRecord
+    var bodyHtml = recordKvTableHtml_(data.headers, latest);
     var w = window.open('', '_blank');
     if (!w){ alert('Pop-up blocked — please allow pop-ups to view this record.'); return; }
     var html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>'+pfEsc(title)+' — '+pfEsc(permitId)+'</title>'
@@ -1106,17 +1102,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var hdMissing = '<div class="pack-hd">' + pfEsc(need.name) + ' — Not yet done</div>';
       return '<div class="pack-section">' + hdMissing + '<div class="pack-missing">This checklist has not been raised yet.</div></div>';
     }
-    // Rev.46 (Issam, voice, 2026-11-16) — harness/fall-protection is
-    // one record PER HARNESS, not per permit: a crew of 40 means up
-    // to 40 rows tied to this Permit ID, and showing only the latest
-    // (the generic path below) would hide 39 of them from the printed
-    // Pack. List every one, with a pass/fail count in the heading.
-    if (need.key === 'harness'){
-      var passN = rows.filter(function(r){ var ri = colIdx(data.headers, 'Overall Result'); return ri >= 0 && String(r[ri]||'').trim() === 'Satisfactory'; }).length;
-      var hdHarness = '<div class="pack-hd">' + pfEsc(need.name) + ' — ' + passN + ' of ' + rows.length + ' checked, ' + (ready ? 'Completed' : 'Not yet done') + '</div>';
-      var sections = rows.map(function(r){ return recordKvTableHtml_(data.headers, r); }).join('<div style="height:8px"></div>');
-      return '<div class="pack-section">' + hdHarness + sections + '</div>';
-    }
+    // Rev.46, reverted Rev.57 — harness/fall-protection was briefly
+    // one record per harness; now it's back to one checklist per
+    // permit, so it uses the same generic latest-record path as
+    // every other linked checklist below.
     var hd = '<div class="pack-hd">' + pfEsc(need.name) + (ready ? ' — Completed' : ' — Not yet done') + '</div>';
     var latest = rows[rows.length - 1];
     return '<div class="pack-section">' + hd + recordKvTableHtml_(data.headers, latest) + '</div>';
@@ -1686,8 +1675,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // split on Height Access Method, harness/fall-protection is needed
   // for ANY height work regardless of how the crew gets up there —
   // fall protection is worn whether the access is a crane basket or a
-  // scaffold. One check covers the whole crew, counted against
-  // 'Number of Workers' on the permit itself — see harnessIsReady_.
+  // scaffold. One Satisfactory checklist covers the whole crew (Rev.57).
   function permitNeedsHarness(rec){
     return /height/i.test(String(rec['Work Involved']||''));
   }
@@ -1762,8 +1750,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return found;
   }
   // Rev.46 (Issam, voice, 2026-11-16) — harness checklist cache,
-  // mirrors _csEntryCache below exactly; see harnessIsReady_ for the
-  // count-based readiness check this feeds.
+  // mirrors _csEntryCache below exactly.
   var _harnessCache = null, _harnessFetchPromise = null;
   function loadHarnessRecords(){
     if (_harnessCache) return Promise.resolve(_harnessCache);
@@ -1774,51 +1761,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     }).catch(function(){ _harnessCache = {headers:[],rows:[]}; return _harnessCache; });
     return _harnessFetchPromise;
   }
-  // Rev.46 — a work-at-height permit needs its WHOLE crew's harnesses
-  // checked, not just one record: ready once the count of Satisfactory
-  // harness checks tied to this Permit ID reaches 'Number of Workers'
-  // on the permit (minimum 1, so a blank worker count can't silently
-  // skip the gate). A harness that fails doesn't count toward the
-  // total — the worker needs a different one, checked and passing, to
-  // be covered; failed attempts are simply not counted, not subtracted.
-  // Rev.53 (Issam, voice, 2026-11-17) — harness-fall-protection.html
-  // no longer raises one record per harness; one form now covers the
-  // whole job, with 'Number of Harnesses Checked' saying how many it
-  // covers. So this sums that field across Satisfactory, non-removed
-  // records tied to the permit instead of counting records — a job
-  // can still be split across more than one form (e.g. a crew that
-  // arrives in two batches), so the sum is kept rather than assuming
-  // one form per permit.
-  function harnessIsReady_(data, permitNum, numberOfWorkersRaw){
-    if (!data || !data.headers || !data.rows || !permitNum) return false;
-    var required = parseInt(numberOfWorkersRaw, 10);
-    if (!required || required < 1) required = 1;
-    return harnessPassCount_(data, permitNum) >= required;
-  }
-  // Rev.46, updated Rev.53 — total harnesses covered by Satisfactory
-  // forms tied to this permit right now, for display and for the
-  // pass/fail gate above.
-  function harnessPassCount_(data, permitNum){
-    if (!data || !data.headers || !data.rows || !permitNum) return 0;
-    var numIdx = colIdx(data.headers, 'PTW Number');
-    var resIdx = colIdx(data.headers, 'Overall Result');
-    var countIdx = colIdx(data.headers, 'Number of Harnesses Checked');
-    var recStatusIdx = colIdx(data.headers, 'Record Status');
-    if (numIdx < 0 || resIdx < 0) return 0;
-    var n = 0;
-    data.rows.forEach(function(row){
-      if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
-      if (String(row[numIdx]||'').trim() !== String(permitNum).trim()) return;
-      if (String(row[resIdx]||'').trim() !== 'Satisfactory') return;
-      // A record saved before Rev.53 has no count column at all — treat
-      // it as covering 1 harness (its own original one-per-record
-      // meaning) rather than 0, so old passing checks aren't silently
-      // dropped from the total.
-      var cnt = countIdx >= 0 ? parseInt(row[countIdx], 10) : NaN;
-      n += (!isNaN(cnt) && cnt > 0) ? cnt : 1;
-    });
-    return n;
-  }
+  // Rev.57 (Issam, voice, 2026-11-17) — a work-at-height permit needs
+  // one Satisfactory harness checklist tied to it, covering the whole
+  // crew that checklist actually inspected — not a count compared
+  // against 'Number of Workers' (that rule, Rev.46/Rev.53, kept
+  // producing exactly the "1 of 4" confusion it was meant to prevent,
+  // so it's gone). Readiness is just findCraneOrHotWorkRecord() like
+  // Painting/Civil Work/Pipeline, no special function needed.
   var _csEntryCache = null, _csEntryFetchPromise = null;
   function loadCsEntryRecords(){
     if (_csEntryCache) return Promise.resolve(_csEntryCache);
@@ -2105,25 +2054,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       }
       if (needsHarness){
         requiredCount++;
-        // Rev.46 (Issam, voice, 2026-11-16) — one harness checklist per
-        // permit, covering the whole crew: the badge shows a count
-        // ("12 of 40 passed"), not a single Completed/Open state, since
-        // readiness here is a count against Number of Workers, not one
-        // record's result. See harnessIsReady_ / harnessPassCount_.
-        var requiredWorkers = parseInt(rec['Number of Workers'], 10);
-        if (!requiredWorkers || requiredWorkers < 1) requiredWorkers = 1;
-        var hfPassCount = harnessData ? harnessPassCount_(harnessData, permitId) : 0;
-        var hfReady = harnessData ? harnessIsReady_(harnessData, permitId, rec['Number of Workers']) : false;
-        var hfAnyRecord = hfPassCount > 0 || (harnessData && harnessData.rows.some(function(row){
-          var ni = colIdx(harnessData.headers, 'PTW Number');
-          return ni >= 0 && String(row[ni]||'').trim() === String(permitId).trim();
-        }));
+        // Rev.57 (Issam, voice, 2026-11-17) — dropped the crew-count
+        // rule entirely: one Satisfactory harness checklist tied to
+        // the permit now covers the whole crew, no number to enter or
+        // compare against Number of Workers. Same single-record
+        // Completed/Open/Not-raised pattern as Painting/Civil Work/
+        // Pipeline above — findCraneOrHotWorkRecord() already does
+        // exactly this check.
+        var hf = harnessData ? findCraneOrHotWorkRecord(harnessData, permitId, 'Overall Result', 'Satisfactory') : null;
+        var hfReady = hf && hf.passed;
         if (hfReady) readyCount++; else blockedNames.push('Harness/Fall Protection');
-        var hfBadge = hfReady ? '<span class="badge kc-grn">' + hfPassCount + ' of ' + requiredWorkers + ' passed</span>'
-          : (hfAnyRecord ? '<span class="badge kc-amb">' + hfPassCount + ' of ' + requiredWorkers + ' passed</span>' : '<span class="badge kc-red">Not raised</span>');
+        var hfBadge = !hf ? '<span class="badge kc-red">Not raised</span>' : (hfReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (hf.hasResult ? 'Unsatisfactory' : 'Open') + '</span>');
         rowsHtml += '<div class="ptw-linked-row"><strong>Harness / Fall Protection</strong> ' + hfBadge +
-          (hfAnyRecord ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="harness" data-idcol="PTW Number" data-title="Harness / Fall Protection">👁️ View</button>' : '') +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'harness-fall-protection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">Check a Harness</button></div>';
+          (hf ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="harness" data-idcol="PTW Number" data-title="Harness / Fall Protection">👁️ View</button>' : '') +
+          '<button type="button" class="ptw-btn" onclick="window.open(\'harness-fall-protection.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (hf ? 'Open' : 'Raise') + ' Harness Check</button></div>';
       }
       if (needsPainting){
         requiredCount++;
@@ -2228,11 +2172,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // Rev.32 (Issam, voice, 2026-11-15) — a green tag counts, not
       // just Closed; see scaffoldIsReady_.
       { need: permitNeedsScaffold(rec), name: 'Scaffold', data: _scaffoldCache, ready: function(d){ return scaffoldIsReady_(d, rec['Permit ID']); } },
-      // Rev.46 (Issam, voice, 2026-11-16) — needed for ANY height
-      // permit (not split by access method, unlike Crane/Scaffold
-      // above); ready once enough crew harnesses have passed, see
-      // harnessIsReady_.
-      { need: permitNeedsHarness(rec), name: 'Harness/Fall Protection', data: _harnessCache, ready: function(d){ return harnessIsReady_(d, rec['Permit ID'], rec['Number of Workers']); } },
+      // Rev.46, simplified Rev.57 (Issam, voice, 2026-11-17) — needed
+      // for ANY height permit (not split by access method, unlike
+      // Crane/Scaffold above); ready once one Satisfactory check is
+      // tied to the permit, same pattern as Painting/Civil Work/
+      // Pipeline below — no crew-count comparison anymore.
+      { need: permitNeedsHarness(rec), name: 'Harness/Fall Protection', data: _harnessCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Overall Result', 'Satisfactory'); return f && f.passed; } },
       { need: permitNeedsPainting(rec), name: 'Painting', data: _paintingCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
       { need: permitNeedsCivilWork(rec), name: 'Civil Work', data: _civilCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
       { need: permitNeedsPipeline(rec), name: 'Pipeline', data: _pipelineCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } }

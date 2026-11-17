@@ -2798,7 +2798,6 @@ function checkAndPromotePtwPermit(permitId) {
     var workIdx = regHeaders.indexOf('Work Involved');
     var hamIdx = regHeaders.indexOf('Height Access Method');
     var siIdx = regHeaders.indexOf('Service Isolation');
-    var workersIdx = regHeaders.indexOf('Number of Workers');
     var umIdx = regHeaders.indexOf('Unit Manager');
     var umEmailIdx = regHeaders.indexOf('Unit Manager Email');
     var areaIdx = regHeaders.indexOf('Area');
@@ -2840,17 +2839,14 @@ function checkAndPromotePtwPermit(permitId) {
     // Rev.32 (Issam, voice, 2026-11-15) — a green tag counts, not
     // just Closed — see ptwChecklistIsReady_'s 'scaffold' mode.
     if (/height/.test(wl) && height === 'Scaffolding') needed.push({ tab: 'scaffold_inspection', idCol: 'Permit Number', mode: 'scaffold' });
-    // Rev.46 (Issam, voice, 2026-11-16) — needed for ANY height permit
-    // regardless of Height Access Method (unlike Crane/Scaffold just
-    // above, which split on it) — fall protection applies whether the
-    // crew gets up by crane basket or by scaffold. 'requiredCount' is
-    // the crew size off the permit itself, minimum 1 so a blank
-    // Number of Workers can't silently skip the gate — mirrors
-    // harnessIsReady_ in ptw-register.html; keep both in step.
-    if (/height/.test(wl)) {
-      var requiredWorkers = workersIdx >= 0 ? (parseInt(rowVals[workersIdx], 10) || 1) : 1;
-      needed.push({ tab: 'harness_fall_protection', idCol: 'PTW Number', mode: 'harnessCount', requiredCount: requiredWorkers });
-    }
+    // Rev.46, simplified Rev.57 (Issam, voice, 2026-11-17) — needed
+    // for ANY height permit regardless of Height Access Method (unlike
+    // Crane/Scaffold just above, which split on it) — fall protection
+    // applies whether the crew gets up by crane basket or by scaffold.
+    // The crew-count comparison (Rev.46/Rev.53) is gone: one
+    // Satisfactory checklist now covers the whole crew, same generic
+    // 'result' mode as Painting/Civil Work/Pipeline below.
+    if (/height/.test(wl)) needed.push({ tab: 'harness_fall_protection', idCol: 'PTW Number', mode: 'result', resultCol: 'Overall Result', passVal: 'Satisfactory' });
     if (/paint/.test(wl)) needed.push({ tab: 'painting_checklist', idCol: 'PTW Number', mode: 'result', resultCol: 'Result', passVal: 'Cleared' });
     if (/civil/.test(wl)) needed.push({ tab: 'civil_work_checklist', idCol: 'PTW Number', mode: 'result', resultCol: 'Result', passVal: 'Cleared' });
     if (/pipeline/.test(wl)) needed.push({ tab: 'pipeline_checklist', idCol: 'PTW Number', mode: 'result', resultCol: 'Result', passVal: 'Cleared' });
@@ -2884,41 +2880,12 @@ function checkAndPromotePtwPermit(permitId) {
 // same convention as ptw-register.html's own findLinkedRecord() /
 // findCraneOrHotWorkRecord().
 function ptwChecklistIsReady_(need, permitId) {
-  // Rev.46 (Issam, voice, 2026-11-16) — harness/fall-protection is a
-  // COUNT check, not a single-record one: the permit needs enough
-  // Satisfactory harness checks tied to it, not just one matching row
-  // (every other mode below finds the LAST matching row and checks
-  // it — that logic doesn't apply here). Mirrors harnessIsReady_ in
-  // ptw-register.html; keep both in step.
-  // Rev.53 (Issam, voice, 2026-11-17) — harness-fall-protection.html
-  // no longer raises one record per harness; one form now covers the
-  // whole job, with 'Number of Harnesses Checked' saying how many.
-  // Sums that field across Satisfactory, non-removed rows instead of
-  // counting rows — a row saved before Rev.53 has no such column, so
-  // it's treated as covering 1 harness (its original one-per-row
-  // meaning) rather than 0, same fallback as harnessPassCount_.
-  if (need.mode === 'harnessCount') {
-    var hfSheet = findSheet(TABS[need.tab]);
-    if (!hfSheet) return false;
-    var hfLastRow = hfSheet.getLastRow();
-    if (hfLastRow < 4) return false;
-    var hfHeaders = hfSheet.getRange(3, 1, 1, hfSheet.getLastColumn()).getValues()[0];
-    var hfIdIdx = hfHeaders.indexOf(need.idCol);
-    var hfRecStatusIdx = hfHeaders.indexOf('Record Status');
-    var hfResultIdx = hfHeaders.indexOf('Overall Result');
-    var hfCountIdx = hfHeaders.indexOf('Number of Harnesses Checked');
-    if (hfIdIdx < 0 || hfResultIdx < 0) return false;
-    var hfRows = hfSheet.getRange(4, 1, hfLastRow - 3, hfHeaders.length).getValues();
-    var passCount = 0;
-    for (var hi = 0; hi < hfRows.length; hi++) {
-      if (hfRecStatusIdx >= 0 && String(hfRows[hi][hfRecStatusIdx]||'').trim().toLowerCase() === 'removed') continue;
-      if (String(hfRows[hi][hfIdIdx]||'').trim() !== String(permitId).trim()) continue;
-      if (String(hfRows[hi][hfResultIdx]||'').trim() !== 'Satisfactory') continue;
-      var hfCnt = hfCountIdx >= 0 ? parseInt(hfRows[hi][hfCountIdx], 10) : NaN;
-      passCount += (!isNaN(hfCnt) && hfCnt > 0) ? hfCnt : 1;
-    }
-    return passCount >= (need.requiredCount || 1);
-  }
+  // Rev.57 (Issam, voice, 2026-11-17) — the harnessCount mode (Rev.46,
+  // revised Rev.53) is removed: harness/fall-protection is now a
+  // single-record check like every other mode below, one Satisfactory
+  // checklist tied to the permit covers the whole crew. It falls
+  // through to the generic resultCol/passVal check at the bottom of
+  // this function, same as Painting/Civil Work/Pipeline.
   var sheet = findSheet(TABS[need.tab]);
   if (!sheet) return false;
   var lastRow = sheet.getLastRow();
