@@ -120,6 +120,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
   <div class="hf-toolbar">
     <div class="hf-toolbar-left">
       <button class="hf-btn hf-btn-add" onclick="HF.openAdd()">+ New Inspection</button>
+      <button class="hf-btn hf-btn-add" id="hf-tb-escalate" disabled onclick="HF.escalateSelected()">⚡ Escalate to Action</button>
       <button class="hf-btn" id="hf-tb-edit" disabled onclick="HF.openEdit(HF.getSelected())">✏️ Edit</button>
       <button class="hf-btn" id="hf-tb-remove" disabled onclick="HF.remove(HF.getSelected())">🗑️ Remove</button>
     </div>
@@ -162,13 +163,19 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
   // Satisfactory checks tied to it to cover the whole crew (see
   // harnessIsReady_ in ptw-register.html). Left blank, this is just
   // the ordinary routine/6-monthly inspection it always was.
+  // Rev.51 (Issam, voice, 2026-11-17) — Corrective Action Required and
+  // Corrective Action Details dropped from the form. A finding that
+  // needs tracking past this inspection now goes through the single
+  // "Escalate to Action" button instead (see HF.escalateSelected
+  // below), so the real corrective action lives once in the Action
+  // Register rather than half-typed here too. 'Action Reference'
+  // added so the escalate button has a column to write to.
   var FIELDS = ["Inspection ID","Date","PTW Number","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type"]
     .concat(ITEMS)
-    .concat(["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Inspected By","Remarks","Status"]);
+    .concat(["Overall Result","Target Close Date","Inspected By","Remarks","Status","Action Reference"]);
   var SELECT_FIELDS = {
     "Equipment Type": ["Full-Body Harness","Lanyard","Lifeline","Anchor Point","Self-Retracting Lifeline (SRL)","Other"],
     "Inspection Type": ["Pre-Use","6-Monthly Formal"],
-    "Corrective Action Required": ["Yes","No"],
     // Rev.41 (Issam, voice, 2026-11-16) — a failed harness/lanyard can't
     // just sit "Open" like a corrective-action item elsewhere: it must
     // come out of circulation immediately. "Removed from Service" is a
@@ -187,6 +194,17 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
   }
   function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function colIdx(headers, name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+  function getRowById(id){
+    var idIdx = colIdx(_headers, 'Inspection ID');
+    return _rows.find(function(r){ return String(r[idIdx]) === String(id); });
+  }
+  function getRecById(id){
+    var row = getRowById(id);
+    if (!row) return null;
+    var rec = {};
+    _headers.forEach(function(h,i){ rec[h] = row[i]; });
+    return rec;
+  }
 
   var _headers = [], _rows = [], _selected = null;
 
@@ -330,8 +348,8 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
   function showModal(title, initialValues, onSubmit){
     var root = document.getElementById('hf-modal-root');
     var headerFields = ["Inspection ID","Date","PTW Number","Equipment Type","Equipment ID / Tag No.","Assigned To / User","Inspection Type"];
-    var tailFields = ["Overall Result","Corrective Action Required","Corrective Action Details","Target Close Date","Inspected By","Remarks","Status"];
-    var fullWidthFields = {"Corrective Action Details":1, "Remarks":1};
+    var tailFields = ["Overall Result","Target Close Date","Inspected By","Remarks","Status"];
+    var fullWidthFields = {"Remarks":1};
 
     function fieldHtml(f){
       var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
@@ -425,10 +443,6 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
       }
       var anyNo = ITEMS.some(function(it){ return values[it] === 'No'; });
       values['Overall Result'] = anyNo ? FAIL : PASS;
-      if (values['Corrective Action Required'] === 'Yes' && !values['Corrective Action Details']){
-        alert('Please describe the corrective action needed.');
-        return;
-      }
       if (!values['Status']) values['Status'] = (values['Overall Result'] === FAIL) ? 'Removed from Service' : 'In Service';
       var saveBtn = document.getElementById('hf-modal-save');
       saveBtn.disabled = true;
@@ -456,8 +470,7 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     openEdit: function(id){
       if (!can('edit')) return;
       if (!id) return alert('Select a row first.');
-      var idIdx = colIdx(_headers, 'Inspection ID');
-      var row = _rows.find(function(r){ return String(r[idIdx]) === String(id); });
+      var row = getRowById(id);
       if (!row) return alert('Record not found — try refreshing.');
       var initial = {};
       _headers.forEach(function(h,i){ initial[h] = row[i]; });
@@ -477,6 +490,30 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
         if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message||'unknown error')); return; }
         _selected = null; loadAll();
       }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+    },
+    // Rev.51 (Issam, voice, 2026-11-17) — same hand-off mechanism as
+    // confined-space.html/scaffold-inspection.html's Escalate button:
+    // sessionStorage + URL param, read by capa-wizard.js's
+    // openFromHarness(). No Corrective Action flag required.
+    escalateSelected: function(){
+      if (!_selected) return alert('Select a row first.');
+      var rec = getRecById(_selected);
+      if (!rec) return alert('Record not found — try refreshing.');
+      if (String(rec['Action Reference']||'').trim()){
+        return alert('This inspection was already escalated — see Action Register record ' + rec['Action Reference'] + '.');
+      }
+      var descParts = [];
+      descParts.push('Harness Inspection: ' + _selected);
+      if (rec['Equipment ID / Tag No.']) descParts.push('Equipment: ' + rec['Equipment ID / Tag No.']);
+      if (rec['Overall Result']) descParts.push('Result: ' + rec['Overall Result']);
+      if (rec['Remarks']) descParts.push('Remarks: ' + rec['Remarks']);
+      var ctx = {
+        inspectionId: _selected,
+        description: descParts.join('\n') || ('Harness Inspection ' + _selected),
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingHarnessContext', JSON.stringify(ctx)); } catch(e){}
+      window.open('action-register.html?fromHarness=' + encodeURIComponent(_selected) + '&lane=ACT', '_blank');
     }
   };
 
@@ -484,6 +521,14 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     var disabled = !_selected;
     document.getElementById('hf-tb-edit').disabled = disabled;
     document.getElementById('hf-tb-remove').disabled = disabled;
+    // Rev.51 (Issam, voice, 2026-11-17) — available on any selected
+    // record not already escalated, same as every other PTW-linked
+    // checklist now; no Corrective Action flag to pre-check.
+    var rec = _selected ? getRecById(_selected) : null;
+    var escBtn = document.getElementById('hf-tb-escalate');
+    var alreadyEscalated = rec && String(rec['Action Reference']||'').trim();
+    escBtn.disabled = disabled || !!alreadyEscalated;
+    escBtn.title = alreadyEscalated ? ('Already escalated — see ' + rec['Action Reference']) : '';
   }
 
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(loadAll, 100); });

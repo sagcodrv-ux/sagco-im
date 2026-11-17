@@ -261,8 +261,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
                'O2 (%)','CO (ppm)','H2S (ppm)','LEL (%)','Test Time','Entry Time','Exit Time',
                'Re-Entry Required (Y/N)','Re-Test O2 (%)','Re-Test CO (ppm)','Re-Test H2S (ppm)','Re-Test LEL (%)','Re-Test Time',
                'All Safe to Enter (Y/N)',
-               'Comment','Corrective Action Required (Y/N)','Proposed Corrective Action',
-               'Responsible Person','Target Close Date',
+               'Comment','Responsible Person','Target Close Date',
                'Status','Remarks','Action Reference'],
       selectFields: {
         'Isolation Confirmed (LOTO) (Y/N)': YESNO,
@@ -272,10 +271,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         'PPE / Breathing Apparatus Confirmed (Y/N)': YESNO,
         'Re-Entry Required (Y/N)': YESNO,
         'All Safe to Enter (Y/N)': YESNO,
-        'Corrective Action Required (Y/N)': YESNO,
         'Status': ['Open','Closed']
       },
-      textareaFields: ['Comment','Proposed Corrective Action','Remarks'],
+      textareaFields: ['Comment','Remarks'],
       // Suggest CS Ref from the Site Register, so an entry is never
       // logged against a confined space that isn't actually on file.
       crossRef: { 'CS Ref': 'register' }
@@ -294,7 +292,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     { title: 'Entry Details', fields: ['Entry ID','Date','CS Ref','PTW Number','Entrant(s)','Standby / Attendant Person'] },
     { title: 'Isolation & Access Controls', fields: ['Isolation Confirmed (LOTO) (Y/N)','LOTO Reference','Ventilation Provided (Y/N)','Ventilation Type','Communication Method','Rescue Equipment Ready (Y/N)','PPE / Breathing Apparatus Confirmed (Y/N)'] },
     { title: 'Atmospheric Testing', fields: ['Gas Detector Instrument ID','Instrument Calibration Due Date','O2 (%)','CO (ppm)','H2S (ppm)','LEL (%)','Test Time','All Safe to Enter (Y/N)'] },
-    { title: 'Result & Corrective Action', fields: ['Comment','Corrective Action Required (Y/N)','Proposed Corrective Action','Responsible Person','Target Close Date'] }
+    // Rev.51 (Issam, voice, 2026-11-17) — Corrective Action Required
+    // and Proposed Corrective Action dropped from the form itself.
+    // Any finding that needs tracking past this job now goes through
+    // the single "Escalate to Action" button instead, so the real
+    // corrective action lives once in the Action Register rather than
+    // half-typed here too.
+    { title: 'Result', fields: ['Comment','Responsible Person','Target Close Date'] }
   ];
   var ENTRY_EXIT_SECTIONS = [
     { title: 'Entry', fields: ['Entry Time'] },
@@ -529,13 +533,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       toolbarHtml += '<button class="cs-btn" id="cs-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="CS.printPreEntry(CS.getSelected(\''+tKeyName+'\'))">🖨️ Print Pre-Entry Checklist</button>';
     }
     if (cfg.hasEscalate){
-      var carVal = String(getFieldOfSelected(tKeyName, 'Corrective Action Required (Y/N)')||'').trim().toLowerCase();
+      // Rev.51 (Issam, voice, 2026-11-17) — no longer gated on a
+      // Corrective Action Required flag (that field is gone from the
+      // form). Available on any selected record not already
+      // escalated, so the choice to raise an Action is the person's,
+      // not something the record has to be pre-flagged for.
       var existingRef = String(getFieldOfSelected(tKeyName, 'Action Reference')||'').trim();
       if (existingRef){
         toolbarHtml += '<button class="cs-btn" disabled title="Already escalated — see the Action Register">✓ Escalated → '+existingRef+'</button>';
       } else {
-        var canEscalate = sel && carVal === 'yes';
-        toolbarHtml += '<button class="cs-btn cs-btn-add" id="cs-tb-escalate-'+tKeyName+'"'+(canEscalate?'':' disabled')+' onclick="CS.escalateToAction(\''+tKeyName+'\', CS.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
+        toolbarHtml += '<button class="cs-btn cs-btn-add" id="cs-tb-escalate-'+tKeyName+'"'+(sel?'':' disabled')+' onclick="CS.escalateToAction(\''+tKeyName+'\', CS.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
       }
     }
     if (can('edit')) toolbarHtml += '<button class="cs-btn" id="cs-tb-edit-'+tKeyName+'"'+disabledAttr+' onclick="CS.openEdit(\''+tKeyName+'\', CS.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
@@ -1211,25 +1218,23 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var idIdx = colIdx(data.headers, cfg.idCol);
       var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
       if (!row) return alert('Record not found — try refreshing.');
-      var carIdx = colIdx(data.headers, 'Corrective Action Required (Y/N)');
-      if (carIdx < 0 || String(row[carIdx]||'').trim().toLowerCase() !== 'yes'){
-        return alert('This Pre-Entry record is not flagged as requiring corrective action.');
-      }
+      // Rev.51 (Issam, voice, 2026-11-17) — no longer requires the old
+      // Corrective Action Required flag; any Pre-Entry record can be
+      // escalated once, whether or not it was pre-flagged.
       var refIdx = colIdx(data.headers, 'Action Reference');
       if (refIdx >= 0 && String(row[refIdx]||'').trim()){
         return alert('This entry was already escalated — see Action Register record ' + row[refIdx] + '.');
       }
       var csRefIdx = colIdx(data.headers, 'CS Ref');
       var commentIdx = colIdx(data.headers, 'Comment');
+      // pcaIdx reads a pre-Rev.51 column that may still hold text on
+      // older records — the field is gone from the form, but a record
+      // saved before today can still have it in the sheet.
       var pcaIdx = colIdx(data.headers, 'Proposed Corrective Action');
-      // Bundle the comment and proposed corrective action from this one
-      // entry into a single action-plan description, per the
-      // one-entry-one-Action design — nothing here should need a
-      // second escalation later.
       var descParts = [];
       if (csRefIdx >= 0 && row[csRefIdx]) descParts.push('Confined Space: ' + row[csRefIdx]);
       if (commentIdx >= 0 && row[commentIdx]) descParts.push('Comment: ' + row[commentIdx]);
-      if (pcaIdx >= 0 && row[pcaIdx]) descParts.push('Proposed corrective action: ' + row[pcaIdx]);
+      if (pcaIdx >= 0 && row[pcaIdx]) descParts.push('Proposed corrective action (legacy): ' + row[pcaIdx]);
       var ctx = {
         entryId: idVal,
         description: descParts.join('\n') || ('Corrective action required — Confined Space Entry ' + idVal),

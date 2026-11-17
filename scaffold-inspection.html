@@ -247,8 +247,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         // Section 5 — Fall Protection
         'Front of Scaffold Within 35cm (Ok/No)','Safe Access Provided (Ok/No)','Personal Fall Protection Used (Ok/No)','Remarks — Fall Protection',
         // Result and close-out
-        'Tag Status','Corrective Action Required (Y/N)','Proposed Corrective Action',
-        'Responsible Person','Target Close Date','Status','Remarks','Action Reference'
+        'Tag Status','Responsible Person','Target Close Date','Status','Remarks','Action Reference'
       ],
       selectFields: {
         'Type of Inspection': ['First Time','Weekly Inspection'],
@@ -267,13 +266,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         'Safe Access Provided (Ok/No)': OKNO,
         'Personal Fall Protection Used (Ok/No)': OKNO,
         'Tag Status': ['Green — Safe to Use','Red — Unsafe, Do Not Use'],
-        'Corrective Action Required (Y/N)': YESNO,
         'Status': ['Open','Closed']
       },
       textareaFields: [
         'Remarks — General Requirements','Remarks — Scaffold Stability','Remarks — Work Platform',
-        'Remarks — Scaffold Components','Remarks — Fall Protection',
-        'Proposed Corrective Action','Remarks'
+        'Remarks — Scaffold Components','Remarks — Fall Protection','Remarks'
       ],
       // Suggest Scaffold Number from past inspections, so repeat
       // weekly inspections of the same scaffold are easy to log
@@ -292,7 +289,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     { title: 'Work Platform', fields: ['Lumber Free of Defects (Ok/No)','Platform Complete No Gaps (Ok/No)','Remarks — Work Platform'] },
     { title: 'Scaffold Components', fields: ['Guardrails and Toe-boards in Place (Ok/No)','Components Free of Defects (Ok/No)','Remarks — Scaffold Components'] },
     { title: 'Fall Protection', fields: ['Front of Scaffold Within 35cm (Ok/No)','Safe Access Provided (Ok/No)','Personal Fall Protection Used (Ok/No)','Remarks — Fall Protection'] },
-    { title: 'Result & Corrective Action', fields: ['Tag Status','Corrective Action Required (Y/N)','Proposed Corrective Action','Responsible Person','Target Close Date','Status','Remarks','Action Reference'] }
+    // Rev.51 (Issam, voice, 2026-11-17) — Corrective Action Required
+    // and Proposed Corrective Action dropped from the form. A finding
+    // that needs tracking past this inspection now goes through the
+    // single "Escalate to Action" button instead.
+    { title: 'Result', fields: ['Tag Status','Responsible Person','Target Close Date','Status','Remarks','Action Reference'] }
   ];
   var _filters = {};
   var _selected = {};
@@ -514,13 +515,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       toolbarHtml += '<button class="si-btn" id="si-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="SI.printInspection(SI.getSelected(\''+tKeyName+'\'))">🖨️ Print Inspection Checklist</button>';
     }
     if (cfg.hasEscalate){
-      var carVal = String(getFieldOfSelected(tKeyName, 'Corrective Action Required (Y/N)')||'').trim().toLowerCase();
+      // Rev.51 (Issam, voice, 2026-11-17) — no longer gated on a
+      // Corrective Action Required flag (removed from the form).
+      // Available on any selected record not already escalated.
       var existingRef = String(getFieldOfSelected(tKeyName, 'Action Reference')||'').trim();
       if (existingRef){
         toolbarHtml += '<button class="si-btn" disabled title="Already escalated — see the Action Register">✓ Escalated → '+existingRef+'</button>';
       } else {
-        var canEscalate = sel && carVal === 'yes';
-        toolbarHtml += '<button class="si-btn si-btn-add" id="si-tb-escalate-'+tKeyName+'"'+(canEscalate?'':' disabled')+' onclick="SI.escalateToAction(\''+tKeyName+'\', SI.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
+        toolbarHtml += '<button class="si-btn si-btn-add" id="si-tb-escalate-'+tKeyName+'"'+(sel?'':' disabled')+' onclick="SI.escalateToAction(\''+tKeyName+'\', SI.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
       }
     }
     if (can('edit')) toolbarHtml += '<button class="si-btn" id="si-tb-edit-'+tKeyName+'"'+disabledAttr+' onclick="SI.openEdit(\''+tKeyName+'\', SI.getSelected(\''+tKeyName+'\'))">✏️ Edit</button>';
@@ -1042,26 +1044,23 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var idIdx = colIdx(data.headers, cfg.idCol);
       var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
       if (!row) return alert('Record not found — try refreshing.');
-      var carIdx = colIdx(data.headers, 'Corrective Action Required (Y/N)');
-      if (carIdx < 0 || String(row[carIdx]||'').trim().toLowerCase() !== 'yes'){
-        return alert('This inspection is not flagged as requiring corrective action.');
-      }
+      // Rev.51 (Issam, voice, 2026-11-17) — no longer requires the old
+      // Corrective Action Required flag; any inspection can be
+      // escalated once, whether or not it was pre-flagged.
       var refIdx = colIdx(data.headers, 'Action Reference');
       if (refIdx >= 0 && String(row[refIdx]||'').trim()){
         return alert('This inspection was already escalated — see Action Register record ' + row[refIdx] + '.');
       }
       var scaffIdx = colIdx(data.headers, 'Scaffold Number');
       var tagIdx = colIdx(data.headers, 'Tag Status');
+      // pcaIdx reads a pre-Rev.51 column that may still hold text on
+      // older records — the field is gone from the form.
       var pcaIdx = colIdx(data.headers, 'Proposed Corrective Action');
-      // Bundle the scaffold reference, tag result, and proposed
-      // corrective action from this one inspection into a single
-      // action-plan description, per the one-inspection-one-Action
-      // design — nothing here should need a second escalation later.
       var descParts = [];
       descParts.push('Scaffold Inspection: ' + idVal);
       if (scaffIdx >= 0 && row[scaffIdx]) descParts.push('Scaffold #: ' + row[scaffIdx]);
       if (tagIdx >= 0 && row[tagIdx]) descParts.push('Tag Status: ' + row[tagIdx]);
-      if (pcaIdx >= 0 && row[pcaIdx]) descParts.push('Proposed corrective action: ' + row[pcaIdx]);
+      if (pcaIdx >= 0 && row[pcaIdx]) descParts.push('Proposed corrective action (legacy): ' + row[pcaIdx]);
       var ctx = {
         inspectionId: idVal,
         description: descParts.join('\n') || ('Corrective action required — Scaffold Inspection ' + idVal),

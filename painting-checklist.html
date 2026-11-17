@@ -40,24 +40,39 @@ table.chk-tbl{width:100%;border-collapse:collapse;font-size:11px}
 .chk-badge.grn{background:rgba(79,203,158,.18);color:var(--ck-grn)}
 .chk-badge.red{background:rgba(240,104,92,.18);color:var(--ck-red)}
 .chk-empty{text-align:center;padding:20px;color:var(--ck-text-muted);font-size:12px}
-.chk-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;align-items:center;justify-content:center;z-index:9999}
+.chk-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px}
 .chk-modal{background:var(--ck-bg2);border:1px solid var(--ck-border-gold);border-radius:14px;padding:20px;
   width:480px;max-width:92vw;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+/* Rev.50 (Issam, voice, 2026-11-17) — same wide, 2-column form layout
+   as the other PTW-linked checklists: header fields paired two to a
+   row, every Yes/No item full-width on its own row (unchanged otherwise). */
+.chk-modal.wide{width:820px;max-width:94vw}
 .chk-modal h3{margin:0 0 12px;font-size:14px;color:var(--ck-gold-lt)}
-.chk-field{margin-bottom:10px}
+.chk-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.chk-modal-grid .chk-field.full{grid-column:1/-1}
+.chk-field{margin-bottom:0}
 .chk-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--ck-text-dim);margin-bottom:4px}
 .chk-field input,.chk-field textarea{width:100%;background:var(--ck-bg3);border:1px solid var(--ck-border);
   color:var(--ck-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
-.chk-item-row{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--ck-bg3);
-  border:1px solid var(--ck-border);border-radius:8px;padding:9px 12px;margin-bottom:6px;font-size:12px}
+.chk-item-row{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--ck-bg3);
+  border:1px solid var(--ck-border);border-radius:8px;padding:9px 12px;margin-bottom:0;font-size:12px}
 .chk-yn{display:flex;gap:6px}
 .chk-yn label{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;cursor:pointer;
   padding:5px 10px;border-radius:6px;background:var(--ck-bg2);border:1px solid var(--ck-border)}
 .chk-yn input{width:auto;margin:0}
 .chk-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
-.chk-result-banner{margin:10px 0;padding:10px 14px;border-radius:8px;font-weight:800;font-size:13px;text-align:center}
+.chk-result-banner{grid-column:1/-1;margin:0;padding:10px 14px;border-radius:8px;font-weight:800;font-size:13px;text-align:center}
 .chk-result-banner.grn{background:rgba(79,203,158,.18);color:var(--ck-grn);border:2px solid var(--ck-grn)}
 .chk-result-banner.red{background:rgba(240,104,92,.18);color:var(--ck-red);border:2px solid var(--ck-red)}
+@media (max-width:640px){
+  .chk-modal.wide{width:100%;max-width:100vw;border-radius:0;max-height:100vh;height:100vh}
+  .chk-modal-grid{grid-template-columns:1fr}
+  .chk-btn{min-height:44px;padding:10px 14px}
+  .chk-modal-actions{flex-direction:column-reverse}
+  .chk-modal-actions .chk-btn{width:100%}
+  .chk-field input,.chk-field textarea{min-height:42px;font-size:16px}
+  .chk-item-row{flex-direction:column;align-items:stretch;gap:8px}
+}
 </style>
 </head>
 <body>
@@ -82,7 +97,7 @@ table.chk-tbl{width:100%;border-collapse:collapse;font-size:11px}
   var ID_PREFIX = "PNT-";
   var ITEMS = ["Ventilation in place in the work area", "Ignition sources removed or controlled", "Paints/thinners stored in the designated area", "Safety Data Sheet (SDS) available on site", "Chemical mask / respirator worn", "Goggles and gloves worn", "Flammable materials nearby covered or removed", "Fire extinguisher available nearby", "Waste / empty containers disposed of properly"];
   var PASS = "Cleared", FAIL = "Issues Noted";
-  var REQUIRED_COLUMNS = ["Checklist ID","PTW Number","Date","Checked By"].concat(ITEMS).concat(["Result","Remarks","Record Status"]);
+  var REQUIRED_COLUMNS = ["Checklist ID","PTW Number","Date","Checked By"].concat(ITEMS).concat(["Result","Remarks","Action Reference","Record Status"]);
   var _rows = [], _headers = [];
 
   function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
@@ -166,20 +181,49 @@ table.chk-tbl{width:100%;border-collapse:collapse;font-size:11px}
     }).join('');
     var resultVal = isEdit ? String(rec['Result']||'').trim() : '';
     var resultBanner = resultVal ? '<div class="chk-result-banner ' + (resultVal===PASS?'grn':'red') + '">' + vEsc(resultVal) + '</div>' : '';
+    // Rev.51 (Issam, voice, 2026-11-17) — this page has no separate
+    // row-selection toolbar (clicking a row opens Edit directly), so
+    // the single Escalate button lives in the Edit modal itself,
+    // next to Cancel/Save. Only shown once saved (isEdit) and not
+    // already escalated.
+    var existingRef = isEdit ? String(rec['Action Reference']||'').trim() : '';
+    var escalateBtn = isEdit
+      ? (existingRef
+        ? '<button class="chk-btn" disabled title="Already escalated — see the Action Register">✓ Escalated → ' + vEsc(existingRef) + '</button>'
+        : '<button class="chk-btn chk-btn-add" id="chk-escalate">⚡ Escalate to Action</button>')
+      : '';
 
-    root.innerHTML = '<div class="chk-modal-bg" id="chk-modal-bg"><div class="chk-modal">'
+    root.innerHTML = '<div class="chk-modal-bg" id="chk-modal-bg"><div class="chk-modal wide">'
       + '<h3>' + (isEdit?'Edit':'New') + ' Painting Checklist — ' + vEsc(id) + '</h3>'
+      + '<div class="chk-modal-grid">'
       + '<div class="chk-field"><label>PTW Number (Permit ID)</label><input type="text" id="chk-ptw" value="' + vEsc(rec['PTW Number']||'') + '"></div>'
       + '<div class="chk-field"><label>Date</label><input type="date" id="chk-date" value="' + vEsc(rec['Date']||new Date().toISOString().slice(0,10)) + '"></div>'
-      + '<div class="chk-field"><label>Checked By</label><input type="text" id="chk-by" value="' + vEsc(rec['Checked By']||currentUserName()) + '"></div>'
+      + '<div class="chk-field full"><label>Checked By</label><input type="text" id="chk-by" value="' + vEsc(rec['Checked By']||currentUserName()) + '"></div>'
       + itemsHtml
       + resultBanner
-      + '<div class="chk-field"><label>Remarks</label><textarea id="chk-remarks">' + vEsc(rec['Remarks']||'') + '</textarea></div>'
-      + '<div class="chk-modal-actions"><button class="chk-btn" id="chk-cancel">Cancel</button><button class="chk-btn chk-btn-add" id="chk-save">Save</button></div>'
+      + '<div class="chk-field full"><label>Remarks</label><textarea id="chk-remarks">' + vEsc(rec['Remarks']||'') + '</textarea></div>'
+      + '</div>'
+      + '<div class="chk-modal-actions">' + escalateBtn + '<button class="chk-btn" id="chk-cancel">Cancel</button><button class="chk-btn chk-btn-add" id="chk-save">Save</button></div>'
       + '</div></div>';
 
     document.getElementById('chk-cancel').onclick = function(){ root.innerHTML=''; };
     document.getElementById('chk-modal-bg').onclick = function(e){ if (e.target.id==='chk-modal-bg') root.innerHTML=''; };
+    if (isEdit && !existingRef){
+      document.getElementById('chk-escalate').onclick = function(){
+        var descParts = [];
+        descParts.push('Painting Checklist: ' + id);
+        if (rec['PTW Number']) descParts.push('PTW Number: ' + rec['PTW Number']);
+        if (rec['Result']) descParts.push('Result: ' + rec['Result']);
+        if (rec['Remarks']) descParts.push('Remarks: ' + rec['Remarks']);
+        var ctx = {
+          checklistId: id,
+          description: descParts.join('\n') || ('Painting Checklist ' + id),
+          date: new Date().toISOString().slice(0,10)
+        };
+        try { sessionStorage.setItem('incomingPaintingContext', JSON.stringify(ctx)); } catch(e){}
+        window.open('action-register.html?fromPainting=' + encodeURIComponent(id) + '&lane=ACT', '_blank');
+      };
+    }
     document.getElementById('chk-save').onclick = function(){
       var values = {
         'Checklist ID': id,

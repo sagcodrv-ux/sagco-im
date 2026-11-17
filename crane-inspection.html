@@ -67,20 +67,27 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   align-items:center;justify-content:center;z-index:9999;padding:20px}
 .crn-dark-wrap .modal{background:var(--crnbg2);border:1px solid var(--crnborder-gold);border-radius:14px;
   padding:20px;width:520px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--crntext)}
+/* Rev.50 (Issam, voice, 2026-11-17) — same wide, 2-column form layout
+   as the other PTW-linked checklists/registers: a wider window, the
+   Job Information / Result &amp; Sign-off fields paired two to a row.
+   The five checklist sections keep their own Item/OK/No table (Rev.26
+   — matches the printed HSE-FRM-18 layout on purpose) but that table
+   now spans the full width of the grid instead of sitting in a single
+   narrow column. */
+.crn-dark-wrap .modal.wide{width:820px;max-width:94vw}
 .crn-dark-wrap .modal h3{margin:0 0 12px;font-size:14px;color:var(--crngold-lt)}
-.crn-dark-wrap .modal-sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+.crn-dark-wrap .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.crn-dark-wrap .modal-grid .field.full{grid-column:1/-1}
+.crn-dark-wrap .modal-sec{grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
   color:var(--crngold-lt);margin:14px 0 6px;padding-top:8px;border-top:1px solid var(--crnborder)}
 .crn-dark-wrap .modal-sec:first-of-type{margin-top:0;padding-top:0;border-top:none}
-.crn-dark-wrap .field{margin-bottom:9px}
+.crn-dark-wrap .field{margin-bottom:0}
 .crn-dark-wrap .field label{display:block;font-size:10px;font-weight:600;color:var(--crntext-muted);margin-bottom:3px}
 .crn-dark-wrap .field input,.crn-dark-wrap .field select,.crn-dark-wrap .field textarea{width:100%;padding:6px 8px;font-size:12px;
   border:1px solid var(--crnborder);border-radius:6px;font-family:inherit;box-sizing:border-box;
   background:var(--crnbg3);color:var(--crntext)}
 .crn-dark-wrap .field textarea{min-height:50px;resize:vertical}
-/* Rev.26 (Issam, upload, 2026-11-11) — the five Yes/No checklist
-   sections render as an Item/OK/No table, matching the printed
-   HSE-FRM-18 report's own table layout. */
-.crn-dark-wrap .chk-tbl{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:10px}
+.crn-dark-wrap .chk-tbl{grid-column:1/-1;width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:0}
 .crn-dark-wrap .chk-tbl th{text-align:left;color:var(--crngold-lt);font-weight:700;font-size:10px;
   text-transform:uppercase;letter-spacing:.3px;padding:6px 8px;border-bottom:1px solid var(--crnborder-gold);background:var(--crnbg3)}
 .crn-dark-wrap .chk-tbl th:not(:first-child){text-align:center;width:50px}
@@ -90,6 +97,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
 .crn-dark-wrap .chk-ok-cell input[type=radio]{width:16px;height:16px;cursor:pointer;accent-color:var(--crngold)}
 .crn-dark-wrap .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;position:sticky;bottom:0;background:var(--crnbg2);padding-top:8px}
 .crn-dark-wrap .modal-actions .btn-cancel{background:var(--crnbg3)}
+@media (max-width:640px){
+  .crn-dark-wrap .modal.wide{width:100%;max-width:100vw;border-radius:0;max-height:100vh;height:100vh}
+  .crn-dark-wrap .modal-grid{grid-template-columns:1fr}
+  .crn-dark-wrap .btn{min-height:44px;padding:10px 14px}
+  .crn-dark-wrap .modal-actions{flex-direction:column-reverse}
+  .crn-dark-wrap .modal-actions .btn{width:100%}
+  .crn-dark-wrap .field input,.crn-dark-wrap .field select,.crn-dark-wrap .field textarea{min-height:42px;font-size:16px}
+  .crn-dark-wrap .chk-tbl{font-size:11px}
+  .crn-dark-wrap .chk-tbl th:not(:first-child),.crn-dark-wrap .chk-tbl td.chk-ok-cell{width:36px}
+}
 .crn-dark-wrap .filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 10px}
 .crn-dark-wrap .search-input{flex:1 1 220px;min-width:160px;padding:6px 10px;font-size:12px;
   border:1px solid var(--crnborder);border-radius:8px;font-family:inherit;background:var(--crnbg3);color:var(--crntext)}
@@ -578,8 +595,11 @@ table.clw-tbl tr.clw-row.clw-sel{background:rgba(201,168,76,.12)}
     // pattern already used by Mock Drill / LOTO / Scaffold. Enabled
     // only for a selected Reject Crane record with no Action
     // Reference on it yet.
+    // Rev.51 (Issam, voice, 2026-11-17) — no longer gated on a Reject
+    // Crane result; available on any selected record not already
+    // escalated, same as every other PTW-linked checklist now.
     var escRec = sel ? getRecById(sel) : null;
-    var escDisabled = !escRec || String(escRec[RESULT_FIELD]||'').trim() !== RESULT_FLAG_VALUE || !!(escRec['Action Reference']);
+    var escDisabled = !escRec || !!(escRec['Action Reference']);
     var escTitle = escRec && escRec['Action Reference'] ? ' title="Already escalated — see ' + String(escRec['Action Reference']).replace(/"/g,'&quot;') + '"' : '';
     toolbarHtml += '<button class="btn" id="tb-escalate"'+(escDisabled?' disabled':'')+escTitle+' onclick="CRN.escalateSelected()">⚡ Escalate to Action</button>';
     if (can('delete')) toolbarHtml += '<button class="btn" id="tb-remove"'+disabledAttr+' onclick="CRN.remove(CRN.getSelected())">🗑️ Remove</button>';
@@ -819,7 +839,7 @@ table.clw-tbl tr.clw-row.clw-sel{background:rgba(201,168,76,.12)}
         var v = (initialValues && initialValues[f] !== undefined) ? initialValues[f] : '';
         var vEsc = String(v).replace(/"/g,'&quot;');
         if (f === 'PTW Number'){
-          return '<div class="field"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(the permit\'s Permit ID - pick an open one, or type one not yet in the list)</span></label>'
+          return '<div class="field full"><label>PTW Number <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.65">(the permit\'s Permit ID - pick an open one, or type one not yet in the list)</span></label>'
             + '<input type="text" data-field="PTW Number" value="'+vEsc+'" list="dl-ptw-open" placeholder="Loading open permits...">' + '<datalist id="dl-ptw-open"></datalist></div>';
         }
         /* Rev.22 (Issam, voice, 2026-11-11) — picks the crane from the
@@ -849,7 +869,7 @@ table.clw-tbl tr.clw-row.clw-sel{background:rgba(201,168,76,.12)}
           return '<div class="field"><label>'+f+'</label><select data-field="'+f+'">'+optsHtml+'</select></div>';
         }
         if (TEXTAREA_FIELDS.indexOf(f) > -1){
-          return '<div class="field"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
+          return '<div class="field full"><label>'+f+'</label><textarea data-field="'+f+'">'+String(v).replace(/</g,'&lt;')+'</textarea></div>';
         }
         var fLower = f.trim().toLowerCase();
         var hasDate = fLower.indexOf('date') > -1;
@@ -886,8 +906,8 @@ table.clw-tbl tr.clw-row.clw-sel{background:rgba(201,168,76,.12)}
       return '<div class="modal-sec">'+sec.title+'</div>' + fieldsHtml;
     }).join('');
 
-    root.innerHTML = '<div class="modal-bg" id="modal-bg"><div class="modal">' +
-      '<h3>'+title+'</h3>' + secHtml +
+    root.innerHTML = '<div class="modal-bg" id="modal-bg"><div class="modal wide">' +
+      '<h3>'+title+'</h3>' + '<div class="modal-grid">' + secHtml + '</div>' +
       '<div id="modal-save-status" style="font-size:10px;min-height:14px;margin-top:2px"></div>' +
       '<div class="modal-actions"><button class="btn btn-cancel" id="modal-cancel">Cancel</button>' +
       '<button class="btn btn-add" id="modal-save">Save</button></div></div></div>';
@@ -1179,7 +1199,6 @@ table.clw-tbl tr.clw-row.clw-sel{background:rgba(201,168,76,.12)}
     escalateSelected: function(){
       var rec = getRecById(_selected);
       if (!rec) return alert('Select a row first.');
-      if (String(rec[RESULT_FIELD]||'').trim() !== RESULT_FLAG_VALUE) return alert('Only a Reject Crane result needs escalating.');
       if (rec['Action Reference']) return alert('This inspection was already escalated — see Action Register record ' + rec['Action Reference'] + '.');
       var ctx = {
         inspectionId: rec[ID_COL],

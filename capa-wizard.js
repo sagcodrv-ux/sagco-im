@@ -200,6 +200,12 @@
       sourceViolationId: '', /* Rev.15 (Issam, 2026-11-01) — set when this ACT record was forwarded from the HSE Violation Register's "Escalate to Action" button, for a repeat-offender/category-pattern case per Clause 10.2. Carries only the Violation Ref — never the employee's name — matching the Violation Register's own confidentiality notice; ctx.description is built the same privacy-conscious way. Mutually exclusive with the other source-* fields in practice. */
       sourceForkliftInspectionId: '', /* Rev.16 (Issam, 2026-11-02) — set when this ACT record was forwarded from the Forklift Inspection Register's "Escalate to Action" button. Mutually exclusive with the other source-* fields in practice. */
       sourceCraneInspectionId: '', /* Rev.17 (Issam, 2026-11-11) — set when this ACT record was forwarded from the Crane Inspection Checklist's (crane-inspection.html) "Escalate to Action" button. NOT the same as sourceCraneLiftingId above (that was the retired crane-lifting.html checklist section, keyed by 'Entry ID' — this one is keyed by 'Inspection ID'). Mutually exclusive with the other source-* fields in practice. */
+      sourceLotoJobId: '', /* Rev.18 (Issam, voice, 2026-11-17) — set when this ACT record was forwarded from the LOTO Register's own Job record ('register' table, keyed by 'LOTO ID') — NOT the Station Audit (sourceLotoAuditId above). Part of the Rev.51 PTW-wide change: every PTW-linked checklist gets one Escalate button instead of its own Corrective Action fields. Mutually exclusive with the other source-* fields in practice. */
+      sourceHarnessId: '', /* Rev.19 (Issam, voice, 2026-11-17) — set when this ACT record was forwarded from the Harness &amp; Fall Protection Inspection's "Escalate to Action" button (keyed by 'Inspection ID'). Mutually exclusive with the other source-* fields in practice. */
+      sourceHotWorkId: '', /* Rev.20 (Issam, voice, 2026-11-17) — set when this ACT record was forwarded from the Hot Work Checklist's "Escalate to Action" button (keyed by 'Record ID'). Mutually exclusive with the other source-* fields in practice. */
+      sourcePaintingId: '', /* Rev.21 (Issam, voice, 2026-11-17) — set when this ACT record was forwarded from the Painting Checklist's "Escalate to Action" button (keyed by 'Checklist ID'). Mutually exclusive with the other source-* fields in practice. */
+      sourceCivilWorkId: '', /* Rev.22 (Issam, voice, 2026-11-17) — set when this ACT record was forwarded from the Civil Work Checklist's "Escalate to Action" button (keyed by 'Checklist ID'). Mutually exclusive with the other source-* fields in practice. */
+      sourcePipelineId: '', /* Rev.23 (Issam, voice, 2026-11-17) — set when this ACT record was forwarded from the Pipeline (LPG / Oil) Checklist's "Escalate to Action" button (keyed by 'Checklist ID'). Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -414,7 +420,19 @@
                                 ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from HSE Violation Register <strong>' + esc(state.sourceViolationId) + '</strong> — a repeat-offender/pattern escalation under Clause 10.2: no root cause analysis, no approval gate. The employee is not named here; see the Violation Register (Safety/Managers/CEO access) for details.</div>'
                                 : (state.sourceForkliftInspectionId
                                   ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Forklift Inspection <strong>' + esc(state.sourceForkliftInspectionId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection record too.</div>'
-                                  : ''))))))))))))));
+                                  : (state.sourceLotoJobId
+                                    ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from LOTO Job <strong>' + esc(state.sourceLotoJobId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that job record too.</div>'
+                                    : (state.sourceHarnessId
+                                      ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Harness &amp; Fall Protection Inspection <strong>' + esc(state.sourceHarnessId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that inspection record too.</div>'
+                                      : (state.sourceHotWorkId
+                                        ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Hot Work Checklist <strong>' + esc(state.sourceHotWorkId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that checklist record too.</div>'
+                                        : (state.sourcePaintingId
+                                          ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Painting Checklist <strong>' + esc(state.sourcePaintingId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that checklist record too.</div>'
+                                          : (state.sourceCivilWorkId
+                                            ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Civil Work Checklist <strong>' + esc(state.sourceCivilWorkId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that checklist record too.</div>'
+                                            : (state.sourcePipelineId
+                                              ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Pipeline (LPG / Oil) Checklist <strong>' + esc(state.sourcePipelineId) + '</strong> — a plain Action: no root cause analysis, no approval gate. Closing this Action automatically closes that checklist record too.</div>'
+                                              : ''))))))))))))))))))));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -1052,6 +1070,12 @@
       'Source Chemical SDS ID': state.sourceChemicalSdsId || '',
       'Source HSE Violation ID': state.sourceViolationId || '',
       'Source Forklift Inspection ID': state.sourceForkliftInspectionId || '',
+      'Source LOTO Job ID': state.sourceLotoJobId || '',
+      'Source Harness Inspection ID': state.sourceHarnessId || '',
+      'Source Hot Work ID': state.sourceHotWorkId || '',
+      'Source Painting Checklist ID': state.sourcePaintingId || '',
+      'Source Civil Work Checklist ID': state.sourceCivilWorkId || '',
+      'Source Pipeline Checklist ID': state.sourcePipelineId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10): this used to be hardcoded to 'Low'
@@ -1505,6 +1529,71 @@
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
 
+  /* Rev.18–23 (Issam, voice, 2026-11-17) — the six new PTW-linked
+     Source-stamp writers, same pattern as every one above: write the
+     durable "Action Reference" back to the one record that escalated,
+     so that page's own toolbar button can show its own
+     "✓ Escalated → ACT-…" state. Only LOTO Job and Hot Work also get
+     an auto-close companion — their Status column is a real Open/
+     Closed workflow. Harness's Status (In Service / Removed from
+     Service / Closed) and the three simple checklists' Result
+     (Pass/Fail, fixed at save time) don't map cleanly onto "the
+     Action is resolved", so those four only get the stamp. */
+  function notifySourceLotoJob() {
+    if (!state.sourceLotoJobId) return;
+    fetch(SHEETS_URL + '?action=update&tab=loto_register&idCol=' + encodeURIComponent('LOTO ID') + '&id=' + encodeURIComponent(state.sourceLotoJobId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+  function notifyLotoJobActionCompleted() {
+    if (!state.sourceLotoJobId || state.lane !== 'ACT' || state.status !== 'Closed') return;
+    fetch(SHEETS_URL + '?action=update&tab=loto_register&idCol=' + encodeURIComponent('LOTO ID') + '&id=' + encodeURIComponent(state.sourceLotoJobId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Status': 'Closed' }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+  function notifySourceHarness() {
+    if (!state.sourceHarnessId) return;
+    fetch(SHEETS_URL + '?action=update&tab=harness_fall_protection&idCol=' + encodeURIComponent('Inspection ID') + '&id=' + encodeURIComponent(state.sourceHarnessId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+  function notifySourceHotWork() {
+    if (!state.sourceHotWorkId) return;
+    fetch(SHEETS_URL + '?action=update&tab=hot_work_checklist&idCol=' + encodeURIComponent('Record ID') + '&id=' + encodeURIComponent(state.sourceHotWorkId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+  // Note: Hot Work has no Open/Closed Status column to flip — only
+  // 'Closure Result' (Cleared/Failed), which is set by the job's own
+  // Execution/Post stage, not by an Action closing — so there is no
+  // notifyHotWorkActionCompleted() companion, same reasoning as
+  // Harness/Painting/Civil Work/Pipeline below.
+  function notifySourcePainting() {
+    if (!state.sourcePaintingId) return;
+    fetch(SHEETS_URL + '?action=update&tab=painting_checklist&idCol=' + encodeURIComponent('Checklist ID') + '&id=' + encodeURIComponent(state.sourcePaintingId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+  function notifySourceCivilWork() {
+    if (!state.sourceCivilWorkId) return;
+    fetch(SHEETS_URL + '?action=update&tab=civil_work_checklist&idCol=' + encodeURIComponent('Checklist ID') + '&id=' + encodeURIComponent(state.sourceCivilWorkId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+  function notifySourcePipeline() {
+    if (!state.sourcePipelineId) return;
+    fetch(SHEETS_URL + '?action=update&tab=pipeline_checklist&idCol=' + encodeURIComponent('Checklist ID') + '&id=' + encodeURIComponent(state.sourcePipelineId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+
   /* Rev.09 (Issam, 2026-10-14) — mirrors notifyScaffoldInspectionActionCompleted()
      exactly, for the Fire Pump Test Log: once this ACT-lane record
      reaches Closed, the one log sheet that escalated it has its own
@@ -1632,6 +1721,12 @@
             notifySourceChemicalSds();
             notifySourceViolation();
             notifySourceForkliftInspection();
+            notifySourceLotoJob();
+            notifySourceHarness();
+            notifySourceHotWork();
+            notifySourcePainting();
+            notifySourceCivilWork();
+            notifySourcePipeline();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
@@ -1646,6 +1741,7 @@
             notifyOhSurveillanceActionCompleted();
             notifyChemicalSdsActionCompleted();
             notifyForkliftInspectionActionCompleted();
+            notifyLotoJobActionCompleted();
             carryOverObservationPhoto(state.capaId, state.sourceObservationCaseId);
             alert(state.capaId + ' saved.');
             closeWizard();
@@ -1686,6 +1782,7 @@
             notifyOhSurveillanceActionCompleted();
             notifyChemicalSdsActionCompleted();
             notifyForkliftInspectionActionCompleted();
+            notifyLotoJobActionCompleted();
             alert(state.capaId + ' saved.');
             closeWizard();
             if (global.reloadLive) reloadLive();
@@ -1967,6 +2064,12 @@
     state.sourceChemicalSdsId = col('Source Chemical SDS ID');
     state.sourceViolationId = col('Source HSE Violation ID');
     state.sourceForkliftInspectionId = col('Source Forklift Inspection ID');
+    state.sourceLotoJobId = col('Source LOTO Job ID');
+    state.sourceHarnessId = col('Source Harness Inspection ID');
+    state.sourceHotWorkId = col('Source Hot Work ID');
+    state.sourcePaintingId = col('Source Painting Checklist ID');
+    state.sourceCivilWorkId = col('Source Civil Work Checklist ID');
+    state.sourcePipelineId = col('Source Pipeline Checklist ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -2976,6 +3079,81 @@
     loadUserDirectory(render);
   }
 
+  /* Rev.18–23 (Issam, voice, 2026-11-17) — six PTW-linked checklists
+     that previously had their own Corrective Action Required /
+     Proposed Corrective Action fields instead of an Escalate button:
+     LOTO Job (the register's own 'register' table, not the Station
+     Audit), Harness & Fall Protection, Hot Work, Painting, Civil Work
+     and Pipeline. Same sessionStorage-plus-URL-verification hand-off
+     as every source above — no RCA/approval ceremony, no field to
+     pre-flag before escalating. */
+  function openFromLotoJob(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceLotoJobId = ctx.jobId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'LOTO Job';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+  function openFromHarness(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceHarnessId = ctx.inspectionId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Harness & Fall Protection Inspection';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+  function openFromHotWork(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceHotWorkId = ctx.recordId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Hot Work Checklist';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+  function openFromPainting(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourcePaintingId = ctx.checklistId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Painting Checklist';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+  function openFromCivilWork(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceCivilWorkId = ctx.checklistId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Civil Work Checklist';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+  function openFromPipeline(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourcePipelineId = ctx.checklistId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Pipeline (LPG / Oil) Checklist';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
      action-register.html's own login wall (IMS_AUTH.init()). A person
@@ -3296,6 +3474,75 @@
         loadUserDirectory(function () { openFromForklift(fliCtx); });
       } else {
         loadUserDirectory(function () { openFromForklift({ inspectionId: fromForklift }); });
+      }
+    }
+
+    // Rev.18–23 (Issam, voice, 2026-11-17) — the six new PTW-linked
+    // hand-offs, same sessionStorage-plus-URL-verification pattern.
+    var fromLotoJob = params.get('fromLotoJob');
+    if (fromLotoJob) {
+      showLoadingWizard();
+      var ljCtx = null;
+      try { ljCtx = JSON.parse(sessionStorage.getItem('incomingLotoJobContext') || 'null'); } catch (e) { ljCtx = null; }
+      if (ljCtx && String(ljCtx.jobId) === String(fromLotoJob)) {
+        loadUserDirectory(function () { openFromLotoJob(ljCtx); });
+      } else {
+        loadUserDirectory(function () { openFromLotoJob({ jobId: fromLotoJob }); });
+      }
+    }
+    var fromHarness = params.get('fromHarness');
+    if (fromHarness) {
+      showLoadingWizard();
+      var harCtx = null;
+      try { harCtx = JSON.parse(sessionStorage.getItem('incomingHarnessContext') || 'null'); } catch (e) { harCtx = null; }
+      if (harCtx && String(harCtx.inspectionId) === String(fromHarness)) {
+        loadUserDirectory(function () { openFromHarness(harCtx); });
+      } else {
+        loadUserDirectory(function () { openFromHarness({ inspectionId: fromHarness }); });
+      }
+    }
+    var fromHotWork = params.get('fromHotWork');
+    if (fromHotWork) {
+      showLoadingWizard();
+      var hwCtx = null;
+      try { hwCtx = JSON.parse(sessionStorage.getItem('incomingHotWorkContext') || 'null'); } catch (e) { hwCtx = null; }
+      if (hwCtx && String(hwCtx.recordId) === String(fromHotWork)) {
+        loadUserDirectory(function () { openFromHotWork(hwCtx); });
+      } else {
+        loadUserDirectory(function () { openFromHotWork({ recordId: fromHotWork }); });
+      }
+    }
+    var fromPainting = params.get('fromPainting');
+    if (fromPainting) {
+      showLoadingWizard();
+      var pntCtx = null;
+      try { pntCtx = JSON.parse(sessionStorage.getItem('incomingPaintingContext') || 'null'); } catch (e) { pntCtx = null; }
+      if (pntCtx && String(pntCtx.checklistId) === String(fromPainting)) {
+        loadUserDirectory(function () { openFromPainting(pntCtx); });
+      } else {
+        loadUserDirectory(function () { openFromPainting({ checklistId: fromPainting }); });
+      }
+    }
+    var fromCivilWork = params.get('fromCivilWork');
+    if (fromCivilWork) {
+      showLoadingWizard();
+      var cwCtx = null;
+      try { cwCtx = JSON.parse(sessionStorage.getItem('incomingCivilWorkContext') || 'null'); } catch (e) { cwCtx = null; }
+      if (cwCtx && String(cwCtx.checklistId) === String(fromCivilWork)) {
+        loadUserDirectory(function () { openFromCivilWork(cwCtx); });
+      } else {
+        loadUserDirectory(function () { openFromCivilWork({ checklistId: fromCivilWork }); });
+      }
+    }
+    var fromPipeline = params.get('fromPipeline');
+    if (fromPipeline) {
+      showLoadingWizard();
+      var plCtx = null;
+      try { plCtx = JSON.parse(sessionStorage.getItem('incomingPipelineContext') || 'null'); } catch (e) { plCtx = null; }
+      if (plCtx && String(plCtx.checklistId) === String(fromPipeline)) {
+        loadUserDirectory(function () { openFromPipeline(plCtx); });
+      } else {
+        loadUserDirectory(function () { openFromPipeline({ checklistId: fromPipeline }); });
       }
     }
   }

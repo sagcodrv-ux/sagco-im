@@ -254,6 +254,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       idCol: 'LOTO ID', idEditable: true,
       idPrefix: 'LOTO-', idPad: 3,
       hasPrint: true, hasPhotos: true,
+      // Rev.51 (Issam, voice, 2026-11-17) — same single Escalate
+      // button as every other PTW-linked checklist now, instead of
+      // its own Corrective Action fields (this table never had any —
+      // just adding the button). escalateToAction() below branches on
+      // tKeyName since the Station Audit ('audit' table) already has
+      // its own escalate wiring with different field names/hand-off.
+      hasEscalate: true,
       // A job can stay isolated for hours (or across shifts) before it's
       // safe to reinstate, so Add only captures the Pre-Task fields
       // (job info, isolation grid, verification-before-work) and saves
@@ -281,7 +288,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
                'Each Personal Lock Removed by Owner','Isolation Removal and Restoration Authorized',
                'Equipment Returned to Service','PTW Closed per Site Procedure',
                'Work Completed By','LOTO Removal / Reinstatement Authorized By','Reinstatement Date / Time',
-               'Final Remarks','Signatures','Photos'],
+               'Final Remarks','Signatures','Photos','Action Reference'],
       displayCols: ['LOTO ID','Date','Department / Location','Equipment Name / ID','Status'],
       fields: ['LOTO ID','Date','Department / Location','Equipment Name / ID','Description of Work',
                'PTW Number','Performing Team / Contractor','Authorized LOTO Person',
@@ -301,7 +308,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
                'Each Personal Lock Removed by Owner','Isolation Removal and Restoration Authorized',
                'Equipment Returned to Service','PTW Closed per Site Procedure',
                'Work Completed By','LOTO Removal / Reinstatement Authorized By','Reinstatement Date / Time',
-               'Final Remarks','Signatures','Photos','Status'],
+               'Final Remarks','Signatures','Photos','Status','Action Reference'],
       selectFields: {
         'Electrical Isolated': YESNO, 'Mechanical Isolated': YESNO, 'Hydraulic Isolated': YESNO,
         'Pneumatic Isolated': YESNO, 'Pressure / Stored Energy Isolated': YESNO, 'Other Isolated': YESNO,
@@ -544,13 +551,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       toolbarHtml += '<button class="lt-btn" id="lt-tb-printaudit-'+tKeyName+'"'+disabledAttr+' onclick="LT.printAudit(LT.getSelected(\''+tKeyName+'\'))">🖨️ Print Audit Report</button>';
     }
     if (cfg.hasEscalate){
-      var carVal = String(getFieldOfSelected(tKeyName, 'Corrective Action Required (Y/N)')||'').trim().toLowerCase();
+      // Rev.51 (Issam, voice, 2026-11-17) — no longer gated on a
+      // Corrective Action Required flag; available on any selected
+      // record not already escalated, same as every other PTW-linked
+      // checklist now.
       var existingRef = String(getFieldOfSelected(tKeyName, 'Action Reference')||'').trim();
       if (existingRef){
         toolbarHtml += '<button class="lt-btn" disabled title="Already escalated — see the Action Register">✓ Escalated → '+existingRef+'</button>';
       } else {
-        var canEscalate = sel && carVal === 'yes';
-        toolbarHtml += '<button class="lt-btn lt-btn-add" id="lt-tb-escalate-'+tKeyName+'"'+(canEscalate?'':' disabled')+' onclick="LT.escalateToAction(\''+tKeyName+'\', LT.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
+        toolbarHtml += '<button class="lt-btn lt-btn-add" id="lt-tb-escalate-'+tKeyName+'"'+(sel?'':' disabled')+' onclick="LT.escalateToAction(\''+tKeyName+'\', LT.getSelected(\''+tKeyName+'\'))">⚡ Escalate to Action</button>';
       }
     }
     if (cfg.hasPrint) toolbarHtml += '<button class="lt-btn" id="lt-tb-print-'+tKeyName+'"'+disabledAttr+' onclick="LT.printLoto(LT.getSelected(\''+tKeyName+'\'))">🖨️ Print FRM-08</button>';
@@ -1506,6 +1515,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // to fit a single printed page rather than the PTW form's full
   // multi-page layout. ─────────────────────────────────────────────
   function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  // Called from renderTableArea() but never defined anywhere in this
+  // file — same pre-existing bug found and fixed in confined-space.html
+  // earlier this week (confirmed present in the live repo copy too,
+  // not caused by today's edits): every row click threw "formatCell
+  // is not defined" and broke selection entirely.
+  function formatCell(v){ var s = String(v==null?'':v).trim(); return s ? pfEsc(s) : '—'; }
   function pfCb(label, checked){ return '<span class="pf-item"><span class="pf-box">'+(checked?'&#9746;':'&#9744;')+'</span><span class="pf-item-label">'+pfEsc(label)+'</span></span>'; }
   function pfYes(val){ return String(val||'').trim().toLowerCase() === 'yes'; }
   function pfField(label, value){ return '<div class="pf-field"><span class="pf-label">'+pfEsc(label)+'</span><span class="pf-value">'+pfEsc(value||'')+'</span></div>'; }
@@ -1880,15 +1895,44 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // on that side beyond the matching 'fromLotoAudit' handler.
     escalateToAction: function(tKeyName, idVal){
       var cfg = TABLES[tKeyName];
-      if (idVal === null || idVal === undefined || idVal === '') return alert('Select an audit finding first.');
+      if (idVal === null || idVal === undefined || idVal === '') return alert('Select a row first.');
+      // Rev.51 (Issam, voice, 2026-11-17) — the LOTO Job itself
+      // ('register') never had Corrective Action fields or its own
+      // escalate wiring; the Station Audit ('audit') already did, with
+      // different field names and a different hand-off. Branch here
+      // rather than duplicate the whole function.
+      if (tKeyName === 'register'){
+        var jData = _cache['register'];
+        var jIdIdx = colIdx(jData.headers, 'LOTO ID');
+        var jRow = jData.rows.find(function(r){ return String(r[jIdIdx]) === String(idVal); });
+        if (!jRow) return alert('Record not found — try refreshing.');
+        var jRefIdx = colIdx(jData.headers, 'Action Reference');
+        if (jRefIdx >= 0 && String(jRow[jRefIdx]||'').trim()){
+          return alert('This job was already escalated — see Action Register record ' + jRow[jRefIdx] + '.');
+        }
+        var jRec = {};
+        jData.headers.forEach(function(h,i){ jRec[h] = jRow[i]; });
+        var jDescParts = [];
+        jDescParts.push('LOTO Job: ' + idVal);
+        if (jRec['Equipment Name / ID']) jDescParts.push('Equipment: ' + jRec['Equipment Name / ID']);
+        if (jRec['Department / Location']) jDescParts.push('Location: ' + jRec['Department / Location']);
+        if (jRec['Final Remarks']) jDescParts.push('Remarks: ' + jRec['Final Remarks']);
+        var jCtx = {
+          jobId: idVal,
+          description: jDescParts.join('\n') || ('LOTO Job ' + idVal),
+          date: new Date().toISOString().slice(0,10)
+        };
+        try { sessionStorage.setItem('incomingLotoJobContext', JSON.stringify(jCtx)); } catch(e){}
+        window.open('action-register.html?fromLotoJob=' + encodeURIComponent(idVal) + '&lane=ACT', '_blank');
+        return;
+      }
+      // Rev.51 — no longer requires the old Corrective Action Required
+      // flag; any audit record can be escalated once, whether or not
+      // it was pre-flagged.
       var data = _cache[tKeyName];
       var idIdx = colIdx(data.headers, cfg.idCol);
       var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
       if (!row) return alert('Record not found — try refreshing.');
-      var carIdx = colIdx(data.headers, 'Corrective Action Required (Y/N)');
-      if (carIdx < 0 || String(row[carIdx]||'').trim().toLowerCase() !== 'yes'){
-        return alert('This audit record is not flagged as requiring corrective action.');
-      }
       var refIdx = colIdx(data.headers, 'Action Reference');
       if (refIdx >= 0 && String(row[refIdx]||'').trim()){
         return alert('This finding was already escalated — see Action Register record ' + row[refIdx] + '.');
