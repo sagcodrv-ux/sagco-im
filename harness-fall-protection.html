@@ -266,6 +266,26 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
       return { status: statusIdx >= 0 ? hit[statusIdx] : '' };
     }).catch(function(){ return null; });
   }
+  // Rev.56 (Issam, voice, 2026-11-17) — reads the permit's own Number
+  // of Workers, so arriving from the permit link can pre-fill Number
+  // of Harnesses Checked with the crew size instead of leaving the
+  // inspector to type a number that has to match it by memory. Still
+  // just a starting value — editable, in case not everyone on the
+  // permit needs a harness checked that day.
+  function fetchPermitWorkerCount(permitId){
+    return fetch(SHEETS_URL + '?tab=ptw_register&action=read').then(function(r){ return r.json(); }).then(function(data){
+      if (!data || !data.headers || !data.rows) return null;
+      var numIdx = colIdx(data.headers, 'Permit ID'), workersIdx = colIdx(data.headers, 'Number of Workers');
+      if (numIdx < 0 || workersIdx < 0) return null;
+      var hit = null;
+      data.rows.forEach(function(row){
+        if (String(row[numIdx]||'').trim() === String(permitId).trim()) hit = row;
+      });
+      if (!hit) return null;
+      var n = parseInt(hit[workersIdx], 10);
+      return (!isNaN(n) && n > 0) ? n : null;
+    }).catch(function(){ return null; });
+  }
   // A Satisfactory check tied to a permit should tell the PTW Register
   // right away, same as every other linked checklist's
   // notifyPtwIfClosed_ — otherwise the register only finds out on its
@@ -597,7 +617,14 @@ table.hf-tbl{width:100%;border-collapse:collapse;font-size:11px}
     var params = new URLSearchParams(window.location.search);
     var permitId = params.get('permitId');
     if (permitId){
-      HF.openAdd({'PTW Number': permitId});
+      // Rev.56 — pre-fill the crew size from the permit itself rather
+      // than opening blank; still just a starting value the inspector
+      // can change.
+      fetchPermitWorkerCount(permitId).then(function(workerCount){
+        var overrides = {'PTW Number': permitId};
+        if (workerCount) overrides['Number of Harnesses Checked'] = String(workerCount);
+        HF.openAdd(overrides);
+      });
     }
   }
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ loadAll().then(handleHarnessDeepLink); }, 100); });
