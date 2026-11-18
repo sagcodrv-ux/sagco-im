@@ -200,6 +200,41 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   /* 16px, not smaller — iOS Safari auto-zooms the whole page on focus
      for any input under 16px, which is jarring on a form this long. */
   .ptw-dark-wrap .ptw-field input,.ptw-dark-wrap .ptw-field textarea{font-size:16px;padding:9px 10px}
+  /* Rev.65 (Issam, voice, 2026-11-17) — the KPI cards and the two
+     dashboard charts above the register table were still forced to
+     their desktop column counts via an inline style on each div (an
+     inline style wins over a class rule, so the usual @media override
+     alone can't touch it) — "!important" here is the one way to beat
+     that without going back and stripping every inline style on the
+     page. 2 columns for KPIs, not 1, so "Total" and "Active" still sit
+     side by side and the page doesn't turn into one long scroll of
+     four separate full-width cards; the two charts go to 1 column
+     since each one needs real width to read. */
+  .ptw-dark-wrap .kpi-grid{grid-template-columns:repeat(2,1fr) !important;gap:8px !important}
+  .ptw-dark-wrap .chart-grid{grid-template-columns:1fr !important;gap:10px !important}
+  .ptw-dark-wrap .kpi-val{font-size:20px}
+  .ptw-dark-wrap .chart-wrap{height:180px}
+  /* Toolbar buttons (Add Permit, Raise Checklists, etc.) wrapped onto
+     several lines fine already via flex-wrap, but right-aligned meant
+     the first row of buttons sat flush against the right edge with no
+     room for a thumb — left-aligned and full-width stacked reads much
+     more like a normal phone screen. */
+  .ptw-dark-wrap .ptw-toolbar{justify-content:flex-start;flex-wrap:wrap}
+  .ptw-dark-wrap .ptw-toolbar .ptw-btn{flex:1 1 140px}
+  /* The register table itself: .tbl-wrap already scrolls sideways
+     (overflow:auto), which stays — collapsing it to cards would mean
+     rebuilding how every column renders. This just makes the fact
+     that it scrolls obvious and keeps row text from feeling cramped
+     while scrolling with a thumb. */
+  .ptw-dark-wrap .tbl-wrap{border:1px solid var(--pdw-border);border-radius:8px}
+  .ptw-dark-wrap .tbl-stripe{font-size:12px}
+  .ptw-dark-wrap .tbl-stripe th,.ptw-dark-wrap .tbl-stripe td{padding:9px 10px;white-space:nowrap}
+  .ptw-dark-wrap .ptw-filterbar{flex-direction:column;align-items:stretch}
+  .ptw-dark-wrap .ptw-search-input,.ptw-dark-wrap .ptw-filter-select{width:100%;max-width:none}
+  .ptw-dark-wrap .ptw-filter-status{margin-left:0}
+  .ptw-dark-wrap .ptw-daterange-bar{flex-direction:column;align-items:stretch}
+  .ptw-dark-wrap .ptw-linked-row{flex-direction:column;align-items:stretch}
+  .ptw-dark-wrap .ptw-linked-row .ptw-btn{margin-left:0;width:100%}
 }
 /* Photo evidence gallery — thumbnail grid with hover-delete, inside the
    same modal shell used for Add/Edit. */
@@ -648,6 +683,39 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     })[0];
     return match ? userEmail(match) : (fallback || '');
   }
+  // Rev.64 (Issam, voice, 2026-11-17) — the Permit Issuer has no email
+  // column of its own (the Authorized Issuers roster only has Employee
+  // ID / Name / Category / Department), but every issuer is also a
+  // real system user, so this looks them up in the same User Register
+  // the Unit Manager / Permit Controller dropdowns already use —
+  // stripping the "ID - Name" convention this field is stored in down
+  // to just the name, then matching it against the full active roster
+  // (no role/department filter — an issuer can be anyone).
+  function issuerDisplayNameFromField_(val){
+    var s = String(val||'').trim();
+    var m = /^\d+\s*-\s*(.+)$/.exec(s);
+    return m ? m[1].trim() : s;
+  }
+  function lookupIssuerEmail(issuerNameFieldVal){
+    var name = issuerDisplayNameFromField_(issuerNameFieldVal);
+    if (!name) return '';
+    return emailForSelectedUser_(function(){ return true; }, name, '');
+  }
+  // Rev.64 — quiet banner naming whoever on this permit's approval
+  // chain has no email on file, since Unit Manager / Permit Controller
+  // are now only ever picked from users who DO have one (see
+  // userOptionsHtml_ above) — this only ever fires for an older record
+  // saved before that, or an Issuer who isn't also a system user.
+  function missingEmailWarningHtml_(rec){
+    var missing = [];
+    if (rec['Unit Manager'] && !rec['Unit Manager Email']) missing.push('Area Manager (' + rec['Unit Manager'] + ')');
+    if (rec['Permit Controller'] && !rec['Permit Controller Email']) missing.push('Safety Controller (' + rec['Permit Controller'] + ')');
+    if (rec['Permit Issuer - Name'] && !lookupIssuerEmail(rec['Permit Issuer - Name'])) missing.push('Permit Issuer (' + issuerDisplayNameFromField_(rec['Permit Issuer - Name']) + ')');
+    if (!missing.length) return '';
+    return '<div style="margin:8px 0;padding:8px 12px;background:rgba(240,104,92,.12);border-left:3px solid #F0685C;border-radius:0 6px 6px 0;font-size:11px">'
+      + '⚠️ No email on file for: ' + missing.map(function(m){ return String(m).replace(/</g,'&lt;'); }).join(', ')
+      + ' — they will be skipped on the permit-stage emails until this is fixed in the User Register.</div>';
+  }
 
   /* Datalist suggestions for a field. "Permit Issuer - Name" is special:
      it offers the Authorized Issuers roster as "ID - Name" composite
@@ -854,6 +922,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function pfEsc(v){
     return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
+  // Rev.66 (found while testing point 4, 2026-11-17) — renderTableArea
+  // calls formatCell() on every cell but it was never defined on this
+  // page, the same pre-existing gap already found and fixed in
+  // confined-space.html and loto-register.html last session. It threw
+  // on the very first row, which the page silently swallowed as a
+  // "Connection unavailable" network error — the real cause had
+  // nothing to do with the network. Reuses the same escaping pfEsc
+  // already uses elsewhere on this page.
+  function formatCell(v){ return pfEsc(v); }
   function pfCb(labelEn, labelAr, checked){
     return '<span class="pf-item"><span class="pf-box">'+(checked?'&#9746;':'&#9744;')+'</span>'
       + '<span class="pf-item-label">'+pfEsc(labelEn)+(labelAr?' <span class="pf-ar">'+pfEsc(labelAr)+'</span>':'')+'</span></span>';
@@ -2290,13 +2367,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // ordinary 'update' action; this call only sends the email. Action
   // goes on the query string, same as every other postJSON call here,
   // not buried in the JSON body where doPost would never see it.
-  function notifyPtwStage_(permitId, stage, toEmail, toName, rec){
+  // Rev.64 (Issam, voice, 2026-11-17) — ccEmails is a new, optional
+  // array of extra addresses who should get this same notice without
+  // being the primary recipient. Any blank entry (an address we never
+  // found for someone) is dropped and that person is just silently
+  // skipped, same reasoning as the main toEmail guard just below.
+  function notifyPtwStage_(permitId, stage, toEmail, toName, rec, ccEmails){
     if (!toEmail) return;
+    var cc = (ccEmails||[]).filter(function(e){ return e && e !== toEmail; });
     var payload = {
       permitId: permitId, stage: stage, toEmail: toEmail, toName: toName,
       area: (rec && rec['Area']) || '', location: (rec && rec['Location']) || '',
       workInvolved: (rec && rec['Work Involved']) || '', date: (rec && rec['Date']) || ''
     };
+    if (cc.length) payload.cc = cc.join(',');
     fetch(SHEETS_URL + '?action=sendPtwStageEmail', { method:'POST', body: JSON.stringify(payload) })
       .catch(function(){ /* best-effort — the sheet update already succeeded regardless */ });
   }
@@ -2327,7 +2411,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, { 'Status': 'Awaiting Area Manager' })
         .then(function(res){
           if (res && res.status === 'error') return;
-          if (rec['Unit Manager Email']) notifyPtwStage_(permitId, 'areaManager', rec['Unit Manager Email'], rec['Unit Manager'], rec);
+          // Rev.64 (Issam, voice, 2026-11-17) — Area Manager stays the
+          // primary recipient; the Issuer is CC'd so they can see their
+          // permit has moved, same as they'll see at Controller stage.
+          if (rec['Unit Manager Email']) notifyPtwStage_(permitId, 'areaManager', rec['Unit Manager Email'], rec['Unit Manager'], rec, [lookupIssuerEmail(rec['Permit Issuer - Name'])]);
           reloadTabAndDashboard('register');
         })
         .catch(function(){ /* best-effort — the next load tries again */ });
@@ -2352,7 +2439,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); return; }
       document.getElementById('ptw-modal-root').innerHTML = '';
       reloadTabAndDashboard('register');
-      if (rec['Permit Controller Email']) notifyPtwStage_(permitId, 'controller', rec['Permit Controller Email'], rec['Permit Controller'], rec);
+      // Rev.64 — Controller stays the primary recipient; Issuer CC'd.
+      if (rec['Permit Controller Email']) notifyPtwStage_(permitId, 'controller', rec['Permit Controller Email'], rec['Permit Controller'], rec, [lookupIssuerEmail(rec['Permit Issuer - Name'])]);
     }).catch(function(){ alert('Could not reach the server — check your connection.'); });
   }
   // Controller's approval — the permit is now Active and work may
@@ -2466,10 +2554,23 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); return; }
       document.getElementById('ptw-modal-root').innerHTML = '';
       reloadTabAndDashboard('register');
-      // Area Manager is kept aware the permit closed — no approval
-      // action for him here, just an FYI.
-      if (rec['Unit Manager Email']){
-        notifyPtwStage_(permitId, 'closed', rec['Unit Manager Email'], rec['Unit Manager'], rec);
+      // Rev.64 (Issam, voice, 2026-11-17) — the closed notice now
+      // always reaches all three of Area Manager, Safety Controller
+      // and Permit Issuer, not just the Area Manager — each one is
+      // expected to have an email on file (missingEmailWarningHtml_
+      // flags it on the permit if one doesn't), but if any single one
+      // is missing the other two still get the notice; whichever has
+      // an email becomes the primary recipient, the rest are CC'd.
+      var issuerEmail = lookupIssuerEmail(rec['Permit Issuer - Name']);
+      var closedRecipients = [
+        { email: rec['Unit Manager Email'], name: rec['Unit Manager'] },
+        { email: rec['Permit Controller Email'], name: rec['Permit Controller'] },
+        { email: issuerEmail, name: issuerDisplayNameFromField_(rec['Permit Issuer - Name']) }
+      ].filter(function(r){ return !!r.email; });
+      if (closedRecipients.length){
+        var primary = closedRecipients[0];
+        var ccEmails = closedRecipients.slice(1).map(function(r){ return r.email; });
+        notifyPtwStage_(permitId, 'closed', primary.email, primary.name, rec, ccEmails);
       }
     }).catch(function(){ alert('Could not reach the server — check your connection.'); });
   }
@@ -2506,7 +2607,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var status = String(rec['Status']||'').trim();
     var statusLower = status.toLowerCase();
     if (statusLower === 'cancelled' || statusLower === 'closed') return ''; // own section already shows this
-    var html = '<div class="ptw-sub-hd">Approval</div>';
+    var html = '<div class="ptw-sub-hd">Approval</div>' + missingEmailWarningHtml_(rec);
     if (statusLower === 'awaiting area manager'){
       html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(240,180,60,.12);border:2px solid #E0B43C;border-radius:8px">'
         + '<div style="font-weight:700;color:#E0B43C;font-size:13px">⏳ Awaiting Area Manager Approval — ' + String(rec['Unit Manager']||'—').replace(/</g,'&lt;') + '</div>'

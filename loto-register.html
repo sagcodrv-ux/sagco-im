@@ -176,6 +176,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   .lt-dark-wrap .lt-field input,.lt-dark-wrap .lt-field select,.lt-dark-wrap .lt-field textarea{font-size:16px;padding:9px 10px}
   .lt-dark-wrap .lt-chk-row{flex-direction:column;align-items:stretch;gap:6px}
   .lt-dark-wrap .lt-chk-row select{width:100%;min-width:0;font-size:16px;padding:9px 10px}
+  /* Rev.66 (Issam, voice, 2026-11-17) — same inline-style KPI/chart
+     grid override as the other dashboard pages; this page has two
+     separate kpi-grid rows (LOTO Job stats, Station Audit stats),
+     both covered below. */
+  .lt-dark-wrap .kpi-grid{grid-template-columns:repeat(2,1fr) !important;gap:8px !important}
+  .lt-dark-wrap .chart-grid{grid-template-columns:1fr !important;gap:10px !important}
+  .lt-dark-wrap .kpi-val{font-size:20px}
+  .lt-dark-wrap .chart-wrap{height:180px}
+  .lt-dark-wrap .lt-toolbar{justify-content:flex-start;flex-wrap:wrap}
+  .lt-dark-wrap .lt-toolbar .lt-btn{flex:1 1 140px}
+  .lt-dark-wrap .lt-filterbar{flex-direction:column;align-items:stretch}
+  .lt-dark-wrap .tbl-wrap{border:1px solid var(--ltw-border);border-radius:8px}
 }
 .lt-dark-wrap .lt-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
   margin-top:10px;max-height:340px;overflow-y:auto}
@@ -1175,9 +1187,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var root = document.getElementById('lt-modal-root');
     var checklistHtml = LOTO_POST_CHECKLIST.map(function(f, i){ return lotoChkRowHtml(f, i, initial[f]); }).join('');
     var signoffHtml = LOTO_POST_SIGNOFF_FIELDS.map(function(f, fi){ return lotoFieldHtml(f, initial[f], 'register', 200+fi); }).join('');
+    // Rev.62 (Issam, voice, 2026-11-17) — Signatures and Photos used
+    // to be plain typed boxes here. A signature shouldn't be typed by
+    // hand, and photos already have their own dedicated 📷 Photos
+    // button/upload on the toolbar, so a second typed "log" field was
+    // a leftover that duplicated it. Photos is dropped from this form
+    // entirely; Signatures is now recorded automatically — whoever
+    // closes the job, at the moment they close it — and just shown
+    // here read-only so it's clear what will be saved.
     var remarksHtml = lotoTextareaHtml('Final Remarks', initial['Final Remarks'], true)
-      + lotoTextareaHtml('Signatures', initial['Signatures'], true)
-      + lotoTextareaHtml('Photos', initial['Photos'], true);
+      + '<div class="lt-field full"><label>Signature</label>'
+      + '<div style="font-size:12px;padding:8px 10px;border:1px solid var(--ltw-border);border-radius:6px;background:rgba(255,255,255,.03);color:var(--ltw-text-dim)">'
+      + 'Recorded automatically on save, as <strong style="color:var(--ltw-text)">' + String(currentUsername()).replace(/</g,'&lt;') + '</strong> at the date/time of closing.'
+      + '</div></div>';
 
     root.innerHTML = '<div class="lt-modal-bg" id="lt-modal-bg"><div class="lt-modal wide">'
       + '<h3>Complete Reinstatement — ' + idVal + '</h3>'
@@ -1185,7 +1207,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       + '<div class="lt-sub-hd" style="border-top:none;padding-top:0">Post-Task Verification <span style="font-weight:400;color:var(--ltw-text-dim);text-transform:none;letter-spacing:0">(' + LOTO_POST_CHECKLIST.length + ' items — all must be Yes to close)</span></div>'
       + '<div class="lt-chk-group">' + checklistHtml + '</div>'
       + signoffHtml
-      + '<div class="lt-sub-hd">Remarks, Signatures &amp; Photos Log</div>'
+      + '<div class="lt-sub-hd">Remarks &amp; Signature</div>'
       + remarksHtml
       + '</div>'
       + '<div id="lt-modal-save-status" style="font-size:10px;min-height:14px;margin-top:8px"></div>'
@@ -1204,6 +1226,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         return;
       }
       values['Status'] = 'Closed';
+      // Rev.62 — the Signatures field is no longer typed; it's set
+      // here, at the moment of closing, to whoever is actually
+      // closing the job.
+      values['Signatures'] = currentUsername() + ' — ' + new Date().toLocaleString();
       var saveBtn = document.getElementById('lt-modal-save');
       saveBtn.disabled = true;
       postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: idVal}, values).then(function(res){
@@ -1245,9 +1271,13 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var preSignoffHtml = LOTO_PRE_SIGNOFF_FIELDS.map(function(f, fi){ return lotoFieldHtml(f, initial[f], 'register', 100+fi); }).join('');
     var postChecklistHtml = LOTO_POST_CHECKLIST.map(function(f, i){ return lotoChkRowHtml(f, i, initial[f]); }).join('');
     var postSignoffHtml = LOTO_POST_SIGNOFF_FIELDS.map(function(f, fi){ return lotoFieldHtml(f, initial[f], 'register', 200+fi); }).join('');
+    // Rev.62 — Photos dropped here too, same leftover reasoning as the
+    // Continue modal (the 📷 Photos button is the real way to attach
+    // images). Signatures stays as a typed field only in Edit, since
+    // Edit is the one place meant for correcting an already-recorded
+    // value, including a Signature that was auto-recorded wrong.
     var remarksHtml = lotoTextareaHtml('Final Remarks', initial['Final Remarks'], true)
-      + lotoTextareaHtml('Signatures', initial['Signatures'], true)
-      + lotoTextareaHtml('Photos', initial['Photos'], true);
+      + lotoTextareaHtml('Signatures', initial['Signatures'], true);
     var statusVal = initial['Status'] || '';
     var statusHtml = '<div class="lt-field"><label>Status</label><select data-field="Status">'
       + ['', 'Open', 'Closed'].map(function(o){ return '<option value="'+o+'"'+(statusVal===o?' selected':'')+'>'+(o||'— Select —')+'</option>'; }).join('')
@@ -1266,7 +1296,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       + '<div class="lt-sub-hd">Post-Task Verification <span style="font-weight:400;color:var(--ltw-text-dim);text-transform:none;letter-spacing:0">(leave blank until reinstatement — all 8 must be Yes to close)</span></div>'
       + '<div class="lt-chk-group">' + postChecklistHtml + '</div>'
       + postSignoffHtml
-      + '<div class="lt-sub-hd">Remarks, Signatures &amp; Photos Log</div>'
+      + '<div class="lt-sub-hd">Remarks &amp; Signature</div>'
       + remarksHtml
       + '<div class="lt-sub-hd">Record Status</div>'
       + statusHtml
