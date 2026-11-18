@@ -121,6 +121,7 @@ table.sp-tbl{width:100%;border-collapse:collapse;font-size:11px}
     <div class="sp-toolbar-left">
       <button class="sp-btn sp-btn-add" onclick="SP.openAdd()">+ New Inspection</button>
       <button class="sp-btn" id="sp-tb-edit" disabled onclick="SP.openEdit(SP.getSelected())">✏️ Edit</button>
+      <button class="sp-btn sp-btn-add" id="sp-tb-escalate" disabled onclick="SP.escalateToAction(SP.getSelected())">⚡ Escalate to Action</button>
       <button class="sp-btn" id="sp-tb-remove" disabled onclick="SP.remove(SP.getSelected())">🗑️ Remove</button>
     </div>
     <div class="sp-filters">
@@ -378,6 +379,26 @@ table.sp-tbl{width:100%;border-collapse:collapse;font-size:11px}
         if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message||'unknown error')); return; }
         _selected = null; loadAll();
       }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+    },
+    // Rev.68 (Issam, text, 2026-11-18) — same sessionStorage + URL
+    // hand-off to the Action Register already used by every other
+    // checklist/register on OC-01 — available on any selected
+    // record not already escalated, no pass/fail gating.
+    escalateToAction: function(id){
+      if (!id) return alert('Select a record first.');
+      var idIdx = colIdx(_headers, 'Patrol ID');
+      var row = _rows.find(function(r){ return String(r[idIdx]) === String(id); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var refIdx = colIdx(_headers, 'Action Reference');
+      if (refIdx >= 0 && String(row[refIdx]||'').trim()){
+        return alert('This record was already escalated — see Action Register record ' + row[refIdx] + '.');
+      }
+      var descIdx = colIdx(_headers, 'Area / Route');
+      var descParts = ['Security Patrol: ' + id];
+      if (descIdx >= 0 && row[descIdx]) descParts.push('Area / Route: ' + row[descIdx]);
+      var ctx = { inspectionId: id, description: descParts.join('\\n'), date: new Date().toISOString().slice(0,10) };
+      try { sessionStorage.setItem('incomingSecurityPatrolContext', JSON.stringify(ctx)); } catch(e){ /* not fatal */ }
+      window.open('action-register.html?fromSecurityPatrol=' + encodeURIComponent(id) + '&lane=ACT', '_blank');
     }
   };
 
@@ -385,6 +406,23 @@ table.sp-tbl{width:100%;border-collapse:collapse;font-size:11px}
     var disabled = !_selected;
     document.getElementById('sp-tb-edit').disabled = disabled;
     document.getElementById('sp-tb-remove').disabled = disabled;
+    var escBtn = document.getElementById('sp-tb-escalate');
+    var existingRef = '';
+    if (_selected){
+      var idIdx = colIdx(_headers, 'Patrol ID');
+      var refIdx = colIdx(_headers, 'Action Reference');
+      var row = _rows.find(function(r){ return String(r[idIdx]) === String(_selected); });
+      if (row && refIdx >= 0) existingRef = String(row[refIdx]||'').trim();
+    }
+    if (existingRef){
+      escBtn.disabled = true;
+      escBtn.textContent = '✓ Escalated → ' + existingRef;
+      escBtn.title = 'Already escalated — see the Action Register';
+    } else {
+      escBtn.disabled = disabled;
+      escBtn.textContent = '⚡ Escalate to Action';
+      escBtn.title = '';
+    }
   }
 
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(loadAll, 100); });
