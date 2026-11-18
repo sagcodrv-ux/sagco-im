@@ -701,6 +701,29 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (!name) return '';
     return emailForSelectedUser_(function(){ return true; }, name, '');
   }
+  // Rev.67 (Issam, voice, 2026-11-18) — the issuer's own department
+  // manager is now CC'd on every permit-stage email, not just the
+  // closed notice, so they stay aware of what their own staff are
+  // raising and where it stands — this is deliberately separate from
+  // the Unit Manager/Area Manager field on the permit itself, which
+  // is the approver for the AREA the work happens in, not necessarily
+  // the issuer's own manager. Returns '' if the issuer can't be
+  // matched to a user, has no department on file, or that department
+  // has nobody with "Manager"/"Head" in their title — any of which
+  // just means no extra CC, not a failure.
+  function lookupIssuerDeptManagerEmail_(issuerNameFieldVal){
+    var name = issuerDisplayNameFromField_(issuerNameFieldVal);
+    if (!name) return '';
+    var issuerUser = (_usersCache||[]).filter(function(u){
+      return userDisplayName(u).toLowerCase() === name.toLowerCase();
+    })[0];
+    var dept = issuerUser ? String(issuerUser['Department']||issuerUser.department||'').trim() : '';
+    if (!dept) return '';
+    var mgr = (_usersCache||[]).filter(function(u){
+      return String(u['Department']||u.department||'').trim().toLowerCase() === dept.toLowerCase() && isManagerUser_(u);
+    })[0];
+    return mgr ? userEmail(mgr) : '';
+  }
   // Rev.64 — quiet banner naming whoever on this permit's approval
   // chain has no email on file, since Unit Manager / Permit Controller
   // are now only ever picked from users who DO have one (see
@@ -2374,7 +2397,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // skipped, same reasoning as the main toEmail guard just below.
   function notifyPtwStage_(permitId, stage, toEmail, toName, rec, ccEmails){
     if (!toEmail) return;
-    var cc = (ccEmails||[]).filter(function(e){ return e && e !== toEmail; });
+    // Rev.67 — dedupe: with the issuer's department manager now added
+    // alongside the issuer, the Area Manager and the Controller, two
+    // of those can genuinely resolve to the same address (e.g. the
+    // issuer's manager IS the permit's own Area Manager).
+    var seenCc = {};
+    var cc = (ccEmails||[]).filter(function(e){
+      if (!e || e === toEmail || seenCc[e]) return false;
+      seenCc[e] = true;
+      return true;
+    });
     var payload = {
       permitId: permitId, stage: stage, toEmail: toEmail, toName: toName,
       area: (rec && rec['Area']) || '', location: (rec && rec['Location']) || '',
@@ -2414,7 +2446,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           // Rev.64 (Issam, voice, 2026-11-17) — Area Manager stays the
           // primary recipient; the Issuer is CC'd so they can see their
           // permit has moved, same as they'll see at Controller stage.
-          if (rec['Unit Manager Email']) notifyPtwStage_(permitId, 'areaManager', rec['Unit Manager Email'], rec['Unit Manager'], rec, [lookupIssuerEmail(rec['Permit Issuer - Name'])]);
+          if (rec['Unit Manager Email']) notifyPtwStage_(permitId, 'areaManager', rec['Unit Manager Email'], rec['Unit Manager'], rec, [lookupIssuerEmail(rec['Permit Issuer - Name']), lookupIssuerDeptManagerEmail_(rec['Permit Issuer - Name'])]);
           reloadTabAndDashboard('register');
         })
         .catch(function(){ /* best-effort — the next load tries again */ });
@@ -2440,7 +2472,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       document.getElementById('ptw-modal-root').innerHTML = '';
       reloadTabAndDashboard('register');
       // Rev.64 — Controller stays the primary recipient; Issuer CC'd.
-      if (rec['Permit Controller Email']) notifyPtwStage_(permitId, 'controller', rec['Permit Controller Email'], rec['Permit Controller'], rec, [lookupIssuerEmail(rec['Permit Issuer - Name'])]);
+      if (rec['Permit Controller Email']) notifyPtwStage_(permitId, 'controller', rec['Permit Controller Email'], rec['Permit Controller'], rec, [lookupIssuerEmail(rec['Permit Issuer - Name']), lookupIssuerDeptManagerEmail_(rec['Permit Issuer - Name'])]);
     }).catch(function(){ alert('Could not reach the server — check your connection.'); });
   }
   // Controller's approval — the permit is now Active and work may
@@ -2562,10 +2594,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // is missing the other two still get the notice; whichever has
       // an email becomes the primary recipient, the rest are CC'd.
       var issuerEmail = lookupIssuerEmail(rec['Permit Issuer - Name']);
+      // Rev.67 — the issuer's own department manager is now also in
+      // this list, same reasoning as the areaManager/controller stage
+      // emails above: kept aware of their own staff's permits, even
+      // though they aren't the approver for the work area itself.
       var closedRecipients = [
         { email: rec['Unit Manager Email'], name: rec['Unit Manager'] },
         { email: rec['Permit Controller Email'], name: rec['Permit Controller'] },
-        { email: issuerEmail, name: issuerDisplayNameFromField_(rec['Permit Issuer - Name']) }
+        { email: issuerEmail, name: issuerDisplayNameFromField_(rec['Permit Issuer - Name']) },
+        { email: lookupIssuerDeptManagerEmail_(rec['Permit Issuer - Name']), name: '' }
       ].filter(function(r){ return !!r.email; });
       if (closedRecipients.length){
         var primary = closedRecipients[0];
@@ -3320,15 +3357,17 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
    PTW-specific public summary page should exist, it doesn't yet. ──── */
 (function(){
   function allowed(s){
-    if(!s) return false;
-    if(s.role==='superadmin') return true;
-    var u = (typeof IMS_AUTH!=='undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
-    var title = (u && u.title) || '';
-    var dept  = (u && u.department) || '';
-    if(/manager|head/i.test(title)) return true;
-    if(/^(shee|safety)$/i.test(dept)) return true;
-    if(s.username==='ceo') return true;
-    return false;
+    // Rev.67 (Issam, voice, 2026-11-18) — removed the department/
+    // manager/CEO restriction. A permit or a permit-linked checklist
+    // can legitimately be raised by a supervisor or an in-charge, not
+    // only a manager or Safety department staff, and a permit never
+    // goes active without the Area Manager's and then the Controller's
+    // own approval regardless of who raised it — so gating the whole
+    // page by department added little real protection while blocking
+    // the very people who need to use it. Any signed-in user now
+    // passes; the add/edit/delete role ladder in auth.js (can()) still
+    // governs what they can actually do once inside.
+    return !!s;
   }
   function blockPage(){
     document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;text-align:center;padding:40px">'
