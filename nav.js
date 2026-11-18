@@ -101,7 +101,7 @@ var TREE = [
         { id:'oc1-ndt',  label:'NDT / Radiography Log',       file:'ndt-permit-log.html',               level:'L4', tag:'Sh.43' },
         { id:'oc1-ghs',  label:'Chemical Inventory (GHS)',    file:'chemical-inventory.html',    level:'L4', tag:'Sh.44' },
         { id:'oc1-crl',  label:'Crane & Lifting Register',    file:'crane-lifting.html',         level:'L4', tag:'L4-SHEE-PR-11-R-01' },
-        { id:'oc1-ppe',  label:'PPE Compliance Register',       file:'ppe-register.html',          level:'L4', tag:'Sh.54' },
+        { id:'oc1-ppe',  label:'PPE Compliance Register',       file:'ppe-issuance.html',          level:'L4', tag:'Sh.54' },
         { id:'oc1-wah',  label:'Working at Height Register',      file:'wah-register.html',          level:'L4', tag:'Sh.55' },
         { id:'oc1-hwl',  label:'Hot Work Activity Log',            file:'hot-work-log.html',          level:'L4', tag:'Sh.56' },
         { id:'oc1-els',  label:'Electrical Safety & Isolation Log',file:'electrical-safety-log.html', level:'L4', tag:'Sh.57' },
@@ -116,6 +116,12 @@ var TREE = [
         { id:'oc1-msg',  label:'Machine Safeguarding Inspection',   file:'machine-safeguarding.html',      level:'L4', badge:'NEW', bc:'amb' },
         { id:'oc1-cgi',  label:'Compressed Gas Inspection',         file:'compressed-gas-inspection.html', level:'L4', badge:'NEW', bc:'amb' },
         { id:'oc1-hfp',  label:'Harness & Fall Protection Inspection', file:'harness-fall-protection.html', level:'L4', badge:'NEW', bc:'amb' },
+        /* Rev.63 (Issam, voice, 2026-11-17) — permit-linked checklists that had
+           pages but no nav entry, so they were invisible on the Operations Hub. */
+        { id:'oc1-hwc',  label:'Hot Work Checklist',                file:'hot-work.html',                  level:'L4', badge:'NEW', bc:'amb' },
+        { id:'oc1-pnt',  label:'Painting Checklist',                file:'painting-checklist.html',        level:'L4', badge:'NEW', bc:'amb' },
+        { id:'oc1-pip',  label:'Pipeline (LPG / Oil) Checklist',    file:'pipeline-checklist.html',        level:'L4', badge:'NEW', bc:'amb' },
+        { id:'oc1-civ',  label:'Civil Work Checklist',              file:'civil-work-checklist.html',      level:'L4', badge:'NEW', bc:'amb' },
         { id:'oc1-fps',  label:'Fire Protection Systems Testing',   file:'fire-protection-systems-log.html', level:'L4', badge:'NEW', bc:'amb' },
         { id:'oc1-spl',  label:'Security Patrol Register',          file:'security-patrol-log.html',       level:'L4', badge:'NEW', bc:'amb' },
         { id:'oc1-ewt',  label:'Eyewash & Shower Flush Testing',    file:'eyewash-shower-testing.html',    level:'L4', badge:'NEW', bc:'amb' },
@@ -1214,7 +1220,7 @@ var MASSI_PAGE_CONTEXT = {
   'compliance.html':           {sev:'high',  msg:'Legal compliance register is open. Legal compliance KPI-08 is AT RISK at 68% vs 95% target.', q:['Show compliance gaps','Which legal requirements are overdue?','Update legal register from Excel']},
   'management-review.html':    {sev:'crit',  msg:'Management Review page is open. MR-2026-01 must be conducted before Stage 2 (22 Sep 2026).', q:['What inputs are needed for MR-2026-01?','Show management review checklist','Which KPIs need attention for MR?']},
   'speak-up.html':             {sev:'med',   msg:'Speak-Up register is open. ISO 37001 §8.9 and Saudi M/25 require this to be active before Stage 1.', q:['Show speak-up register status','ISO 37001 §8.9 requirements','What evidence does TÜV need for §8.9?']},
-  'ppe-register.html':         {sev:'high',  msg:'PPE register is open. All 884 employees + 152 contractors must have PPE requirements documented before Stage 2.', q:['Show PPE compliance by area','Which areas are missing PPE data?','Update PPE register from Excel']},
+  'ppe-issuance.html':         {sev:'high',  msg:'PPE register is open. All 884 employees + 152 contractors must have PPE requirements documented before Stage 2.', q:['Show PPE compliance by area','Which areas are missing PPE data?','Update PPE register from Excel']},
 };
 
 function massIInjectPageContext() {
