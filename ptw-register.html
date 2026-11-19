@@ -230,7 +230,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   .ptw-dark-wrap .tbl-stripe{font-size:12px}
   .ptw-dark-wrap .tbl-stripe th,.ptw-dark-wrap .tbl-stripe td{padding:9px 10px;white-space:nowrap}
   .ptw-dark-wrap .ptw-filterbar{flex-direction:column;align-items:stretch}
-  .ptw-dark-wrap .ptw-search-input,.ptw-dark-wrap .ptw-filter-select{width:100%;max-width:none}
+  /* Rev.80 (Issam, voice, 2026-11-19) — the Add/Edit modal's own
+     fields were already bumped to 16px for mobile (see .ptw-field
+     input above) because any text input under 16px triggers iOS
+     Safari's auto-zoom on focus — the filter bar's search box was
+     missed in that pass, so tapping it still zoomed the whole page,
+     which is what looked like an oversized field. Fixed here, and the
+     padding is trimmed slightly so the box stays compact despite the
+     larger text instead of growing taller too. */
+  .ptw-dark-wrap .ptw-search-input,.ptw-dark-wrap .ptw-filter-select{width:100%;max-width:none;font-size:16px !important;padding:7px 10px !important}
   .ptw-dark-wrap .ptw-filter-status{margin-left:0}
   .ptw-dark-wrap .ptw-daterange-bar{flex-direction:column;align-items:stretch}
   .ptw-dark-wrap .ptw-linked-row{flex-direction:column;align-items:stretch}
@@ -539,6 +547,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // datetime-local input's expected 'YYYY-MM-DDTHH:MM', in the
   // browser's own local time (same convention as every other
   // auto-stamped timestamp already on this page, e.g. Closed Date).
+  // Rev.79 (Issam, voice, 2026-11-19) — splits the search box into
+  // space-separated AND terms, normalizing any DD-MM-YYYY or
+  // DD/MM/YYYY-looking word to the YYYY-MM-DD form every date in the
+  // sheet is actually stored in, so a typed date matches regardless
+  // of which style the person used.
+  function splitSearchTerms_(raw){
+    return String(raw||'').trim().toLowerCase().split(/\s+/).filter(Boolean).map(function(term){
+      var m = term.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+      if (!m) return term;
+      var dd = m[1].padStart(2,'0'), mm = m[2].padStart(2,'0'), yyyy = m[3];
+      return yyyy + '-' + mm + '-' + dd;
+    });
+  }
   function toDatetimeLocalValue_(d){
     function pad(n){ return String(n).padStart(2,'0'); }
     return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
@@ -898,7 +919,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       '<div class="ptw-toolbar">' + toolbarHtml + '</div>' +
       specialPillHtml +
       '<div class="ptw-filterbar">' +
-        '<input type="text" class="ptw-search-input" placeholder="Search this table…" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="PTW.onSearchInput(\''+tKeyName+'\', this.value)">' +
+        '<input type="text" class="ptw-search-input" placeholder="Search — e.g. 19-11-2026 Khaled" value="'+String(f.search).replace(/"/g,'&quot;')+'" oninput="PTW.onSearchInput(\''+tKeyName+'\', this.value)">' +
         categoryHtml +
         '<button class="ptw-btn" onclick="PTW.clearFilters(\''+tKeyName+'\')">Clear</button>' +
         '<span class="ptw-filter-status" id="ptw-filter-status-'+tKeyName+'"></span>' +
@@ -1130,6 +1151,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       + '<div class="pf-section"><div class="pf-section-title">Service Isolation <span style="font-weight:400;text-transform:none">(tick on site)</span></div>'
         + '<div class="pf-grid4">' + isolationHtml + '</div></div>'
 
+      // Rev.79 (Issam, voice, 2026-11-19) — the permit pack carries the
+      // attendee names and the talk's date for a quick read; the
+      // signed sign-in sheet itself (name + ID + signature per row)
+      // lives in its own toolbox_talk_attendees register, one row per
+      // person per permit, rather than embedding every signature
+      // image into this printout.
+      + (rec['Toolbox Talk Attendees'] ? '<div class="pf-section"><div class="pf-section-title">Toolbox Talk Attendees</div>'
+        + pfField('Date/Time of Toolbox Talk', rec['Toolbox Talk Date'])
+        + pfField('Attendees (' + (rec['Number of Workers']||'') + ')', rec['Toolbox Talk Attendees'])
+        + '<div style="font-size:9px;opacity:.65;margin-top:2px">Signed attendance sheet (name, ID and signature per attendee) is kept in the Toolbox Talk Attendees register for this permit.</div>'
+      + '</div>' : '')
+
       // Rev.59 (Issam, voice, 2026-11-17) — Issuer and Receiver show
       // signed from the moment the permit is created (rec['Date']):
       // the Receiver has no login of their own, so the Issuer's act
@@ -1332,7 +1365,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var idIdx = colIdx(data.headers, cfg.idCol);
     var filterFieldIdx = cfg.filterField ? colIdx(data.headers, cfg.filterField) : -1;
     var f = _filters[tKeyName] || {search:'', category:'', special:null};
-    var searchLower = f.search.trim().toLowerCase();
+    var searchTerms = splitSearchTerms_(f.search);
 
     var visibleRows = data.rows.filter(function(r){
       if (statusIdx < 0) return true;
@@ -1343,9 +1376,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (f.category && filterFieldIdx > -1){
       visibleRows = visibleRows.filter(function(r){ return String(r[filterFieldIdx]||'').trim() === f.category; });
     }
-    if (searchLower){
+    if (searchTerms.length){
+      // Rev.79 (Issam, voice, 2026-11-19) — each space-separated word is
+      // its own term and ALL must match, each against any cell in the
+      // row (not necessarily the same cell), so "19-11-2026 Khaled"
+      // finds a permit on that date issued by Khaled even though the
+      // date and the name live in different columns. A word that looks
+      // like a DD-MM-YYYY or DD/MM/YYYY date is converted to the
+      // YYYY-MM-DD form the sheet actually stores, so either style types.
       visibleRows = visibleRows.filter(function(r){
-        return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(searchLower) > -1; });
+        return searchTerms.every(function(term){
+          return r.some(function(cell){ return String(cell||'').toLowerCase().indexOf(term) > -1; });
+        });
       });
     }
     if (f.special === 'overdue' && tKeyName === 'register'){
@@ -2958,58 +3000,167 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       }
     );
   }
-  // Rev.72 — second gate: the Toolbox Talk. Issam's own instruction —
-  // a name list is enough, no per-attendee signature — and the count
-  // of names becomes this permit's Number of Workers, not a separately
-  // typed figure. Applies identically to a renewed permit (Rev.73
-  // below), never carried over from an earlier permit even for the
-  // same crew.
+  // Rev.79 (Issam, voice, 2026-11-19) — second gate: the Toolbox Talk.
+  // Originally a plain name list (Rev.72), replaced per Issam's own
+  // follow-up instruction with a proper attendee table: a name, an
+  // ID/badge number, and a drawn signature per row, with duplicate
+  // names/IDs blocked outright so the headcount this feeds into
+  // 'Number of Workers' can never be inflated by a repeated entry.
+  // Each attendee is also written as its own row to a dedicated
+  // toolbox_talk_attendees register (one row per person per permit),
+  // so the full sign-in sheet for any permit can be pulled up on its
+  // own — not just the joined name string kept on the permit record
+  // itself for quick reference. Applies identically to a renewed
+  // permit (Rev.73 below), never carried over from an earlier permit
+  // even for the same crew.
   function promptToolboxTalk_(permitId, rec){
-    var root = document.getElementById('ptw-modal-root');
-    root.innerHTML = '<div class="ptw-modal-bg"><div class="ptw-modal" style="max-width:460px">'
-      + '<h3>Toolbox Talk — ' + String(permitId).replace(/</g,'&lt;') + '</h3>'
-      + '<div style="font-size:12px;opacity:.8;margin-bottom:10px">List everyone attending the toolbox talk for this permit, one name per line. This list becomes the permit\'s official Number of Workers — it cannot be typed separately.</div>'
-      + '<textarea id="ptw-tbt-names" rows="8" style="width:100%;background:var(--pdw-bg3,#101d3a);border:1px solid var(--pdw-border,#2a3a5c);color:inherit;border-radius:7px;padding:8px 10px;font-size:13px" placeholder="One name per line"></textarea>'
-      + '<div style="font-size:11px;margin-top:6px;opacity:.7" id="ptw-tbt-count">0 attendees</div>'
-      + '<div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">'
-        + '<button type="button" class="ptw-btn" id="ptw-tbt-confirm" style="background:var(--pdw-grn,#4FCB9E);color:#fff">Record Toolbox Talk</button>'
-      + '</div></div></div>';
-    var ta = document.getElementById('ptw-tbt-names');
-    var countEl = document.getElementById('ptw-tbt-count');
-    function namesFromTextarea(){
-      return ta.value.split('\n').map(function(s){ return s.trim(); }).filter(function(s){ return !!s; });
+    var attendees = []; // {name, idNum, sigDataUrl, signedAt}
+
+    function normName(s){ return String(s||'').trim().toLowerCase(); }
+    function normId(s){ return String(s||'').trim().toLowerCase(); }
+    function duplicateIndexes(){
+      var dup = {};
+      attendees.forEach(function(a, i){
+        var n = normName(a.name), d = normId(a.idNum);
+        attendees.forEach(function(b, j){
+          if (i === j) return;
+          if (n && n === normName(b.name)) dup[i] = dup[j] = true;
+          if (d && d === normId(b.idNum)) dup[i] = dup[j] = true;
+        });
+      });
+      return dup;
     }
-    ta.addEventListener('input', function(){
-      var n = namesFromTextarea().length;
-      countEl.textContent = n + (n === 1 ? ' attendee' : ' attendees');
-    });
-    document.getElementById('ptw-tbt-confirm').onclick = function(){
-      var names = namesFromTextarea();
-      if (!names.length){ alert('Add at least one attendee before recording the toolbox talk.'); return; }
-      var payload = {
-        'Toolbox Talk Attendees': names.join(', '),
-        'Toolbox Talk Date': new Date().toLocaleString(),
-        'Number of Workers': String(names.length)
+    function isComplete(){
+      if (!attendees.length) return false;
+      var dup = duplicateIndexes();
+      return attendees.every(function(a, i){
+        return a.name.trim() && a.idNum.trim() && a.sigDataUrl && !dup[i];
+      });
+    }
+    function renderTbt(){
+      var root = document.getElementById('ptw-modal-root');
+      var dup = duplicateIndexes();
+      var rowsHtml = attendees.map(function(a, i){
+        var isDup = !!dup[i];
+        var borderStyle = isDup ? 'border:1px solid var(--pdw-red,#E05C5C)' : 'border:1px solid var(--pdw-border,#2a3a5c)';
+        return '<div class="ptw-tbt-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;padding:6px;border-radius:6px;' + borderStyle + '">'
+          + '<input type="text" data-i="' + i + '" data-f="name" value="' + String(a.name).replace(/"/g,'&quot;') + '" placeholder="Full name" style="flex:1 1 40%;min-width:0;background:var(--pdw-bg3,#101d3a);border:1px solid var(--pdw-border,#2a3a5c);color:inherit;border-radius:6px;padding:6px 8px;font-size:12px">'
+          + '<input type="text" data-i="' + i + '" data-f="idNum" value="' + String(a.idNum).replace(/"/g,'&quot;') + '" placeholder="ID / Badge #" style="flex:1 1 28%;min-width:0;background:var(--pdw-bg3,#101d3a);border:1px solid var(--pdw-border,#2a3a5c);color:inherit;border-radius:6px;padding:6px 8px;font-size:12px">'
+          + (a.sigDataUrl
+            ? '<button type="button" class="ptw-btn ptw-tbt-view-sig" data-i="' + i + '" style="background:var(--pdw-grn,#4FCB9E);color:#fff;white-space:nowrap">✓ Signed</button>'
+            : '<button type="button" class="ptw-btn ptw-tbt-sign" data-i="' + i + '" style="white-space:nowrap">Sign</button>')
+          + '<button type="button" class="ptw-btn ptw-tbt-remove" data-i="' + i + '" style="background:var(--pdw-red,#E05C5C);color:#fff;padding:6px 9px">✕</button>'
+          + '</div>'
+          + (isDup ? '<div style="font-size:10.5px;color:var(--pdw-red,#E05C5C);margin:-4px 0 6px 2px">This name or ID matches another attendee already in the list.</div>' : '');
+      }).join('');
+      var complete = isComplete();
+      root.innerHTML = '<div class="ptw-modal-bg"><div class="ptw-modal" style="max-width:560px">'
+        + '<h3>Toolbox Talk — ' + String(permitId).replace(/</g,'&lt;') + '</h3>'
+        + '<div style="font-size:12px;opacity:.8;margin-bottom:10px">Add every attendee below with their name, ID/badge number, and signature. Duplicate names or IDs are blocked. This list becomes the permit\'s official Number of Workers.</div>'
+        + '<div id="ptw-tbt-rows">' + (rowsHtml || '<div style="font-size:12px;opacity:.6;padding:8px 0">No attendees yet.</div>') + '</div>'
+        + '<button type="button" class="ptw-btn" id="ptw-tbt-add" style="background:var(--pdw-bg3,#101d3a);margin-top:4px">+ Add Attendee</button>'
+        + '<div style="font-size:11px;margin-top:8px;opacity:.7" id="ptw-tbt-count">' + attendees.length + (attendees.length === 1 ? ' attendee' : ' attendees') + '</div>'
+        + '<div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">'
+          + '<button type="button" class="ptw-btn" id="ptw-tbt-confirm" ' + (complete ? '' : 'disabled') + ' style="background:var(--pdw-grn,#4FCB9E);color:#fff;opacity:' + (complete ? '1' : '.5') + '">Record Toolbox Talk</button>'
+        + '</div></div></div>';
+
+      root.querySelectorAll('input[data-f]').forEach(function(inp){
+        inp.addEventListener('input', function(){
+          var i = parseInt(inp.getAttribute('data-i'), 10);
+          attendees[i][inp.getAttribute('data-f')] = inp.value;
+          // Lightweight revalidation only — re-rendering the whole
+          // table on every keystroke would steal focus mid-type, so
+          // only the count/confirm-button/duplicate-border state is
+          // refreshed, not the input elements themselves.
+          var dupNow = duplicateIndexes();
+          root.querySelectorAll('.ptw-tbt-row').forEach(function(rowEl, idx){
+            rowEl.style.border = dupNow[idx] ? '1px solid var(--pdw-red,#E05C5C)' : '1px solid var(--pdw-border,#2a3a5c)';
+          });
+          var confirmBtn = document.getElementById('ptw-tbt-confirm');
+          var ok = isComplete();
+          confirmBtn.disabled = !ok;
+          confirmBtn.style.opacity = ok ? '1' : '.5';
+        });
+      });
+      root.querySelectorAll('.ptw-tbt-sign').forEach(function(btn){
+        btn.onclick = function(){
+          var i = parseInt(btn.getAttribute('data-i'), 10);
+          var who = attendees[i].name || 'Attendee';
+          openSignaturePad_(
+            'Attendee Signature — ' + who,
+            'Please sign to confirm attendance at this toolbox talk.',
+            function(dataUrl){
+              attendees[i].sigDataUrl = dataUrl;
+              attendees[i].signedAt = new Date().toLocaleString();
+              renderTbt();
+            },
+            function(){ renderTbt(); }
+          );
+        };
+      });
+      root.querySelectorAll('.ptw-tbt-view-sig').forEach(function(btn){
+        btn.onclick = function(){
+          var i = parseInt(btn.getAttribute('data-i'), 10);
+          viewSignature_('Attendee Signature — ' + (attendees[i].name || 'Attendee'), attendees[i].sigDataUrl, attendees[i].signedAt);
+        };
+      });
+      root.querySelectorAll('.ptw-tbt-remove').forEach(function(btn){
+        btn.onclick = function(){
+          var i = parseInt(btn.getAttribute('data-i'), 10);
+          attendees.splice(i, 1);
+          renderTbt();
+        };
+      });
+      document.getElementById('ptw-tbt-add').onclick = function(){
+        attendees.push({ name:'', idNum:'', sigDataUrl:'', signedAt:'' });
+        renderTbt();
       };
-      Object.keys(payload).forEach(function(k){ rec[k] = payload[k]; });
-      var cfg = TABLES['register'];
-      // Rev.29's original logic (now entered here instead of at
-      // creation) decides whether the permit still needs a checklist
-      // or can go straight to Area Manager.
-      var pendingEmail = null;
-      if (checklistWaitingNames_(rec).length){
-        payload['Status'] = 'Waiting';
-      } else {
-        payload['Status'] = 'Awaiting Area Manager';
-        if (rec['Unit Manager Email']) pendingEmail = { email: rec['Unit Manager Email'], name: rec['Unit Manager'] };
-      }
-      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, payload).then(function(res){
-        if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error') + '\n\nPlease try again.'); return; }
-        root.innerHTML = '';
-        reloadTabAndDashboard('register');
-        if (pendingEmail) notifyPtwStage_(permitId, 'areaManager', pendingEmail.email, pendingEmail.name, rec, [lookupIssuerEmail(rec['Permit Issuer - Name']), lookupIssuerDeptManagerEmail_(rec['Permit Issuer - Name'])]);
-      }).catch(function(){ alert('Could not reach the server — try again from the permit record.'); });
-    };
+      document.getElementById('ptw-tbt-confirm').onclick = function(){
+        if (!isComplete()) return;
+        var names = attendees.map(function(a){ return a.name.trim(); });
+        var tbtDate = new Date().toLocaleString();
+        var payload = {
+          'Toolbox Talk Attendees': names.join(', '),
+          'Toolbox Talk Date': tbtDate,
+          'Number of Workers': String(attendees.length)
+        };
+        Object.keys(payload).forEach(function(k){ rec[k] = payload[k]; });
+        var cfg = TABLES['register'];
+        // Rev.29's original logic (now entered here instead of at
+        // creation) decides whether the permit still needs a checklist
+        // or can go straight to Area Manager.
+        var pendingEmail = null;
+        if (checklistWaitingNames_(rec).length){
+          payload['Status'] = 'Waiting';
+        } else {
+          payload['Status'] = 'Awaiting Area Manager';
+          if (rec['Unit Manager Email']) pendingEmail = { email: rec['Unit Manager Email'], name: rec['Unit Manager'] };
+        }
+        var attendeeRows = attendees.map(function(a, i){
+          return {
+            'Record ID': permitId + '-TBT-' + (i+1),
+            'Permit ID': permitId,
+            'Attendee Name': a.name.trim(),
+            'Attendee ID': a.idNum.trim(),
+            'Signature': a.sigDataUrl,
+            'Signed At': a.signedAt || tbtDate,
+            'Record Status': 'Active'
+          };
+        });
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, payload).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error') + '\n\nPlease try again.'); return; }
+          // Best-effort: the permit's own save above is what gates the
+          // workflow forward, so a failure writing the attendee
+          // register (e.g. the toolbox_talk_attendees tab not created
+          // yet) is reported but doesn't block the permit itself.
+          postJSON('write', {tab: 'toolbox_talk_attendees'}, attendeeRows).catch(function(){ /* silent — permit's own fields already carry the joined names as a fallback */ });
+          root.innerHTML = '';
+          reloadTabAndDashboard('register');
+          if (pendingEmail) notifyPtwStage_(permitId, 'areaManager', pendingEmail.email, pendingEmail.name, rec, [lookupIssuerEmail(rec['Permit Issuer - Name']), lookupIssuerDeptManagerEmail_(rec['Permit Issuer - Name'])]);
+        }).catch(function(){ alert('Could not reach the server — try again from the permit record.'); });
+      };
+    }
+    renderTbt();
   }
 
   // Rev.73 (Issam, voice, 2026-11-18) — Renewal. A permit's 12-hour
