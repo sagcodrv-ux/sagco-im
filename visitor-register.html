@@ -215,43 +215,82 @@
     cursor: pointer;
     font-weight: 600;
   }
+  /* Rev.77 (Issam, voice, 2026-11-19) — English/Arabic toggle. The
+     whole form, every question, label, option and message, switches
+     language; direction flips to right-to-left for Arabic. Only the
+     text the visitor themselves types stays exactly as typed. */
+  .lang-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 50;
+    display: flex;
+    background: var(--bg2);
+    border: 1px solid var(--border-gold);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  html[dir="rtl"] .lang-toggle { right: auto; left: 14px; }
+  .lang-toggle button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 14px;
+    cursor: pointer;
+  }
+  .lang-toggle button.active {
+    background: var(--gold);
+    color: #0D1B35;
+  }
+  /* RTL: mirror the pieces that have a visual "side" to them — the
+     invite-info rows, the remove-person button position, the
+     required-field grid stays symmetric so it needs no mirroring. */
+  html[dir="rtl"] body { font-family: 'Tahoma', 'Segoe UI', -apple-system, sans-serif; }
+  html[dir="rtl"] .invite-info .value { text-align: left; }
+  html[dir="rtl"] .person-card .remove-person { right: auto; left: 14px; }
 </style>
 </head>
 <body>
+<div class="lang-toggle">
+  <button type="button" id="lang-en" onclick="setLang('en')">EN</button>
+  <button type="button" id="lang-ar" onclick="setLang('ar')">العربية</button>
+</div>
 <div class="wrap">
   <div class="logo">
     <h1>SAGCO IMS</h1>
-    <p>Visitor &amp; Contractor Registration</p>
+    <p data-i18n="subtitle">Visitor &amp; Contractor Registration</p>
   </div>
 
   <!-- Loading state -->
   <div id="state-loading" class="card">
-    <div class="loading">Loading invitation details…</div>
+    <div class="loading" data-i18n="loading">Loading invitation details…</div>
   </div>
 
   <!-- Invalid / expired token -->
   <div id="state-error" class="card hidden">
-    <h2>Invalid or Expired Link</h2>
-    <p class="sub">This invitation link is not valid or has already been used.</p>
-    <div class="msg err" style="display:block">
+    <h2 data-i18n="errorTitle">Invalid or Expired Link</h2>
+    <p class="sub" data-i18n="errorSub">This invitation link is not valid or has already been used.</p>
+    <div class="msg err" style="display:block" data-i18n="errorMsg">
       Please contact the person who invited you and request a new registration link.
     </div>
   </div>
 
   <!-- Already submitted -->
   <div id="state-already" class="card hidden">
-    <h2>Registration Already Submitted</h2>
-    <p class="sub">This invitation has already been completed.</p>
+    <h2 data-i18n="alreadyTitle">Registration Already Submitted</h2>
+    <p class="sub" data-i18n="alreadySub">This invitation has already been completed.</p>
     <div id="already-detail" class="invite-info"></div>
-    <div class="msg info" style="display:block">
+    <div class="msg info" style="display:block" data-i18n="alreadyMsg">
       Your registration is being reviewed. You will receive an email once it is approved.
     </div>
   </div>
 
   <!-- Registration form -->
   <div id="state-form" class="card hidden">
-    <h2>Complete Your Registration</h2>
-    <p class="sub">You can register yourself alone, or add a group from the same company. Fields marked with <span style="color:var(--red)">*</span> are required.</p>
+    <h2 data-i18n="formTitle">Complete Your Registration</h2>
+    <p class="sub" data-i18n-html="formSub">You can register yourself alone, or add a group from the same company. Fields marked with <span style="color:var(--red)">*</span> are required.</p>
 
     <div class="invite-info" id="invite-summary"></div>
 
@@ -262,15 +301,15 @@
            every QR code, for everyone you register, even if you also
            give a guest their own email below. -->
       <div class="field">
-        <label>Your Email <span class="req">*</span> <span style="font-weight:400;color:var(--text-muted)">(you'll receive the full list and all QR codes here)</span></label>
-        <input id="requesterEmail" name="requesterEmail" type="email" required placeholder="you@company.com">
+        <label data-i18n-html="requesterEmailLabel">Your Email <span class="req">*</span> <span style="font-weight:400;color:var(--text-muted)">(you'll receive the full list and all QR codes here)</span></label>
+        <input id="requesterEmail" name="requesterEmail" type="email" required data-i18n-ph="requesterEmailPh" placeholder="you@company.com">
       </div>
 
       <div id="people-list"></div>
 
-      <button type="button" class="btn" id="btn-add-person" style="background:var(--bg3);color:var(--gold-lt);border:1px solid var(--border-gold);margin-top:4px">+ Add Another Person</button>
+      <button type="button" class="btn" id="btn-add-person" style="background:var(--bg3);color:var(--gold-lt);border:1px solid var(--border-gold);margin-top:4px" data-i18n="addPerson">+ Add Another Person</button>
 
-      <button type="submit" class="btn" id="btn-submit" style="margin-top:16px">Submit Registration</button>
+      <button type="submit" class="btn" id="btn-submit" style="margin-top:16px" data-i18n="submitBtn">Submit Registration</button>
     </form>
 
     <div id="form-msg" class="msg"></div>
@@ -278,21 +317,133 @@
 
   <!-- Success state -->
   <div id="state-success" class="card hidden">
-    <h2>Registration Submitted Successfully</h2>
-    <p class="sub" id="success-sub">Thank you. Your details have been received.</p>
-    <div class="msg ok" style="display:block">
+    <h2 data-i18n="successTitle">Registration Submitted Successfully</h2>
+    <p class="sub" id="success-sub" data-i18n="successSubDefault">Thank you. Your details have been received.</p>
+    <div class="msg ok" style="display:block" data-i18n-html="successMsg">
       The person who invited you has been notified.<br>
       You (as the requester) will receive one email with the full list and a QR code for everyone, once approved by Safety / Management. Anyone you also gave their own email to will get a personal copy too.
     </div>
   </div>
 
-  <div class="footer">
+  <div class="footer" data-i18n-html="footer">
     SAGCO Integrated Management System · Visitor Gate<br>
     This is a secure registration page. Do not share this link with others.
   </div>
 </div>
 
 <script>
+// Rev.77 (Issam, voice, 2026-11-19) — the full EN/AR dictionary, kept
+// as one flat list so every question has both versions side by side
+// for review. Outside the page's own IIFE so setLang() (called from
+// the toggle buttons' onclick, in the page markup) can reach it.
+var I18N = {
+  en: {
+    subtitle: 'Visitor & Contractor Registration',
+    loading: 'Loading invitation details…',
+    errorTitle: 'Invalid or Expired Link',
+    errorSub: 'This invitation link is not valid or has already been used.',
+    errorMsg: 'Please contact the person who invited you and request a new registration link.',
+    alreadyTitle: 'Registration Already Submitted',
+    alreadySub: 'This invitation has already been completed.',
+    alreadyMsg: 'Your registration is being reviewed. You will receive an email once it is approved.',
+    formTitle: 'Complete Your Registration',
+    formSub: 'You can register yourself alone, or add a group from the same company. Fields marked with <span style="color:var(--red)">*</span> are required.',
+    requesterEmailLabel: 'Your Email <span class="req">*</span> <span style="font-weight:400;color:var(--text-muted)">(you\'ll receive the full list and all QR codes here)</span>',
+    requesterEmailPh: 'you@company.com',
+    addPerson: '+ Add Another Person',
+    submitBtn: 'Submit Registration',
+    submitting: 'Submitting…',
+    successTitle: 'Registration Submitted Successfully',
+    successSubDefault: 'Thank you. Your details have been received.',
+    successSubGroup: 'Thank you. The details for all {n} people have been received.',
+    successMsg: 'The person who invited you has been notified.<br>You (as the requester) will receive one email with the full list and a QR code for everyone, once approved by Safety / Management. Anyone you also gave their own email to will get a personal copy too.',
+    footer: 'SAGCO Integrated Management System · Visitor Gate<br>This is a secure registration page. Do not share this link with others.',
+    // Invite summary rows
+    labelType: 'Type', typeVisitor: 'Visitor',
+    labelDestination: 'Destination', labelHost: 'Host', labelHostDept: 'Host Dept', labelPurpose: 'Purpose',
+    labelName: 'Name', labelStatus: 'Status',
+    // Person card
+    personN: 'Person {n}', removePerson: 'Remove',
+    firstNameLabel: 'First Name <span class="req">*</span>', firstNamePh: 'First name',
+    familyNameLabel: 'Family Name <span class="req">*</span>', familyNamePh: 'Family name',
+    idNumberLabel: 'ID / Passport Number <span class="req">*</span>', idNumberPh: 'National ID or Passport number',
+    phoneLabel: 'Phone Number <span class="req">*</span>', phonePh: '+966 5X XXX XXXX',
+    personEmailLabel: 'This Person\'s Email <span style="font-weight:400;color:var(--text-dim)">(optional)</span>', personEmailPh: 'leave blank unless they want their own copy',
+    companyLabel: 'Company / Organization <span class="req">*</span>', companyPh: 'Company name',
+    // Form validation / errors
+    errMissingFields: 'Please fill in your own email and every required field for each person.',
+    errSubmitFailed: 'Submission failed. Please try again.',
+    errNetwork: 'Network error. Please check your connection and try again.'
+  },
+  ar: {
+    subtitle: 'تسجيل الزوار والمقاولين',
+    loading: 'جارٍ تحميل بيانات الدعوة…',
+    errorTitle: 'رابط غير صالح أو منتهي الصلاحية',
+    errorSub: 'رابط الدعوة هذا غير صالح أو تم استخدامه من قبل.',
+    errorMsg: 'يرجى التواصل مع الشخص الذي دعاك وطلب رابط تسجيل جديد.',
+    alreadyTitle: 'تم إرسال التسجيل مسبقًا',
+    alreadySub: 'تم إكمال هذه الدعوة من قبل.',
+    alreadyMsg: 'جارٍ مراجعة تسجيلك. سيصلك بريد إلكتروني بمجرد الموافقة عليه.',
+    formTitle: 'إكمال التسجيل',
+    formSub: 'يمكنك التسجيل بمفردك، أو إضافة مجموعة من نفس الشركة. الحقول المميزة بـ <span style="color:var(--red)">*</span> إلزامية.',
+    requesterEmailLabel: 'بريدك الإلكتروني <span class="req">*</span> <span style="font-weight:400;color:var(--text-muted)">(ستصلك هنا القائمة الكاملة وجميع رموز QR)</span>',
+    requesterEmailPh: 'you@company.com',
+    addPerson: '+ إضافة شخص آخر',
+    submitBtn: 'إرسال التسجيل',
+    submitting: 'جارٍ الإرسال…',
+    successTitle: 'تم إرسال التسجيل بنجاح',
+    successSubDefault: 'شكرًا لك. تم استلام بياناتك.',
+    successSubGroup: 'شكرًا لك. تم استلام بيانات جميع الأشخاص وعددهم {n}.',
+    successMsg: 'تم إخطار الشخص الذي دعاك.<br>سيصلك أنت (مقدّم الطلب) بريد إلكتروني واحد يحتوي على القائمة الكاملة ورمز QR لكل شخص، بعد موافقة السلامة / الإدارة. أي شخص زوّدته ببريده الإلكتروني الخاص سيحصل على نسخة شخصية أيضًا.',
+    footer: 'نظام SAGCO المتكامل للإدارة · بوابة الزوار<br>هذه صفحة تسجيل آمنة. لا تشارك هذا الرابط مع الآخرين.',
+    labelType: 'النوع', typeVisitor: 'زائر',
+    labelDestination: 'الجهة المقصودة', labelHost: 'المضيف', labelHostDept: 'قسم المضيف', labelPurpose: 'الغرض',
+    labelName: 'الاسم', labelStatus: 'الحالة',
+    personN: 'الشخص {n}', removePerson: 'إزالة',
+    firstNameLabel: 'الاسم الأول <span class="req">*</span>', firstNamePh: 'الاسم الأول',
+    familyNameLabel: 'اسم العائلة <span class="req">*</span>', familyNamePh: 'اسم العائلة',
+    idNumberLabel: 'رقم الهوية / الجواز <span class="req">*</span>', idNumberPh: 'رقم الهوية الوطنية أو جواز السفر',
+    phoneLabel: 'رقم الهاتف <span class="req">*</span>', phonePh: '+966 5X XXX XXXX',
+    personEmailLabel: 'البريد الإلكتروني لهذا الشخص <span style="font-weight:400;color:var(--text-dim)">(اختياري)</span>', personEmailPh: 'اتركه فارغًا إلا إذا أراد نسخته الخاصة',
+    companyLabel: 'الشركة / المؤسسة <span class="req">*</span>', companyPh: 'اسم الشركة',
+    errMissingFields: 'يرجى تعبئة بريدك الإلكتروني وكل حقل إلزامي لكل شخص.',
+    errSubmitFailed: 'فشل الإرسال. يرجى المحاولة مرة أخرى.',
+    errNetwork: 'خطأ في الشبكة. يرجى التحقق من اتصالك والمحاولة مرة أخرى.'
+  }
+};
+var _curLang = 'en';
+function t(key){ return (I18N[_curLang] && I18N[_curLang][key]) || (I18N.en[key]) || key; }
+function applyStaticI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(function(el){
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(function(el){
+    el.innerHTML = t(el.getAttribute('data-i18n-html'));
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(function(el){
+    el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph')));
+  });
+  // "Person {n}" on each card — the only translated string with a
+  // number spliced in, so it gets its own small sweep.
+  document.querySelectorAll('[data-i18n-num]').forEach(function(el){
+    var n = el.getAttribute('data-num');
+    el.textContent = t(el.getAttribute('data-i18n-num')).replace('{n}', n);
+  });
+}
+function setLang(lang){
+  _curLang = (lang === 'ar') ? 'ar' : 'en';
+  document.documentElement.setAttribute('lang', _curLang);
+  document.documentElement.setAttribute('dir', _curLang === 'ar' ? 'rtl' : 'ltr');
+  document.getElementById('lang-en').classList.toggle('active', _curLang === 'en');
+  document.getElementById('lang-ar').classList.toggle('active', _curLang === 'ar');
+  try { localStorage.setItem('visitorRegLang', _curLang); } catch(e){ /* not fatal */ }
+  applyStaticI18n();
+  // Rev.77 — dynamically-built content (the invite summary, the
+  // already-submitted detail, and every person card) is re-rendered
+  // in the new language too, not just the static markup around it.
+  if (window._reapplyDynamicI18n) window._reapplyDynamicI18n();
+}
+
 (function(){
   /* ── Configuration ───────────────────────────────────────── */
   // Same Web App URL used by the rest of the IMS
@@ -313,6 +464,17 @@
     var m = location.search.match(/[?&]token=([^&]+)/);
     return m ? decodeURIComponent(m[1]) : '';
   }
+
+  // Rev.77 (Issam, voice, 2026-11-19) — restores whichever language
+  // this visitor last picked on this device (if any), so returning to
+  // the page or switching between its states doesn't reset to
+  // English. Runs before the invitation itself loads so even the
+  // "Loading…" text is in the right language from the first paint.
+  (function initLang(){
+    var saved = null;
+    try { saved = localStorage.getItem('visitorRegLang'); } catch(e){ /* not fatal */ }
+    setLang(saved === 'ar' ? 'ar' : 'en');
+  })();
 
   /* ── Load invitation by token ────────────────────────────── */
   function loadInvitation(token){
@@ -354,11 +516,8 @@
 
         if (status === 'Submitted' || status === 'Approved' || status === 'Rejected'){
           // Already used
-          var html = '';
-          html += '<div class="row"><span class="label">Name</span><span class="value">' + esc(person['First Name']) + ' ' + esc(person['Family Name']) + '</span></div>';
-          html += '<div class="row"><span class="label">Status</span><span class="value">' + esc(status) + '</span></div>';
-          html += '<div class="row"><span class="label">Destination</span><span class="value">' + esc(person['Destination Department']) + '</span></div>';
-          $('already-detail').innerHTML = html;
+          window._invitationPerson = person;
+          renderAlreadyDetail(person, status);
           show('state-already');
           return;
         }
@@ -385,18 +544,29 @@
       });
   }
 
+  // Rev.77 (Issam, voice, 2026-11-19) — labels translate via t();
+  // the VALUES (p['Type'], p['Host Name'], etc.) are data that came
+  // from the sheet, typed by whoever created the invitation, and are
+  // never translated — same rule as what a visitor types themselves.
   function renderInviteSummary(p){
     var html = '';
-    html += '<div class="row"><span class="label">Type</span><span class="value">' + esc(p['Type'] || 'Visitor') + '</span></div>';
-    html += '<div class="row"><span class="label">Destination</span><span class="value">' + esc(p['Destination Department']) + '</span></div>';
-    html += '<div class="row"><span class="label">Host</span><span class="value">' + esc(p['Host Name']) + '</span></div>';
+    html += '<div class="row"><span class="label">' + t('labelType') + '</span><span class="value">' + esc(p['Type'] || t('typeVisitor')) + '</span></div>';
+    html += '<div class="row"><span class="label">' + t('labelDestination') + '</span><span class="value">' + esc(p['Destination Department']) + '</span></div>';
+    html += '<div class="row"><span class="label">' + t('labelHost') + '</span><span class="value">' + esc(p['Host Name']) + '</span></div>';
     if (p['Host Department']) {
-      html += '<div class="row"><span class="label">Host Dept</span><span class="value">' + esc(p['Host Department']) + '</span></div>';
+      html += '<div class="row"><span class="label">' + t('labelHostDept') + '</span><span class="value">' + esc(p['Host Department']) + '</span></div>';
     }
     if (p['Notes']) {
-      html += '<div class="row"><span class="label">Purpose</span><span class="value">' + esc(p['Notes']) + '</span></div>';
+      html += '<div class="row"><span class="label">' + t('labelPurpose') + '</span><span class="value">' + esc(p['Notes']) + '</span></div>';
     }
     $('invite-summary').innerHTML = html;
+  }
+  function renderAlreadyDetail(p, status){
+    var html = '';
+    html += '<div class="row"><span class="label">' + t('labelName') + '</span><span class="value">' + esc(p['First Name']) + ' ' + esc(p['Family Name']) + '</span></div>';
+    html += '<div class="row"><span class="label">' + t('labelStatus') + '</span><span class="value">' + esc(status) + '</span></div>';
+    html += '<div class="row"><span class="label">' + t('labelDestination') + '</span><span class="value">' + esc(p['Destination Department']) + '</span></div>';
+    $('already-detail').innerHTML = html;
   }
 
   /* ── Repeatable person list (Rev.24, Issam, voice, 2026-11-12) ──
@@ -407,6 +577,12 @@
      for everyone. Leaving it blank just means that person's QR only
      appears inside the requester's own table. */
   var _personCount = 0;
+  // Rev.77 (Issam, voice, 2026-11-19) — every label/placeholder below
+  // carries its own data-i18n attribute, same mechanism the static
+  // page chrome uses, so setLang()'s generic applyStaticI18n() sweep
+  // re-translates these too — including cards created before a
+  // language switch — without ever touching what's already typed
+  // into the inputs next to them.
   function addPersonCard(){
     _personCount++;
     var n = _personCount;
@@ -414,21 +590,22 @@
     div.className = 'person-card';
     div.setAttribute('data-person', n);
     div.innerHTML = ''
-      + '<div class="person-title">Person ' + n + '</div>'
-      + (n > 1 ? '<button type="button" class="remove-person" data-remove="' + n + '">Remove</button>' : '')
+      + '<div class="person-title" data-i18n-num="personN" data-num="' + n + '">' + t('personN').replace('{n}', n) + '</div>'
+      + (n > 1 ? '<button type="button" class="remove-person" data-remove="' + n + '" data-i18n="removePerson">' + t('removePerson') + '</button>' : '')
       + '<div class="row2">'
-        + '<div class="field"><label>First Name <span class="req">*</span></label><input class="p-firstName" required placeholder="First name"></div>'
-        + '<div class="field"><label>Family Name <span class="req">*</span></label><input class="p-familyName" required placeholder="Family name"></div>'
+        + '<div class="field"><label data-i18n-html="firstNameLabel"></label><input class="p-firstName" required data-i18n-ph="firstNamePh"></div>'
+        + '<div class="field"><label data-i18n-html="familyNameLabel"></label><input class="p-familyName" required data-i18n-ph="familyNamePh"></div>'
       + '</div>'
-      + '<div class="field"><label>ID / Passport Number <span class="req">*</span></label><input class="p-idNumber" required placeholder="National ID or Passport number"></div>'
+      + '<div class="field"><label data-i18n-html="idNumberLabel"></label><input class="p-idNumber" required data-i18n-ph="idNumberPh"></div>'
       + '<div class="row2">'
-        + '<div class="field"><label>Phone Number <span class="req">*</span></label><input class="p-phone" type="tel" required placeholder="+966 5X XXX XXXX"></div>'
-        + '<div class="field"><label>This Person\'s Email <span style="font-weight:400;color:var(--text-dim)">(optional)</span></label><input class="p-email" type="email" placeholder="leave blank unless they want their own copy"></div>'
+        + '<div class="field"><label data-i18n-html="phoneLabel"></label><input class="p-phone" type="tel" required data-i18n-ph="phonePh"></div>'
+        + '<div class="field"><label data-i18n-html="personEmailLabel"></label><input class="p-email" type="email" data-i18n-ph="personEmailPh"></div>'
       + '</div>'
-      + '<div class="field"><label>Company / Organization <span class="req">*</span></label><input class="p-company" required placeholder="Company name"></div>';
+      + '<div class="field"><label data-i18n-html="companyLabel"></label><input class="p-company" required data-i18n-ph="companyPh"></div>';
     $('people-list').appendChild(div);
     var removeBtn = div.querySelector('[data-remove]');
     if (removeBtn) removeBtn.addEventListener('click', function(){ div.remove(); });
+    applyStaticI18n();
   }
   function resetPeopleList(){
     $('people-list').innerHTML = '';
@@ -464,7 +641,7 @@
 
     if (!requesterEmail || missing || !people.length){
       msg.className = 'msg err';
-      msg.textContent = 'Please fill in your own email and every required field for each person.';
+      msg.textContent = t('errMissingFields');
       msg.style.display = 'block';
       return;
     }
@@ -472,7 +649,7 @@
     var payload = { token: window._token, requesterEmail: requesterEmail, people: people };
 
     btn.disabled = true;
-    btn.textContent = 'Submitting…';
+    btn.textContent = t('submitting');
 
     fetch(SHEETS_URL + '?action=submitVisitorRegistration', {
       method: 'POST',
@@ -482,25 +659,42 @@
     .then(function(res){
       if (res.status === 'ok'){
         $('success-sub').textContent = people.length > 1
-          ? 'Thank you. The details for all ' + people.length + ' people have been received.'
-          : 'Thank you. Your details have been received.';
+          ? t('successSubGroup').replace('{n}', people.length)
+          : t('successSubDefault');
         show('state-success');
       } else {
         msg.className = 'msg err';
-        msg.textContent = res.message || 'Submission failed. Please try again.';
+        msg.textContent = res.message || t('errSubmitFailed');
         msg.style.display = 'block';
         btn.disabled = false;
-        btn.textContent = 'Submit Registration';
+        btn.textContent = t('submitBtn');
       }
     })
     .catch(function(err){
       msg.className = 'msg err';
-      msg.textContent = 'Network error. Please check your connection and try again.';
+      msg.textContent = t('errNetwork');
       msg.style.display = 'block';
       btn.disabled = false;
-      btn.textContent = 'Submit Registration';
+      btn.textContent = t('submitBtn');
     });
   });
+
+  // Rev.77 (Issam, voice, 2026-11-19) — re-renders whichever
+  // dynamically-built block is actually on screen when the language
+  // is switched. Both renderInviteSummary/renderAlreadyDetail rebuild
+  // purely from window._invitationPerson (sheet data, set once when
+  // the invitation loads), never from anything the visitor typed, so
+  // this never touches an in-progress person card's own values —
+  // those are re-translated separately, label-by-label, inside
+  // applyStaticI18n() above.
+  window._reapplyDynamicI18n = function(){
+    var p = window._invitationPerson;
+    if (!p) return;
+    if (!$('state-form').classList.contains('hidden')) renderInviteSummary(p);
+    if (!$('state-already').classList.contains('hidden')){
+      renderAlreadyDetail(p, String(p['Registration Status']||'').trim());
+    }
+  };
 
   /* ── Start ───────────────────────────────────────────────── */
   loadInvitation(getToken());
