@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Permit to Work — SAGCO IMS</title>
+<script src="auth.js"></script>
+<script src="data.js"></script>
+<style>
+  :root{
+    --pdw-bg:#0D1B35; --pdw-bg2:#142140; --pdw-bg3:#1a2a50;
+    --pdw-gold:#C9A84C; --pdw-gold-lt:#E8C97A;
+    --pdw-text:rgba(255,255,255,.92); --pdw-text-muted:rgba(255,255,255,.55);
+    --pdw-text-dim:rgba(255,255,255,.35); --pdw-border:rgba(255,255,255,.08);
+    --pdw-border-gold:rgba(201,168,76,.35);
+    --pdw-blue:#5B9BD5; --pdw-red:#F0685C; --pdw-amb:#E8B339; --pdw-grn:#4FCB9E;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--pdw-bg); color:var(--pdw-text); margin:0; min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;}
+  .pm-wrap{max-width:480px; margin:0 auto; padding:16px 16px 40px}
+  .pm-header{display:flex; align-items:center; justify-content:space-between; padding:6px 2px 16px}
+  .pm-header h1{font-size:16px; margin:0; color:var(--pdw-gold-lt); font-weight:700}
+  .pm-header .pm-sub{font-size:10.5px; color:var(--pdw-text-muted); margin-top:2px}
+  .pm-full-link{font-size:10.5px; color:var(--pdw-gold-lt); text-decoration:none; border:1px solid var(--pdw-border-gold);
+    padding:5px 9px; border-radius:6px; white-space:nowrap}
+  .pm-home-btn{display:flex; align-items:center; gap:14px; width:100%; background:var(--pdw-bg2); border:1px solid var(--pdw-border);
+    border-radius:14px; padding:18px 16px; margin-bottom:12px; color:inherit; text-align:left; font-family:inherit; cursor:pointer}
+  .pm-home-btn .pm-icon{font-size:28px; flex:0 0 auto}
+  .pm-home-btn .pm-label{font-size:15px; font-weight:700}
+  .pm-home-btn .pm-count{font-size:11.5px; color:var(--pdw-text-muted); margin-top:2px}
+  .pm-home-btn.pm-primary{background:linear-gradient(135deg,var(--pdw-gold) 0%, #B08F3A 100%); color:#15223f; border:none}
+  .pm-home-btn.pm-primary .pm-count{color:rgba(21,34,63,.65)}
+  .pm-back{display:inline-flex; align-items:center; gap:5px; color:var(--pdw-gold-lt); font-size:12px; font-weight:600;
+    text-decoration:none; background:none; border:none; padding:6px 0 14px; cursor:pointer; font-family:inherit}
+  .pm-list-title{font-size:15px; font-weight:700; margin:0 0 4px}
+  .pm-list-empty{font-size:12.5px; color:var(--pdw-text-muted); padding:30px 10px; text-align:center}
+  .pm-card{background:var(--pdw-bg2); border:1px solid var(--pdw-border); border-radius:12px; padding:14px; margin-bottom:10px}
+  .pm-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px}
+  .pm-card-id{font-size:13.5px; font-weight:700}
+  .pm-badge{font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap}
+  .pm-b-amber{background:rgba(232,179,57,.18); color:var(--pdw-amb)}
+  .pm-b-blue{background:rgba(91,155,213,.18); color:var(--pdw-blue)}
+  .pm-b-green{background:rgba(79,203,158,.18); color:var(--pdw-grn)}
+  .pm-b-red{background:rgba(240,104,92,.18); color:var(--pdw-red)}
+  .pm-b-grey{background:rgba(255,255,255,.08); color:var(--pdw-text-muted)}
+  .pm-card-meta{font-size:12px; color:var(--pdw-text-muted); margin-top:6px; line-height:1.5}
+  .pm-card-meta b{color:var(--pdw-text); font-weight:600}
+  .pm-card-action{display:block; width:100%; margin-top:10px; padding:10px; border-radius:8px; border:none;
+    font-size:13px; font-weight:700; text-align:center; cursor:pointer; font-family:inherit; text-decoration:none}
+  .pm-act-main{background:var(--pdw-gold); color:#15223f}
+  .pm-act-view{background:var(--pdw-bg3); color:var(--pdw-gold-lt); border:1px solid var(--pdw-border-gold)}
+  .pm-step-dots{display:flex; gap:6px; justify-content:center; margin-bottom:16px}
+  .pm-dot{width:8px; height:8px; border-radius:50%; background:var(--pdw-border)}
+  .pm-dot.pm-active{background:var(--pdw-gold)}
+  .pm-field{margin-bottom:14px}
+  .pm-field label{display:block; font-size:12px; font-weight:600; margin-bottom:5px; color:var(--pdw-text-muted)}
+  .pm-field input,.pm-field select,.pm-field textarea{width:100%; padding:11px 12px; font-size:14px; border-radius:8px;
+    border:1px solid var(--pdw-border); background:var(--pdw-bg3); color:inherit; font-family:inherit}
+  .pm-field input::placeholder,.pm-field textarea::placeholder{color:var(--pdw-text-dim)}
+  .pm-step-nav{display:flex; gap:10px; margin-top:8px}
+  .pm-step-nav button{flex:1; padding:13px; border-radius:9px; border:none; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit}
+  .pm-btn-next{background:var(--pdw-gold); color:#15223f}
+  .pm-btn-back{background:var(--pdw-bg2); color:var(--pdw-text); border:1px solid var(--pdw-border) !important}
+  .pm-review-row{display:flex; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--pdw-border); font-size:13px}
+  .pm-review-row span:first-child{color:var(--pdw-text-muted)}
+  .pm-review-row span:last-child{font-weight:600; text-align:right}
+  .pm-err{font-size:12px; color:var(--pdw-red); margin-top:6px; display:none}
+  .pm-loading{text-align:center; padding:60px 10px; color:var(--pdw-text-muted); font-size:13px}
+</style>
+</head>
+<body>
+<div class="pm-wrap" id="pm-root">
+  <div class="pm-loading">Loading…</div>
+</div>
+
+<script>
+(function(){
+  var SHEETS_URL = window.SHEETS_URL;
+  var REG_TAB = 'ptw_register', REG_ID = 'Permit ID';
+  var root = document.getElementById('pm-root');
+
+  var PTW_WORK_TYPES = [
+    'Hot work','Cold work','Confined spaces','Working at height','Lifting',
+    'Painting','Civil work','Pipeline works (LPG / Oil)','Electrical Repairs'
+  ];
+
+  var _reg = null, _issuers = null, _users = null, _me = '';
+
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function recFromRow(headers, row){ var o={}; headers.forEach(function(h,i){ o[h]=row[i]; }); return o; }
+  function esc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  // "1234 - Khaled Hassan" -> "Khaled Hassan" (same convention as the
+  // desktop register's issuerDisplayNameFromField_).
+  function displayNameFromField(v){
+    var s = String(v||'').trim();
+    var m = s.match(/^\s*[\w-]+\s*-\s*(.+)$/);
+    return (m ? m[1] : s).trim();
+  }
+  function namesMatch(a, b){
+    a = displayNameFromField(a).toLowerCase(); b = String(b||'').trim().toLowerCase();
+    return !!a && !!b && a === b;
+  }
+
+  function fetchTab(tab){
+    return fetch(SHEETS_URL + '?tab=' + tab + '&action=read').then(function(r){ return r.json(); })
+      .then(function(data){ return (data && data.headers && data.rows) ? data : {headers:[],rows:[]}; })
+      .catch(function(){ return {headers:[],rows:[]}; });
+  }
+  function loadAll(cb){
+    Promise.all([fetchTab(REG_TAB), fetchTab('issuers'), fetchTab('users')]).then(function(r){
+      _reg = r[0]; _issuers = r[1]; _users = r[2];
+      cb();
+    });
+  }
+
+  function regRecords(){
+    var statusIdx = colIdx(_reg.headers, 'Record Status');
+    return _reg.rows.filter(function(r){
+      return statusIdx < 0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed';
+    }).map(function(r){ return recFromRow(_reg.headers, r); });
+  }
+  function myPermits(){
+    return regRecords().filter(function(rec){
+      return namesMatch(rec['Permit Issuer - Name'], _me) || namesMatch(rec['Permit Receiver - Name'], _me);
+    }).sort(function(a,b){ return String(b['Permit ID']||'').localeCompare(String(a['Permit ID']||'')); });
+  }
+  function awaitingMyApproval(){
+    return regRecords().filter(function(rec){
+      var status = String(rec['Status']||'').trim();
+      if (status === 'Awaiting Area Manager') return namesMatch(rec['Unit Manager'], _me) || String(rec['Unit Manager']||'').trim().toLowerCase() === _me.toLowerCase();
+      if (status === 'Awaiting Controller') return namesMatch(rec['Permit Controller'], _me) || String(rec['Permit Controller']||'').trim().toLowerCase() === _me.toLowerCase();
+      return false;
+    }).sort(function(a,b){ return String(b['Permit ID']||'').localeCompare(String(a['Permit ID']||'')); });
+  }
+
+  var STATUS_BADGE = {
+    'Awaiting Receiver Signature': ['pm-b-amber','Awaiting Signature'],
+    'Awaiting Toolbox Talk': ['pm-b-amber','Awaiting Toolbox Talk'],
+    'Waiting': ['pm-b-amber','Awaiting Checklist'],
+    'Awaiting Area Manager': ['pm-b-blue','Awaiting Area Manager'],
+    'Awaiting Controller': ['pm-b-blue','Awaiting Controller'],
+    'Active': ['pm-b-green','Active'],
+    'Closed': ['pm-b-grey','Closed'],
+    'Cancelled': ['pm-b-red','Cancelled'],
+    'Renewed': ['pm-b-grey','Renewed']
+  };
+  function badgeHtml(status){
+    var b = STATUS_BADGE[status] || ['pm-b-grey', status || '—'];
+    return '<span class="pm-badge ' + b[0] + '">' + esc(b[1]) + '</span>';
+  }
+  // One primary action per card — always the same deep link into the
+  // desktop register's own edit view, which already shows the right
+  // resume/approve button for whatever stage the permit is at. The
+  // mobile page's job is just to get the right permit in front of the
+  // right person with one tap; the tested approval/signature logic
+  // itself lives in ptw-register.html, not duplicated here.
+  function actionLabel(rec, context){
+    var status = String(rec['Status']||'').trim();
+    if (context === 'approval'){
+      if (status === 'Awaiting Area Manager') return 'Approve as Area Manager';
+      if (status === 'Awaiting Controller') return 'Approve as Controller';
+    }
+    if (status === 'Awaiting Receiver Signature') return 'Sign as Receiver';
+    if (status === 'Awaiting Toolbox Talk') return 'Record Toolbox Talk';
+    if (status === 'Waiting') return 'Open Checklist';
+    return 'Open Permit';
+  }
+  function cardHtml(rec, context){
+    var id = esc(rec['Permit ID']);
+    return '<div class="pm-card">'
+      + '<div class="pm-card-top"><span class="pm-card-id">' + id + '</span>' + badgeHtml(rec['Status']) + '</div>'
+      + '<div class="pm-card-meta">'
+        + '<b>' + esc(rec['Area']||'—') + '</b>' + (rec['Location'] ? ' · ' + esc(rec['Location']) : '') + '<br>'
+        + esc(rec['Work Involved']||'—') + '<br>'
+        + 'Issuer: ' + esc(displayNameFromField(rec['Permit Issuer - Name'])||'—') + ' · Receiver: ' + esc(rec['Permit Receiver - Name']||'—')
+      + '</div>'
+      + '<a class="pm-card-action pm-act-main" href="ptw-register.html?permitId=' + encodeURIComponent(rec['Permit ID']) + '" target="_blank">' + esc(actionLabel(rec, context)) + '</a>'
+      + '</div>';
+  }
+
+  function renderHome(){
+    var mine = myPermits().length, approvals = awaitingMyApproval().length;
+    root.innerHTML = header()
+      + '<button type="button" class="pm-home-btn pm-primary" onclick="PM.go(\'new1\')">'
+        + '<span class="pm-icon">➕</span><div><div class="pm-label">New Permit</div><div class="pm-count">Start a fresh PTW</div></div></button>'
+      + '<button type="button" class="pm-home-btn" onclick="PM.go(\'mine\')">'
+        + '<span class="pm-icon">📋</span><div><div class="pm-label">My Permits</div><div class="pm-count">' + mine + ' permit' + (mine===1?'':'s') + ' where you are the issuer or receiver</div></div></button>'
+      + '<button type="button" class="pm-home-btn" onclick="PM.go(\'approvals\')">'
+        + '<span class="pm-icon">✅</span><div><div class="pm-label">Awaiting My Approval</div><div class="pm-count">' + approvals + ' permit' + (approvals===1?'':'s') + ' waiting on you</div></div></button>';
+  }
+  function header(){
+    return '<div class="pm-header"><div><h1>Permit to Work</h1><div class="pm-sub">' + esc(_me||'') + '</div></div>'
+      + '<a class="pm-full-link" href="ptw-register.html" target="_blank">Full Register ↗</a></div>';
+  }
+  function renderList(kind){
+    var isApproval = kind === 'approvals';
+    var list = isApproval ? awaitingMyApproval() : myPermits();
+    var title = isApproval ? 'Awaiting My Approval' : 'My Permits';
+    root.innerHTML = header()
+      + '<button type="button" class="pm-back" onclick="PM.go(\'home\')">← Back</button>'
+      + '<div class="pm-list-title">' + title + '</div>'
+      + (list.length
+        ? list.map(function(r){ return cardHtml(r, isApproval ? 'approval' : 'mine'); }).join('')
+        : '<div class="pm-list-empty">Nothing here yet.</div>');
+  }
+
+  /* ── New Permit — 3 short steps ──────────────────────────────── */
+  var _new = { area:'', location:'', workInvolved:'', description:'', issuer:'', receiver:'', unitManager:'', unitManagerEmail:'', controller:'', controllerEmail:'' };
+
+  function issuerOptionsHtml(){
+    var hIdx = colIdx(_issuers.headers, 'Employee ID'), nIdx = colIdx(_issuers.headers, 'Name');
+    var sIdx = colIdx(_issuers.headers, 'Record Status');
+    var opts = '<option value="">— select —</option>';
+    _issuers.rows.forEach(function(r){
+      if (sIdx>=0 && String(r[sIdx]||'').trim().toLowerCase()==='removed') return;
+      var id = hIdx>=0 ? String(r[hIdx]||'').trim() : '', name = nIdx>=0 ? String(r[nIdx]||'').trim() : '';
+      if (!name) return;
+      var composite = id ? (id + ' - ' + name) : name;
+      opts += '<option value="' + esc(composite) + '"' + (composite===_new.issuer?' selected':'') + '>' + esc(composite) + '</option>';
+    });
+    return opts;
+  }
+  function roleOptionsHtml(filterFn, selectedName){
+    var nameIdx = colIdx(_users.headers, 'Full Name'), name2Idx = colIdx(_users.headers, 'Name');
+    var emailIdx = colIdx(_users.headers, 'Email'), roleIdx = colIdx(_users.headers, 'Role'), titleIdx = colIdx(_users.headers, 'Job Title');
+    var statusIdx = colIdx(_users.headers, 'Account Status');
+    var seen = {}; var opts = '<option value="" data-email="">— select —</option>';
+    _users.rows.forEach(function(r){
+      if (statusIdx>=0){ var st = String(r[statusIdx]||'active').trim().toLowerCase(); if (st && st!=='active') return; }
+      var name = (nameIdx>=0 && r[nameIdx]) || (name2Idx>=0 && r[name2Idx]) || '';
+      name = String(name).trim();
+      var email = emailIdx>=0 ? String(r[emailIdx]||'').trim() : '';
+      var role = roleIdx>=0 ? String(r[roleIdx]||'').trim() : '';
+      var title = titleIdx>=0 ? String(r[titleIdx]||'').trim() : '';
+      if (!name || !email || seen[name.toLowerCase()]) return;
+      if (!filterFn(role, title)) return;
+      seen[name.toLowerCase()] = true;
+      opts += '<option value="' + esc(name) + '" data-email="' + esc(email) + '"' + (name.toLowerCase()===String(selectedName||'').toLowerCase()?' selected':'') + '>' + esc(name) + ' (' + esc(email) + ')</option>';
+    });
+    return opts;
+  }
+  function isManager(role, title){ return /manager/i.test(role) || /manager/i.test(title) || /superadmin|admin/i.test(role); }
+  function isSafety(role, title){ return /safety|hse/i.test(role) || /safety|hse|controller/i.test(title) || /superadmin|admin/i.test(role); }
+
+  function renderNew1(){
+    root.innerHTML = header() + '<button type="button" class="pm-back" onclick="PM.go(\'home\')">← Cancel</button>'
+      + dots(0)
+      + '<div class="pm-field"><label>Area <span style="color:var(--pdw-red)">*</span></label><input id="pm-f-area" value="' + esc(_new.area) + '" placeholder="e.g. Unit 4"></div>'
+      + '<div class="pm-field"><label>Location</label><input id="pm-f-location" value="' + esc(_new.location) + '" placeholder="e.g. Batch House, Switchgear Room"></div>'
+      + '<div class="pm-field"><label>Work Involved <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-work">'
+        + '<option value="">— select —</option>'
+        + PTW_WORK_TYPES.map(function(w){ return '<option value="'+esc(w)+'"'+(w===_new.workInvolved?' selected':'')+'>'+esc(w)+'</option>'; }).join('')
+      + '</select></div>'
+      + '<div class="pm-field"><label>Description of Work</label><textarea id="pm-f-desc" rows="3" placeholder="Brief description">' + esc(_new.description) + '</textarea></div>'
+      + '<div class="pm-err" id="pm-err1">Please fill in Area and Work Involved.</div>'
+      + '<div class="pm-step-nav"><button type="button" class="pm-btn-next" onclick="PM.toStep2()">Next →</button></div>';
+  }
+  function renderNew2(){
+    root.innerHTML = header() + '<button type="button" class="pm-back" onclick="PM.go(\'new1\')">← Back</button>'
+      + dots(1)
+      + '<div class="pm-field"><label>Permit Issuer <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-issuer">' + issuerOptionsHtml() + '</select></div>'
+      + '<div class="pm-field"><label>Permit Receiver (name) <span style="color:var(--pdw-red)">*</span></label><input id="pm-f-receiver" value="' + esc(_new.receiver) + '" placeholder="Full name"></div>'
+      + '<div class="pm-field"><label>Unit / Area Manager <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-um">' + roleOptionsHtml(isManager, _new.unitManager) + '</select></div>'
+      + '<div class="pm-field"><label>Permit Controller (Safety) <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-ctrl">' + roleOptionsHtml(isSafety, _new.controller) + '</select></div>'
+      + '<div class="pm-err" id="pm-err2">Please fill in every required field above.</div>'
+      + '<div class="pm-step-nav"><button type="button" class="pm-btn-back" onclick="PM.go(\'new1\')">← Back</button><button type="button" class="pm-btn-next" onclick="PM.toStep3()">Review →</button></div>';
+  }
+  function renderNew3(){
+    var rows = [
+      ['Area', _new.area], ['Location', _new.location || '—'], ['Work Involved', _new.workInvolved],
+      ['Description', _new.description || '—'],
+      ['Issuer', _new.issuer], ['Receiver', _new.receiver],
+      ['Unit Manager', _new.unitManager], ['Controller', _new.controller]
+    ];
+    root.innerHTML = header() + '<button type="button" class="pm-back" onclick="PM.go(\'new2\')">← Back</button>'
+      + dots(2)
+      + '<div class="pm-list-title" style="margin-bottom:8px">Review</div>'
+      + rows.map(function(r){ return '<div class="pm-review-row"><span>'+esc(r[0])+'</span><span>'+esc(r[1])+'</span></div>'; }).join('')
+      + '<div style="font-size:11px;color:var(--pdw-text-muted);margin-top:10px">The permit will be created with a 12-hour validity window starting now, and will immediately ask the Receiver to sign.</div>'
+      + '<div class="pm-step-nav" style="margin-top:14px"><button type="button" class="pm-btn-back" onclick="PM.go(\'new2\')">← Back</button><button type="button" class="pm-btn-next" id="pm-create-btn" onclick="PM.createPermit()">Create Permit</button></div>';
+  }
+  function dots(activeIdx){
+    var html = '<div class="pm-step-dots">';
+    for (var i=0;i<3;i++) html += '<div class="pm-dot' + (i===activeIdx?' pm-active':'') + '"></div>';
+    return html + '</div>';
+  }
+
+  function nextSequentialId(){
+    var idIdx = colIdx(_reg.headers, REG_ID);
+    if (idIdx < 0) return 'PTW-0001';
+    var maxN = 0;
+    _reg.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf('ptw-') !== 0) return;
+      var n = parseInt(v.slice(4), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    var nextN = maxN + 1;
+    var numStr = String(nextN);
+    while (numStr.length < 4) numStr = '0' + numStr;
+    return 'PTW-' + numStr;
+  }
+  function toDatetimeLocalValue(d){
+    function pad(n){ return String(n).padStart(2,'0'); }
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+
+  window.PM = {
+    go: function(view){
+      if (view === 'home') renderHome();
+      else if (view === 'mine') renderList('mine');
+      else if (view === 'approvals') renderList('approvals');
+      else if (view === 'new1') renderNew1();
+    },
+    toStep2: function(){
+      _new.area = document.getElementById('pm-f-area').value.trim();
+      _new.location = document.getElementById('pm-f-location').value.trim();
+      _new.workInvolved = document.getElementById('pm-f-work').value;
+      _new.description = document.getElementById('pm-f-desc').value.trim();
+      if (!_new.area || !_new.workInvolved){ document.getElementById('pm-err1').style.display = 'block'; return; }
+      renderNew2();
+    },
+    toStep3: function(){
+      _new.issuer = document.getElementById('pm-f-issuer').value;
+      _new.receiver = document.getElementById('pm-f-receiver').value.trim();
+      var umSel = document.getElementById('pm-f-um'), ctrlSel = document.getElementById('pm-f-ctrl');
+      _new.unitManager = umSel.value;
+      _new.unitManagerEmail = umSel.selectedOptions[0] ? umSel.selectedOptions[0].getAttribute('data-email') : '';
+      _new.controller = ctrlSel.value;
+      _new.controllerEmail = ctrlSel.selectedOptions[0] ? ctrlSel.selectedOptions[0].getAttribute('data-email') : '';
+      if (!_new.issuer || !_new.receiver || !_new.unitManager || !_new.controller){ document.getElementById('pm-err2').style.display = 'block'; return; }
+      renderNew3();
+    },
+    createPermit: function(){
+      var btn = document.getElementById('pm-create-btn');
+      btn.disabled = true; btn.textContent = 'Creating…';
+      var id = nextSequentialId();
+      var now = new Date();
+      var validTo = new Date(now.getTime() + 12*60*60*1000);
+      var values = {
+        'Permit ID': id,
+        'Date': now.toISOString().slice(0,10),
+        'Permit Created At': now.toLocaleString(),
+        'Area': _new.area,
+        'Location': _new.location,
+        'Work Involved': _new.workInvolved,
+        'Description of Work': _new.description,
+        'Permit Issuer - Name': _new.issuer,
+        'Permit Receiver - Name': _new.receiver,
+        'Unit Manager': _new.unitManager,
+        'Unit Manager Email': _new.unitManagerEmail,
+        'Permit Controller': _new.controller,
+        'Permit Controller Email': _new.controllerEmail,
+        'Permit Valid From': toDatetimeLocalValue(now),
+        'Permit Valid To': toDatetimeLocalValue(validTo),
+        'Status': 'Awaiting Receiver Signature',
+        'Record Status': 'Active'
+      };
+      postJSON('write', {tab: REG_TAB}, [values]).then(function(res){
+        if (res && res.status === 'error'){
+          alert('Could not create the permit: ' + (res.message||'unknown error'));
+          btn.disabled = false; btn.textContent = 'Create Permit';
+          return;
+        }
+        window.open('ptw-register.html?permitId=' + encodeURIComponent(id), '_blank');
+        PM.go('home');
+      }).catch(function(){
+        alert('Could not reach the server — check your connection and try again.');
+        btn.disabled = false; btn.textContent = 'Create Permit';
+      });
+    }
+  };
+
+  function allowed(s){ return !!s; }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:300px;margin:0 auto 18px">Please sign in to use the Permit to Work page.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined'){ blockPage(); }
+  else {
+    IMS_AUTH.init({ onReady: function(session){
+      if (!allowed(session)){ blockPage(); return; }
+      _me = (IMS_AUTH.getCurrentUserName && IMS_AUTH.getCurrentUserName()) || '';
+      loadAll(function(){ renderHome(); });
+    }});
+  }
+})();
+</script>
+</body>
+</html>
