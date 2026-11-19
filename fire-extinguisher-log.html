@@ -723,12 +723,24 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var codeIdx = colIdx(headers, 'FE Code');
     var notesIdx = colIdx(headers, 'Notes');
 
+    // Rev.75 (Issam, text, 2026-11-19) — escalate to the Action
+    // Register, same icon-button convention as Edit/Remove here;
+    // available on any row in this grouped table (defective and
+    // conforming alike, same "no pass/fail gating" rule as every
+    // other register), not already escalated.
+    var actionRefIdx = colIdx(headers, 'Action Reference');
     function actionButtons(row){
       if (!showActions) return '';
       var idVal = idIdx>-1 ? row[idIdx] : '';
       var idValEsc = String(idVal).replace(/'/g,"\\'");
       var out = '<td style="white-space:nowrap">';
       if (can('edit')) out += '<button class="fe-icon-btn" title="Edit" onclick="event.stopPropagation();FE.openEdit(\'inspection\',\''+idValEsc+'\')">✏️</button>';
+      var existingRef = actionRefIdx>-1 ? String(row[actionRefIdx]||'').trim() : '';
+      if (existingRef){
+        out += '<button class="fe-icon-btn" disabled title="Already escalated — see Action Register '+String(existingRef).replace(/"/g,'&quot;')+'">✓</button>';
+      } else {
+        out += '<button class="fe-icon-btn" title="Escalate to Action" onclick="event.stopPropagation();FE.escalateToAction(\''+idValEsc+'\')">⚡</button>';
+      }
       if (can('delete')) out += '<button class="fe-icon-btn" title="Remove" onclick="event.stopPropagation();FE.remove(\'inspection\',\''+idValEsc+'\')">🗑️</button>';
       return out + '</td>';
     }
@@ -2055,6 +2067,42 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         if (res && res.status === 'error'){ alert('Remove failed: ' + (res.message || 'unknown error')); return; }
         reloadTabAndDashboard(tKeyName);
       }).catch(function(){ alert('Could not remove — check your connection.'); });
+    },
+    // Rev.75 (Issam, text, 2026-11-19) — scoped to the Inspection log
+    // only, same sessionStorage + URL hand-off to the Action Register
+    // used throughout OC-01. Master Inventory and Service records
+    // don't get this — there's nothing to escalate about an
+    // extinguisher's own inventory entry or a service job.
+    escalateToAction: function(idVal){
+      var data = _cache['inspection'];
+      if (!data || !data.headers || !data.rows) return alert('Inspection data not loaded yet — try again in a moment.');
+      var idIdx = colIdx(data.headers, 'Inspection ID');
+      var row = data.rows.find(function(r){ return String(r[idIdx]) === String(idVal); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var refIdx = colIdx(data.headers, 'Action Reference');
+      if (refIdx >= 0 && String(row[refIdx]||'').trim()){
+        return alert('This inspection was already escalated — see Action Register record ' + row[refIdx] + '.');
+      }
+      var codeIdx = colIdx(data.headers, 'FE Code');
+      var roundIdx = colIdx(data.headers, 'Round ID');
+      var notesIdx = colIdx(data.headers, 'Notes');
+      var checkCols = ['Anti-Tamper Seal','Pin','Hose','Pressure','Body','Handle'];
+      var failed = checkCols.filter(function(c){
+        var ci = colIdx(data.headers, c);
+        return ci >= 0 && row[ci] && String(row[ci]).trim();
+      });
+      var descParts = ['FE Inspection: ' + idVal];
+      if (codeIdx >= 0 && row[codeIdx]) descParts.push('FE Code: ' + row[codeIdx]);
+      if (roundIdx >= 0 && row[roundIdx]) descParts.push('Round ID: ' + row[roundIdx]);
+      if (failed.length) descParts.push('Failed checks: ' + failed.join(', '));
+      if (notesIdx >= 0 && row[notesIdx]) descParts.push('Notes: ' + row[notesIdx]);
+      var ctx = {
+        inspectionId: idVal,
+        description: descParts.join('\n'),
+        date: new Date().toISOString().slice(0,10)
+      };
+      try { sessionStorage.setItem('incomingFireExtinguisherContext', JSON.stringify(ctx)); } catch(e){ /* not fatal */ }
+      window.open('action-register.html?fromFireExtinguisher=' + encodeURIComponent(idVal) + '&lane=ACT', '_blank');
     }
   };
 

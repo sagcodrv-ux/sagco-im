@@ -535,6 +535,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
      "PTW-0779" after the highest existing is "PTW-0778"). Returns ''
      if the table has no idPrefix configured, or no matching rows yet
      (first-ever record — person types the starting ID by hand once). */
+  // Rev.70 (Issam, voice, 2026-11-18) — formats a Date as the
+  // datetime-local input's expected 'YYYY-MM-DDTHH:MM', in the
+  // browser's own local time (same convention as every other
+  // auto-stamped timestamp already on this page, e.g. Closed Date).
+  function toDatetimeLocalValue_(d){
+    function pad(n){ return String(n).padStart(2,'0'); }
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
+      + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
   function nextSequentialId(tKeyName){
     var cfg = TABLES[tKeyName];
     if (!cfg.idPrefix) return '';
@@ -954,9 +963,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // nothing to do with the network. Reuses the same escaping pfEsc
   // already uses elsewhere on this page.
   function formatCell(v){ return pfEsc(v); }
-  function pfCb(labelEn, labelAr, checked){
+  function pfCb(labelEn, labelAr, checked, detail){
+    // Rev.74 (Issam, voice, 2026-11-18) — detail is the typed "Others:"
+    // text, printed right after the label when checked and present;
+    // never affects the checkbox match itself (see the comment on the
+    // 'Others:' rendering in showModal for why that stays untouched).
     return '<span class="pf-item"><span class="pf-box">'+(checked?'&#9746;':'&#9744;')+'</span>'
-      + '<span class="pf-item-label">'+pfEsc(labelEn)+(labelAr?' <span class="pf-ar">'+pfEsc(labelAr)+'</span>':'')+'</span></span>';
+      + '<span class="pf-item-label">'+pfEsc(labelEn)+(labelAr?' <span class="pf-ar">'+pfEsc(labelAr)+'</span>':'')
+      + (checked && detail ? ' <strong>'+pfEsc(detail)+'</strong>' : '')
+      + '</span></span>';
   }
   /* Checks whether labelEn appears in a semicolon-joined checkbox-group
      value (e.g. "Hot work; Confined spaces"), trimmed and case-insensitive
@@ -984,12 +999,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // it hasn't, so this falls back to the ordinary blank pfSignBlock.
   // note is optional small print under the name, for a signature
   // recorded on someone else's behalf (the Receiver has no login).
-  function pfSignBlockDigital(role, roleAr, name, signedDate, note){
+  function pfSignBlockDigital(role, roleAr, name, signedDate, note, signatureImg){
     if (!signedDate){
       return pfSignBlock(role, roleAr, name);
     }
+    // Rev.72 (Issam, voice, 2026-11-18) — when an actual drawn
+    // signature was captured (the Receiver, at start or at closing),
+    // print it as a small image instead of the plain "✓ Signed on"
+    // text — a real signature, not a record of someone else noting it
+    // happened on their behalf.
     return '<div class="pf-sign-block pf-sign-block-signed"><div class="pf-sign-role">'+pfEsc(role)+(roleAr?' <span class="pf-ar">'+pfEsc(roleAr)+'</span>':'')+'</div>'
       + '<div class="pf-sign-line">Name: <span class="pf-value-inline">'+pfEsc(name||'')+'</span></div>'
+      + (signatureImg
+        ? '<div class="pf-sign-line" style="margin:4px 0"><img src="'+signatureImg+'" style="max-height:48px;max-width:160px;background:#fff;border:1px solid #ccc;border-radius:4px"></div>'
+        : '')
       + '<div class="pf-sign-line pf-sign-done">✓ Signed on <strong>'+pfEsc(signedDate)+'</strong></div>'
       + (note ? '<div class="pf-sign-note">'+pfEsc(note)+'</div>' : '')
       + '</div>';
@@ -1017,10 +1040,14 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // trimmed, case-insensitive membership check against that list; an
     // empty/missing field just means every box here prints unticked,
     // same graceful fallback as before this was wired up.
-    var equipmentHtml = PTW_EQUIPMENT.map(function(e){ return pfCb(e[0], e[1], pfIsChecked(rec['Equipment & Tools'], e[0])); }).join('');
-    var hazardsHtml = PTW_HAZARDS.map(function(h){ return pfCb(h[0], h[1], pfIsChecked(rec['Potential Hazards'], h[0])); }).join('');
-    var precautionsHtml = PTW_SAFETY_PRECAUTIONS.map(function(p){ return pfCb(p[0], p[1], pfIsChecked(rec['Safety Precautions'], p[0])); }).join('');
-    var ppeHtml = PTW_PPE.map(function(p){ return pfCb(p[0], p[1], pfIsChecked(rec['PPE Required'], p[0])); }).join('');
+    // Rev.74 — the typed "Others" detail only ever attaches to the
+    // "Others:" item itself within its group, never to whichever
+    // other boxes in that same group also happen to be checked.
+    function pfOtherDetail_(labelEn, detail){ return /^others:?$/i.test(String(labelEn).trim()) ? detail : ''; }
+    var equipmentHtml = PTW_EQUIPMENT.map(function(e){ return pfCb(e[0], e[1], pfIsChecked(rec['Equipment & Tools'], e[0]), pfOtherDetail_(e[0], rec['Equipment & Tools - Other'])); }).join('');
+    var hazardsHtml = PTW_HAZARDS.map(function(h){ return pfCb(h[0], h[1], pfIsChecked(rec['Potential Hazards'], h[0]), pfOtherDetail_(h[0], rec['Potential Hazards - Other'])); }).join('');
+    var precautionsHtml = PTW_SAFETY_PRECAUTIONS.map(function(p){ return pfCb(p[0], p[1], pfIsChecked(rec['Safety Precautions'], p[0]), pfOtherDetail_(p[0], rec['Safety Precautions - Other'])); }).join('');
+    var ppeHtml = PTW_PPE.map(function(p){ return pfCb(p[0], p[1], pfIsChecked(rec['PPE Required'], p[0]), pfOtherDetail_(p[0], rec['PPE Required - Other'])); }).join('');
     var isolationHtml = PTW_ISOLATION.map(function(i){ return pfCb(i[0], i[1], pfIsChecked(rec['Service Isolation'], i[0])); }).join('');
 
     var printedAt = new Date().toLocaleString();
@@ -1110,8 +1137,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // noted as such. Unit Manager / HSE Attendant show signed once
       // their own approval date is on file.
       + '<div class="pf-section"><div class="pf-section-title">Responsibility — Start PTW</div><div class="pf-sign-grid">'
-        + pfSignBlockDigital('Permit Issuer', 'مانح التصريح', rec['Permit Issuer - Name'], rec['Date'])
-        + pfSignBlockDigital('Permit Receiver', 'مستقبل التصريح', rec['Permit Receiver - Name'], rec['Date'], 'Recorded by the Permit Issuer — the Receiver has no system account.')
+        + pfSignBlockDigital('Permit Issuer', 'مانح التصريح', rec['Permit Issuer - Name'], rec['Permit Created At'] || rec['Date'])
+        + (rec['Receiver Signature']
+          ? pfSignBlockDigital('Permit Receiver', 'مستقبل التصريح', rec['Permit Receiver - Name'], rec['Receiver Signature Date'], '', rec['Receiver Signature'])
+          : pfSignBlockDigital('Permit Receiver', 'مستقبل التصريح', rec['Permit Receiver - Name'], rec['Date'], 'Recorded by the Permit Issuer — the Receiver has no system account.'))
         + pfSignBlockDigital('Unit Manager', 'مدير الوحدة', rec['Unit Manager'], rec['Area Manager Approval Date'])
         + pfSignBlockDigital('HSE Attendant', 'ضابط السلامة', rec['Permit Controller'], rec['Controller Approval Date'])
       + '</div></div>'
@@ -1122,7 +1151,9 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // Controller rather than confirmed by each of them directly.
       + '<div class="pf-section"><div class="pf-section-title">Responsibility — Close PTW</div><div class="pf-sign-grid">'
         + pfSignBlockDigital('Permit Issuer', 'مانح التصريح', rec['Permit Issuer - Name'], rec['Closed Date'], rec['Closed Date'] ? 'Recorded at closure by ' + (rec['Closed By']||'the Controller') + '.' : '')
-        + pfSignBlockDigital('Permit Receiver', 'مستقبل التصريح', rec['Permit Receiver - Name'], rec['Closed Date'], rec['Closed Date'] ? 'Recorded at closure by ' + (rec['Closed By']||'the Controller') + '.' : '')
+        + (rec['Receiver Closing Signature']
+          ? pfSignBlockDigital('Permit Receiver', 'مستقبل التصريح', rec['Permit Receiver - Name'], rec['Receiver Closing Signature Date'], '', rec['Receiver Closing Signature'])
+          : pfSignBlockDigital('Permit Receiver', 'مستقبل التصريح', rec['Permit Receiver - Name'], rec['Closed Date'], rec['Closed Date'] ? 'Recorded at closure by ' + (rec['Closed By']||'the Controller') + '.' : ''))
         + pfSignBlockDigital('HSE Attendant', 'ضابط السلامة', rec['Permit Controller'], rec['Closed Date'])
       + '</div></div>'
 
@@ -1196,7 +1227,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     harness:  { cache: function(){ return _harnessCache; },  idCol: 'PTW Number',    title: 'Harness / Fall Protection' },
     painting: { cache: function(){ return _paintingCache; }, idCol: 'PTW Number',    title: 'Painting Checklist' },
     civil:    { cache: function(){ return _civilCache; },    idCol: 'PTW Number',    title: 'Civil Work Checklist' },
-    pipeline: { cache: function(){ return _pipelineCache; }, idCol: 'PTW Number',    title: 'Pipeline Checklist' }
+    pipeline: { cache: function(){ return _pipelineCache; }, idCol: 'PTW Number',    title: 'Pipeline Checklist' },
+    electrical: { cache: function(){ return _electricalCache; }, idCol: 'PTW Number', title: 'Electrical Checklist' }
   };
   function viewChecklistRecordFlow(key, idColName, permitId, title){
     var src = CHECKLIST_VIEW_SOURCES_[key];
@@ -1253,7 +1285,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     // Linked Safety Records panel already use — never a second,
     // separately-maintained copy of "is this one actually ready".
     var nameToKey = { 'Confined Space': 'cs', 'LOTO': 'loto', 'Crane': 'crane', 'Hot Work': 'hotwork',
-      'Scaffold': 'scaffold', 'Harness/Fall Protection': 'harness', 'Painting': 'painting', 'Civil Work': 'civil', 'Pipeline': 'pipeline' };
+      'Scaffold': 'scaffold', 'Harness/Fall Protection': 'harness', 'Painting': 'painting', 'Civil Work': 'civil', 'Pipeline': 'pipeline',
+      'Electrical': 'electrical' };
     var needs = getChecklistNeeds(rec).filter(function(n){ return n.need; })
       .map(function(n){ n.key = nameToKey[n.name]; return n; });
     var sectionsHtml = needs.map(function(n){ return buildChecklistPackSectionHtml_(n, rec['Permit ID']); }).join('');
@@ -1831,6 +1864,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function permitNeedsPipeline(rec){
     return /pipeline/i.test(String(rec['Work Involved']||''));
   }
+  // Rev.76 (Issam, voice, 2026-11-18) — ticking Electrical Repairs now
+  // also requires its own short checklist (tools/instruments, the
+  // barricaded area and arc flash boundary, the absence-of-voltage
+  // test), on top of the LOTO Job it already required for the
+  // isolation itself — the two cover different things, so both stay
+  // required.
+  function permitNeedsElectrical(rec){
+    return /electrical/i.test(String(rec['Work Involved']||''));
+  }
   var _craneCache = null, _craneFetchPromise = null;
   function loadCraneRecords(){
     if (_craneCache) return Promise.resolve(_craneCache);
@@ -1955,6 +1997,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       return _pipelineCache;
     }).catch(function(){ _pipelineCache = {headers:[],rows:[]}; return _pipelineCache; });
     return _pipelineFetchPromise;
+  }
+  // Rev.76 (Issam, voice, 2026-11-18) — same single-record "last
+  // matching row wins" convention as Painting/Civil Work/Pipeline.
+  var _electricalCache = null, _electricalFetchPromise = null;
+  function loadElectricalRecords(){
+    if (_electricalCache) return Promise.resolve(_electricalCache);
+    if (_electricalFetchPromise) return _electricalFetchPromise;
+    _electricalFetchPromise = fetch(SHEETS_URL + '?tab=electrical_checklist&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _electricalCache = (data && data.headers && data.rows) ? data : {headers:[],rows:[]};
+      return _electricalCache;
+    }).catch(function(){ _electricalCache = {headers:[],rows:[]}; return _electricalCache; });
+    return _electricalFetchPromise;
   }
 
   function findLinkedRecord(data, permitNum, idColName){
@@ -2092,7 +2146,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var needsPainting = permitNeedsPainting(rec);
     var needsCivil = permitNeedsCivilWork(rec);
     var needsPipeline = permitNeedsPipeline(rec);
-    if (!needsCs && !needsLoto && !needsCrane && !needsHotWork && !needsScaffold && !needsHarness && !needsPainting && !needsCivil && !needsPipeline){ rootEl.innerHTML = ''; return; }
+    var needsElectrical = permitNeedsElectrical(rec);
+    if (!needsCs && !needsLoto && !needsCrane && !needsHotWork && !needsScaffold && !needsHarness && !needsPainting && !needsCivil && !needsPipeline && !needsElectrical){ rootEl.innerHTML = ''; return; }
     var permitId = rec['Permit ID'];
     if (!permitId){
       // Shouldn't happen in practice — Permit ID is auto-suggested the
@@ -2110,10 +2165,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       needsHarness ? loadHarnessRecords() : Promise.resolve(null),
       needsPainting ? loadPaintingRecords() : Promise.resolve(null),
       needsCivil ? loadCivilRecords() : Promise.resolve(null),
-      needsPipeline ? loadPipelineRecords() : Promise.resolve(null)
+      needsPipeline ? loadPipelineRecords() : Promise.resolve(null),
+      needsElectrical ? loadElectricalRecords() : Promise.resolve(null)
     ]).then(function(results){
       var csData = results[0], lotoData = results[1], craneData = results[2], hwData = results[3], scaffoldData = results[4];
       var harnessData = results[5], paintData = results[6], civilData = results[7], pipelineData = results[8];
+      var electricalData = results[9];
       var rowsHtml = '';
       var requiredCount = 0, readyCount = 0, blockedNames = [];
 
@@ -2266,6 +2323,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
           (pl ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="pipeline" data-idcol="PTW Number" data-title="Pipeline Checklist">👁️ View</button>' : '') +
           '<button type="button" class="ptw-btn" onclick="window.open(\'pipeline-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (plReady ? 'View' : 'Raise') + ' Pipeline Checklist</button></div>';
       }
+      if (needsElectrical){
+        requiredCount++;
+        var el = electricalData ? findCraneOrHotWorkRecord(electricalData, permitId, 'Result', 'Cleared') : null;
+        var elReady = el && el.passed;
+        if (elReady) readyCount++; else blockedNames.push('Electrical Checklist');
+        var elBadge = !el ? '<span class="badge kc-red">Not raised</span>' : (elReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (el.hasResult ? 'Issues Noted' : 'Open') + '</span>');
+        rowsHtml += '<div class="ptw-linked-row"><strong>Electrical Checklist</strong> ' + elBadge +
+          (el ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="electrical" data-idcol="PTW Number" data-title="Electrical Checklist">👁️ View</button>' : '') +
+          '<button type="button" class="ptw-btn" onclick="window.open(\'electrical-checklist.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + (elReady ? 'View' : 'Raise') + ' Electrical Checklist</button></div>';
+      }
 
       // Readiness banner — informational today, not an enforced block,
       // since this file has no Submit/Approve action yet to attach a
@@ -2347,7 +2414,8 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       { need: permitNeedsHarness(rec), name: 'Harness/Fall Protection', data: _harnessCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Overall Result', 'Satisfactory'); return f && f.passed; } },
       { need: permitNeedsPainting(rec), name: 'Painting', data: _paintingCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
       { need: permitNeedsCivilWork(rec), name: 'Civil Work', data: _civilCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
-      { need: permitNeedsPipeline(rec), name: 'Pipeline', data: _pipelineCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } }
+      { need: permitNeedsPipeline(rec), name: 'Pipeline', data: _pipelineCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } },
+      { need: permitNeedsElectrical(rec), name: 'Electrical', data: _electricalCache, ready: function(d){ var f = findCraneOrHotWorkRecord(d, rec['Permit ID'], 'Result', 'Cleared'); return f && f.passed; } }
     ];
   }
   function checklistWaitingNames_(rec){
@@ -2366,10 +2434,11 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   function computeWorkflowStatus(rec){
     var realStatus = String(rec['Status']||'').trim();
     var realStatusLower = realStatus.toLowerCase();
-    if (realStatusLower === 'cancelled' || realStatusLower === 'closed'){
-      return { label: realStatus, color: realStatusLower === 'cancelled' ? 'red' : 'grn' };
+    if (realStatusLower === 'cancelled' || realStatusLower === 'closed' || realStatusLower === 'renewed'){
+      return { label: realStatus, color: realStatusLower === 'cancelled' ? 'red' : (realStatusLower === 'renewed' ? 'blue' : 'grn') };
     }
-    if (realStatusLower === 'awaiting area manager' || realStatusLower === 'awaiting controller'){
+    if (realStatusLower === 'awaiting area manager' || realStatusLower === 'awaiting controller'
+      || realStatusLower === 'awaiting receiver signature' || realStatusLower === 'awaiting toolbox talk'){
       return { label: realStatus, color: 'amb' };
     }
     if (realStatusLower === 'active' || realStatusLower === 'open'){
@@ -2462,7 +2531,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var row = reg.rows.find(function(r){ return String(r[idIdx]) === String(permitId); });
       return row ? recFromRow(reg.headers, row) : {};
     })();
-    var today = new Date().toISOString().slice(0,10);
+    // Rev.71 (Issam, voice, 2026-11-18) — full date AND time now,
+    // not just the date, so every approval on the printed permit shows
+    // exactly when it happened.
+    var today = new Date().toLocaleString();
     var cfg = TABLES['register'];
     postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, {
       'Status': 'Awaiting Controller',
@@ -2478,7 +2550,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // Controller's approval — the permit is now Active and work may
   // start. No further email: the issuer already has the permit open.
   function approveController(permitId){
-    var today = new Date().toISOString().slice(0,10);
+    // Rev.71 (Issam, voice, 2026-11-18) — full date AND time now,
+    // not just the date, so every approval on the printed permit shows
+    // exactly when it happened.
+    var today = new Date().toLocaleString();
     var cfg = TABLES['register'];
     postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, {
       'Status': 'Active',
@@ -2576,7 +2651,34 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       return;
     }
     if (!confirm('Close permit ' + permitId + '? This records the job as finished.')) return;
-    var today = new Date().toISOString().slice(0,10);
+    // Rev.72 (Issam, voice, 2026-11-18) — the Receiver signs again at
+    // closing, to confirm the area is handed back, before the permit
+    // actually closes. finishClosePermit_ below does the real close,
+    // once this signature is captured.
+    openSignaturePad_(
+      'Receiver Signature (Closing) — ' + permitId,
+      (rec['Permit Receiver - Name'] || 'Receiver') + ' — please sign to confirm the area is being handed back and the job is finished.',
+      function(dataUrl){
+        var signedAt = new Date().toLocaleString();
+        var cfg0 = TABLES['register'];
+        postJSON('update', {tab: cfg0.tabKey, idCol: cfg0.idCol, id: permitId}, {
+          'Receiver Closing Signature': dataUrl,
+          'Receiver Closing Signature Date': signedAt
+        }).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error') + '\n\nThe signature was NOT saved — please try again.'); return; }
+          rec['Receiver Closing Signature'] = dataUrl;
+          rec['Receiver Closing Signature Date'] = signedAt;
+          finishClosePermit_(permitId, rec);
+        }).catch(function(){ alert('Could not reach the server — the signature was not saved. Try again.'); });
+      },
+      function(){ /* cancelled — permit stays Active, nothing closed */ }
+    );
+  }
+  function finishClosePermit_(permitId, rec){
+    // Rev.71 (Issam, voice, 2026-11-18) — full date AND time now,
+    // not just the date, so every approval on the printed permit shows
+    // exactly when it happened.
+    var today = new Date().toLocaleString();
     var cfg = TABLES['register'];
     postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, {
       'Status': 'Closed',
@@ -2640,12 +2742,47 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     renderLinkedSafetyPanel(document.getElementById('ptw-raise-panel-root'), rec);
   }
 
+  // Rev.72 (Issam, voice, 2026-11-18) — "always accessible": a View
+  // Signature button whenever one has been captured, shown regardless
+  // of the permit's current status — including after it's closed or
+  // cancelled, when the main approval block below no longer renders
+  // at all. Returns '' when there is nothing to show yet.
+  function signatureAccessHtml_(rec){
+    var permitId = rec['Permit ID'];
+    var parts = [];
+    if (rec['Receiver Signature']){
+      parts.push('<button type="button" class="ptw-btn" onclick="PTW.viewReceiverSignature(\'' + String(permitId).replace(/'/g,"\\'") + '\')">🖋️ View Receiver Signature</button>');
+    }
+    if (rec['Receiver Closing Signature']){
+      parts.push('<button type="button" class="ptw-btn" onclick="PTW.viewReceiverSignature(\'' + String(permitId).replace(/'/g,"\\'") + '\', \'closing\')">🖋️ View Closing Signature</button>');
+    }
+    if (!parts.length) return '';
+    return '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">' + parts.join('') + '</div>';
+  }
   function renderPtwApprovalBlock(rec){
     var status = String(rec['Status']||'').trim();
     var statusLower = status.toLowerCase();
-    if (statusLower === 'cancelled' || statusLower === 'closed') return ''; // own section already shows this
-    var html = '<div class="ptw-sub-hd">Approval</div>' + missingEmailWarningHtml_(rec);
-    if (statusLower === 'awaiting area manager'){
+    if (statusLower === 'cancelled' || statusLower === 'closed') return signatureAccessHtml_(rec); // own section already shows the rest
+    var html = '<div class="ptw-sub-hd">Approval</div>' + missingEmailWarningHtml_(rec) + signatureAccessHtml_(rec);
+    // Rev.72 (Issam, voice, 2026-11-18) — the two new gates ahead of
+    // the checklist ladder. Each shows a resume button, for the case
+    // where the signature pad or toolbox-talk prompt was closed
+    // without finishing (e.g. the page was refreshed) — nothing is
+    // lost, the permit just sits here until someone opens it again.
+    if (statusLower === 'awaiting receiver signature'){
+      html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(240,180,60,.12);border:2px solid #E0B43C;border-radius:8px">'
+        + '<div style="font-weight:700;color:#E0B43C;font-size:13px">⏳ Awaiting Receiver Signature — ' + String(rec['Permit Receiver - Name']||'—').replace(/</g,'&lt;') + '</div>'
+        + '<div style="display:flex;gap:8px;margin-top:8px">'
+          + '<button type="button" class="ptw-btn" style="background:var(--pdw-grn, #4FCB9E);color:#fff" onclick="PTW.resumeReceiverSignature(\'' + String(rec['Permit ID']).replace(/'/g,"\\'") + '\')">✍️ Sign as Receiver</button>'
+        + '</div></div>';
+    } else if (statusLower === 'awaiting toolbox talk'){
+      html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(240,180,60,.12);border:2px solid #E0B43C;border-radius:8px">'
+        + '<div style="font-weight:700;color:#E0B43C;font-size:13px">⏳ Awaiting Toolbox Talk</div>'
+        + '<div style="font-size:11px;margin-top:4px;opacity:.75">Receiver signed' + (rec['Receiver Signature Date'] ? ' on ' + rec['Receiver Signature Date'] : '') + '.</div>'
+        + '<div style="display:flex;gap:8px;margin-top:8px">'
+          + '<button type="button" class="ptw-btn" style="background:var(--pdw-grn, #4FCB9E);color:#fff" onclick="PTW.resumeToolboxTalk(\'' + String(rec['Permit ID']).replace(/'/g,"\\'") + '\')">📋 Record Toolbox Talk</button>'
+        + '</div></div>';
+    } else if (statusLower === 'awaiting area manager'){
       html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(240,180,60,.12);border:2px solid #E0B43C;border-radius:8px">'
         + '<div style="font-weight:700;color:#E0B43C;font-size:13px">⏳ Awaiting Area Manager Approval — ' + String(rec['Unit Manager']||'—').replace(/</g,'&lt;') + '</div>'
         + '<div style="display:flex;gap:8px;margin-top:8px">'
@@ -2663,9 +2800,19 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     } else if (statusLower === 'active'){
       html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(79,203,158,.18);border:2px solid #4FCB9E;border-radius:8px">'
         + '<div style="font-weight:800;color:#2f9c76">✓ ACTIVE — both approvals complete, work may proceed</div>'
-        + '<div style="display:flex;gap:8px;margin-top:8px">'
+        + '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'
           + '<button type="button" class="ptw-btn" onclick="PTW.closePermitFlow(\'' + String(rec['Permit ID']).replace(/'/g,"\\'") + '\')">Close Permit</button>'
+          // Rev.73 (Issam, voice, 2026-11-18) — a permit can never run
+          // past its own 12-hour window; renewal is the only way to
+          // keep the job going past that, as a brand-new permit, not
+          // an extension of this one.
+          + '<button type="button" class="ptw-btn" onclick="PTW.renewPermitFlow(\'' + String(rec['Permit ID']).replace(/'/g,"\\'") + '\')">🔄 Renew Permit</button>'
         + '</div></div>';
+    } else if (statusLower === 'renewed'){
+      html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(100,150,220,.15);border:2px solid #6496DC;border-radius:8px">'
+        + '<div style="font-weight:700;color:#6496DC;font-size:13px">🔄 Renewed → ' + String(rec['Renewed To']||'—').replace(/</g,'&lt;') + '</div>'
+        + '<div style="font-size:11px;margin-top:4px;opacity:.75">This permit\'s window ended; the job continued under a new permit number.</div>'
+      + '</div>';
     } else {
       // 'Waiting', blank, or an older value — still gated on checklists;
       // the Linked Safety Records panel above already shows what's
@@ -2673,6 +2820,298 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       html += '<div style="margin:10px 0;padding:10px 14px;background:rgba(240,104,92,.1);border-left:3px solid #F0685C;border-radius:0 6px 6px 0;font-size:11px">Not yet sent for approval — waiting on the checklists above.</div>';
     }
     return html;
+  }
+
+  // Rev.72 (Issam, voice, 2026-11-18) — a drawn (not typed) signature
+  // capture, reused for the Receiver's sign-off at permit creation and
+  // again at closing. A finger or stylus trace on a canvas, saved as a
+  // small PNG data URL — not a wet-ink scan, not a typed name standing
+  // in for one. title/subtitle set the context shown above the pad;
+  // onSign(dataUrl) receives the result once the person taps Confirm;
+  // onCancel (optional) runs if they back out instead.
+  function openSignaturePad_(title, subtitle, onSign, onCancel){
+    var root = document.getElementById('ptw-modal-root');
+    var canvasW = Math.min(480, window.innerWidth - 64);
+    var canvasH = 180;
+    root.innerHTML = '<div class="ptw-modal-bg" id="ptw-sig-bg"><div class="ptw-modal" style="max-width:' + (canvasW+48) + 'px">'
+      + '<h3>' + String(title).replace(/</g,'&lt;') + '</h3>'
+      + (subtitle ? '<div style="font-size:12px;opacity:.8;margin-bottom:10px">' + String(subtitle).replace(/</g,'&lt;') + '</div>' : '')
+      + '<div style="font-size:11px;opacity:.7;margin-bottom:6px">Sign below with your finger, stylus or mouse.</div>'
+      + '<canvas id="ptw-sig-canvas" width="' + canvasW + '" height="' + canvasH + '" style="width:100%;max-width:' + canvasW + 'px;height:' + canvasH + 'px;background:#fff;border:2px solid var(--pdw-border,#2a3a5c);border-radius:8px;touch-action:none;cursor:crosshair"></canvas>'
+      + '<div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">'
+        + '<button type="button" class="ptw-btn" id="ptw-sig-cancel">Cancel</button>'
+        + '<button type="button" class="ptw-btn" id="ptw-sig-clear">Clear</button>'
+        + '<button type="button" class="ptw-btn" id="ptw-sig-confirm" disabled style="background:var(--pdw-grn,#4FCB9E);color:#fff;opacity:.5">Confirm Signature</button>'
+      + '</div></div></div>';
+
+    var canvas = document.getElementById('ptw-sig-canvas');
+    var ctx = canvas.getContext('2d');
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#111';
+    var drawing = false, hasDrawn = false, lastX = 0, lastY = 0;
+    var confirmBtn = document.getElementById('ptw-sig-confirm');
+
+    function posFromEvent(e){
+      var rect = canvas.getBoundingClientRect();
+      var scaleX = canvas.width / rect.width;
+      var scaleY = canvas.height / rect.height;
+      var cx = (e.touches ? e.touches[0].clientX : e.clientX);
+      var cy = (e.touches ? e.touches[0].clientY : e.clientY);
+      return { x: (cx - rect.left) * scaleX, y: (cy - rect.top) * scaleY };
+    }
+    function start(e){
+      e.preventDefault();
+      drawing = true;
+      var p = posFromEvent(e);
+      lastX = p.x; lastY = p.y;
+    }
+    function move(e){
+      if (!drawing) return;
+      e.preventDefault();
+      var p = posFromEvent(e);
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      lastX = p.x; lastY = p.y;
+      if (!hasDrawn){
+        hasDrawn = true;
+        confirmBtn.disabled = false;
+        confirmBtn.style.opacity = '1';
+      }
+    }
+    function end(){ drawing = false; }
+
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+    canvas.addEventListener('touchstart', start, { passive: false });
+    canvas.addEventListener('touchmove', move, { passive: false });
+    canvas.addEventListener('touchend', end);
+
+    document.getElementById('ptw-sig-clear').onclick = function(){
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hasDrawn = false;
+      confirmBtn.disabled = true;
+      confirmBtn.style.opacity = '.5';
+    };
+    document.getElementById('ptw-sig-cancel').onclick = function(){
+      root.innerHTML = '';
+      if (onCancel) onCancel();
+    };
+    confirmBtn.onclick = function(){
+      if (!hasDrawn) return;
+      var dataUrl = canvas.toDataURL('image/png');
+      root.innerHTML = '';
+      onSign(dataUrl);
+    };
+  }
+  // Shows a previously-captured signature image at any time — the
+  // "always reachable" requirement: a view-only modal, no drawing.
+  function viewSignature_(title, dataUrl, signedDate){
+    var root = document.getElementById('ptw-modal-root');
+    if (!dataUrl){
+      root.innerHTML = '';
+      alert('No signature has been captured for this yet.');
+      return;
+    }
+    root.innerHTML = '<div class="ptw-modal-bg"><div class="ptw-modal" style="max-width:420px">'
+      + '<h3>' + String(title).replace(/</g,'&lt;') + '</h3>'
+      + (signedDate ? '<div style="font-size:11px;opacity:.7;margin-bottom:8px">Signed on ' + String(signedDate).replace(/</g,'&lt;') + '</div>' : '')
+      + '<img src="' + dataUrl + '" style="width:100%;background:#fff;border:1px solid var(--pdw-border,#2a3a5c);border-radius:8px">'
+      + '<div style="display:flex;justify-content:flex-end;margin-top:12px">'
+        + '<button type="button" class="ptw-btn" onclick="document.getElementById(\'ptw-modal-root\').innerHTML=\'\'">Close</button>'
+      + '</div></div></div>';
+  }
+
+  // Rev.72 (Issam, voice, 2026-11-18) — first gate after a permit is
+  // created: the Receiver signs, proving they actually received the
+  // job and the instructions, before anything else can move. rec is
+  // the full set of values just saved (openAdd's `values`), carried
+  // forward so the next gate (the Toolbox Talk) and the final ladder
+  // entry still have everything they need without a re-fetch.
+  function promptReceiverSignature_(permitId, rec){
+    openSignaturePad_(
+      'Receiver Signature — ' + permitId,
+      (rec['Permit Receiver - Name'] || 'Receiver') + ' — please sign to confirm you have received this permit and its instructions.',
+      function(dataUrl){
+        var signedAt = new Date().toLocaleString();
+        var cfg = TABLES['register'];
+        postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, {
+          'Receiver Signature': dataUrl,
+          'Receiver Signature Date': signedAt,
+          'Status': 'Awaiting Toolbox Talk'
+        }).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error') + '\n\nThe signature was NOT saved — please try again.'); return; }
+          rec['Receiver Signature'] = dataUrl;
+          rec['Receiver Signature Date'] = signedAt;
+          reloadTabAndDashboard('register');
+          promptToolboxTalk_(permitId, rec);
+        }).catch(function(){ alert('Could not reach the server — the signature was not saved. Try again from the permit record.'); });
+      },
+      function(){
+        // Cancelled: the permit stays in "Awaiting Receiver Signature"
+        // — the register's own resume button (renderPtwApprovalBlock)
+        // can re-open this pad later, nothing is lost.
+        reloadTabAndDashboard('register');
+      }
+    );
+  }
+  // Rev.72 — second gate: the Toolbox Talk. Issam's own instruction —
+  // a name list is enough, no per-attendee signature — and the count
+  // of names becomes this permit's Number of Workers, not a separately
+  // typed figure. Applies identically to a renewed permit (Rev.73
+  // below), never carried over from an earlier permit even for the
+  // same crew.
+  function promptToolboxTalk_(permitId, rec){
+    var root = document.getElementById('ptw-modal-root');
+    root.innerHTML = '<div class="ptw-modal-bg"><div class="ptw-modal" style="max-width:460px">'
+      + '<h3>Toolbox Talk — ' + String(permitId).replace(/</g,'&lt;') + '</h3>'
+      + '<div style="font-size:12px;opacity:.8;margin-bottom:10px">List everyone attending the toolbox talk for this permit, one name per line. This list becomes the permit\'s official Number of Workers — it cannot be typed separately.</div>'
+      + '<textarea id="ptw-tbt-names" rows="8" style="width:100%;background:var(--pdw-bg3,#101d3a);border:1px solid var(--pdw-border,#2a3a5c);color:inherit;border-radius:7px;padding:8px 10px;font-size:13px" placeholder="One name per line"></textarea>'
+      + '<div style="font-size:11px;margin-top:6px;opacity:.7" id="ptw-tbt-count">0 attendees</div>'
+      + '<div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">'
+        + '<button type="button" class="ptw-btn" id="ptw-tbt-confirm" style="background:var(--pdw-grn,#4FCB9E);color:#fff">Record Toolbox Talk</button>'
+      + '</div></div></div>';
+    var ta = document.getElementById('ptw-tbt-names');
+    var countEl = document.getElementById('ptw-tbt-count');
+    function namesFromTextarea(){
+      return ta.value.split('\n').map(function(s){ return s.trim(); }).filter(function(s){ return !!s; });
+    }
+    ta.addEventListener('input', function(){
+      var n = namesFromTextarea().length;
+      countEl.textContent = n + (n === 1 ? ' attendee' : ' attendees');
+    });
+    document.getElementById('ptw-tbt-confirm').onclick = function(){
+      var names = namesFromTextarea();
+      if (!names.length){ alert('Add at least one attendee before recording the toolbox talk.'); return; }
+      var payload = {
+        'Toolbox Talk Attendees': names.join(', '),
+        'Toolbox Talk Date': new Date().toLocaleString(),
+        'Number of Workers': String(names.length)
+      };
+      Object.keys(payload).forEach(function(k){ rec[k] = payload[k]; });
+      var cfg = TABLES['register'];
+      // Rev.29's original logic (now entered here instead of at
+      // creation) decides whether the permit still needs a checklist
+      // or can go straight to Area Manager.
+      var pendingEmail = null;
+      if (checklistWaitingNames_(rec).length){
+        payload['Status'] = 'Waiting';
+      } else {
+        payload['Status'] = 'Awaiting Area Manager';
+        if (rec['Unit Manager Email']) pendingEmail = { email: rec['Unit Manager Email'], name: rec['Unit Manager'] };
+      }
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, payload).then(function(res){
+        if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error') + '\n\nPlease try again.'); return; }
+        root.innerHTML = '';
+        reloadTabAndDashboard('register');
+        if (pendingEmail) notifyPtwStage_(permitId, 'areaManager', pendingEmail.email, pendingEmail.name, rec, [lookupIssuerEmail(rec['Permit Issuer - Name']), lookupIssuerDeptManagerEmail_(rec['Permit Issuer - Name'])]);
+      }).catch(function(){ alert('Could not reach the server — try again from the permit record.'); });
+    };
+  }
+
+  // Rev.73 (Issam, voice, 2026-11-18) — Renewal. A permit's 12-hour
+  // window is fixed and cannot be extended (Rev.70); continuing the
+  // same job past that is a brand-new permit, not an edit of this
+  // one. Renewal copies the job's own details across (area, work
+  // involved, who's who) and nothing of its lifecycle state — the new
+  // permit still needs its own receiver signature, its own toolbox
+  // talk (never carried over, even for the same crew — Issam was
+  // explicit on this point), and its own Area Manager + Controller
+  // approvals. The one thing that CAN carry over is an existing LOTO
+  // Job, and only that, and only with a fresh confirmation that the
+  // isolation is still physically in place and unchanged — every
+  // other linked checklist (Confined Space, Scaffold, Harness, Hot
+  // Work, Crane, Painting, Civil Work, Pipeline, Electrical) is raised
+  // fresh on the new permit, same as for any permit that doesn't have
+  // one yet.
+  function findLinkedLotoFullRecord_(permitId){
+    var data = _lotoJobCache;
+    if (!data || !data.headers || !data.rows) return null;
+    var numIdx = colIdx(data.headers, 'PTW Number');
+    var idIdx = colIdx(data.headers, 'LOTO ID');
+    var statusIdx = colIdx(data.headers, 'Status');
+    var recStatusIdx = colIdx(data.headers, 'Record Status');
+    if (numIdx < 0 || idIdx < 0) return null;
+    var found = null;
+    data.rows.forEach(function(row){
+      if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+      if (String(row[numIdx]||'').trim() === String(permitId).trim()){
+        found = { id: row[idIdx], status: statusIdx >= 0 ? String(row[statusIdx]||'').trim() : '' };
+      }
+    });
+    return found;
+  }
+  function renewPermitFlow(permitId){
+    var reg = _cache['register'];
+    var idIdx = reg && reg.headers ? colIdx(reg.headers, 'Permit ID') : -1;
+    var row = (idIdx >= 0) ? reg.rows.find(function(r){ return String(r[idIdx]) === String(permitId); }) : null;
+    if (!row) return alert('Record not found — try refreshing.');
+    var rec = recFromRow(reg.headers, row);
+    var statusLower = String(rec['Status']||'').trim().toLowerCase();
+    if (statusLower !== 'active'){
+      return alert('Only an Active permit can be renewed.');
+    }
+    if (!confirm('Renew permit ' + permitId + '?\n\nThis creates a brand-new permit with the same job details, a fresh 12-hour window, and its own receiver signature, toolbox talk and approvals. This permit will be marked Renewed.')) return;
+
+    // Load the LOTO Job cache fresh if it isn't already, then decide
+    // whether there's anything to ask the carry-over question about.
+    loadLotoJobRecords().then(function(){
+      var lj = findLinkedLotoFullRecord_(permitId);
+      var carryLj = null;
+      if (lj && lj.id){
+        var carry = confirm(
+          'A LOTO Job (' + lj.id + ') is linked to this permit.\n\n' +
+          'Confirm with the Safety Controller: are the isolation locks and tags still physically in place, with nothing changed?\n\n' +
+          'OK = Yes — carry this LOTO Job over to the new permit.\n' +
+          'Cancel = No — the new permit will need a fresh LOTO Job.'
+        );
+        if (carry) carryLj = lj;
+      }
+      proceedWithRenewal_(permitId, rec, carryLj);
+    });
+  }
+  function proceedWithRenewal_(oldPermitId, oldRec, carryLj){
+    var cfg = TABLES['register'];
+    var newId = nextSequentialId('register') || (oldPermitId + '-R');
+    var newValues = {};
+    // Copy only what describes the JOB itself — none of the old
+    // permit's lifecycle state (signatures, toolbox talk, approval
+    // dates, workers count) carries over; the new permit earns each
+    // of those fresh, same as any other permit.
+    var carryFields = ['Area','Location','Work Involved','Height Access Method',
+      'Permit Issuer - Name','Permit Issuer - Dept.','Permit Receiver - Name',
+      'Permit Controller','Permit Controller Email','Unit Manager','Unit Manager Email',
+      'Description of Work','Name of Project / Job','Contracting Company'];
+    carryFields.forEach(function(f){ if (oldRec[f] !== undefined && oldRec[f] !== null) newValues[f] = oldRec[f]; });
+    newValues[cfg.idCol] = newId;
+    newValues['Date'] = new Date().toISOString().slice(0,10);
+    newValues['Permit Created At'] = new Date().toLocaleString();
+    var vf = new Date();
+    var vt = new Date(vf.getTime() + 12*60*60*1000);
+    newValues['Permit Valid From'] = toDatetimeLocalValue_(vf);
+    newValues['Permit Valid To'] = toDatetimeLocalValue_(vt);
+    newValues['Status'] = 'Awaiting Receiver Signature';
+    newValues['Renewed From'] = oldPermitId;
+    newValues[STATUS_COL] = 'Active';
+
+    postJSON('write', {tab: cfg.tabKey}, [newValues]).then(function(res){
+      if (res && res.status === 'error'){ alert('Could not create the renewed permit: ' + (res.message||'unknown error')); return; }
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: oldPermitId}, {
+        'Status': 'Renewed',
+        'Renewed To': newId
+      }).catch(function(){ /* best-effort — the new permit already exists regardless */ });
+      if (carryLj && carryLj.id){
+        postJSON('update', {tab: 'loto_register', idCol: 'LOTO ID', id: carryLj.id}, {
+          'PTW Number': newId
+        }).catch(function(){ /* best-effort — carry-over note stays in the Remarks below either way */ });
+      }
+      reloadTabAndDashboard('register');
+      alert('Permit ' + newId + ' created from ' + oldPermitId + '.' + (carryLj ? ' The existing LOTO Job ' + carryLj.id + ' has been carried over.' : ''));
+      promptReceiverSignature_(newId, newValues);
+    }).catch(function(){ alert('Could not reach the server — the permit was not renewed. Try again.'); });
   }
 
   // Cancel Permit (Issam, voice, 2026-11-08) — requires a typed reason,
@@ -2690,7 +3129,10 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     if (!cancelledBy){ alert('Your name is required to cancel a permit.'); return; }
     if (!confirm('Cancel permit ' + permitId + '? This cannot be undone — a new permit would need a new Permit ID.')) return;
     var cfg = TABLES['register'];
-    var today = new Date().toISOString().slice(0,10);
+    // Rev.71 (Issam, voice, 2026-11-18) — full date AND time now,
+    // not just the date, so every approval on the printed permit shows
+    // exactly when it happened.
+    var today = new Date().toLocaleString();
     postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: permitId}, {
       'Status': 'Cancelled',
       'Cancellation Reason': reason,
@@ -2717,12 +3159,29 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       // same format pfIsChecked() reads on the print side.
       if (cbGroups[f]){
         var existing = String(v||'').split(';').map(function(s){ return s.trim().toLowerCase(); });
+        // Rev.74 (Issam, voice, 2026-11-18) — ticking "Others:" used to
+        // record nothing beyond the tick itself. Now it reveals a
+        // required text box right next to it, saved to its own
+        // companion field (e.g. "Equipment & Tools - Other") rather
+        // than appended into the checkbox's own semicolon-joined
+        // value — pfIsChecked() elsewhere matches that value
+        // exactly against each option label, so changing it to
+        // "Others: scissor lift" would silently break the printed
+        // checkbox for every existing record. Nothing about the
+        // checkbox storage format changes; this is purely additive.
+        var otherFieldName = f + ' - Other';
+        var otherVal = (initialValues && initialValues[otherFieldName]) ? initialValues[otherFieldName] : '';
         var boxesHtml = cbGroups[f].map(function(opt, oi){
           var checked = existing.indexOf(String(opt).trim().toLowerCase()) > -1;
           var cbId = 'ptw-cb-' + fi + '-' + oi;
-          return '<label class="ptw-cb-item" for="'+cbId+'">' +
-            '<input type="checkbox" id="'+cbId+'" data-cbgroup="'+String(f).replace(/"/g,'&quot;')+'" data-cbval="'+String(opt).replace(/"/g,'&quot;')+'"' + (checked?' checked':'') + '>' +
+          var isOthers = /^others:?$/i.test(String(opt).trim());
+          var item = '<label class="ptw-cb-item" for="'+cbId+'">' +
+            '<input type="checkbox" id="'+cbId+'" data-cbgroup="'+String(f).replace(/"/g,'&quot;')+'" data-cbval="'+String(opt).replace(/"/g,'&quot;')+'"' + (checked?' checked':'') + (isOthers?' data-cbothertoggle="'+cbId+'-othertext"':'') + '>' +
             '<span>'+opt+'</span></label>';
+          if (isOthers){
+            item += '<input type="text" id="'+cbId+'-othertext" data-field="'+String(otherFieldName).replace(/"/g,'&quot;')+'" value="'+String(otherVal).replace(/"/g,'&quot;')+'" placeholder="Specify…" style="display:'+(checked?'inline-block':'none')+';margin-left:6px;width:160px;font-size:12px;padding:3px 6px">';
+          }
+          return item;
         }).join('');
         return '<div class="ptw-field full"><label>'+f+'</label><div class="ptw-cb-grid">'+boxesHtml+'</div></div>';
       }
@@ -2794,8 +3253,15 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         }).join('') + '</datalist>';
       }
       var isLong = f === 'Description of Work';
+      // Rev.70 (Issam, voice, 2026-11-18) — a permit's validity window
+      // is now fixed at 12 hours and set automatically, never typed:
+      // Permit Valid From / To are readonly here, filled by
+      // openAdd() before this renders (and, on Edit, just showing
+      // whatever was already stored — correcting a permit's validity
+      // window is not something this form allows by hand).
+      var readonlyAttr = isDateTimeField ? ' readonly title="Set automatically — 12 hours from permit creation, not editable here" style="opacity:.75;cursor:not-allowed"' : '';
       return '<div class="ptw-field'+(isLong?' full':'')+'"><label>'+f+'</label>' +
-        '<input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + '>' +
+        '<input type="'+inputType+'" data-field="'+f+'" value="'+vEsc+'"' + (suggestions.length?' list="'+dlId+'"':'') + readonlyAttr + '>' +
         dlHtml + '</div>';
     }
     // Form-style layout: when a table defines sections, fields group
@@ -2919,6 +3385,18 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         photoCameraInput.value = ''; // allow taking another shot immediately after
       });
     }
+    // Rev.74 (Issam, voice, 2026-11-18) — toggles the "Others:" text
+    // box as its checkbox is ticked/unticked, and clears it on
+    // untick so an old typed value can't silently resave once the
+    // box is no longer checked.
+    root.querySelectorAll('[data-cbothertoggle]').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        var otherInput = document.getElementById(cb.getAttribute('data-cbothertoggle'));
+        if (!otherInput) return;
+        otherInput.style.display = cb.checked ? 'inline-block' : 'none';
+        if (!cb.checked) otherInput.value = '';
+      });
+    });
     var photoGalleryInput = document.getElementById('ptw-modal-photo-gallery');
     if (photoGalleryInput){
       photoGalleryInput.addEventListener('change', function(){
@@ -2927,6 +3405,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       });
     }
     document.getElementById('ptw-modal-save').onclick = function(){
+      // Rev.74 (Issam, voice, 2026-11-18) — an "Others:" box ticked
+      // with nothing typed next to it is exactly the gap this was
+      // meant to close, so it blocks save rather than quietly saving
+      // "Others:" with no detail.
+      var missingOtherDetail = [];
+      root.querySelectorAll('[data-cbothertoggle]').forEach(function(cb){
+        if (!cb.checked) return;
+        var otherInput = document.getElementById(cb.getAttribute('data-cbothertoggle'));
+        if (otherInput && !otherInput.value.trim()) missingOtherDetail.push(cb.getAttribute('data-cbgroup'));
+      });
+      if (missingOtherDetail.length){
+        alert('Please specify what "Others" means for: ' + missingOtherDetail.join(', '));
+        return;
+      }
       var values = {};
       root.querySelectorAll('[data-field]').forEach(function(inp){ values[inp.getAttribute('data-field')] = inp.value.trim(); });
       // Checkbox groups: collect every checked box per group name and
@@ -3157,6 +3649,41 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     approveController: approveController,
     closePermitFlow: closePermitFlow,
     raiseChecklists: raiseChecklistsFlow,
+    renewPermitFlow: renewPermitFlow,
+    // Rev.72 (Issam, voice, 2026-11-18) — resume buttons for a permit
+    // left sitting in one of the two new pre-ladder gates (e.g. the
+    // signature pad was closed without signing, or the page was
+    // reloaded). Re-fetches the current record first rather than
+    // trusting anything already in memory.
+    resumeReceiverSignature: function(permitId){
+      var reg = _cache['register'];
+      if (!reg || !reg.headers || !reg.rows) return;
+      var idIdx = colIdx(reg.headers, 'Permit ID');
+      var row = reg.rows.find(function(r){ return String(r[idIdx]) === String(permitId); });
+      if (!row) return alert('Record not found — try refreshing.');
+      promptReceiverSignature_(permitId, recFromRow(reg.headers, row));
+    },
+    resumeToolboxTalk: function(permitId){
+      var reg = _cache['register'];
+      if (!reg || !reg.headers || !reg.rows) return;
+      var idIdx = colIdx(reg.headers, 'Permit ID');
+      var row = reg.rows.find(function(r){ return String(r[idIdx]) === String(permitId); });
+      if (!row) return alert('Record not found — try refreshing.');
+      promptToolboxTalk_(permitId, recFromRow(reg.headers, row));
+    },
+    viewReceiverSignature: function(permitId, which){
+      var reg = _cache['register'];
+      if (!reg || !reg.headers || !reg.rows) return;
+      var idIdx = colIdx(reg.headers, 'Permit ID');
+      var row = reg.rows.find(function(r){ return String(r[idIdx]) === String(permitId); });
+      if (!row) return alert('Record not found — try refreshing.');
+      var rec = recFromRow(reg.headers, row);
+      if (which === 'closing'){
+        viewSignature_('Receiver Signature (Closing) — ' + permitId, rec['Receiver Closing Signature'], rec['Receiver Closing Signature Date']);
+      } else {
+        viewSignature_('Receiver Signature — ' + permitId, rec['Receiver Signature'], rec['Receiver Signature Date']);
+      }
+    },
     openPermitPack: openPermitPackFlow,
     onDateRangeChange: function(){
       var s = document.getElementById('ptw-date-start');
@@ -3250,26 +3777,53 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var initial = {};
       var suggestedId = nextSequentialId(tKeyName);
       if (suggestedId) initial[cfg.idCol] = suggestedId;
+      // Rev.70 (Issam, voice, 2026-11-18) — a permit's validity window
+      // is fixed at exactly 12 hours and set automatically at the
+      // moment it's raised, never typed by the issuer. The field
+      // itself is readonly (see renderOneField above); this is what
+      // actually fills it.
+      if (tKeyName === 'register'){
+        var _validFromDt = new Date();
+        var _validToDt = new Date(_validFromDt.getTime() + 12*60*60*1000);
+        initial['Permit Valid From'] = toDatetimeLocalValue_(_validFromDt);
+        initial['Permit Valid To'] = toDatetimeLocalValue_(_validToDt);
+      }
       showModal(tKeyName, 'Add ' + cfg.label, effectiveFields(tKeyName), initial, function(values, close){
         values[STATUS_COL] = 'Active';
-        // Rev.29 (Issam, voice, 2026-11-15) — a brand-new permit's own
-        // Status now starts the approval ladder automatically: "Waiting"
-        // if any ticked work family still needs its checklist, or
-        // straight to "Awaiting Area Manager" if none do (e.g. a plain
-        // Cold work job) — nobody types a starting status by hand.
-        var pendingEmail = null;
-        if (tKeyName === 'register'){
-          if (checklistWaitingNames_(values).length){
-            values['Status'] = 'Waiting';
-          } else {
-            values['Status'] = 'Awaiting Area Manager';
-            if (values['Unit Manager Email']) pendingEmail = { email: values['Unit Manager Email'], name: values['Unit Manager'] };
+        // Rev.71 (Issam, voice, 2026-11-18) — the existing 'Date' field
+        // is a plain date picker also used for calendar/chart grouping
+        // elsewhere, so it stays as-is rather than risk breaking that.
+        // This new field is set directly here (not through the form)
+        // so it is never editable, and carries the full timestamp of
+        // creation — used for the Issuer's "Signed on" line on the
+        // printed permit, with the time included, not just the date.
+        if (tKeyName === 'register') values['Permit Created At'] = new Date().toLocaleString();
+        // Rev.70 — defensive re-check at save time: even though the
+        // fields are readonly, this guarantees no permit can ever be
+        // written with a window over 12 hours, regardless of how the
+        // values got into the payload.
+        if (tKeyName === 'register' && values['Permit Valid From'] && values['Permit Valid To']){
+          var _vf = new Date(values['Permit Valid From']);
+          var _vt = new Date(values['Permit Valid To']);
+          if (!isNaN(_vf) && !isNaN(_vt) && (_vt.getTime() - _vf.getTime()) > 12*60*60*1000){
+            alert('A permit cannot be valid for more than 12 hours. Please re-open the form — the validity window is set automatically and should not be edited.');
+            if (window._ptwReenableModalSave) window._ptwReenableModalSave();
+            return;
           }
         }
+        // Rev.72 (Issam, voice, 2026-11-18) — a brand-new permit no
+        // longer goes straight into the checklist ladder. It now waits
+        // on two gates first, in order: the Receiver's drawn signature
+        // (proving they actually received the job), then the Toolbox
+        // Talk (whose attendee list becomes the permit's own Number of
+        // Workers). Only once both are done does the old Rev.29 logic
+        // run — see runChecklistLadderEntry_ below — so nobody types a
+        // starting status by hand, same as before, just one step later.
+        if (tKeyName === 'register') values['Status'] = 'Awaiting Receiver Signature';
         postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
           close();
           reloadTabAndDashboard(tKeyName);
-          if (pendingEmail) notifyPtwStage_(values['Permit ID'], 'areaManager', pendingEmail.email, pendingEmail.name, values);
+          if (tKeyName === 'register') promptReceiverSignature_(values['Permit ID'], values);
         }).catch(function(){
           alert('Could not save — check your connection.');
           if (window._ptwReenableModalSave) window._ptwReenableModalSave();

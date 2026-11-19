@@ -121,6 +121,7 @@ var TREE = [
         { id:'oc1-hwc',  label:'Hot Work Checklist',                file:'hot-work.html',                  level:'L4', badge:'NEW', bc:'amb' },
         { id:'oc1-pnt',  label:'Painting Checklist',                file:'painting-checklist.html',        level:'L4', badge:'NEW', bc:'amb' },
         { id:'oc1-pip',  label:'Pipeline (LPG / Oil) Checklist',    file:'pipeline-checklist.html',        level:'L4', badge:'NEW', bc:'amb' },
+        { id:'oc1-elc',  label:'Electrical Work Checklist',         file:'electrical-checklist.html',      level:'L4', badge:'NEW', bc:'amb' },
         { id:'oc1-civ',  label:'Civil Work Checklist',              file:'civil-work-checklist.html',      level:'L4', badge:'NEW', bc:'amb' },
         { id:'oc1-fps',  label:'Fire Protection Systems Testing',   file:'fire-protection-systems-log.html', level:'L4', badge:'NEW', bc:'amb' },
         { id:'oc1-spl',  label:'Security Patrol Register',          file:'security-patrol-log.html',       level:'L4', badge:'NEW', bc:'amb' },

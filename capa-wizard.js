@@ -212,6 +212,9 @@
       sourceMachineSafeguardingId: '', /* Rev.68 (Issam, text, 2026-11-18) — set when this ACT record was forwarded from the Machine Safeguarding Inspection's "Escalate to Action" button (keyed by 'Inspection ID'). No auto-close companion: like Harness/Painting/Civil Work/Pipeline, this register has no Status field that cleanly means "resolved". Mutually exclusive with the other source-* fields in practice. */
       sourceSecurityPatrolId: '', /* Rev.68 (Issam, text, 2026-11-18) — set when this ACT record was forwarded from the Security Patrol's "Escalate to Action" button (keyed by 'Patrol ID'). No auto-close companion: like Harness/Painting/Civil Work/Pipeline, this register has no Status field that cleanly means "resolved". Mutually exclusive with the other source-* fields in practice. */
       sourceVehiclePreuseId: '', /* Rev.68 (Issam, text, 2026-11-18) — set when this ACT record was forwarded from the Vehicle Pre-Use Inspection's "Escalate to Action" button (keyed by 'Inspection ID'). No auto-close companion: like Harness/Painting/Civil Work/Pipeline, this register has no Status field that cleanly means "resolved". Mutually exclusive with the other source-* fields in practice. */
+      sourceAreaInspectionId: '', /* Rev.69 (Issam, text, 2026-11-18) — set when this ACT record was forwarded from the Shift Area Safety Inspection's "Escalate to Action" button (keyed by 'Record ID'). No auto-close companion. Mutually exclusive with the other source-* fields in practice. */
+      sourceFireExtinguisherId: '', /* Rev.75 (Issam, text, 2026-11-19) — set when this ACT record was forwarded from the Fire Extinguisher Inspection Log's "Escalate to Action" button (keyed by 'Inspection ID'). Scoped to the Inspection sub-table only — the Master Inventory and Service Log have no escalate button. No auto-close companion. Mutually exclusive with the other source-* fields in practice. */
+      sourceElectricalId: '', /* Rev.76 (Issam, voice, 2026-11-18) — set when this ACT record was forwarded from the Electrical Work Checklist's "Escalate to Action" button (keyed by 'Checklist ID'). Mutually exclusive with the other source-* fields in practice. */
       residualLevel: '', /* Point 4 — RA Residual Level, required before an incident-linked ACT/CAPA record can be set to Closed; see actionFormHtml()/onSaveAction(). */
       residualComment: '',
       lockedFromIncident: false,
@@ -450,7 +453,13 @@
                                               ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Security Patrol <strong>' + esc(state.sourceSecurityPatrolId) + '</strong> — a plain Action: no root cause analysis, no approval gate.</div>'
                                               : (state.sourceVehiclePreuseId
                                               ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Vehicle Pre-Use Inspection <strong>' + esc(state.sourceVehiclePreuseId) + '</strong> — a plain Action: no root cause analysis, no approval gate.</div>'
-                                              : ''))))))))))))))))))))))))));
+                                              : (state.sourceAreaInspectionId
+                                              ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Shift Area Inspection <strong>' + esc(state.sourceAreaInspectionId) + '</strong> — a plain Action: no root cause analysis, no approval gate.</div>'
+                                              : (state.sourceFireExtinguisherId
+                                              ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Fire Extinguisher Inspection <strong>' + esc(state.sourceFireExtinguisherId) + '</strong> — a plain Action: no root cause analysis, no approval gate.</div>'
+                                              : (state.sourceElectricalId
+                                              ? '<div class="cw-sev-banner neutral" style="background:#EBF3FB;border-color:#B5D4F4;color:#1565C0">Raised from Electrical Work Checklist <strong>' + esc(state.sourceElectricalId) + '</strong> — a plain Action: no root cause analysis, no approval gate.</div>'
+                                              : '')))))))))))))))))))))))))))));
     /* Point 4 — RA Residual Level, required before closing an
        incident-linked Action. Shown whenever this record is linked to
        an incident (sourceIncidentId set) — not just when Status is
@@ -1100,6 +1109,9 @@
       'Source Machine Safeguarding ID': state.sourceMachineSafeguardingId || '',
       'Source Security Patrol ID': state.sourceSecurityPatrolId || '',
       'Source Vehicle Pre-Use Inspection ID': state.sourceVehiclePreuseId || '',
+      'Source Area Inspection ID': state.sourceAreaInspectionId || '',
+      'Source Fire Extinguisher ID': state.sourceFireExtinguisherId || '',
+      'Source Electrical Checklist ID': state.sourceElectricalId || '',
       'RA Residual Level': state.residualLevel || '',
       'RA Residual Comment': state.residualComment || '',
       /* Point (Issam, 2026-10-10): this used to be hardcoded to 'Low'
@@ -1659,6 +1671,27 @@
       body: JSON.stringify({ 'Action Reference': state.capaId }),
     }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
   }
+  function notifySourceAreaInspection() {
+    if (!state.sourceAreaInspectionId) return;
+    fetch(SHEETS_URL + '?action=update&tab=area_inspection&idCol=' + encodeURIComponent('Record ID') + '&id=' + encodeURIComponent(state.sourceAreaInspectionId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+  function notifySourceFireExtinguisher() {
+    if (!state.sourceFireExtinguisherId) return;
+    fetch(SHEETS_URL + '?action=update&tab=fe_inspection_log&idCol=' + encodeURIComponent('Inspection ID') + '&id=' + encodeURIComponent(state.sourceFireExtinguisherId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
+  function notifySourceElectrical() {
+    if (!state.sourceElectricalId) return;
+    fetch(SHEETS_URL + '?action=update&tab=electrical_checklist&idCol=' + encodeURIComponent('Checklist ID') + '&id=' + encodeURIComponent(state.sourceElectricalId), {
+      method: 'POST',
+      body: JSON.stringify({ 'Action Reference': state.capaId }),
+    }).catch(function () { /* silent, same reasoning as notifySourceIncident */ });
+  }
 
   /* Rev.09 (Issam, 2026-10-14) — mirrors notifyScaffoldInspectionActionCompleted()
      exactly, for the Fire Pump Test Log: once this ACT-lane record
@@ -1799,6 +1832,9 @@
             notifySourceMachineSafeguarding();
             notifySourceSecurityPatrol();
             notifySourceVehiclePreuse();
+            notifySourceAreaInspection();
+            notifySourceFireExtinguisher();
+            notifySourceElectrical();
             notifyIncidentActionCompleted();
             notifyIncidentResidual();
             notifyLotoAuditActionCompleted();
@@ -2148,6 +2184,9 @@
     state.sourceMachineSafeguardingId = col('Source Machine Safeguarding ID');
     state.sourceSecurityPatrolId = col('Source Security Patrol ID');
     state.sourceVehiclePreuseId = col('Source Vehicle Pre-Use Inspection ID');
+    state.sourceAreaInspectionId = col('Source Area Inspection ID');
+    state.sourceFireExtinguisherId = col('Source Fire Extinguisher ID');
+    state.sourceElectricalId = col('Source Electrical Checklist ID');
     state.residualLevel = col('RA Residual Level');
     state.residualComment = col('RA Residual Comment');
 
@@ -3297,6 +3336,39 @@
     state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
     loadUserDirectory(render);
   }
+  function openFromAreaInspection(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceAreaInspectionId = ctx.recordId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Shift Area Inspection';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+  function openFromFireExtinguisher(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceFireExtinguisherId = ctx.inspectionId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Fire Extinguisher Inspection';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
+  function openFromElectrical(ctx) {
+    injectStyles();
+    resetState();
+    currentStep = 1;
+    state.sourceElectricalId = ctx.checklistId || '';
+    state.lane = 'ACT';
+    state.description = ctx.description || '';
+    state.source = 'Electrical Work Checklist';
+    state.dateRaised = ctx.date || new Date().toISOString().slice(0, 10);
+    loadUserDirectory(render);
+  }
 
   /* Was previously an unconditional DOMContentLoaded listener — moved to
      an explicitly-called function, because that ran independently of
@@ -3753,6 +3825,39 @@
         loadUserDirectory(function () { openFromVehiclePreuse(vehiclePreuseCtx); });
       } else {
         loadUserDirectory(function () { openFromVehiclePreuse({ inspectionId: fromVehiclePreuse }); });
+      }
+    }
+    var fromAreaInspection = params.get('fromAreaInspection');
+    if (fromAreaInspection) {
+      showLoadingWizard();
+      var areaInspectionCtx = null;
+      try { areaInspectionCtx = JSON.parse(sessionStorage.getItem('incomingAreaInspectionContext') || 'null'); } catch (e) { areaInspectionCtx = null; }
+      if (areaInspectionCtx && String(areaInspectionCtx.recordId) === String(fromAreaInspection)) {
+        loadUserDirectory(function () { openFromAreaInspection(areaInspectionCtx); });
+      } else {
+        loadUserDirectory(function () { openFromAreaInspection({ recordId: fromAreaInspection }); });
+      }
+    }
+    var fromFireExtinguisher = params.get('fromFireExtinguisher');
+    if (fromFireExtinguisher) {
+      showLoadingWizard();
+      var feCtx = null;
+      try { feCtx = JSON.parse(sessionStorage.getItem('incomingFireExtinguisherContext') || 'null'); } catch (e) { feCtx = null; }
+      if (feCtx && String(feCtx.inspectionId) === String(fromFireExtinguisher)) {
+        loadUserDirectory(function () { openFromFireExtinguisher(feCtx); });
+      } else {
+        loadUserDirectory(function () { openFromFireExtinguisher({ inspectionId: fromFireExtinguisher }); });
+      }
+    }
+    var fromElectrical = params.get('fromElectrical');
+    if (fromElectrical) {
+      showLoadingWizard();
+      var elecCtx = null;
+      try { elecCtx = JSON.parse(sessionStorage.getItem('incomingElectricalContext') || 'null'); } catch (e) { elecCtx = null; }
+      if (elecCtx && String(elecCtx.checklistId) === String(fromElectrical)) {
+        loadUserDirectory(function () { openFromElectrical(elecCtx); });
+      } else {
+        loadUserDirectory(function () { openFromElectrical({ checklistId: fromElectrical }); });
       }
     }
   }

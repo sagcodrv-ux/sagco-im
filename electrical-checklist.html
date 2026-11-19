@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAGCO IMS — Electrical Work Checklist</title>
+<script src="auth.js"></script><script src="data.js"></script>
+<style>
+body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0}
+.chk-wrap{
+  --ck-bg:#0D1B35; --ck-bg2:#142140; --ck-bg3:#1a2a50;
+  --ck-gold:#C9A84C; --ck-gold-lt:#E8C97A;
+  --ck-text:rgba(255,255,255,.92); --ck-text-muted:rgba(255,255,255,.55);
+  --ck-text-dim:rgba(255,255,255,.35); --ck-border:rgba(255,255,255,.08);
+  --ck-border-gold:rgba(201,168,76,.35);
+  --ck-grn:#4FCB9E; --ck-amb:#E8B339; --ck-red:#F0685C; --ck-blue:#5B9BD5;
+  background:var(--ck-bg); color:var(--ck-text); margin:0; padding:24px; min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; font-size:14px; line-height:1.5;
+}
+.chk-wrap *{box-sizing:border-box}
+.chk-back-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.chk-back-link{display:inline-flex;align-items:center;gap:5px;color:var(--ck-gold-lt);
+  font-size:11px;font-weight:600;text-decoration:none;padding:5px 10px;background:var(--ck-bg2);
+  border-radius:8px;border:1px solid var(--ck-border-gold)}
+.chk-req{font-size:11px;line-height:1.6;padding:10px 14px;background:var(--ck-bg2);
+  border-radius:8px;border-left:3px solid var(--ck-gold);margin:10px 0;color:var(--ck-text-muted)}
+.chk-col-warning{display:none;font-size:11px;line-height:1.6;padding:10px 14px;background:rgba(240,104,92,.12);
+  border-radius:8px;border-left:3px solid var(--ck-red);margin:10px 0;color:var(--ck-red)}
+.chk-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+.chk-btn{font-size:11px;font-weight:700;padding:8px 14px;border-radius:7px;border:1px solid var(--ck-border-gold);
+  background:var(--ck-bg3);color:var(--ck-text);cursor:pointer}
+.chk-btn:hover{background:rgba(201,168,76,.15)}
+.chk-btn-add{background:rgba(201,168,76,.85);color:#1a1200;border-color:var(--ck-gold);font-weight:800}
+.chk-btn-add:hover{background:var(--ck-gold-lt)}
+.chk-table-wrap{overflow-x:auto;border:1px solid var(--ck-border-gold);border-radius:10px}
+table.chk-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.chk-tbl thead th{background:var(--ck-bg3);color:var(--ck-gold-lt);font-weight:700;text-align:left;padding:8px 10px;
+  text-transform:uppercase;font-size:9.5px;border-bottom:1px solid var(--ck-border-gold);white-space:nowrap}
+.chk-tbl tbody td{padding:7px 10px;border-bottom:1px solid var(--ck-border);color:var(--ck-text)}
+.chk-tbl tbody tr:hover td{background:var(--ck-bg3);cursor:pointer}
+.chk-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.chk-badge.grn{background:rgba(79,203,158,.18);color:var(--ck-grn)}
+.chk-badge.red{background:rgba(240,104,92,.18);color:var(--ck-red)}
+.chk-empty{text-align:center;padding:20px;color:var(--ck-text-muted);font-size:12px}
+.chk-modal-bg{position:fixed;inset:0;background:rgba(4,7,20,.72);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px}
+.chk-modal{background:var(--ck-bg2);border:1px solid var(--ck-border-gold);border-radius:14px;padding:20px;
+  width:480px;max-width:92vw;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+/* Rev.50 (Issam, voice, 2026-11-17) — same wide, 2-column form layout
+   as the other PTW-linked checklists: header fields paired two to a
+   row, every Yes/No item full-width on its own row (unchanged otherwise). */
+.chk-modal.wide{width:820px;max-width:94vw}
+.chk-modal h3{margin:0 0 12px;font-size:14px;color:var(--ck-gold-lt)}
+.chk-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.chk-modal-grid .chk-field.full{grid-column:1/-1}
+.chk-field{margin-bottom:0}
+.chk-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--ck-text-dim);margin-bottom:4px}
+.chk-field input,.chk-field textarea{width:100%;background:var(--ck-bg3);border:1px solid var(--ck-border);
+  color:var(--ck-text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:inherit}
+.chk-item-row{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--ck-bg3);
+  border:1px solid var(--ck-border);border-radius:8px;padding:9px 12px;margin-bottom:0;font-size:12px}
+.chk-yn{display:flex;gap:6px}
+.chk-yn label{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;cursor:pointer;
+  padding:5px 10px;border-radius:6px;background:var(--ck-bg2);border:1px solid var(--ck-border)}
+.chk-yn input{width:auto;margin:0}
+.chk-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.chk-result-banner{grid-column:1/-1;margin:0;padding:10px 14px;border-radius:8px;font-weight:800;font-size:13px;text-align:center}
+.chk-result-banner.grn{background:rgba(79,203,158,.18);color:var(--ck-grn);border:2px solid var(--ck-grn)}
+.chk-result-banner.red{background:rgba(240,104,92,.18);color:var(--ck-red);border:2px solid var(--ck-red)}
+@media (max-width:640px){
+  .chk-modal.wide{width:100%;max-width:100vw;border-radius:0;max-height:100vh;height:100vh}
+  .chk-modal-grid{grid-template-columns:1fr}
+  .chk-btn{min-height:44px;padding:10px 14px}
+  .chk-modal-actions{flex-direction:column-reverse}
+  .chk-modal-actions .chk-btn{width:100%}
+  .chk-field input,.chk-field textarea{min-height:42px;font-size:16px}
+  .chk-item-row{flex-direction:column;align-items:stretch;gap:8px}
+}
+</style>
+</head>
+<body>
+<div class="chk-wrap">
+  <div class="chk-back-row"><a href="ptw-register.html" class="chk-back-link">← PTW Register</a></div>
+  <div class="chk-req"><strong>Electrical Work Checklist</strong> — short checklist linked to a Permit to Work by Permit ID. Required whenever a permit ticks Electrical Repairs on Work Involved. Covers tools and test instruments, the barricaded work area and arc flash boundary, and the test for absence of voltage before re-energizing — the isolation itself is covered separately by the LOTO Job linked to the same permit.</div>
+  <div id="chk-col-warning" class="chk-col-warning"></div>
+  <div class="chk-toolbar">
+    <div></div>
+    <button class="chk-btn chk-btn-add" onclick="CHK.openAdd()">+ New Electrical Checklist</button>
+  </div>
+  <div class="chk-table-wrap"><table class="chk-tbl">
+    <thead><tr><th>ID</th><th>PTW Number</th><th>Date</th><th>Checked By</th><th>Result</th></tr></thead>
+    <tbody id="chk-tbody"><tr><td colspan="5" class="chk-empty">Loading…</td></tr></tbody>
+  </table></div>
+  <div id="chk-modal-root"></div>
+</div>
+
+<script>
+(function(){
+  var TAB_KEY = "electrical_checklist";
+  var ID_PREFIX = "ELC-";
+  // Rev.76 (Issam, voice, 2026-11-18) — three groups, eight items, per
+  // Issam's own scope for this checklist: the permit's LOTO Job
+  // already covers the isolation itself (locks, tags, zero-energy
+  // check); this covers what nothing else does — the tools, the work
+  // area, and the test immediately before re-energizing.
+  var ITEMS = [
+    "Insulated tools in good condition, no exposed metal",
+    "Test instruments (multimeter/voltage detector) calibrated and in date",
+    "Voltage detector itself tested on a known live source before use",
+    "Work area barricaded / isolated from unauthorized access",
+    "Arc flash boundary marked (if applicable)",
+    "Arc flash PPE worn, matching the required category (if applicable)",
+    "Absence of voltage confirmed on all conductors before work starts",
+    "Work area clear of tools and personnel before re-energizing"
+  ];
+  var PASS = "Cleared", FAIL = "Issues Noted";
+  var REQUIRED_COLUMNS = ["Checklist ID","PTW Number","Date","Checked By"].concat(ITEMS).concat(["Result","Remarks","Action Reference","Record Status"]);
+  var _rows = [], _headers = [];
+
+  function can(perm){ return (typeof IMS_AUTH !== 'undefined') && IMS_AUTH.can(perm); }
+  function currentUserName(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getCurrentUserName) ? IMS_AUTH.getCurrentUserName() : '';
+    return s || ((typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? ((IMS_AUTH.getUser()||{}).username||'') : '');
+  }
+  function vEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function colIdx(headers, name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+
+  function checkRequiredColumns(){
+    var el = document.getElementById('chk-col-warning');
+    if (!el) return;
+    var missing = REQUIRED_COLUMNS.filter(function(c){ return colIdx(_headers, c) < 0; });
+    if (!missing.length){ el.style.display='none'; el.innerHTML=''; return; }
+    el.style.display = 'block';
+    el.innerHTML = '⚠ This sheet is missing ' + missing.length + ' expected column' + (missing.length>1?'s':'')
+      + ' — add exactly this header text to row 3: <strong>' + missing.map(vEsc).join('</strong>, <strong>') + '</strong>.'
+      + ' Until added, anything saved to ' + (missing.length>1?'these columns':'this column') + ' will be silently lost.';
+  }
+
+  function nextId(){
+    var idIdx = colIdx(_headers, 'Checklist ID');
+    var maxN = 0;
+    _rows.forEach(function(r){
+      var v = String((idIdx>=0?r[idIdx]:'')||'').trim();
+      if (v.toLowerCase().indexOf(ID_PREFIX.toLowerCase()) !== 0) return;
+      var n = parseInt(v.slice(ID_PREFIX.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    var numStr = String(maxN + 1);
+    while (numStr.length < 4) numStr = '0' + numStr;
+    return ID_PREFIX + numStr;
+  }
+
+  function recFromRow(row){ var o = {}; _headers.forEach(function(h,i){ o[h]=row[i]; }); return o; }
+
+  // Rev.76 (Issam, voice, 2026-11-18) — printed form follows the same
+  // layout convention as Hot Work/Confined Space's own printed
+  // checklists (pf-head/pf-section-title/pf-tbl/pf-result/pf-footer),
+  // per Issam's explicit instruction, rather than the simpler no-print
+  // pattern Painting/Civil Work/Pipeline use.
+  function pfEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function pfRow(label, val){
+    var v = String(val||'').trim().toLowerCase();
+    return '<tr><td>'+pfEsc(label)+'</td><td style="text-align:center">'+(v==='yes'?'&#10003;':'')+'</td><td style="text-align:center">'+(v==='no'?'&#10003;':'')+'</td></tr>';
+  }
+  function buildPrintHtml(rec){
+    var printedAt = new Date().toLocaleString();
+    var resultVal = String(rec['Result']||'').trim();
+    var resultColor = resultVal === FAIL ? '#B33' : '#1a7a3c';
+    var itemRows = ITEMS.map(function(it){ return pfRow(it, rec[it]); }).join('');
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<title>Electrical Work Checklist '+pfEsc(rec['Checklist ID'])+'</title>'
+    + '<style>'
+    + 'body{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#111;margin:0;padding:16px;background:#fff}'
+    + '.pf-toolbar{text-align:right;margin-bottom:10px}'
+    + '.pf-toolbar button{font-size:12px;padding:7px 16px;border-radius:6px;border:1px solid #333;background:#f4f4f4;cursor:pointer}'
+    + '.pf-sheet{max-width:800px;margin:0 auto;border:1px solid #333;padding:14px}'
+    + '.pf-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}'
+    + '.pf-head h1{font-size:15px;margin:0}'
+    + '.pf-head .pf-code{font-size:10px;text-align:right}'
+    + '.pf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:3px 14px;margin-bottom:8px}'
+    + '.pf-field{font-size:10px}'
+    + '.pf-field b{display:block;font-size:8.5px;text-transform:uppercase;color:#555}'
+    + '.pf-section-title{font-weight:700;font-size:10px;margin:8px 0 3px;text-transform:uppercase;background:#eee;padding:3px 6px}'
+    + '.pf-tbl{width:100%;border-collapse:collapse;font-size:9px;margin-bottom:3px}'
+    + '.pf-tbl th,.pf-tbl td{border:1px solid #999;padding:2px 5px;text-align:left}'
+    + '.pf-tbl th{background:#f6f6f6}'
+    + '.pf-result{margin-top:8px;padding:6px;border:2px solid '+resultColor+';border-radius:4px;text-align:center;font-weight:700;font-size:12px;color:'+resultColor+'}'
+    + '.pf-footer{margin-top:6px;font-size:8px;color:#666;border-top:1px solid #999;padding-top:4px}'
+    + '@media print{.pf-toolbar{display:none}body{padding:0}.pf-sheet{border:none}@page{size:A4;margin:10mm}}'
+    + '</style></head><body>'
+    + '<div class="pf-toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>'
+    + '<div class="pf-sheet">'
+      + '<div class="pf-head"><h1>Electrical Work Checklist</h1>'
+      + '<div class="pf-code">Rev.00, 18-Nov-2026<br>Checklist ID: <b>'+pfEsc(rec['Checklist ID'])+'</b></div></div>'
+      + '<div class="pf-grid3">'
+        + '<div class="pf-field"><b>Date</b>'+pfEsc(rec['Date'])+'</div>'
+        + '<div class="pf-field"><b>Permit Number</b>'+pfEsc(rec['PTW Number'])+'</div>'
+        + '<div class="pf-field"><b>Checked By</b>'+pfEsc(rec['Checked By'])+'</div>'
+      + '</div>'
+      + '<div class="pf-section-title">Tools, Work Area &amp; Pre-Energizing Checks</div>'
+      + '<table class="pf-tbl"><thead><tr><th>Item</th><th>Yes</th><th>No</th></tr></thead><tbody>'
+      + itemRows
+      + '</tbody></table>'
+      + '<div class="pf-field" style="margin-top:4px"><b>Remarks</b>'+pfEsc(rec['Remarks'])+'</div>'
+      + '<div class="pf-result">'+pfEsc(resultVal || 'NOT YET CLOSED')+'</div>'
+      + '<div class="pf-footer">Electrical Work Checklist, Rev.00, 18-Nov-2026. Generated from the SAGCO IMS Portal on '+pfEsc(printedAt)+'. Not valid without original signature.</div>'
+    + '</div></body></html>';
+  }
+
+  function render(){
+    checkRequiredColumns();
+    var statusIdx = colIdx(_headers, 'Record Status');
+    var visible = _rows.filter(function(r){ return statusIdx<0 || String(r[statusIdx]||'').trim().toLowerCase() !== 'removed'; });
+    var tbody = document.getElementById('chk-tbody');
+    if (!visible.length){ tbody.innerHTML = '<tr><td colspan="5" class="chk-empty">No checklists recorded yet.</td></tr>'; return; }
+    var idIdx = colIdx(_headers,'Checklist ID'), ptwIdx = colIdx(_headers,'PTW Number'), dateIdx = colIdx(_headers,'Date'),
+        byIdx = colIdx(_headers,'Checked By'), resIdx = colIdx(_headers,'Result');
+    tbody.innerHTML = visible.slice().reverse().map(function(r){
+      var res = resIdx>=0 ? String(r[resIdx]||'').trim() : '';
+      var badge = res === PASS ? '<span class="chk-badge grn">' + vEsc(PASS) + '</span>'
+        : (res ? '<span class="chk-badge red">' + vEsc(res) + '</span>' : '<span style="color:var(--ck-text-dim)">—</span>');
+      return '<tr onclick="CHK.openEdit(\'' + String(idIdx>=0?r[idIdx]:'').replace(/'/g,"\\'") + '\')">'
+        + '<td>' + vEsc(idIdx>=0?r[idIdx]:'') + '</td>'
+        + '<td>' + vEsc(ptwIdx>=0?r[ptwIdx]:'') + '</td>'
+        + '<td>' + vEsc(dateIdx>=0?r[dateIdx]:'') + '</td>'
+        + '<td>' + vEsc(byIdx>=0?r[byIdx]:'') + '</td>'
+        + '<td>' + badge + '</td></tr>';
+    }).join('');
+  }
+
+  function loadAll(){
+    return fetch(SHEETS_URL + '?tab=' + TAB_KEY + '&action=read').then(function(r){ return r.json(); }).then(function(data){
+      _headers = (data && data.headers) || [];
+      _rows = (data && data.rows) || [];
+      render();
+      return data;
+    }).catch(function(){
+      document.getElementById('chk-tbody').innerHTML = '<tr><td colspan="5" class="chk-empty">Could not reach Google Sheets.</td></tr>';
+    });
+  }
+
+  function buildModal(rec, isEdit){
+    var root = document.getElementById('chk-modal-root');
+    rec = rec || {};
+    var id = isEdit ? rec['Checklist ID'] : nextId();
+    var itemsHtml = ITEMS.map(function(item, i){
+      var v = String(rec[item]||'').trim();
+      return '<div class="chk-item-row"><span>' + vEsc(item) + '</span>'
+        + '<span class="chk-yn">'
+          + '<label><input type="radio" name="chk-item-' + i + '" value="Yes"' + (v==='Yes'?' checked':'') + '> Yes</label>'
+          + '<label><input type="radio" name="chk-item-' + i + '" value="No"' + (v==='No'?' checked':'') + '> No</label>'
+        + '</span></div>';
+    }).join('');
+    var resultVal = isEdit ? String(rec['Result']||'').trim() : '';
+    var resultBanner = resultVal ? '<div class="chk-result-banner ' + (resultVal===PASS?'grn':'red') + '">' + vEsc(resultVal) + '</div>' : '';
+    // Rev.51 (Issam, voice, 2026-11-17) — this page has no separate
+    // row-selection toolbar (clicking a row opens Edit directly), so
+    // the single Escalate button lives in the Edit modal itself,
+    // next to Cancel/Save. Only shown once saved (isEdit) and not
+    // already escalated.
+    var existingRef = isEdit ? String(rec['Action Reference']||'').trim() : '';
+    var escalateBtn = isEdit
+      ? (existingRef
+        ? '<button class="chk-btn" disabled title="Already escalated — see the Action Register">✓ Escalated → ' + vEsc(existingRef) + '</button>'
+        : '<button class="chk-btn chk-btn-add" id="chk-escalate">⚡ Escalate to Action</button>')
+      : '';
+    // Rev.76 — printed report, same format convention as Hot Work /
+    // Confined Space; only offered once saved (isEdit), same as
+    // Escalate just above.
+    var printBtn = isEdit ? '<button class="chk-btn" id="chk-print">🖨️ Print</button>' : '';
+
+    root.innerHTML = '<div class="chk-modal-bg" id="chk-modal-bg"><div class="chk-modal wide">'
+      + '<h3>' + (isEdit?'Edit':'New') + ' Electrical Work Checklist — ' + vEsc(id) + '</h3>'
+      + '<div class="chk-modal-grid">'
+      + '<div class="chk-field"><label>PTW Number (Permit ID)</label><input type="text" id="chk-ptw" value="' + vEsc(rec['PTW Number']||'') + '"></div>'
+      + '<div class="chk-field"><label>Date</label><input type="date" id="chk-date" value="' + vEsc(rec['Date']||new Date().toISOString().slice(0,10)) + '"></div>'
+      + '<div class="chk-field full"><label>Checked By</label><input type="text" id="chk-by" value="' + vEsc(rec['Checked By']||currentUserName()) + '"></div>'
+      + itemsHtml
+      + resultBanner
+      + '<div class="chk-field full"><label>Remarks</label><textarea id="chk-remarks">' + vEsc(rec['Remarks']||'') + '</textarea></div>'
+      + '</div>'
+      + '<div class="chk-modal-actions">' + escalateBtn + printBtn + '<button class="chk-btn" id="chk-cancel">Cancel</button><button class="chk-btn chk-btn-add" id="chk-save">Save</button></div>'
+      + '</div></div>';
+
+    document.getElementById('chk-cancel').onclick = function(){ root.innerHTML=''; };
+    document.getElementById('chk-modal-bg').onclick = function(e){ if (e.target.id==='chk-modal-bg') root.innerHTML=''; };
+    if (isEdit){
+      document.getElementById('chk-print').onclick = function(){
+        var w = window.open('', '_blank');
+        if (!w){ alert('Pop-up blocked — please allow pop-ups to print.'); return; }
+        w.document.open(); w.document.write(buildPrintHtml(rec)); w.document.close();
+      };
+    }
+    if (isEdit && !existingRef){
+      document.getElementById('chk-escalate').onclick = function(){
+        var descParts = [];
+        descParts.push('Electrical Work Checklist: ' + id);
+        if (rec['PTW Number']) descParts.push('PTW Number: ' + rec['PTW Number']);
+        if (rec['Result']) descParts.push('Result: ' + rec['Result']);
+        if (rec['Remarks']) descParts.push('Remarks: ' + rec['Remarks']);
+        var ctx = {
+          checklistId: id,
+          description: descParts.join('\n') || ('Electrical Work Checklist ' + id),
+          date: new Date().toISOString().slice(0,10)
+        };
+        try { sessionStorage.setItem('incomingElectricalContext', JSON.stringify(ctx)); } catch(e){}
+        window.open('action-register.html?fromElectrical=' + encodeURIComponent(id) + '&lane=ACT', '_blank');
+      };
+    }
+    document.getElementById('chk-save').onclick = function(){
+      var values = {
+        'Checklist ID': id,
+        'PTW Number': document.getElementById('chk-ptw').value.trim(),
+        'Date': document.getElementById('chk-date').value,
+        'Checked By': document.getElementById('chk-by').value.trim(),
+        'Remarks': document.getElementById('chk-remarks').value.trim(),
+        'Record Status': 'Active'
+      };
+      var anyNo = false;
+      var missingItems = [];
+      ITEMS.forEach(function(item, i){
+        var sel = root.querySelector('input[name="chk-item-' + i + '"]:checked');
+        var v = sel ? sel.value : '';
+        values[item] = v;
+        if (v === 'No') anyNo = true;
+        if (!v) missingItems.push(item);
+      });
+      // Rev.35 (Issam, voice, 2026-11-15) — an unanswered item used to
+      // count as passing (only an explicit "No" was ever checked),
+      // so a checklist could save as Cleared with items nobody
+      // actually looked at. Every item must now be answered Yes or
+      // No before it can save at all, naming whichever are missing.
+      if (missingItems.length){
+        alert('This checklist cannot be saved yet — the following items must be answered first:\n\n- ' + missingItems.join('\n- '));
+        return;
+      }
+      values['Result'] = anyNo ? FAIL : PASS;
+      if (!values['PTW Number']){ alert('PTW Number (Permit ID) is required.'); return; }
+      var btn = document.getElementById('chk-save'); btn.disabled = true;
+      var action = isEdit ? 'update' : 'write';
+      var qs = isEdit ? ('&idCol=' + encodeURIComponent('Checklist ID') + '&id=' + encodeURIComponent(id)) : '';
+      fetch(SHEETS_URL + '?action=' + action + '&tab=' + TAB_KEY + qs, {
+        method: 'POST', body: JSON.stringify(isEdit ? values : [values])
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); btn.disabled=false; return; }
+        root.innerHTML = '';
+        loadAll();
+        // Rev.30 (Issam, voice, 2026-11-15) — the moment this checklist
+        // clears, tell the PTW Register right away instead of waiting
+        // for someone to happen to open it, so the Area Manager email
+        // goes out immediately rather than on the register's next load.
+        if (values['Result'] === PASS && values['PTW Number']){
+          fetch(SHEETS_URL + '?action=checkAndPromotePtwPermit', { method:'POST', body: JSON.stringify({ permitId: values['PTW Number'] }) }).catch(function(){});
+        }
+      }).catch(function(){ alert('Could not save — check your connection.'); btn.disabled=false; });
+    };
+  }
+
+  window.CHK = {
+    openAdd: function(){ if (!can('add')) return; buildModal(null, false); },
+    openEdit: function(id){
+      if (!can('edit')) return;
+      var idIdx = colIdx(_headers, 'Checklist ID');
+      var row = _rows.find(function(r){ return String(r[idIdx]) === String(id); });
+      if (!row) return;
+      buildModal(recFromRow(row), true);
+    }
+  };
+
+  // ?permitId= deep link — same convention as crane-inspection.html /
+  // scaffold-inspection.html: opens straight to a New checklist with
+  // PTW Number already filled in, so the person raising it from the
+  // permit register doesn't retype the permit number.
+  // Rev.76 (Issam, text, 2026-11-19) — same fix already applied to
+  // painting/civil-work/pipeline: an existing Cleared checklist for
+  // this permit opens in Edit instead of always opening a blank new
+  // form; an Issues Noted result or nothing yet still opens fresh.
+  function handlePermitIdDeepLink(){
+    var params = new URLSearchParams(window.location.search);
+    var permitId = params.get('permitId');
+    if (!permitId) return;
+    var ptwIdx = colIdx(_headers, 'PTW Number');
+    var resIdx = colIdx(_headers, 'Result');
+    var idIdx = colIdx(_headers, 'Checklist ID');
+    var recStatusIdx = colIdx(_headers, 'Record Status');
+    var existing = null;
+    _rows.forEach(function(row){
+      if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
+      if (ptwIdx >= 0 && String(row[ptwIdx]||'').trim() === String(permitId).trim()) existing = row;
+    });
+    var existingResult = (existing && resIdx >= 0) ? String(existing[resIdx]||'').trim() : '';
+    if (existing && existingResult === PASS){
+      if (can('edit')) CHK.openEdit(existing[idIdx]);
+      return;
+    }
+    if (!can('add')) return;
+    buildModal({ 'PTW Number': permitId }, false);
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof IMS_AUTH !== 'undefined'){
+      IMS_AUTH.init({ onReady: function(){ loadAll().then(handlePermitIdDeepLink); } });
+    } else {
+      loadAll().then(handlePermitIdDeepLink);
+    }
+  });
+})();
+</script>
+</body></html>
