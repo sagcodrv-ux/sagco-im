@@ -1319,6 +1319,20 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
   // Pre-Entry / Atmospheric Test Record section, and opens that exact
   // record's full details (not just a highlighted row), same as the
   // LOTO Station Audit hand-off.
+  // Rev.81 (Issam, voice, 2026-11-19) — makes the LOTO Reference field
+  // read-only right after it's been pre-filled from a linked LOTO
+  // job, so it can be seen but not overtyped. showModal() builds the
+  // modal's HTML synchronously, so this can run immediately after the
+  // openAdd() call that triggers it, with no need to wait.
+  function lockLotoReferenceField_(){
+    var root = document.getElementById('cs-modal-root');
+    var inp = root ? root.querySelector('[data-field="LOTO Reference"]') : null;
+    if (!inp) return;
+    inp.setAttribute('readonly', 'readonly');
+    inp.style.opacity = '.75';
+    inp.style.cursor = 'not-allowed';
+    inp.title = 'Filled in automatically from this permit\'s linked LOTO Job — already confirmed ready before this form was opened.';
+  }
   function handleConfinedSpaceDeepLink(){
     var params = new URLSearchParams(window.location.search);
     var entryId = params.get('entry');
@@ -1351,7 +1365,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         });
       }
       if (!existing){
-        CS.openAdd('preentry', {'PTW Number': permitId});
+        // Rev.81 (Issam, voice, 2026-11-19) — when the PTW Register
+        // sends a &lotoId=, it already confirmed that LOTO job's
+        // isolation is ready before it even offered this link (see
+        // ptw-register.html's csLocked check), so the value is simply
+        // carried over and locked here rather than re-typed — one
+        // less chance for the two records to disagree on which LOTO
+        // job this entry depends on.
+        var lotoId = params.get('lotoId');
+        CS.openAdd('preentry', {'PTW Number': permitId, 'LOTO Reference': lotoId || ''});
+        if (lotoId) lockLotoReferenceField_();
         return;
       }
       var idIdx = colIdx(csData.headers, 'Entry ID');

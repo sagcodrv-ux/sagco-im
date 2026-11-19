@@ -2053,7 +2053,7 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     return _electricalFetchPromise;
   }
 
-  function findLinkedRecord(data, permitNum, idColName){
+  function findLinkedRecord(data, permitNum, idColName, ownIdColName){
     if (!data || !data.headers || !data.rows || !permitNum) return null;
     // Rev.24 (Issam, upload, 2026-11-11) — scaffold-inspection.html's
     // own column for this is named 'Permit Number', not 'PTW Number'
@@ -2063,11 +2063,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
     var numIdx = colIdx(data.headers, idColName || 'PTW Number');
     var statusIdx = colIdx(data.headers, 'Status');
     var recStatusIdx = colIdx(data.headers, 'Record Status');
+    // Rev.81 (Issam, voice, 2026-11-19) — ownIdColName, when passed,
+    // also captures the record's own ID (e.g. 'LOTO ID') so a caller
+    // can hand that specific job's ID onward to a linked page, rather
+    // than only knowing that SOME matching record exists.
+    var ownIdIdx = ownIdColName ? colIdx(data.headers, ownIdColName) : -1;
     var found = null;
     data.rows.forEach(function(row){
       if (recStatusIdx >= 0 && String(row[recStatusIdx]||'').trim().toLowerCase() === 'removed') return;
       if (numIdx >= 0 && String(row[numIdx]||'').trim() === String(permitNum).trim()){
-        found = { status: statusIdx >= 0 ? String(row[statusIdx]||'').trim() : '' };
+        found = { status: statusIdx >= 0 ? String(row[statusIdx]||'').trim() : '', id: ownIdIdx >= 0 ? String(row[ownIdIdx]||'').trim() : '' };
       }
     });
     return found;
@@ -2216,31 +2221,23 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
       var rowsHtml = '';
       var requiredCount = 0, readyCount = 0, blockedNames = [];
 
-      if (needsCs){
-        requiredCount++;
-        // Rev.32 (Issam, voice, 2026-11-15) — "safe to enter" counts,
-        // not just Closed; see confinedSpaceIsReady_ above.
-        var cs = csData ? findLinkedRecord(csData, permitId) : null;
-        var csReady = csData ? confinedSpaceIsReady_(csData, permitId) : false;
-        if (csReady) readyCount++; else blockedNames.push('Confined Space Entry');
-        var csBadge = !cs ? '<span class="badge kc-red">Not raised</span>' : (csReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (cs.status || 'Open') + '</span>');
-        // Rev.60 (Issam, voice, 2026-11-17) — label now matches what
-        // confined-space.html's own deep link actually does with an
-        // existing record: Continue (Entry/Exit) while Open, View
-        // once Closed, Raise only when nothing exists yet.
-        var csClosed = cs && String(cs.status||'').trim().toLowerCase() === 'closed';
-        var csBtnLabel = !cs ? 'Raise' : (csClosed ? 'View' : 'Continue');
-        rowsHtml += '<div class="ptw-linked-row"><strong>Confined Space Entry</strong> ' + csBadge +
-          (cs ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="cs" data-idcol="PTW Number" data-title="Confined Space Entry">👁️ View</button>' : '') +
-          '<button type="button" class="ptw-btn" onclick="window.open(\'confined-space.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + csBtnLabel + ' Confined Space Form</button></div>';
-      }
+      // Rev.81 (Issam, voice, 2026-11-19) — when a permit needs BOTH a
+      // LOTO Job and a Confined Space Entry, the LOTO isolation must
+      // be done first and the Confined Space form is locked until it
+      // is — Issam's own instruction, to avoid someone entering a
+      // space whose isolation was never actually confirmed. So the
+      // LOTO block is computed (and rendered) first, and the Confined
+      // Space block below reads ljReady to decide whether to lock.
+      // When a permit needs Confined Space but NOT LOTO, nothing here
+      // changes — it behaves exactly as before.
+      var lj = null, ljReady = false;
       if (needsLoto){
         requiredCount++;
         // Rev.31 (Issam, voice, 2026-11-15) — Open (with the pre-task
         // checks confirmed) is enough here, not Closed — see
         // lotoJobIsReady_ above for why.
-        var lj = lotoData ? findLinkedRecord(lotoData, permitId) : null;
-        var ljReady = lotoData ? lotoJobIsReady_(lotoData, permitId) : false;
+        lj = lotoData ? findLinkedRecord(lotoData, permitId, 'PTW Number', 'LOTO ID') : null;
+        ljReady = lotoData ? lotoJobIsReady_(lotoData, permitId) : false;
         if (ljReady) readyCount++; else blockedNames.push('LOTO Job');
         var ljBadge = !lj ? '<span class="badge kc-red">Not raised</span>' : (ljReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (lj.status || 'Open') + '</span>');
         // Rev.60 (Issam, voice, 2026-11-17) — label now matches what
@@ -2252,6 +2249,31 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto}
         rowsHtml += '<div class="ptw-linked-row"><strong>LOTO Job</strong> ' + ljBadge +
           (lj ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="loto" data-idcol="PTW Number" data-title="LOTO Job">👁️ View</button>' : '') +
           '<button type="button" class="ptw-btn" onclick="window.open(\'loto-register.html?permitId='+encodeURIComponent(permitId)+'\',\'_blank\')">' + ljBtnLabel + ' LOTO Job</button></div>';
+      }
+      if (needsCs){
+        requiredCount++;
+        // Rev.32 (Issam, voice, 2026-11-15) — "safe to enter" counts,
+        // not just Closed; see confinedSpaceIsReady_ above.
+        var cs = csData ? findLinkedRecord(csData, permitId) : null;
+        var csReady = csData ? confinedSpaceIsReady_(csData, permitId) : false;
+        if (csReady) readyCount++; else blockedNames.push('Confined Space Entry');
+        // Rev.81 — locked until the LOTO job's isolation is confirmed,
+        // only when this permit actually needs a LOTO job at all.
+        var csLocked = needsLoto && !ljReady && !cs;
+        var csBadge = csLocked ? '<span class="badge kc-red">Locked — complete LOTO first</span>'
+          : (!cs ? '<span class="badge kc-red">Not raised</span>' : (csReady ? '<span class="badge kc-grn">Completed</span>' : '<span class="badge kc-amb">' + (cs.status || 'Open') + '</span>'));
+        // Rev.60 (Issam, voice, 2026-11-17) — label now matches what
+        // confined-space.html's own deep link actually does with an
+        // existing record: Continue (Entry/Exit) while Open, View
+        // once Closed, Raise only when nothing exists yet.
+        var csClosed = cs && String(cs.status||'').trim().toLowerCase() === 'closed';
+        var csBtnLabel = !cs ? 'Raise' : (csClosed ? 'View' : 'Continue');
+        rowsHtml += '<div class="ptw-linked-row"><strong>Confined Space Entry</strong> ' + csBadge +
+          (cs ? '<button type="button" class="ptw-btn ptw-view-chk-btn" data-key="cs" data-idcol="PTW Number" data-title="Confined Space Entry">👁️ View</button>' : '') +
+          (csLocked
+            ? '<button type="button" class="ptw-btn" disabled title="Complete the LOTO Job above first">' + csBtnLabel + ' Confined Space Form</button>'
+            : '<button type="button" class="ptw-btn" onclick="window.open(\'confined-space.html?permitId='+encodeURIComponent(permitId)+(lj && lj.id ? '&lotoId='+encodeURIComponent(lj.id) : '')+'\',\'_blank\')">' + csBtnLabel + ' Confined Space Form</button>')
+          + '</div>';
       }
       if (needsCrane){
         requiredCount++;
