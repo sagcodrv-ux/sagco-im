@@ -886,24 +886,50 @@
     var isNew = _justCreatedId && rec['Permit ID'] === _justCreatedId;
     var cardId = isNew ? ' id="pm-just-created"' : '';
     var stage = approvalStage_(rec, role);
-    return '<div' + cardId + ' class="pm-card' + (mine ? ' pm-card-mine' : ' pm-card-viewonly') + (isNew ? ' pm-card-justcreated' : '') + '" onclick="PM.cardTap(event,\'' + esc(permitUrl) + '\')">'
-      + (isNew ? '<div class="pm-new-badge">✓ Just created</div>' : '')
-      + '<div class="pm-card-top"><span class="pm-card-id">' + id + '</span>'
+    var actionHtml;
+
+    if (stage){
+      actionHtml =
+        '<button type="button" class="pm-card-action pm-act-main" ' +
+        'onclick="event.stopPropagation();PM.openApproval(\'' +
+        esc(rec['Permit ID']) +
+        '\')">' +
+        esc(label) +
+        '</button>';
+    } else {
+      actionHtml =
+        '<a class="pm-card-action ' +
+        (mine ? 'pm-act-main' : 'pm-act-view') +
+        '" href="' +
+        permitUrl +
+        '" target="_blank">' +
+        esc(label) +
+        '</a>';
+    }
+
+    return '<div' + cardId + ' class="pm-card'
+        + (mine ? ' pm-card-mine' : ' pm-card-viewonly')
+        + (isNew ? ' pm-card-justcreated' : '')
+        + '" onclick="PM.cardTap(event,\'' + esc(permitUrl) + '\')">'
+        + (isNew ? '<div class="pm-new-badge">✓ Just created</div>' : '')
+        + '<div class="pm-card-top"><span class="pm-card-id">' + id + '</span>'
         + (mine ? '' : '<span class="pm-badge pm-b-grey" style="margin-right:6px">View Only</span>')
-        + badgeHtml(rec['Status'], stage ? rec['Permit ID'] : null) + '</div>'
-      + '<div class="pm-card-meta">'
-        + '<b>' + esc(rec['Area']||'—') + '</b>' + (rec['Location'] ? ' · ' + esc(rec['Location']) : '') + (rec['Date'] ? ' · ' + esc(displayDate_(rec['Date'])) : '') + '<br>'
-        + esc(rec['Work Involved']||'—') + '<br>'
-        + 'Issuer: ' + esc(displayNameFromField(rec['Permit Issuer - Name'])||'—') + ' · Receiver: ' + esc(rec['Permit Receiver - Name']||'—')
-      + '</div>'
-      + '<a class="pm-card-action ' + (mine ? 'pm-act-main' : 'pm-act-view') + '" href="' + permitUrl + '" target="_blank">' + esc(label) + '</a>'
-      // Rev.96 (Issam, voice, 2026-11-23) — every card gets a Permit
-      // Pack link, View Only included; it's the exact same read-only
-      // pack the desktop register already builds (deep link &pack=1,
-      // same one the approval emails use), not a separate mobile page.
-      + '<a class="pm-pack-link" href="' + permitUrl + '&pack=1" target="_blank">📦 Permit Pack</a>'
-      + checklistChipsHtml(rec)
-      + '</div>';
+        + badgeHtml(rec['Status'], stage ? rec['Permit ID'] : null)
+        + '</div>'
+        + '<div class="pm-card-meta">'
+        + '<b>' + esc(rec['Area'] || '—') + '</b>'
+        + (rec['Location'] ? ' · ' + esc(rec['Location']) : '')
+        + (rec['Date'] ? ' · ' + esc(displayDate_(rec['Date'])) : '')
+        + '<br>'
+        + esc(rec['Work Involved'] || '—')
+        + '<br>'
+        + 'Issuer: ' + esc(displayNameFromField(rec['Permit Issuer - Name']) || '—')
+        + ' · Receiver: ' + esc(rec['Permit Receiver - Name'] || '—')
+        + '</div>'
+        + actionHtml
+        + '<a class="pm-pack-link" href="' + permitUrl + '&pack=1" target="_blank">📦 Permit Pack</a>'
+        + checklistChipsHtml(rec)
+        + '</div>';
   }
 
   // Rev.86 (Issam, voice, 2026-11-21) — the landing screen is now the
