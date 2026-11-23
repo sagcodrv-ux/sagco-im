@@ -168,7 +168,14 @@
       .catch(function(){ return {headers:[],rows:[]}; });
   }
   function loadAll(cb){
-    Promise.all([fetchTab(REG_TAB), fetchTab('issuers'), fetchTab('users'),
+    // Rev.90 (Issam, voice, 2026-11-22) — this was fetching a tab
+    // literally named 'issuers', which doesn't exist; the real
+    // Authorized Issuers roster sheet is 'ptw_authorized_issuers'
+    // (confirmed against ptw-register.html's own TABLES.issuers
+    // config). That's why the Permit Issuer dropdown on New Permit —
+    // and matchIssuerToMe_()/_amAuthorizedIssuer, which both depend on
+    // this same fetch — came up empty.
+    Promise.all([fetchTab(REG_TAB), fetchTab('ptw_authorized_issuers'), fetchTab('users'),
       fetchTab('hotwork_checklist'), fetchTab('electrical_checklist'), fetchTab('loto_register'), fetchTab('cs_entry'),
       fetchTab('crane_checklist'), fetchTab('scaffold_inspection'), fetchTab('harness_fall_protection'),
       fetchTab('painting_checklist'), fetchTab('civil_work_checklist'), fetchTab('pipeline_checklist')
@@ -416,6 +423,22 @@
     var terms = splitSearchTerms_(_listSearch);
     return base.filter(function(r){ return matchesSearch_(r, terms); });
   }
+  // Rev.91 (Issam, voice, 2026-11-22) — suggestions for free-text
+  // fields on New Permit, built from what's actually been typed
+  // before (this register's own past Area/Location/Receiver values),
+  // not a fixed list — so it grows with real use instead of needing
+  // maintenance. A plain HTML <datalist> keeps this native: the
+  // field still accepts anything typed, the suggestions just appear
+  // as the person types.
+  function buildDatalist_(listId, field){
+    var counts = {};
+    regRecords().forEach(function(rec){
+      var v = String(rec[field]||'').trim();
+      if (v) counts[v] = (counts[v]||0) + 1;
+    });
+    var values = Object.keys(counts).sort(function(a,b){ return counts[b]-counts[a]; }).slice(0, 20);
+    return '<datalist id="' + listId + '">' + values.map(function(v){ return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>';
+  }
   function filterChipHtml_(key, label, count){
     var active = _listFilter === key;
     return '<button type="button" class="pm-fchip' + (active?' pm-fchip-active':'') + '" onclick="PM.setListFilter(\'' + key + '\')">' + esc(label) + (count!=null ? ' (' + count + ')' : '') + '</button>';
@@ -557,8 +580,10 @@
   function renderNew1(){
     root.innerHTML = header() + '<button type="button" class="pm-back" onclick="PM.go(\'home\')">← Cancel</button>'
       + dots(0)
-      + '<div class="pm-field"><label>Area <span style="color:var(--pdw-red)">*</span></label><input id="pm-f-area" value="' + esc(_new.area) + '" placeholder="e.g. Unit 4"></div>'
-      + '<div class="pm-field"><label>Location</label><input id="pm-f-location" value="' + esc(_new.location) + '" placeholder="e.g. Batch House, Switchgear Room"></div>'
+      + '<div class="pm-field"><label>Area <span style="color:var(--pdw-red)">*</span></label><input id="pm-f-area" list="pm-dl-area" value="' + esc(_new.area) + '" placeholder="e.g. Unit 4"></div>'
+      + buildDatalist_('pm-dl-area', 'Area')
+      + '<div class="pm-field"><label>Location</label><input id="pm-f-location" list="pm-dl-location" value="' + esc(_new.location) + '" placeholder="e.g. Batch House, Switchgear Room"></div>'
+      + buildDatalist_('pm-dl-location', 'Location')
       + '<div class="pm-field"><label>Work Involved <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-work">'
         + '<option value="">— select —</option>'
         + PTW_WORK_TYPES.map(function(w){ return '<option value="'+esc(w)+'"'+(w===_new.workInvolved?' selected':'')+'>'+esc(w)+'</option>'; }).join('')
@@ -586,7 +611,8 @@
       + dots(1)
       + '<div class="pm-field"><label>Permit Issuer <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-issuer">' + issuerOptionsHtml() + '</select></div>'
       + issuerNote
-      + '<div class="pm-field"><label>Permit Receiver (name) <span style="color:var(--pdw-red)">*</span></label><input id="pm-f-receiver" value="' + esc(_new.receiver) + '" placeholder="Full name"></div>'
+      + '<div class="pm-field"><label>Permit Receiver (name) <span style="color:var(--pdw-red)">*</span></label><input id="pm-f-receiver" list="pm-dl-receiver" value="' + esc(_new.receiver) + '" placeholder="Full name"></div>'
+      + buildDatalist_('pm-dl-receiver', 'Permit Receiver - Name')
       + '<div class="pm-field"><label>Unit / Area Manager <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-um">' + roleOptionsHtml(isManager, _new.unitManager) + '</select></div>'
       + '<div class="pm-field"><label>Permit Controller (Safety) <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-ctrl">' + roleOptionsHtml(isSafety, _new.controller) + '</select></div>'
       + '<div class="pm-err" id="pm-err2">Please fill in every required field above.</div>'
