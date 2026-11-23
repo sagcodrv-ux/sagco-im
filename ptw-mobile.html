@@ -35,7 +35,8 @@
     text-decoration:none; background:none; border:none; padding:6px 0 14px; cursor:pointer; font-family:inherit}
   .pm-list-title{font-size:15px; font-weight:700; margin:0 0 4px}
   .pm-list-empty{font-size:12.5px; color:var(--pdw-text-muted); padding:30px 10px; text-align:center}
-  .pm-card{background:var(--pdw-bg2); border:1px solid var(--pdw-border); border-radius:12px; padding:14px; margin-bottom:10px}
+  .pm-card{background:var(--pdw-bg2); border:1px solid var(--pdw-border); border-radius:12px; padding:14px; margin-bottom:10px; cursor:pointer}
+  .pm-card-viewonly{opacity:.78}
   .pm-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px}
   .pm-card-id{font-size:13.5px; font-weight:700}
   .pm-badge{font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap}
@@ -67,6 +68,31 @@
   .pm-review-row span:last-child{font-weight:600; text-align:right}
   .pm-err{font-size:12px; color:var(--pdw-red); margin-top:6px; display:none}
   .pm-loading{text-align:center; padding:60px 10px; color:var(--pdw-text-muted); font-size:13px}
+  .pm-chip-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px}
+  .pm-chip{font-size:11px; font-weight:700; padding:6px 10px; border-radius:20px; text-decoration:none; white-space:nowrap}
+  .pm-chip-done{background:rgba(79,203,158,.16); color:var(--pdw-grn); border:1px solid rgba(79,203,158,.4)}
+  .pm-chip-todo{background:rgba(232,179,57,.16); color:var(--pdw-amb); border:1px solid rgba(232,179,57,.4)}
+  .pm-chip-locked{background:rgba(255,255,255,.06); color:var(--pdw-text-dim); border:1px solid var(--pdw-border); cursor:not-allowed}
+  .pm-type-row{display:flex; align-items:center; gap:14px; width:100%; background:var(--pdw-bg2); border:1px solid var(--pdw-border);
+    border-radius:14px; padding:16px; margin-bottom:10px; color:inherit; text-decoration:none; text-align:left; font-family:inherit; cursor:pointer}
+  .pm-type-row .pm-icon{font-size:22px}
+  .pm-type-row .pm-label{font-size:14px; font-weight:700}
+  .pm-type-row .pm-meta{font-size:11px; color:var(--pdw-text-muted); margin-top:2px}
+  /* Rev.86 — sticky search/filter/action bar for the full-screen
+     permit list landing view. */
+  .pm-sticky-top{position:sticky; top:0; z-index:5; background:var(--pdw-bg); padding-top:10px; margin:0 -16px; padding-left:16px; padding-right:16px;
+    border-bottom:1px solid var(--pdw-border); padding-bottom:10px}
+  .pm-top-actions{display:flex; gap:8px; margin-bottom:10px}
+  .pm-mini-btn{flex:1; padding:11px 8px; border-radius:9px; border:1px solid var(--pdw-border-gold); background:var(--pdw-bg2);
+    color:var(--pdw-gold-lt); font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit}
+  .pm-mini-primary{background:linear-gradient(135deg,var(--pdw-gold) 0%, #B08F3A 100%); color:#15223f; border:none}
+  .pm-search-input{width:100%; padding:10px 12px; font-size:16px; border-radius:9px; border:1px solid var(--pdw-border);
+    background:var(--pdw-bg3); color:var(--pdw-text); font-family:inherit; margin-bottom:10px}
+  .pm-search-input::placeholder{color:var(--pdw-text-dim)}
+  .pm-fchip-row{display:flex; gap:7px; flex-wrap:wrap}
+  .pm-fchip{padding:7px 12px; border-radius:20px; border:1px solid var(--pdw-border); background:var(--pdw-bg2);
+    color:var(--pdw-text-muted); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap}
+  .pm-fchip-active{background:var(--pdw-gold); color:#15223f; border-color:var(--pdw-gold)}
 </style>
 </head>
 <body>
@@ -86,6 +112,36 @@
   ];
 
   var _reg = null, _issuers = null, _users = null, _me = '';
+  // Rev.84 (Issam, voice, 2026-11-19) — the four checklist types that
+  // have a mobile create flow so far (checklist-mobile.html); matches
+  // permitNeeds*() on ptw-register.html exactly so a permit shows the
+  // same checklist requirements here as it does on the full site.
+  var _hw = null, _elec = null, _loto = null, _cs = null;
+  var _crane = null, _scaffold = null, _harness = null, _paint = null, _civil = null, _pipe = null;
+  function permitNeedsConfinedSpace(rec){ return /confined/i.test(String(rec['Work Involved']||'')); }
+  function permitNeedsLoto(rec){
+    if (String(rec['Service Isolation']||'').trim()) return true;
+    return /electrical/i.test(String(rec['Work Involved']||''));
+  }
+  function permitNeedsHotWork(rec){ return /hot work/i.test(String(rec['Work Involved']||'')); }
+  function permitNeedsElectrical(rec){ return /electrical/i.test(String(rec['Work Involved']||'')); }
+  // Rev.85 (Issam, voice, 2026-11-20) — the six remaining checklist
+  // types, matching ptw-register.html's own permitNeeds* exactly,
+  // including Crane/Scaffold's shared "Height Access Method" split
+  // and Harness applying to height work regardless of which method.
+  function permitNeedsCrane(rec){
+    var work = String(rec['Work Involved']||'');
+    if (/lifting/i.test(work)) return true;
+    return /height/i.test(work) && String(rec['Height Access Method']||'').trim() === 'Crane';
+  }
+  function permitNeedsScaffold(rec){
+    var work = String(rec['Work Involved']||'');
+    return /height/i.test(work) && String(rec['Height Access Method']||'').trim() === 'Scaffolding';
+  }
+  function permitNeedsHarness(rec){ return /height/i.test(String(rec['Work Involved']||'')); }
+  function permitNeedsPainting(rec){ return /paint/i.test(String(rec['Work Involved']||'')); }
+  function permitNeedsCivilWork(rec){ return /civil/i.test(String(rec['Work Involved']||'')); }
+  function permitNeedsPipeline(rec){ return /pipeline/i.test(String(rec['Work Involved']||'')); }
 
   function colIdx(headers, name){
     var out = -1;
@@ -112,12 +168,129 @@
       .catch(function(){ return {headers:[],rows:[]}; });
   }
   function loadAll(cb){
-    Promise.all([fetchTab(REG_TAB), fetchTab('issuers'), fetchTab('users')]).then(function(r){
+    Promise.all([fetchTab(REG_TAB), fetchTab('issuers'), fetchTab('users'),
+      fetchTab('hotwork_checklist'), fetchTab('electrical_checklist'), fetchTab('loto_register'), fetchTab('cs_entry'),
+      fetchTab('crane_checklist'), fetchTab('scaffold_inspection'), fetchTab('harness_fall_protection'),
+      fetchTab('painting_checklist'), fetchTab('civil_work_checklist'), fetchTab('pipeline_checklist')
+    ]).then(function(r){
       _reg = r[0]; _issuers = r[1]; _users = r[2];
+      _hw = r[3]; _elec = r[4]; _loto = r[5]; _cs = r[6];
+      _crane = r[7]; _scaffold = r[8]; _harness = r[9];
+      _paint = r[10]; _civil = r[11]; _pipe = r[12];
+      _amAuthorizedIssuer = !!matchIssuerToMe_();
       cb();
     });
   }
+  function findLinkedRow_(tabData, permitId, idColName, ownIdCol){
+    if (!tabData || !tabData.headers || !tabData.rows) return null;
+    var numIdx = colIdx(tabData.headers, idColName||'PTW Number');
+    var statusIdx = colIdx(tabData.headers, 'Record Status');
+    var ownIdx = ownIdCol ? colIdx(tabData.headers, ownIdCol) : -1;
+    var found = null;
+    tabData.rows.forEach(function(row){
+      if (statusIdx>=0 && String(row[statusIdx]||'').trim().toLowerCase()==='removed') return;
+      if (numIdx>=0 && String(row[numIdx]||'').trim() === String(permitId).trim()){
+        found = { row: row, headers: tabData.headers, id: ownIdx>=0 ? String(row[ownIdx]||'').trim() : '' };
+      }
+    });
+    return found;
+  }
+  function fieldVal_(found, name){
+    if (!found) return '';
+    var idx = colIdx(found.headers, name);
+    return idx>=0 ? String(found.row[idx]||'').trim() : '';
+  }
+  // Rev.84 — LOTO "ready" mirrors ptw-register.html's own
+  // lotoJobIsReady_ exactly: Open or Closed, with every pre-task check
+  // confirmed. This is what gates the Confined Space chip below, same
+  // rule as the desktop page's own LOTO-before-Confined-Space lock.
+  var LOTO_PRE_TASK_CHECKS = ['Equipment Shutdown Safely','All Energy Sources Isolated','Locks and Tags Applied',
+    'Stored Energy Released or Restrained','Zero-Energy Condition Verified',
+    'Absence-of-Voltage Test Completed','Work Area Confirmed Safe and PTW Conditions Satisfied'];
+  function lotoReady_(found){
+    if (!found) return false;
+    var status = fieldVal_(found, 'Status').toLowerCase();
+    if (status !== 'open' && status !== 'closed') return false;
+    return LOTO_PRE_TASK_CHECKS.every(function(f){ return fieldVal_(found, f).toLowerCase() === 'yes'; });
+  }
+  // Rev.84 — one compact chip row per permit card, covering the four
+  // checklist types with a mobile create flow so far. Chips link into
+  // checklist-mobile.html, never duplicate its logic; a Confined Space
+  // chip is shown disabled, matching the desktop lock, when this
+  // permit also needs a LOTO job and that job isn't ready yet.
+  function checklistChipsHtml(rec){
+    var permitId = rec['Permit ID'];
+    var chips = [];
+    if (permitNeedsHotWork(rec)){
+      var f = findLinkedRow_(_hw, permitId, 'PTW Number');
+      chips.push(chip_('Hot Work', f, 'hotwork', permitId));
+    }
+    if (permitNeedsElectrical(rec)){
+      var f2 = findLinkedRow_(_elec, permitId, 'PTW Number');
+      var ready2 = f2 && fieldVal_(f2,'Result') === 'Cleared';
+      chips.push(chip_('Electrical', f2, 'electrical', permitId, ready2));
+    }
+    var lotoFound = null, lReady = false;
+    if (permitNeedsLoto(rec)){
+      lotoFound = findLinkedRow_(_loto, permitId, 'PTW Number', 'LOTO ID');
+      lReady = lotoReady_(lotoFound);
+      chips.push(chip_('LOTO', lotoFound, 'loto', permitId, lReady));
+    }
+    if (permitNeedsConfinedSpace(rec)){
+      var needsLotoHere = permitNeedsLoto(rec);
+      var locked = needsLotoHere && !lReady && !findLinkedRow_(_cs, permitId, 'PTW Number');
+      if (locked){
+        chips.push('<span class="pm-chip pm-chip-locked" title="Complete the LOTO Job first">🔒 Confined Space</span>');
+      } else {
+        var extra = (lotoFound && lotoFound.id) ? '&lotoId=' + encodeURIComponent(lotoFound.id) : '';
+        var f3 = findLinkedRow_(_cs, permitId, 'PTW Number');
+        chips.push(chip_('Confined Space', f3, 'cs', permitId, null, extra));
+      }
+    }
+    if (permitNeedsCrane(rec)){
+      var fCr = findLinkedRow_(_crane, permitId, 'PTW Number');
+      chips.push(chip_('Crane', fCr, 'crane', permitId, fCr && fieldVal_(fCr,'Inspection Result')==='Accept Crane'));
+    }
+    if (permitNeedsScaffold(rec)){
+      var fSc = findLinkedRow_(_scaffold, permitId, 'Permit Number');
+      chips.push(chip_('Scaffold', fSc, 'scaffold', permitId, fSc && /green/i.test(fieldVal_(fSc,'Tag Status'))));
+    }
+    if (permitNeedsHarness(rec)){
+      var fHa = findLinkedRow_(_harness, permitId, 'PTW Number');
+      chips.push(chip_('Harness', fHa, 'harness', permitId, fHa && fieldVal_(fHa,'Overall Result')==='Satisfactory'));
+    }
+    if (permitNeedsPainting(rec)){
+      var fPt = findLinkedRow_(_paint, permitId, 'PTW Number');
+      chips.push(chip_('Painting', fPt, 'painting', permitId, fPt && fieldVal_(fPt,'Result')==='Cleared'));
+    }
+    if (permitNeedsCivilWork(rec)){
+      var fCv = findLinkedRow_(_civil, permitId, 'PTW Number');
+      chips.push(chip_('Civil Work', fCv, 'civilwork', permitId, fCv && fieldVal_(fCv,'Result')==='Cleared'));
+    }
+    if (permitNeedsPipeline(rec)){
+      var fPl = findLinkedRow_(_pipe, permitId, 'PTW Number');
+      chips.push(chip_('Pipeline', fPl, 'pipeline', permitId, fPl && fieldVal_(fPl,'Result')==='Cleared'));
+    }
+    return chips.length ? '<div class="pm-chip-row">' + chips.join('') + '</div>' : '';
+  }
+  function chip_(label, found, type, permitId, readyOverride, extraQS){
+    var done = readyOverride !== undefined && readyOverride !== null ? readyOverride : !!found;
+    var cls = done ? 'pm-chip-done' : 'pm-chip-todo';
+    var text = done ? ('✓ ' + label) : ('+ ' + label);
+    return '<a class="pm-chip ' + cls + '" href="checklist-mobile.html?type=' + type + '&permitId=' + encodeURIComponent(permitId) + (extraQS||'') + '" target="_blank">' + esc(text) + '</a>';
+  }
 
+  // Same multi-word AND search + date normalisation as
+  // ptw-register.html's own search box (Rev.79) — kept identical so
+  // typing "19-11-2026 Khaled" finds the same permits here as there.
+  function splitSearchTerms_(raw){
+    return String(raw||'').trim().toLowerCase().split(/\s+/).filter(Boolean).map(function(term){
+      var m = term.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+      if (!m) return term;
+      var dd = m[1].padStart(2,'0'), mm = m[2].padStart(2,'0'), yyyy = m[3];
+      return yyyy + '-' + mm + '-' + dd;
+    });
+  }
   function regRecords(){
     var statusIdx = colIdx(_reg.headers, 'Record Status');
     return _reg.rows.filter(function(r){
@@ -153,49 +326,157 @@
     var b = STATUS_BADGE[status] || ['pm-b-grey', status || '—'];
     return '<span class="pm-badge ' + b[0] + '">' + esc(b[1]) + '</span>';
   }
+  // Rev.87/88/89 (Issam, voice, 2026-11-22) — whether a permit is
+  // "yours to act on" right now, not to be confused with the permit's
+  // own Active/Closed workflow Status badge above. Returns a role
+  // string, or null if it isn't yours at all:
+  //  - 'issuer': this permit's own issuer — always active.
+  //  - 'other-issuer': any OTHER authorized issuer. A permit isn't
+  //    locked to whoever first raised it — another safety person can
+  //    take it over after the pre-validation and continue it (raise
+  //    the remaining checklists, etc.) — so being on the Authorized
+  //    Issuers roster at all makes it active, same as the original
+  //    issuer, just with the ordinary "Open Permit" label rather than
+  //    a role-specific one (they aren't the Receiver/Manager/
+  //    Controller, so those labels would be misleading on them).
+  //  - 'receiver': only at the stage that's actually theirs — signing
+  //    at the start, the toolbox talk, or signing again at closing
+  //    (no separate Status exists for closing, so Active counts too).
+  //  - 'manager' / 'controller': only at their own approval stage.
+  var _amAuthorizedIssuer = null; // computed once per load, see loadAll()
+  function myRoleOnPermit_(rec){
+    if (namesMatch(rec['Permit Issuer - Name'], _me)) return 'issuer';
+    var status = String(rec['Status']||'').trim();
+    if ((status === 'Awaiting Receiver Signature' || status === 'Awaiting Toolbox Talk' || status === 'Active') && namesMatch(rec['Permit Receiver - Name'], _me)) return 'receiver';
+    if (status === 'Awaiting Area Manager' && namesMatch(rec['Unit Manager'], _me)) return 'manager';
+    if (status === 'Awaiting Controller' && namesMatch(rec['Permit Controller'], _me)) return 'controller';
+    if (_amAuthorizedIssuer) return 'other-issuer';
+    return null;
+  }
   // One primary action per card — always the same deep link into the
   // desktop register's own edit view, which already shows the right
   // resume/approve button for whatever stage the permit is at. The
   // mobile page's job is just to get the right permit in front of the
   // right person with one tap; the tested approval/signature logic
   // itself lives in ptw-register.html, not duplicated here.
-  function actionLabel(rec, context){
+  function actionLabel(rec, role){
     var status = String(rec['Status']||'').trim();
-    if (context === 'approval'){
-      if (status === 'Awaiting Area Manager') return 'Approve as Area Manager';
-      if (status === 'Awaiting Controller') return 'Approve as Controller';
+    if (role === 'manager' && status === 'Awaiting Area Manager') return 'Approve as Area Manager';
+    if (role === 'controller' && status === 'Awaiting Controller') return 'Approve as Controller';
+    if (role === 'receiver'){
+      if (status === 'Awaiting Receiver Signature') return 'Sign as Receiver';
+      if (status === 'Awaiting Toolbox Talk') return 'Record Toolbox Talk';
+      if (status === 'Active') return 'Sign Closing (when ready)';
     }
-    if (status === 'Awaiting Receiver Signature') return 'Sign as Receiver';
-    if (status === 'Awaiting Toolbox Talk') return 'Record Toolbox Talk';
     if (status === 'Waiting') return 'Open Checklist';
     return 'Open Permit';
   }
-  function cardHtml(rec, context){
+  function cardHtml(rec){
     var id = esc(rec['Permit ID']);
-    return '<div class="pm-card">'
-      + '<div class="pm-card-top"><span class="pm-card-id">' + id + '</span>' + badgeHtml(rec['Status']) + '</div>'
+    var role = myRoleOnPermit_(rec);
+    var mine = !!role;
+    var permitUrl = 'ptw-register.html?permitId=' + encodeURIComponent(rec['Permit ID']);
+    var label = mine ? actionLabel(rec, role) : 'View Permit';
+    return '<div class="pm-card' + (mine ? ' pm-card-mine' : ' pm-card-viewonly') + '" onclick="PM.cardTap(event,\'' + esc(permitUrl) + '\')">'
+      + '<div class="pm-card-top"><span class="pm-card-id">' + id + '</span>'
+        + (mine ? '' : '<span class="pm-badge pm-b-grey" style="margin-right:6px">View Only</span>')
+        + badgeHtml(rec['Status']) + '</div>'
       + '<div class="pm-card-meta">'
         + '<b>' + esc(rec['Area']||'—') + '</b>' + (rec['Location'] ? ' · ' + esc(rec['Location']) : '') + '<br>'
         + esc(rec['Work Involved']||'—') + '<br>'
         + 'Issuer: ' + esc(displayNameFromField(rec['Permit Issuer - Name'])||'—') + ' · Receiver: ' + esc(rec['Permit Receiver - Name']||'—')
       + '</div>'
-      + '<a class="pm-card-action pm-act-main" href="ptw-register.html?permitId=' + encodeURIComponent(rec['Permit ID']) + '" target="_blank">' + esc(actionLabel(rec, context)) + '</a>'
+      + '<a class="pm-card-action ' + (mine ? 'pm-act-main' : 'pm-act-view') + '" href="' + permitUrl + '" target="_blank">' + esc(label) + '</a>'
+      + checklistChipsHtml(rec)
       + '</div>';
   }
 
-  function renderHome(){
-    var mine = myPermits().length, approvals = awaitingMyApproval().length;
+  // Rev.86 (Issam, voice, 2026-11-21) — the landing screen is now the
+  // full permit list itself (same idea as the desktop register's own
+  // table), not three big buttons: a sticky search + filter + New
+  // Permit bar on top, the list filling the rest of the screen below
+  // it. The three destinations the big buttons used to open (My
+  // Permits, Awaiting My Approval, and "everything") are now filter
+  // chips on that same bar instead of separate pages, per Issam's own
+  // call — left to me whether "everything" shows by default, so it
+  // does, newest first, with the chips just narrowing it.
+  var _listFilter = 'all';
+  var _listSearch = '';
+  // Rev.86 — every cell in the row, same as ptw-register.html's own
+  // search (Rev.79): "ALL must match, each against any cell in the
+  // row (not necessarily the same cell)". A fixed, curated field list
+  // would silently miss things like the permit's Date.
+  function matchesSearch_(rec, terms){
+    if (!terms.length) return true;
+    var hay = Object.keys(rec).map(function(k){ return String(rec[k]||'').toLowerCase(); }).join(' | ');
+    return terms.every(function(t){ return hay.indexOf(t) > -1; });
+  }
+  function filteredPermits_(){
+    var base = _listFilter === 'mine' ? myPermits() : (_listFilter === 'approvals' ? awaitingMyApproval() : regRecords().sort(function(a,b){ return String(b['Permit ID']||'').localeCompare(String(a['Permit ID']||'')); }));
+    var terms = splitSearchTerms_(_listSearch);
+    return base.filter(function(r){ return matchesSearch_(r, terms); });
+  }
+  function filterChipHtml_(key, label, count){
+    var active = _listFilter === key;
+    return '<button type="button" class="pm-fchip' + (active?' pm-fchip-active':'') + '" onclick="PM.setListFilter(\'' + key + '\')">' + esc(label) + (count!=null ? ' (' + count + ')' : '') + '</button>';
+  }
+  function renderListBody_(){
+    var list = filteredPermits_();
+    document.getElementById('pm-list-body').innerHTML = list.length
+      ? list.map(function(r){ return cardHtml(r); }).join('')
+      : '<div class="pm-list-empty">No permits match.</div>';
+  }
+  function renderMainList(){
+    var mine = myPermits().length, approvals = awaitingMyApproval().length, all = regRecords().length;
+    root.innerHTML = '<div class="pm-sticky-top">'
+      + header()
+      + '<div class="pm-top-actions">'
+        + '<button type="button" class="pm-mini-btn pm-mini-primary" onclick="PM.go(\'new1\')">➕ New Permit</button>'
+        + '<button type="button" class="pm-mini-btn" onclick="PM.go(\'checklists\')">📝 Checklist</button>'
+      + '</div>'
+      + '<input type="text" id="pm-search" class="pm-search-input" placeholder="Search — e.g. 19-11-2026 Khaled" value="' + esc(_listSearch) + '" oninput="PM.onSearchInput(this.value)">'
+      + '<div class="pm-fchip-row">'
+        + filterChipHtml_('all','All', all)
+        + filterChipHtml_('mine','My Permits', mine)
+        + filterChipHtml_('approvals','Awaiting Approval', approvals)
+      + '</div>'
+      + '</div>'
+      + '<div id="pm-list-body"></div>';
+    renderListBody_();
+  }
+  // Rev.84 (Issam, voice, 2026-11-19) — a standalone entry point for
+  // raising a checklist that isn't reached from a permit card (e.g.
+  // raising it slightly ahead of the permit, or from memory of the
+  // permit number). The permit card chips above are the more usual
+  // route in; this is the same four types, just asking for the permit
+  // number up front instead of already knowing it.
+  var CHECKLIST_TYPES = [
+    { key:'loto', icon:'🔒', label:'LOTO Job', meta:'Lockout/Tagout isolation — Pre-Task checks' },
+    { key:'cs', icon:'🕳️', label:'Confined Space', meta:'Pre-Entry atmospheric test' },
+    { key:'hotwork', icon:'🔥', label:'Hot Work', meta:'Pre Hot Work checks' },
+    { key:'electrical', icon:'⚡', label:'Electrical', meta:'Tools, barricading, absence-of-voltage test' },
+    { key:'crane', icon:'🏗️', label:'Crane / Lifting', meta:'Equipment inspection' },
+    { key:'scaffold', icon:'🪜', label:'Scaffold', meta:'Inspection & tag status' },
+    { key:'harness', icon:'🦺', label:'Harness / Fall Protection', meta:'Pre-use or 6-monthly inspection' },
+    { key:'painting', icon:'🎨', label:'Painting', meta:'Ventilation, PPE, storage' },
+    { key:'civilwork', icon:'🚧', label:'Civil Work', meta:'Excavation & barricading' },
+    { key:'pipeline', icon:'🛢️', label:'Pipeline Work', meta:'Isolation, purge, leak check' }
+  ];
+  function renderChecklistPicker(){
     root.innerHTML = header()
-      + '<button type="button" class="pm-home-btn pm-primary" onclick="PM.go(\'new1\')">'
-        + '<span class="pm-icon">➕</span><div><div class="pm-label">New Permit</div><div class="pm-count">Start a fresh PTW</div></div></button>'
-      + '<button type="button" class="pm-home-btn" onclick="PM.go(\'mine\')">'
-        + '<span class="pm-icon">📋</span><div><div class="pm-label">My Permits</div><div class="pm-count">' + mine + ' permit' + (mine===1?'':'s') + ' where you are the issuer or receiver</div></div></button>'
-      + '<button type="button" class="pm-home-btn" onclick="PM.go(\'approvals\')">'
-        + '<span class="pm-icon">✅</span><div><div class="pm-label">Awaiting My Approval</div><div class="pm-count">' + approvals + ' permit' + (approvals===1?'':'s') + ' waiting on you</div></div></button>';
+      + '<button type="button" class="pm-back" onclick="PM.go(\'home\')">← Back</button>'
+      + '<div class="pm-list-title" style="margin-bottom:8px">Raise a Checklist</div>'
+      + '<div style="font-size:11.5px;color:var(--pdw-text-muted);margin-bottom:14px">Usually easier from the permit itself (My Permits → the checklist chips) — use this only if you don\'t have the permit open yet.</div>'
+      + CHECKLIST_TYPES.map(function(t){
+          return '<button type="button" class="pm-type-row" onclick="PM.pickChecklistType(\'' + t.key + '\')">'
+            + '<span class="pm-icon">' + t.icon + '</span><div><div class="pm-label">' + esc(t.label) + '</div><div class="pm-meta">' + esc(t.meta) + '</div></div></button>';
+        }).join('')
+      + '<div class="pm-field" id="pm-ck-permit-field" style="display:none;margin-top:14px"><label>Permit ID</label><input type="text" id="pm-ck-permit" placeholder="e.g. PTW-0950"></div>'
+      + '<div class="pm-step-nav" id="pm-ck-go-row" style="display:none"><button type="button" class="pm-btn-next" onclick="PM.goToChecklist()">Continue →</button></div>';
   }
   function header(){
     return '<div class="pm-header"><div><h1>Permit to Work</h1><div class="pm-sub">' + esc(_me||'') + '</div></div>'
-      + '<a class="pm-full-link" href="ptw-register.html" target="_blank">Full Register ↗</a></div>';
+      + '<a class="pm-full-link" href="ptw-register.html?desktop=1" target="_blank">Full Register ↗</a></div>';
   }
   function renderList(kind){
     var isApproval = kind === 'approvals';
@@ -205,7 +486,7 @@
       + '<button type="button" class="pm-back" onclick="PM.go(\'home\')">← Back</button>'
       + '<div class="pm-list-title">' + title + '</div>'
       + (list.length
-        ? list.map(function(r){ return cardHtml(r, isApproval ? 'approval' : 'mine'); }).join('')
+        ? list.map(function(r){ return cardHtml(r); }).join('')
         : '<div class="pm-list-empty">Nothing here yet.</div>');
   }
 
@@ -224,6 +505,32 @@
       opts += '<option value="' + esc(composite) + '"' + (composite===_new.issuer?' selected':'') + '>' + esc(composite) + '</option>';
     });
     return opts;
+  }
+  // Rev.83 (Issam, 2026-11-19) — the Permit Issuer dropdown always
+  // started on "— select —", with nothing pointing it at whoever was
+  // actually filling in the form, so people had to find their own
+  // name in the list by hand. This looks the logged-in user up
+  // against the Authorized Issuers roster (same list the dropdown
+  // itself is built from) and returns their "ID - Name" composite if
+  // found, or '' if they aren't on that roster at all — which is then
+  // reported as its own, visible state rather than silently left on
+  // "— select —" with no explanation.
+  function matchIssuerToMe_(){
+    if (!_issuers || !_issuers.rows) return '';
+    var nIdx = colIdx(_issuers.headers, 'Name'), hIdx = colIdx(_issuers.headers, 'Employee ID');
+    var sIdx = colIdx(_issuers.headers, 'Record Status');
+    var meLower = String(_me||'').trim().toLowerCase();
+    if (!meLower) return '';
+    var match = null;
+    _issuers.rows.forEach(function(r){
+      if (sIdx>=0 && String(r[sIdx]||'').trim().toLowerCase()==='removed') return;
+      var name = nIdx>=0 ? String(r[nIdx]||'').trim() : '';
+      if (name.toLowerCase() === meLower) match = r;
+    });
+    if (!match) return '';
+    var id = hIdx>=0 ? String(match[hIdx]||'').trim() : '';
+    var name = nIdx>=0 ? String(match[nIdx]||'').trim() : '';
+    return id ? (id + ' - ' + name) : name;
   }
   function roleOptionsHtml(filterFn, selectedName){
     var nameIdx = colIdx(_users.headers, 'Full Name'), name2Idx = colIdx(_users.headers, 'Name');
@@ -261,14 +568,45 @@
       + '<div class="pm-step-nav"><button type="button" class="pm-btn-next" onclick="PM.toStep2()">Next →</button></div>';
   }
   function renderNew2(){
-    root.innerHTML = header() + '<button type="button" class="pm-back" onclick="PM.go(\'new1\')">← Back</button>'
+    // Rev.83 — only attempts the auto-match while the field is still
+    // genuinely unset, so it never overwrites an issuer the person
+    // already picked themselves (including on a Back/Next round trip
+    // through this step, or a deliberate pick of someone else's name
+    // during training).
+    var issuerNotOnRoster = false;
+    if (!_new.issuer){
+      var matched = matchIssuerToMe_();
+      if (matched) _new.issuer = matched;
+      else issuerNotOnRoster = true;
+    }
+    var issuerNote = issuerNotOnRoster
+      ? '<div style="font-size:11px;color:var(--pdw-amb);margin:-8px 0 12px">You (' + esc(_me) + ') are not on the Authorized Issuers list — pick the correct issuer below, or ask your IMS Coordinator to add you.</div>'
+      : '';
+    root.innerHTML = header() + '<button type="button" class="pm-back" onclick="PM.backFromStep2()">← Back</button>'
       + dots(1)
       + '<div class="pm-field"><label>Permit Issuer <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-issuer">' + issuerOptionsHtml() + '</select></div>'
+      + issuerNote
       + '<div class="pm-field"><label>Permit Receiver (name) <span style="color:var(--pdw-red)">*</span></label><input id="pm-f-receiver" value="' + esc(_new.receiver) + '" placeholder="Full name"></div>'
       + '<div class="pm-field"><label>Unit / Area Manager <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-um">' + roleOptionsHtml(isManager, _new.unitManager) + '</select></div>'
       + '<div class="pm-field"><label>Permit Controller (Safety) <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-ctrl">' + roleOptionsHtml(isSafety, _new.controller) + '</select></div>'
       + '<div class="pm-err" id="pm-err2">Please fill in every required field above.</div>'
-      + '<div class="pm-step-nav"><button type="button" class="pm-btn-back" onclick="PM.go(\'new1\')">← Back</button><button type="button" class="pm-btn-next" onclick="PM.toStep3()">Review →</button></div>';
+      + '<div class="pm-step-nav"><button type="button" class="pm-btn-back" onclick="PM.backFromStep2()">← Back</button><button type="button" class="pm-btn-next" onclick="PM.toStep3()">Review →</button></div>';
+  }
+  // Rev.83 (Issam, 2026-11-19) — whatever is on screen is saved into
+  // _new before leaving this step, exactly like toStep3() already
+  // does going forward. Without this, going Back from Step 2 and then
+  // Next again silently reverted every field here (issuer included)
+  // to what it was when the step was first rendered — so a deliberate
+  // pick, like choosing someone else's name while training, was lost
+  // on a simple Back/Next round trip.
+  function captureStep2Values_(){
+    _new.issuer = document.getElementById('pm-f-issuer').value;
+    _new.receiver = document.getElementById('pm-f-receiver').value.trim();
+    var umSel = document.getElementById('pm-f-um'), ctrlSel = document.getElementById('pm-f-ctrl');
+    _new.unitManager = umSel.value;
+    _new.unitManagerEmail = umSel.selectedOptions[0] ? umSel.selectedOptions[0].getAttribute('data-email') : '';
+    _new.controller = ctrlSel.value;
+    _new.controllerEmail = ctrlSel.selectedOptions[0] ? ctrlSel.selectedOptions[0].getAttribute('data-email') : '';
   }
   function renderNew3(){
     var rows = [
@@ -316,10 +654,38 @@
 
   window.PM = {
     go: function(view){
-      if (view === 'home') renderHome();
+      if (view === 'home') renderMainList();
       else if (view === 'mine') renderList('mine');
       else if (view === 'approvals') renderList('approvals');
       else if (view === 'new1') renderNew1();
+      else if (view === 'checklists') renderChecklistPicker();
+    },
+    setListFilter: function(key){ _listFilter = key; renderMainList(); },
+    // Rev.87 — tapping anywhere on a card opens the permit; tapping an
+    // actual link inside it (the action button, a checklist chip)
+    // lets that link's own href/target handle it instead, so this
+    // never double-opens or hijacks a chip's own destination.
+    cardTap: function(ev, url){
+      if (ev.target.closest('a')) return;
+      window.open(url, '_blank');
+    },
+    onSearchInput: function(val){
+      // only the list below redraws — '#pm-search' itself is never
+      // touched, so typing keeps its focus and cursor naturally.
+      _listSearch = val;
+      renderListBody_();
+    },
+    pickChecklistType: function(key){
+      window._pmCkType = key;
+      document.querySelectorAll('.pm-type-row').forEach(function(el){ el.style.opacity = '.5'; });
+      document.getElementById('pm-ck-permit-field').style.display = 'block';
+      document.getElementById('pm-ck-go-row').style.display = 'flex';
+      document.getElementById('pm-ck-permit').focus();
+    },
+    goToChecklist: function(){
+      var pid = document.getElementById('pm-ck-permit').value.trim();
+      if (!pid){ alert('Enter the Permit ID this checklist is for.'); return; }
+      window.open('checklist-mobile.html?type=' + encodeURIComponent(window._pmCkType) + '&permitId=' + encodeURIComponent(pid), '_blank');
     },
     toStep2: function(){
       _new.area = document.getElementById('pm-f-area').value.trim();
@@ -330,15 +696,13 @@
       renderNew2();
     },
     toStep3: function(){
-      _new.issuer = document.getElementById('pm-f-issuer').value;
-      _new.receiver = document.getElementById('pm-f-receiver').value.trim();
-      var umSel = document.getElementById('pm-f-um'), ctrlSel = document.getElementById('pm-f-ctrl');
-      _new.unitManager = umSel.value;
-      _new.unitManagerEmail = umSel.selectedOptions[0] ? umSel.selectedOptions[0].getAttribute('data-email') : '';
-      _new.controller = ctrlSel.value;
-      _new.controllerEmail = ctrlSel.selectedOptions[0] ? ctrlSel.selectedOptions[0].getAttribute('data-email') : '';
+      captureStep2Values_();
       if (!_new.issuer || !_new.receiver || !_new.unitManager || !_new.controller){ document.getElementById('pm-err2').style.display = 'block'; return; }
       renderNew3();
+    },
+    backFromStep2: function(){
+      captureStep2Values_();
+      renderNew1();
     },
     createPermit: function(){
       var btn = document.getElementById('pm-create-btn');
@@ -392,7 +756,7 @@
     IMS_AUTH.init({ onReady: function(session){
       if (!allowed(session)){ blockPage(); return; }
       _me = (IMS_AUTH.getCurrentUserName && IMS_AUTH.getCurrentUserName()) || '';
-      loadAll(function(){ renderHome(); });
+      loadAll(function(){ renderMainList(); });
     }});
   }
 })();

@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Checklists — SAGCO IMS</title>
+<script src="auth.js"></script>
+<script src="data.js"></script>
+<style>
+  :root{
+    --pdw-bg:#0D1B35; --pdw-bg2:#142140; --pdw-bg3:#1a2a50;
+    --pdw-gold:#C9A84C; --pdw-gold-lt:#E8C97A;
+    --pdw-text:rgba(255,255,255,.92); --pdw-text-muted:rgba(255,255,255,.55);
+    --pdw-text-dim:rgba(255,255,255,.35); --pdw-border:rgba(255,255,255,.08);
+    --pdw-border-gold:rgba(201,168,76,.35);
+    --pdw-blue:#5B9BD5; --pdw-red:#F0685C; --pdw-amb:#E8B339; --pdw-grn:#4FCB9E;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--pdw-bg); color:var(--pdw-text); margin:0; min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;}
+  .pm-wrap{max-width:480px; margin:0 auto; padding:16px 16px 40px}
+  .pm-header{display:flex; align-items:center; justify-content:space-between; padding:6px 2px 16px}
+  .pm-header h1{font-size:15px; margin:0; color:var(--pdw-gold-lt); font-weight:700}
+  .pm-header .pm-sub{font-size:10.5px; color:var(--pdw-text-muted); margin-top:2px}
+  .pm-full-link{font-size:10.5px; color:var(--pdw-gold-lt); text-decoration:none; border:1px solid var(--pdw-border-gold);
+    padding:5px 9px; border-radius:6px; white-space:nowrap}
+  .pm-back{display:inline-flex; align-items:center; gap:5px; color:var(--pdw-gold-lt); font-size:12px; font-weight:600;
+    text-decoration:none; background:none; border:none; padding:6px 0 14px; cursor:pointer; font-family:inherit}
+  .pm-card{background:var(--pdw-bg2); border:1px solid var(--pdw-border); border-radius:14px; padding:18px 16px; margin-bottom:12px}
+  .pm-card-row{display:flex; align-items:center; gap:14px; width:100%; background:var(--pdw-bg2); border:1px solid var(--pdw-border);
+    border-radius:14px; padding:16px; margin-bottom:10px; color:inherit; text-decoration:none}
+  .pm-card-row .pm-icon{font-size:24px}
+  .pm-card-row .pm-label{font-size:14px; font-weight:700}
+  .pm-card-row .pm-meta{font-size:11px; color:var(--pdw-text-muted); margin-top:2px}
+  .pm-step-dots{display:flex; gap:6px; justify-content:center; margin-bottom:14px}
+  .pm-dot{width:8px; height:8px; border-radius:50%; background:var(--pdw-border)}
+  .pm-dot.pm-active{background:var(--pdw-gold)}
+  .pm-sec-title{font-size:15px; font-weight:700; margin:0 0 14px; color:var(--pdw-gold-lt)}
+  .pm-field{margin-bottom:16px}
+  .pm-field label{display:block; font-size:12.5px; font-weight:600; margin-bottom:6px}
+  .pm-field input,.pm-field select,.pm-field textarea{width:100%; padding:11px 12px; font-size:16px; border-radius:8px;
+    border:1px solid var(--pdw-border); background:var(--pdw-bg3); color:inherit; font-family:inherit}
+  .pm-field input::placeholder,.pm-field textarea::placeholder{color:var(--pdw-text-dim)}
+  .pm-field input[readonly]{opacity:.7}
+  .pm-seg{display:flex; gap:7px}
+  .pm-seg button{flex:1; padding:12px 6px; border-radius:8px; border:1px solid var(--pdw-border); background:var(--pdw-bg3);
+    color:var(--pdw-text-muted); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit}
+  .pm-seg button.pm-sel-yes{background:rgba(79,203,158,.22); border-color:var(--pdw-grn); color:var(--pdw-grn)}
+  .pm-seg button.pm-sel-no{background:rgba(240,104,92,.22); border-color:var(--pdw-red); color:var(--pdw-red)}
+  .pm-seg button.pm-sel-na{background:rgba(255,255,255,.1); border-color:var(--pdw-border); color:var(--pdw-text)}
+  .pm-step-nav{display:flex; gap:10px; margin-top:8px}
+  .pm-step-nav button{flex:1; padding:13px; border-radius:9px; border:none; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit}
+  .pm-btn-next{background:var(--pdw-gold); color:#15223f}
+  .pm-btn-back{background:var(--pdw-bg2); color:var(--pdw-text); border:1px solid var(--pdw-border) !important}
+  .pm-err{font-size:12px; color:var(--pdw-red); margin-top:6px; display:none; white-space:pre-line}
+  .pm-loading{text-align:center; padding:60px 10px; color:var(--pdw-text-muted); font-size:13px}
+  .pm-mini-card{background:var(--pdw-bg3); border:1px solid var(--pdw-border); border-radius:10px; padding:12px; margin-bottom:12px}
+  .pm-mini-title{font-size:12px; font-weight:700; color:var(--pdw-gold-lt); margin-bottom:8px}
+  .pm-result-banner{text-align:center; padding:12px; border-radius:10px; font-weight:700; font-size:14px; margin-bottom:14px}
+</style>
+</head>
+<body>
+<div class="pm-wrap" id="pm-root"><div class="pm-loading">Loading…</div></div>
+
+<script>
+(function(){
+  var SHEETS_URL = window.SHEETS_URL;
+  var params = new URLSearchParams(window.location.search);
+  var TYPE = params.get('type') || '';
+  var PERMIT_ID = params.get('permitId') || '';
+  var LOTO_ID_PARAM = params.get('lotoId') || '';
+  var root = document.getElementById('pm-root');
+  var _me = '';
+  var YESNO = ['Yes','No'];
+  var YESNONA = ['Yes','No','N/A'];
+  var OKNO = ['Ok','No'];
+  var OKNONA = ['Ok','No','N/A'];
+
+  function esc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function colIdx(headers, name){
+    var out = -1;
+    (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out = i; });
+    return out;
+  }
+  function fetchTab(tab){
+    return fetch(SHEETS_URL + '?tab=' + tab + '&action=read').then(function(r){ return r.json(); })
+      .then(function(data){ return (data && data.headers && data.rows) ? data : {headers:[],rows:[]}; })
+      .catch(function(){ return {headers:[],rows:[]}; });
+  }
+  function postJSON(action, qparams, body){
+    var qs = Object.keys(qparams).map(function(k){ return k+'='+encodeURIComponent(qparams[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function nextSequentialId(tabData, idCol, prefix, pad){
+    var idIdx = colIdx(tabData.headers, idCol);
+    if (idIdx < 0) return prefix + '1'.padStart(pad,'0');
+    var maxN = 0;
+    tabData.rows.forEach(function(r){
+      var v = String(r[idIdx]||'').trim();
+      if (v.toLowerCase().indexOf(prefix.toLowerCase()) !== 0) return;
+      var n = parseInt(v.slice(prefix.length), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    var numStr = String(maxN+1);
+    while (numStr.length < pad) numStr = '0' + numStr;
+    return prefix + numStr;
+  }
+
+  // Rev.84 (Issam, voice, 2026-11-19) — one shared, config-driven
+  // mobile engine, built after extending the same "same concept
+  // everywhere" idea from the New Permit wizard to the permit-linked
+  // checklists themselves. Each TYPE below is the Pre-stage / create
+  // flow of the REAL desktop page it mirrors — same tab, same column
+  // names, same validation rules — so data written here is fully
+  // interchangeable with the desktop version; only the layout differs.
+  // Continuing or closing an EXISTING record (Entry/Exit, LOTO
+  // reinstatement, Hot Work Execution/Closure) still happens on
+  // desktop for now — this covers the create/raise step, which is
+  // what's needed to unblock a permit.
+  var CONFIGS = {
+    hotwork: {
+      label: 'Hot Work Checklist', tabKey: 'hotwork_checklist', idCol:'Record ID', idPrefix:'HW-', idPad:4,
+      permitField: 'PTW Number',
+      steps: [
+        { title:'Job Information', fields:['Date','Job Location','Authorized Personnel','Start Time','End Time','Description of Work'] },
+        { title:'1. Hazard Assessment', fields:['Job Site Inspected For Flammables (Y/N/NA)','Work Area Free Of Explosive Atmospheres (Y/N/NA)','Hazardous Gas Assessment Conducted (Y/N/NA)'] },
+        { title:'2. Fire Protection', fields:['Fire Extinguishers Available (Y/N/NA)','Firewatch Assigned And Equipped (Y/N/NA)','Sprinkler Systems Operational (Y/N/NA)','Fixed Fire Suppression Not Impaired (Y/N/NA)'] },
+        { title:'3. Work Area Preparation', fields:['Combustibles Removed Or Shielded (Y/N/NA)','Fire-Resistant Blankets Or Shields Used (Y/N/NA)','Floor And Wall Openings Covered (Y/N/NA)','Work Area Within 35ft Cleared (Y/N/NA)','Flammable Containers Moved To Safe Distance (Y/N/NA)','Area Adequately Ventilated (Y/N/NA)'] },
+        { title:'4. Personnel Safety', fields:['Workers Trained In Hot Work Procedures (Y/N/NA)','Workers Provided Proper PPE (Y/N/NA)','Hearing Protection Available (Y/N/NA)','Respirators Provided If Needed (Y/N/NA)'] }
+      ],
+      segFields: {}, // filled below from (Y/N/NA) suffix detection
+      textareaFields: ['Description of Work'],
+      statusDefault: null,
+      note: 'This covers the Pre Hot Work checks the permit needs. Execution, Post Hot Work and final Closure are completed on the full site (desktop) once the job is underway.'
+    },
+    electrical: {
+      label: 'Electrical Work Checklist', tabKey: 'electrical_checklist', idCol:'Checklist ID', idPrefix:'ELC-', idPad:4,
+      permitField: 'PTW Number',
+      steps: [
+        { title:'Job Information', fields:['Date','Checked By'] },
+        { title:'Checklist', fields:[
+          'Insulated tools in good condition, no exposed metal',
+          'Test instruments (multimeter/voltage detector) calibrated and in date',
+          'Voltage detector itself tested on a known live source before use',
+          'Work area barricaded / isolated from unauthorized access',
+          'Arc flash boundary marked (if applicable)',
+          'Arc flash PPE worn, matching the required category (if applicable)',
+          'Absence of voltage confirmed on all conductors before work starts',
+          'Work area clear of tools and personnel before re-energizing'
+        ] },
+        { title:'Result', fields:['Remarks'] }
+      ],
+      items: [
+        'Insulated tools in good condition, no exposed metal',
+        'Test instruments (multimeter/voltage detector) calibrated and in date',
+        'Voltage detector itself tested on a known live source before use',
+        'Work area barricaded / isolated from unauthorized access',
+        'Arc flash boundary marked (if applicable)',
+        'Arc flash PPE worn, matching the required category (if applicable)',
+        'Absence of voltage confirmed on all conductors before work starts',
+        'Work area clear of tools and personnel before re-energizing'
+      ],
+      segFields: {},
+      textareaFields: ['Remarks'],
+      statusDefault: null,
+      // Rev.85 (Issam, voice, 2026-11-20) — matches electrical-checklist.html
+      // exactly: Result isn't picked by the user, it's computed the same
+      // way the desktop page computes it — Issues Noted the moment any
+      // item is No, Cleared only once every item is answered and none is
+      // No. All items are required before saving, same as desktop.
+      autoResult: { field:'Result', pass:'Cleared', fail:'Issues Noted', requireAllItems:true },
+      note: null
+    },
+    painting: {
+      label: 'Painting Checklist', tabKey: 'painting_checklist', idCol:'Checklist ID', idPrefix:'PNT-', idPad:4,
+      permitField: 'PTW Number',
+      steps: [
+        { title:'Job Information', fields:['Date','Checked By'] },
+        { title:'Checklist', fields:[] }, // filled from items below
+        { title:'Result', fields:['Remarks'] }
+      ],
+      items: ['Ventilation in place in the work area','Ignition sources removed or controlled','Paints/thinners stored in the designated area','Safety Data Sheet (SDS) available on site','Chemical mask / respirator worn','Goggles and gloves worn','Flammable materials nearby covered or removed','Fire extinguisher available nearby','Waste / empty containers disposed of properly'],
+      segFields: {},
+      textareaFields: ['Remarks'],
+      statusDefault: null,
+      autoResult: { field:'Result', pass:'Cleared', fail:'Issues Noted', requireAllItems:true },
+      note: null
+    },
+    civilwork: {
+      label: 'Civil Work Checklist', tabKey: 'civil_work_checklist', idCol:'Checklist ID', idPrefix:'CIV-', idPad:4,
+      permitField: 'PTW Number',
+      steps: [
+        { title:'Job Information', fields:['Date','Checked By'] },
+        { title:'Checklist', fields:[] },
+        { title:'Result', fields:['Remarks'] }
+      ],
+      items: ['Underground services (cables/pipes) checked before digging','Excavation sloped, shored or benched as needed','Area barricaded and warning signs posted','Safe access and egress provided','Machinery/vehicle movement controlled (banksman present)','Dust and noise controlled','Competent person supervising the work','Spoil / materials stored safely away from the edge'],
+      segFields: {},
+      textareaFields: ['Remarks'],
+      statusDefault: null,
+      autoResult: { field:'Result', pass:'Cleared', fail:'Issues Noted', requireAllItems:true },
+      note: null
+    },
+    pipeline: {
+      label: 'Pipeline Work Checklist', tabKey: 'pipeline_checklist', idCol:'Checklist ID', idPrefix:'PLW-', idPad:4,
+      permitField: 'PTW Number',
+      steps: [
+        { title:'Job Information', fields:['Date','Checked By'] },
+        { title:'Checklist', fields:[] },
+        { title:'Result', fields:['Remarks'] }
+      ],
+      items: ['Line isolated and depressurised','Line purged (inert gas/air) before work','Gas test completed — safe reading recorded','Residual pressure/product drained safely','Blanks/blinds or locked valves in place','Ignition sources controlled in the area','Leak check completed before restart','Emergency shutdown procedure confirmed with crew'],
+      segFields: {},
+      textareaFields: ['Remarks'],
+      statusDefault: null,
+      autoResult: { field:'Result', pass:'Cleared', fail:'Issues Noted', requireAllItems:true },
+      note: null
+    },
+    crane: {
+      label: 'Crane / Lifting Equipment Inspection', tabKey: 'crane_checklist', idCol:'Inspection ID', idPrefix:'CRN-', idPad:3,
+      permitField: 'PTW Number',
+      steps: [
+        { title:'Job Information', fields:['Date of Inspection','Equipment Type','Model of Equipment','Equipment Serial #','Operator Name','Operator ID'] },
+        { title:'Documents', fields:['Driver License Valid (Y/N)','3rd Party Certificate Valid (Y/N)','Insurance Valid (Y/N)','Load Chart Available (Y/N)'] },
+        { title:'Leakages', fields:['Outriggers OK (Y/N)','Telescopic Boom OK (Y/N)','No Engine Oil-Fuel Leak (Y/N)','Hydraulic Hoses OK (Y/N)'] },
+        { title:'Wires Safety', fields:['Lifting Wires OK (Y/N)','Equipment Reels OK (Y/N)','Wire Reels Wrap OK (Y/N)'] },
+        { title:'Safety Requirements During Lifting', fields:['Hook Safety Latch OK (Y/N)','Overload Switch OK (Y/N)','Load Indicator Present (Y/N)','Telescopic Limit Device OK (Y/N)','Anti-Two Block Device OK (Y/N)'] },
+        { title:'General Safety Requirement', fields:['Lights OK (Y/N)','Tires OK (Y/N)','Fire Extinguisher OK (Y/N)','Cabin Glass OK (Y/N)','Horn and Siren OK (Y/N)','Wire Rope Guides OK (Y/N)','SWL Awareness Confirmed (Y/N)'] },
+        { title:'Result and Sign-off', fields:['Remarks','Inspection Result','Inspected By'] }
+      ],
+      items: ['Driver License Valid (Y/N)','3rd Party Certificate Valid (Y/N)','Insurance Valid (Y/N)','Load Chart Available (Y/N)','Outriggers OK (Y/N)','Telescopic Boom OK (Y/N)','No Engine Oil-Fuel Leak (Y/N)','Hydraulic Hoses OK (Y/N)','Lifting Wires OK (Y/N)','Equipment Reels OK (Y/N)','Wire Reels Wrap OK (Y/N)','Hook Safety Latch OK (Y/N)','Overload Switch OK (Y/N)','Load Indicator Present (Y/N)','Telescopic Limit Device OK (Y/N)','Anti-Two Block Device OK (Y/N)','Lights OK (Y/N)','Tires OK (Y/N)','Fire Extinguisher OK (Y/N)','Cabin Glass OK (Y/N)','Horn and Siren OK (Y/N)','Wire Rope Guides OK (Y/N)','SWL Awareness Confirmed (Y/N)'],
+      segFields: { 'Inspection Result': ['Accept Crane','Reject Crane'] },
+      textareaFields: ['Remarks'],
+      statusDefault: null,
+      // Rev.85 — mirrors crane-inspection.html exactly: Inspection
+      // Result IS picked by the user, but it can only be saved as
+      // "Accept Crane" once every item above is answered.
+      conditionalAllRequired: { field:'Inspection Result', passValue:'Accept Crane' },
+      note: null
+    },
+    scaffold: {
+      label: 'Scaffold Inspection', tabKey: 'scaffold_inspection', idCol:'Inspection ID', idPrefix:'SCI-', idPad:3,
+      permitField: 'Permit Number',
+      statusDefault: { col:'Status', value:'Open' },
+      steps: [
+        { title:'General Requirements', fields:['Date','Location of Scaffold','Scaffold Owner','Type of Inspection','Tag ID','Scaffold Number','Inspector','Scaffold Below 12m (Ok/No)','Electrical Clearance Met (Ok/No)','Remarks — General Requirements'] },
+        { title:'Scaffold Stability', fields:['Severe Weather Provisions (Ok/No)','Scaffold Level (Ok/No)','Footing Rigid (Ok/No)','Site Hazards Evaluated (Ok/No)','Wheel Locks Provided (Ok/No/NA)','Remarks — Scaffold Stability'] },
+        { title:'Work Platform', fields:['Lumber Free of Defects (Ok/No)','Platform Complete No Gaps (Ok/No)','Remarks — Work Platform'] },
+        { title:'Scaffold Components', fields:['Guardrails and Toe-boards in Place (Ok/No)','Components Free of Defects (Ok/No)','Remarks — Scaffold Components'] },
+        { title:'Fall Protection', fields:['Front of Scaffold Within 35cm (Ok/No)','Safe Access Provided (Ok/No)','Personal Fall Protection Used (Ok/No)','Remarks — Fall Protection'] },
+        { title:'Result', fields:['Tag Status','Responsible Person','Target Close Date','Remarks'] }
+      ],
+      items: ['Scaffold Below 12m (Ok/No)','Electrical Clearance Met (Ok/No)','Severe Weather Provisions (Ok/No)','Scaffold Level (Ok/No)','Footing Rigid (Ok/No)','Site Hazards Evaluated (Ok/No)','Wheel Locks Provided (Ok/No/NA)','Lumber Free of Defects (Ok/No)','Platform Complete No Gaps (Ok/No)','Guardrails and Toe-boards in Place (Ok/No)','Components Free of Defects (Ok/No)','Front of Scaffold Within 35cm (Ok/No)','Safe Access Provided (Ok/No)','Personal Fall Protection Used (Ok/No)'],
+      segFields: {
+        'Type of Inspection': ['First Time','Weekly Inspection'],
+        'Scaffold Below 12m (Ok/No)': OKNO, 'Electrical Clearance Met (Ok/No)': OKNO,
+        'Severe Weather Provisions (Ok/No)': OKNO, 'Scaffold Level (Ok/No)': OKNO, 'Footing Rigid (Ok/No)': OKNO,
+        'Site Hazards Evaluated (Ok/No)': OKNO, 'Wheel Locks Provided (Ok/No/NA)': OKNONA,
+        'Lumber Free of Defects (Ok/No)': OKNO, 'Platform Complete No Gaps (Ok/No)': OKNO,
+        'Guardrails and Toe-boards in Place (Ok/No)': OKNO, 'Components Free of Defects (Ok/No)': OKNO,
+        'Front of Scaffold Within 35cm (Ok/No)': OKNO, 'Safe Access Provided (Ok/No)': OKNO,
+        'Personal Fall Protection Used (Ok/No)': OKNO,
+        'Tag Status': ['Green — Safe to Use','Red — Unsafe, Do Not Use']
+      },
+      textareaFields: ['Remarks — General Requirements','Remarks — Scaffold Stability','Remarks — Work Platform','Remarks — Scaffold Components','Remarks — Fall Protection','Remarks'],
+      // Rev.85 — mirrors scaffold-inspection.html's missingScaffoldItems_
+      // exactly: Permit Number (not PTW Number) is this sheet's own
+      // linking field, and every (Ok/No...) item is required only once
+      // Tag Status is set to Green.
+      conditionalAllRequired: { field:'Tag Status', passValue:'Green — Safe to Use' },
+      note: null
+    },
+    harness: {
+      label: 'Harness / Fall Protection Inspection', tabKey: 'harness_fall_protection', idCol:'Inspection ID', idPrefix:'HFP-', idPad:4,
+      permitField: 'PTW Number',
+      steps: [
+        { title:'Job Information', fields:['Date','Inspection Type'] },
+        { title:'Checklist', fields:[] },
+        { title:'Result', fields:['Failed Harness Tag(s) / Notes','Target Close Date','Inspected By','Remarks'] }
+      ],
+      items: [
+        'Webbing / Straps Free of Cuts, Fraying, Burns or Chemical Damage',
+        'Stitching Intact, No Loose or Broken Threads',
+        'D-Rings, Buckles and Hardware Free of Cracks, Corrosion or Deformation',
+        'Lanyard / Lifeline Free of Damage, Kinks or Excessive Wear',
+        'Shock / Energy Absorber Pack Intact and Not Previously Deployed',
+        "Labels and Tags Legible (Manufacture Date, Capacity, Standard)",
+        "Within Manufacturer's Service Life"
+      ],
+      segFields: { 'Inspection Type': ['Pre-Use','6-Monthly Formal'] },
+      textareaFields: ['Failed Harness Tag(s) / Notes','Remarks'],
+      statusDefault: null,
+      // Rev.85 — mirrors harness-fall-protection.html exactly: every
+      // item is required before saving at all (no conditional pass
+      // value — Overall Result and Status aren't picked, both are
+      // computed the same way the desktop page computes them), and
+      // a No on any item also requires naming which harness(es)
+      // failed.
+      autoResult: { field:'Overall Result', pass:'Satisfactory', fail:'Unsatisfactory', requireAllItems:true,
+        extraFieldIfFail: { field:'Failed Harness Tag(s) / Notes', message:'name which harness(es) failed' },
+        statusField: { field:'Status', pass:'In Service', fail:'Removed from Service' } },
+      note: null
+    },
+    loto: {
+      label: 'LOTO Job', tabKey: 'loto_register', idCol:'LOTO ID', idPrefix:'LT-', idPad:4,
+      permitField: 'PTW Number',
+      steps: [
+        { title:'Job Information', fields:['Date','Department / Location','Equipment Name / ID','Description of Work','Performing Team / Contractor','Authorized LOTO Person'] },
+        { title:'Isolation Points', isolationGrid:true },
+        { title:'Pre-Task Safety Checks', fields:['Equipment Shutdown Safely','All Energy Sources Isolated','Locks and Tags Applied','Stored Energy Released or Restrained','Zero-Energy Condition Verified','Absence-of-Voltage Test Completed','Work Area Confirmed Safe and PTW Conditions Satisfied'] },
+        { title:'Isolation Sign-Off', fields:['Isolation Performed By','Verification Completed By','Verification Date / Time','Authorization to Start Work'] }
+      ],
+      segFields: {
+        'Equipment Shutdown Safely': YESNO, 'All Energy Sources Isolated': YESNO, 'Locks and Tags Applied': YESNO,
+        'Stored Energy Released or Restrained': YESNO, 'Zero-Energy Condition Verified': YESNO,
+        'Absence-of-Voltage Test Completed': YESNO, 'Work Area Confirmed Safe and PTW Conditions Satisfied': YESNO,
+        'Electrical Isolated': YESNO, 'Mechanical Isolated': YESNO, 'Hydraulic Isolated': YESNO,
+        'Pneumatic Isolated': YESNO, 'Pressure / Stored Energy Isolated': YESNO
+      },
+      textareaFields: ['Description of Work'],
+      statusDefault: { col:'Status', value:'Open' },
+      note: 'This covers opening the LOTO Job and its Pre-Task checks. Reinstatement and closing the job happen on the full site (desktop) once the work is done.'
+    },
+    cs: {
+      label: 'Confined Space Pre-Entry', tabKey: 'cs_entry', idCol:'Entry ID', idPrefix:'CSE-', idPad:3,
+      permitField: 'PTW Number',
+      steps: [
+        { title:'Entry Details', fields:['Date','CS Ref','Entrant(s)','Standby / Attendant Person'] },
+        { title:'Isolation & Access Controls', fields:['Isolation Confirmed (LOTO) (Y/N)','LOTO Reference','Ventilation Provided (Y/N)','Ventilation Type','Communication Method','Rescue Equipment Ready (Y/N)','PPE / Breathing Apparatus Confirmed (Y/N)'] },
+        { title:'Gas Readings', fields:['Gas Detector Instrument ID','Instrument Calibration Due Date','O2 (%)','CO (ppm)','H2S (ppm)','LEL (%)','Test Time'] },
+        { title:'Decision', fields:['All Safe to Enter (Y/N)','Comment','Responsible Person','Target Close Date'] }
+      ],
+      segFields: {
+        'Isolation Confirmed (LOTO) (Y/N)': YESNO, 'Ventilation Provided (Y/N)': YESNO,
+        'Rescue Equipment Ready (Y/N)': YESNO, 'PPE / Breathing Apparatus Confirmed (Y/N)': YESNO,
+        'All Safe to Enter (Y/N)': YESNO,
+        'Ventilation Type': ['Natural','Forced / Mechanical']
+      },
+      textareaFields: ['Comment'],
+      statusDefault: { col:'Status', value:'Open' },
+      note: 'This covers the Pre-Entry atmospheric test the permit needs. Entry/Exit and Closure happen on the full site (desktop) once people go in.'
+    }
+  };
+  // Auto-detect Hot Work's (Y/N/NA) items as segmented fields —
+  // listed explicitly above would just repeat the same long names.
+  (CONFIGS.hotwork.steps||[]).forEach(function(step){
+    (step.fields||[]).forEach(function(f){ if (/\(Y\/N\/NA\)$/.test(f)) CONFIGS.hotwork.segFields[f] = YESNONA; });
+  });
+  // Expand the `items` arrays declared above (painting/civilwork/
+  // pipeline/crane/scaffold/harness) into each type's "Checklist" step
+  // and as segmented Yes/No, Ok/No or Yes/No/N/A fields — written once
+  // here rather than repeated inside every config above.
+  Object.keys(CONFIGS).forEach(function(key){
+    var c = CONFIGS[key];
+    if (!c.items || !c.items.length) return;
+    c.steps.forEach(function(step){ if (step.title === 'Checklist' && !step.fields.length) step.fields = c.items.slice(); });
+    c.items.forEach(function(f){
+      if (c.segFields[f]) return; // already explicitly set (e.g. scaffold's Ok/No/NA items)
+      if (/\(Ok\/No\/NA\)$/.test(f)) c.segFields[f] = OKNONA;
+      else if (/\(Ok\/No\)$/.test(f)) c.segFields[f] = OKNO;
+      else if (/\(Y\/N\/NA\)$/.test(f)) c.segFields[f] = YESNONA;
+      else if (/\(Y\/N\)$/.test(f)) c.segFields[f] = YESNO;
+      // harness's items carry no suffix at all, but are Yes/No/N/A on
+      // the real sheet (SELECT_FIELDS[it] = ["Yes","No","N/A"]) —
+      // same default every other no-suffix item list in this project
+      // uses.
+      else c.segFields[f] = YESNONA;
+    });
+  });
+
+  var cfg = CONFIGS[TYPE];
+  var _tabData = null;
+  var _stepIdx = 0;
+  var _values = {};
+
+  function isDateLike(f){ return /date/i.test(f) && !/update|validate/i.test(f); }
+  function isTimeLike(f){ return /time/i.test(f); }
+  function isNumericLike(f){ return /%|ppm|o2|co\b|h2s|lel/i.test(f); }
+
+  function fieldHtml(f){
+    var v = _values[f] || '';
+    if (cfg.segFields[f]){
+      var opts = cfg.segFields[f];
+      return '<div class="pm-field"><label>' + esc(f) + '</label><div class="pm-seg" data-segfield="' + esc(f) + '">'
+        + opts.map(function(o){
+            var cls = segClass_(o);
+            return '<button type="button" data-val="'+esc(o)+'" class="'+(v===o?cls:'')+'">'+esc(o)+'</button>';
+          }).join('')
+        + '</div></div>';
+    }
+    if (cfg.textareaFields.indexOf(f) > -1){
+      return '<div class="pm-field"><label>' + esc(f) + '</label><textarea data-field="' + esc(f) + '" rows="3">' + esc(v) + '</textarea></div>';
+    }
+    if (f === 'LOTO Reference' && LOTO_ID_PARAM){
+      return '<div class="pm-field"><label>' + esc(f) + '</label><input type="text" data-field="' + esc(f) + '" value="' + esc(LOTO_ID_PARAM) + '" readonly title="Filled in automatically from this permit\'s linked LOTO Job"></div>';
+    }
+    var type = isDateLike(f) ? (isTimeLike(f) ? 'datetime-local' : 'date') : (isTimeLike(f) ? 'time' : (isNumericLike(f) ? 'number' : 'text'));
+    var step = isNumericLike(f) ? ' step="0.1"' : '';
+    return '<div class="pm-field"><label>' + esc(f) + '</label><input type="' + type + '"' + step + ' data-field="' + esc(f) + '" value="' + esc(v) + '" placeholder=""></div>';
+  }
+
+  // Rev.85 — colors every pass/fail-style choice meaningfully, not
+  // just plain Yes/No: Tag Status (Green/Red), Inspection Result
+  // (Accept/Reject Crane), Overall Result (Satisfactory/
+  // Unsatisfactory) all read the same way at a glance as Yes/No/Ok/No
+  // do. Anything else (e.g. "First Time"/"Weekly Inspection") stays
+  // neutral grey.
+  function segClass_(o){
+    var low = String(o||'').toLowerCase();
+    if (/^(yes|ok)$|green|accept|satisfactory|cleared|in service/.test(low)) return 'pm-sel-yes';
+    if (/^no$|red|reject|unsatisfactory|issues|removed from service/.test(low)) return 'pm-sel-no';
+    return 'pm-sel-na';
+  }
+  var ENERGY_TYPES = ['Electrical','Mechanical','Hydraulic','Pneumatic','Pressure / Stored Energy'];
+  function isolationGridHtml(){
+    return ENERGY_TYPES.map(function(type){
+      var pointF = type + ' Isolation Point / ID', isoF = type + ' Isolated', lockF = type + ' Lock / Tag No.';
+      var v = _values[isoF] || '';
+      return '<div class="pm-mini-card"><div class="pm-mini-title">' + esc(type) + '</div>'
+        + '<div class="pm-field" style="margin-bottom:8px"><input type="text" data-field="' + esc(pointF) + '" value="' + esc(_values[pointF]||'') + '" placeholder="Isolation Point / ID"></div>'
+        + '<div class="pm-seg" data-segfield="' + esc(isoF) + '" style="margin-bottom:8px">'
+          + YESNO.map(function(o){ return '<button type="button" data-val="'+o+'" class="'+(v===o?segClass_(o):'')+'">'+o+'</button>'; }).join('')
+        + '</div>'
+        + '<input type="text" data-field="' + esc(lockF) + '" value="' + esc(_values[lockF]||'') + '" placeholder="Lock / Tag No.">'
+        + '</div>';
+    }).join('');
+  }
+
+  function wireFieldEvents(container){
+    container.querySelectorAll('[data-field]').forEach(function(el){
+      el.addEventListener('input', function(){ _values[el.getAttribute('data-field')] = el.value; });
+    });
+    container.querySelectorAll('[data-segfield]').forEach(function(segEl){
+      var f = segEl.getAttribute('data-segfield');
+      segEl.querySelectorAll('button').forEach(function(btn){
+        btn.onclick = function(){
+          _values[f] = btn.getAttribute('data-val');
+          segEl.querySelectorAll('button').forEach(function(b){ b.className = ''; });
+          btn.className = segClass_(btn.getAttribute('data-val'));
+        };
+      });
+    });
+  }
+
+  function header(){
+    return '<div class="pm-header"><div><h1>' + esc(cfg.label) + '</h1><div class="pm-sub">' + (PERMIT_ID ? 'For permit ' + esc(PERMIT_ID) : esc(_me)) + '</div></div>'
+      + '<a class="pm-full-link" href="ptw-mobile.html">PTW Mobile ↗</a></div>';
+  }
+  function dots(){
+    var html = '<div class="pm-step-dots">';
+    for (var i=0;i<cfg.steps.length;i++) html += '<div class="pm-dot' + (i===_stepIdx?' pm-active':'') + '"></div>';
+    return html + '</div>';
+  }
+  function renderStep(){
+    var step = cfg.steps[_stepIdx];
+    var isLast = isLastStep();
+    var bodyHtml = step.isolationGrid ? isolationGridHtml() : step.fields.map(fieldHtml).join('');
+    var noteHtml = (_stepIdx===0 && cfg.note) ? '<div style="font-size:11px;color:var(--pdw-text-muted);margin-bottom:14px">' + esc(cfg.note) + '</div>' : '';
+    root.innerHTML = header()
+      + '<button type="button" class="pm-back" onclick="CHKM.backStep()">← ' + (_stepIdx===0 ? 'Cancel' : 'Back') + '</button>'
+      + dots()
+      + '<div class="pm-sec-title">' + esc(step.title) + '</div>'
+      + noteHtml
+      + bodyHtml
+      + '<div class="pm-err" id="pm-err"></div>'
+      + '<div class="pm-step-nav">'
+        + (_stepIdx>0 ? '<button type="button" class="pm-btn-back" onclick="CHKM.backStep()">← Back</button>' : '')
+        + '<button type="button" class="pm-btn-next" onclick="CHKM.nextStep()">' + (isLast ? 'Save' : 'Next →') + '</button>'
+      + '</div>';
+    wireFieldEvents(root);
+  }
+
+  function isLastStep(){ return _stepIdx === cfg.steps.length - 1; }
+
+  function validateStep(){
+    // Rev.84/85 — mirrors each desktop page's own gating rule exactly,
+    // checked at the step that actually holds those fields, rather
+    // than only at the very end, so the missing items are easy to see.
+    if (TYPE === 'cs' && cfg.steps[_stepIdx].title === 'Decision'){
+      if (String(_values['All Safe to Enter (Y/N)']||'').trim() === 'Yes'){
+        var requiredYes = ['Isolation Confirmed (LOTO) (Y/N)','Ventilation Provided (Y/N)','Rescue Equipment Ready (Y/N)','PPE / Breathing Apparatus Confirmed (Y/N)'];
+        var requiredFilled = ['O2 (%)','CO (ppm)','H2S (ppm)','LEL (%)'];
+        var missing = [];
+        requiredYes.forEach(function(f){ if (String(_values[f]||'').trim().toLowerCase() !== 'yes') missing.push(f); });
+        requiredFilled.forEach(function(f){ if (!String(_values[f]||'').trim()) missing.push(f); });
+        if (missing.length) return 'This cannot be saved as "Safe to Enter" yet — still needed:\n- ' + missing.join('\n- ');
+      }
+      return '';
+    }
+    // Every item answered before saving at all — painting / civil work
+    // / pipeline / electrical / harness's own rule.
+    if (cfg.autoResult && cfg.autoResult.requireAllItems && isLastStep()){
+      var missingItems = (cfg.items||[]).filter(function(f){ return !String(_values[f]||'').trim(); });
+      if (missingItems.length) return 'This checklist cannot be saved yet — the following items must be answered first:\n- ' + missingItems.join('\n- ');
+      if (cfg.autoResult.extraFieldIfFail){
+        var anyNo = (cfg.items||[]).some(function(f){ return _values[f] === 'No'; });
+        var ef = cfg.autoResult.extraFieldIfFail;
+        if (anyNo && !String(_values[ef.field]||'').trim()) return 'At least one item is No — please ' + ef.message + ' in "' + ef.field + '" before saving.';
+      }
+      return '';
+    }
+    // Every item answered, but only required once the pass value is
+    // actually chosen — crane's Accept Crane / scaffold's Tag Status
+    // Green rule.
+    if (cfg.conditionalAllRequired && isLastStep()){
+      var car = cfg.conditionalAllRequired;
+      if (String(_values[car.field]||'').trim() === car.passValue){
+        var missing2 = (cfg.items||[]).filter(function(f){ return !String(_values[f]||'').trim(); });
+        if (missing2.length) return 'This cannot be saved as "' + car.passValue + '" yet — still needed:\n- ' + missing2.join('\n- ');
+      }
+    }
+    return '';
+  }
+
+  function applyComputedFields(){
+    if (cfg.autoResult){
+      var ar = cfg.autoResult;
+      var anyNo = (cfg.items||[]).some(function(f){ return _values[f] === 'No'; });
+      _values[ar.field] = anyNo ? ar.fail : ar.pass;
+      if (ar.statusField && !String(_values[ar.statusField.field]||'').trim()){
+        _values[ar.statusField.field] = anyNo ? ar.statusField.fail : ar.statusField.pass;
+      }
+    }
+  }
+
+  function finishSave(){
+    applyComputedFields();
+    var tabData = _tabData;
+    var idIdx = colIdx(tabData.headers, cfg.idCol);
+    var newId = nextSequentialId(tabData, cfg.idCol, cfg.idPrefix, cfg.idPad);
+    var values = {};
+    Object.keys(_values).forEach(function(k){ values[k] = _values[k]; });
+    values[cfg.idCol] = newId;
+    if (PERMIT_ID) values[cfg.permitField] = PERMIT_ID;
+    if (LOTO_ID_PARAM && TYPE === 'cs') values['LOTO Reference'] = LOTO_ID_PARAM;
+    values['Record Status'] = 'Active';
+    if (cfg.statusDefault) values[cfg.statusDefault.col] = cfg.statusDefault.value;
+    var btn = document.querySelector('.pm-btn-next');
+    if (btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+    postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
+      if (res && res.status === 'error'){
+        alert('Could not save: ' + (res.message||'unknown error'));
+        if (btn){ btn.disabled = false; btn.textContent = 'Save'; }
+        return;
+      }
+      if (PERMIT_ID){
+        window.location.href = 'ptw-register.html?permitId=' + encodeURIComponent(PERMIT_ID);
+      } else {
+        window.location.href = 'ptw-mobile.html';
+      }
+    }).catch(function(){
+      alert('Could not reach the server — check your connection and try again.');
+      if (btn){ btn.disabled = false; btn.textContent = 'Save'; }
+    });
+  }
+
+  window.CHKM = {
+    backStep: function(){
+      if (_stepIdx === 0){
+        window.location.href = PERMIT_ID ? 'ptw-register.html?permitId=' + encodeURIComponent(PERMIT_ID) : 'ptw-mobile.html';
+        return;
+      }
+      _stepIdx--; renderStep();
+    },
+    nextStep: function(){
+      var err = validateStep();
+      if (err){ var el = document.getElementById('pm-err'); el.textContent = err; el.style.display = 'block'; return; }
+      var isLast = _stepIdx === cfg.steps.length - 1;
+      if (isLast){ finishSave(); return; }
+      _stepIdx++; renderStep();
+    }
+  };
+
+  function allowed(s){ return !!s; }
+  function blockPage(){
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0D1B35;color:#fff;text-align:center;padding:40px">'
+      +'<div><div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:300px;margin:0 auto 18px">Please sign in to use this page.</div>'
+      +'<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div></div>';
+  }
+  if (!cfg){
+    root.innerHTML = '<div class="pm-loading">Unknown checklist type.<br><a href="ptw-mobile.html" style="color:var(--pdw-gold-lt)">← Back to PTW Mobile</a></div>';
+  } else if (typeof IMS_AUTH === 'undefined'){
+    blockPage();
+  } else {
+    IMS_AUTH.init({ onReady: function(session){
+      if (!allowed(session)){ blockPage(); return; }
+      _me = (IMS_AUTH.getCurrentUserName && IMS_AUTH.getCurrentUserName()) || '';
+      fetchTab(cfg.tabKey).then(function(data){
+        _tabData = data;
+        renderStep();
+      });
+    }});
+  }
+})();
+</script>
+</body>
+</html>
