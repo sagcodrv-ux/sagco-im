@@ -37,6 +37,10 @@
   .pm-list-empty{font-size:12.5px; color:var(--pdw-text-muted); padding:30px 10px; text-align:center}
   .pm-card{background:var(--pdw-bg2); border:1px solid var(--pdw-border); border-radius:12px; padding:14px; margin-bottom:10px; cursor:pointer}
   .pm-card-viewonly{opacity:.78}
+  .pm-card-justcreated{border:1px solid var(--pdw-gold); animation:pmNewGlow 2.4s ease-out 2}
+  .pm-new-badge{display:inline-block; font-size:10px; font-weight:700; color:#15223f; background:var(--pdw-gold);
+    padding:3px 8px; border-radius:20px; margin-bottom:8px}
+  @keyframes pmNewGlow{ 0%{box-shadow:0 0 0 0 rgba(201,168,76,.55)} 100%{box-shadow:0 0 0 10px rgba(201,168,76,0)} }
   .pm-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px}
   .pm-card-id{font-size:13.5px; font-weight:700}
   .pm-badge{font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap}
@@ -51,6 +55,9 @@
     font-size:13px; font-weight:700; text-align:center; cursor:pointer; font-family:inherit; text-decoration:none}
   .pm-act-main{background:var(--pdw-gold); color:#15223f}
   .pm-act-view{background:var(--pdw-bg3); color:var(--pdw-gold-lt); border:1px solid var(--pdw-border-gold)}
+  .pm-pack-link{display:block; width:100%; margin-top:8px; padding:9px; border-radius:8px; text-align:center;
+    font-size:12.5px; font-weight:700; text-decoration:none; background:var(--pdw-bg3); color:var(--pdw-gold-lt);
+    border:1px solid var(--pdw-border-gold)}
   .pm-step-dots{display:flex; gap:6px; justify-content:center; margin-bottom:16px}
   .pm-dot{width:8px; height:8px; border-radius:50%; background:var(--pdw-border)}
   .pm-dot.pm-active{background:var(--pdw-gold)}
@@ -204,7 +211,13 @@
       _hw = r[3]; _elec = r[4]; _loto = r[5]; _cs = r[6];
       _crane = r[7]; _scaffold = r[8]; _harness = r[9];
       _paint = r[10]; _civil = r[11]; _pipe = r[12];
-      _amAuthorizedIssuer = !!matchIssuerToMe_();
+      // Rev.96 (Issam, voice, 2026-11-23) — the super admin account
+      // counts as an authorized issuer as an exception, even when it
+      // isn't itself listed on the ptw_authorized_issuers roster, so
+      // it can take over any permit the same way another authorized
+      // safety person can.
+      var _mySessionRole = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getRole) ? IMS_AUTH.getRole() : '';
+      _amAuthorizedIssuer = !!matchIssuerToMe_() || _mySessionRole === 'superadmin';
       cb();
     });
   }
@@ -404,7 +417,10 @@
     var mine = !!role;
     var permitUrl = 'ptw-register.html?permitId=' + encodeURIComponent(rec['Permit ID']);
     var label = mine ? actionLabel(rec, role) : 'View Permit';
-    return '<div class="pm-card' + (mine ? ' pm-card-mine' : ' pm-card-viewonly') + '" onclick="PM.cardTap(event,\'' + esc(permitUrl) + '\')">'
+    var isNew = _justCreatedId && rec['Permit ID'] === _justCreatedId;
+    var cardId = isNew ? ' id="pm-just-created"' : '';
+    return '<div' + cardId + ' class="pm-card' + (mine ? ' pm-card-mine' : ' pm-card-viewonly') + (isNew ? ' pm-card-justcreated' : '') + '" onclick="PM.cardTap(event,\'' + esc(permitUrl) + '\')">'
+      + (isNew ? '<div class="pm-new-badge">✓ Just created</div>' : '')
       + '<div class="pm-card-top"><span class="pm-card-id">' + id + '</span>'
         + (mine ? '' : '<span class="pm-badge pm-b-grey" style="margin-right:6px">View Only</span>')
         + badgeHtml(rec['Status']) + '</div>'
@@ -414,6 +430,11 @@
         + 'Issuer: ' + esc(displayNameFromField(rec['Permit Issuer - Name'])||'—') + ' · Receiver: ' + esc(rec['Permit Receiver - Name']||'—')
       + '</div>'
       + '<a class="pm-card-action ' + (mine ? 'pm-act-main' : 'pm-act-view') + '" href="' + permitUrl + '" target="_blank">' + esc(label) + '</a>'
+      // Rev.96 (Issam, voice, 2026-11-23) — every card gets a Permit
+      // Pack link, View Only included; it's the exact same read-only
+      // pack the desktop register already builds (deep link &pack=1,
+      // same one the approval emails use), not a separate mobile page.
+      + '<a class="pm-pack-link" href="' + permitUrl + '&pack=1" target="_blank">📦 Permit Pack</a>'
       + checklistChipsHtml(rec)
       + '</div>';
   }
@@ -429,6 +450,11 @@
   // does, newest first, with the chips just narrowing it.
   var _listFilter = 'all';
   var _listSearch = '';
+  // Rev.94 (Issam, voice, 2026-11-22) — the just-created permit's ID,
+  // so the list highlights and scrolls to it once the data is
+  // reloaded. Cleared the next time the person changes the filter or
+  // searches, since by then they've moved on to something else.
+  var _justCreatedId = '';
   // Rev.86 — every cell in the row, same as ptw-register.html's own
   // search (Rev.79): "ALL must match, each against any cell in the
   // row (not necessarily the same cell)". A fixed, curated field list
@@ -796,7 +822,11 @@
       else if (view === 'new1') renderNew1();
       else if (view === 'checklists') renderChecklistPicker();
     },
-    setListFilter: function(key){ _listFilter = key; renderMainList(); },
+    setListFilter: function(key){ _justCreatedId = ''; _listFilter = key; renderMainList(); },
+    scrollToJustCreated: function(){
+      var el = document.getElementById('pm-just-created');
+      if (el) el.scrollIntoView({ behavior:'smooth', block:'center' });
+    },
     // Rev.87 — tapping anywhere on a card opens the permit; tapping an
     // actual link inside it (the action button, a checklist chip)
     // lets that link's own href/target handle it instead, so this
@@ -808,6 +838,7 @@
     onSearchInput: function(val){
       // only the list below redraws — '#pm-search' itself is never
       // touched, so typing keeps its focus and cursor naturally.
+      _justCreatedId = '';
       _listSearch = val;
       renderListBody_();
     },
@@ -918,8 +949,19 @@
           btn.disabled = false; btn.textContent = 'Create Permit';
           return;
         }
-        window.open('ptw-register.html?permitId=' + encodeURIComponent(id), '_blank');
-        PM.go('home');
+        // Rev.94 — back to the list itself, not off to the desktop
+        // register in a new tab: reload so the new permit is actually
+        // in the data (it didn't exist yet when this session's data
+        // was first fetched), land on "All" with no search so nothing
+        // hides it, and highlight + scroll to it so its next step is
+        // immediately visible.
+        _justCreatedId = id;
+        _listFilter = 'all';
+        _listSearch = '';
+        loadAll(function(){
+          renderMainList();
+          PM.scrollToJustCreated();
+        });
       }).catch(function(){
         alert('Could not reach the server — check your connection and try again.');
         btn.disabled = false; btn.textContent = 'Create Permit';

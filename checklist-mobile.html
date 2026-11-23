@@ -248,7 +248,7 @@
         { title:'Work Platform', fields:['Lumber Free of Defects (Ok/No)','Platform Complete No Gaps (Ok/No)','Remarks — Work Platform'] },
         { title:'Scaffold Components', fields:['Guardrails and Toe-boards in Place (Ok/No)','Components Free of Defects (Ok/No)','Remarks — Scaffold Components'] },
         { title:'Fall Protection', fields:['Front of Scaffold Within 35cm (Ok/No)','Safe Access Provided (Ok/No)','Personal Fall Protection Used (Ok/No)','Remarks — Fall Protection'] },
-        { title:'Result', fields:['Tag Status','Responsible Person','Target Close Date','Remarks'] }
+        { title:'Result', fields:['Tag Status','Responsible Person','Remarks'] }
       ],
       items: ['Scaffold Below 12m (Ok/No)','Electrical Clearance Met (Ok/No)','Severe Weather Provisions (Ok/No)','Scaffold Level (Ok/No)','Footing Rigid (Ok/No)','Site Hazards Evaluated (Ok/No)','Wheel Locks Provided (Ok/No/NA)','Lumber Free of Defects (Ok/No)','Platform Complete No Gaps (Ok/No)','Guardrails and Toe-boards in Place (Ok/No)','Components Free of Defects (Ok/No)','Front of Scaffold Within 35cm (Ok/No)','Safe Access Provided (Ok/No)','Personal Fall Protection Used (Ok/No)'],
       segFields: {
@@ -276,7 +276,7 @@
       steps: [
         { title:'Job Information', fields:['Date','Inspection Type'] },
         { title:'Checklist', fields:[] },
-        { title:'Result', fields:['Failed Harness Tag(s) / Notes','Target Close Date','Inspected By','Remarks'] }
+        { title:'Result', fields:['Failed Harness Tag(s) / Notes','Inspected By','Remarks'] }
       ],
       items: [
         'Webbing / Straps Free of Cuts, Fraying, Burns or Chemical Damage',
@@ -328,7 +328,7 @@
         { title:'Entry Details', fields:['Date','CS Ref','Entrant(s)','Standby / Attendant Person'] },
         { title:'Isolation & Access Controls', fields:['Isolation Confirmed (LOTO) (Y/N)','LOTO Reference','Ventilation Provided (Y/N)','Ventilation Type','Communication Method','Rescue Equipment Ready (Y/N)','PPE / Breathing Apparatus Confirmed (Y/N)'] },
         { title:'Gas Readings', fields:['Gas Detector Instrument ID','Instrument Calibration Due Date','O2 (%)','CO (ppm)','H2S (ppm)','LEL (%)','Test Time'] },
-        { title:'Decision', fields:['All Safe to Enter (Y/N)','Comment','Responsible Person','Target Close Date'] }
+        { title:'Decision', fields:['All Safe to Enter (Y/N)','Comment','Responsible Person'] }
       ],
       segFields: {
         'Isolation Confirmed (LOTO) (Y/N)': YESNO, 'Ventilation Provided (Y/N)': YESNO,
@@ -372,16 +372,50 @@
   var _tabData = null;
   var _stepIdx = 0;
   var _values = {};
+  // Rev.96 — the LOTO Reference field is readonly when auto-filled
+  // from &lotoId, so it never fires an 'input' event; seed _values
+  // directly or the new "every field required" check would wrongly
+  // treat its own displayed value as missing.
+  if (LOTO_ID_PARAM) _values['LOTO Reference'] = LOTO_ID_PARAM;
 
   function isDateLike(f){ return /date/i.test(f) && !/update|validate/i.test(f); }
   function isTimeLike(f){ return /time/i.test(f); }
   function isNumericLike(f){ return /%|ppm|o2|co\b|h2s|lel/i.test(f); }
 
+  // Rev.95 (Issam, voice, 2026-11-23) — every plain free-text field in
+  // every one of the ten checklists suggests what's been typed there
+  // before, same concept as Area/Location/Receiver on New Permit, but
+  // sourced from THIS checklist's own history (_tabData, already
+  // fetched for this type) so Crane's Operator Name suggestions don't
+  // mix with, say, LOTO's Equipment Name / ID. Built once per field
+  // and cached, since _tabData never changes mid-session and several
+  // fields can share the step.
+  var _datalistCache = {};
+  function datalistFor_(field){
+    if (_datalistCache[field] !== undefined) return _datalistCache[field];
+    var idx = _tabData ? colIdx(_tabData.headers, field) : -1;
+    if (idx < 0 || !_tabData.rows || !_tabData.rows.length){ _datalistCache[field] = null; return null; }
+    var counts = {};
+    _tabData.rows.forEach(function(row){
+      var v = String(row[idx]||'').trim();
+      if (v) counts[v] = (counts[v]||0) + 1;
+    });
+    var values = Object.keys(counts).sort(function(a,b){ return counts[b]-counts[a]; }).slice(0, 20);
+    if (!values.length){ _datalistCache[field] = null; return null; }
+    var listId = 'dl-' + field.replace(/[^a-zA-Z0-9]/g,'');
+    var result = { listId: listId, html: '<datalist id="' + listId + '">' + values.map(function(v){ return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>' };
+    _datalistCache[field] = result;
+    return result;
+  }
+
+  function labelHtml_(f){
+    return esc(f) + (isOptionalField(f) ? '' : ' <span style="color:var(--pdw-red)">*</span>');
+  }
   function fieldHtml(f){
     var v = _values[f] || '';
     if (cfg.segFields[f]){
       var opts = cfg.segFields[f];
-      return '<div class="pm-field"><label>' + esc(f) + '</label><div class="pm-seg" data-segfield="' + esc(f) + '">'
+      return '<div class="pm-field"><label>' + labelHtml_(f) + '</label><div class="pm-seg" data-segfield="' + esc(f) + '">'
         + opts.map(function(o){
             var cls = segClass_(o);
             return '<button type="button" data-val="'+esc(o)+'" class="'+(v===o?cls:'')+'">'+esc(o)+'</button>';
@@ -389,14 +423,18 @@
         + '</div></div>';
     }
     if (cfg.textareaFields.indexOf(f) > -1){
-      return '<div class="pm-field"><label>' + esc(f) + '</label><textarea data-field="' + esc(f) + '" rows="3">' + esc(v) + '</textarea></div>';
+      return '<div class="pm-field"><label>' + labelHtml_(f) + '</label><textarea data-field="' + esc(f) + '" rows="3">' + esc(v) + '</textarea></div>';
     }
     if (f === 'LOTO Reference' && LOTO_ID_PARAM){
-      return '<div class="pm-field"><label>' + esc(f) + '</label><input type="text" data-field="' + esc(f) + '" value="' + esc(LOTO_ID_PARAM) + '" readonly title="Filled in automatically from this permit\'s linked LOTO Job"></div>';
+      return '<div class="pm-field"><label>' + labelHtml_(f) + '</label><input type="text" data-field="' + esc(f) + '" value="' + esc(LOTO_ID_PARAM) + '" readonly title="Filled in automatically from this permit\'s linked LOTO Job"></div>';
     }
     var type = isDateLike(f) ? (isTimeLike(f) ? 'datetime-local' : 'date') : (isTimeLike(f) ? 'time' : (isNumericLike(f) ? 'number' : 'text'));
     var step = isNumericLike(f) ? ' step="0.1"' : '';
-    return '<div class="pm-field"><label>' + esc(f) + '</label><input type="' + type + '"' + step + ' data-field="' + esc(f) + '" value="' + esc(v) + '" placeholder=""></div>';
+    // Suggestions only make sense for plain free text, not dates,
+    // times, or numbers.
+    var dl = (type === 'text') ? datalistFor_(f) : null;
+    var listAttr = dl ? ' list="' + dl.listId + '"' : '';
+    return '<div class="pm-field"><label>' + labelHtml_(f) + '</label><input type="' + type + '"' + step + listAttr + ' data-field="' + esc(f) + '" value="' + esc(v) + '" placeholder=""></div>' + (dl ? dl.html : '');
   }
 
   // Rev.85 — colors every pass/fail-style choice meaningfully, not
@@ -416,12 +454,13 @@
     return ENERGY_TYPES.map(function(type){
       var pointF = type + ' Isolation Point / ID', isoF = type + ' Isolated', lockF = type + ' Lock / Tag No.';
       var v = _values[isoF] || '';
+      var pointDl = datalistFor_(pointF), lockDl = datalistFor_(lockF);
       return '<div class="pm-mini-card"><div class="pm-mini-title">' + esc(type) + '</div>'
-        + '<div class="pm-field" style="margin-bottom:8px"><input type="text" data-field="' + esc(pointF) + '" value="' + esc(_values[pointF]||'') + '" placeholder="Isolation Point / ID"></div>'
+        + '<div class="pm-field" style="margin-bottom:8px"><input type="text"' + (pointDl?' list="'+pointDl.listId+'"':'') + ' data-field="' + esc(pointF) + '" value="' + esc(_values[pointF]||'') + '" placeholder="Isolation Point / ID">' + (pointDl?pointDl.html:'') + '</div>'
         + '<div class="pm-seg" data-segfield="' + esc(isoF) + '" style="margin-bottom:8px">'
           + YESNO.map(function(o){ return '<button type="button" data-val="'+o+'" class="'+(v===o?segClass_(o):'')+'">'+o+'</button>'; }).join('')
         + '</div>'
-        + '<input type="text" data-field="' + esc(lockF) + '" value="' + esc(_values[lockF]||'') + '" placeholder="Lock / Tag No.">'
+        + '<input type="text"' + (lockDl?' list="'+lockDl.listId+'"':'') + ' data-field="' + esc(lockF) + '" value="' + esc(_values[lockF]||'') + '" placeholder="Lock / Tag No.">' + (lockDl?lockDl.html:'')
         + '</div>';
     }).join('');
   }
@@ -472,7 +511,31 @@
 
   function isLastStep(){ return _stepIdx === cfg.steps.length - 1; }
 
+  // Rev.96 (Issam, voice, 2026-11-23) — every field on every
+  // permit-linked checklist is now required before moving on, except
+  // Remarks/Comment (stay optional) and "Failed Harness Tag(s) /
+  // Notes" (only meaningful, and only required, once an item actually
+  // fails — kept as its own conditional check below, same as before).
+  // A No or N/A answer counts as filled, same as Yes — it's still an
+  // answer. Target Close Date has been removed outright (the permit's
+  // own 12-hour expiry already covers that).
+  function isOptionalField(f){
+    if (f === 'Comment') return true;
+    if (f === 'Failed Harness Tag(s) / Notes') return true;
+    if (/^Remarks\b/.test(f)) return true;
+    return false;
+  }
+  function missingFieldsInStep(step){
+    if (!step || step.isolationGrid) return []; // LOTO's isolation grid isn't blanket-required — only the sources actually used apply
+    return (step.fields||[]).filter(function(f){
+      if (isOptionalField(f)) return false;
+      return !String(_values[f]||'').trim();
+    });
+  }
+
   function validateStep(){
+    var missingGeneral = missingFieldsInStep(cfg.steps[_stepIdx]);
+    if (missingGeneral.length) return 'Please fill in the following before continuing:\n- ' + missingGeneral.join('\n- ');
     // Rev.84/85 — mirrors each desktop page's own gating rule exactly,
     // checked at the step that actually holds those fields, rather
     // than only at the very end, so the missing items are easy to see.
