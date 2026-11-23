@@ -514,7 +514,7 @@
   }
 
   /* ── New Permit — 3 short steps ──────────────────────────────── */
-  var _new = { area:'', location:'', workInvolved:'', description:'', issuer:'', receiver:'', unitManager:'', unitManagerEmail:'', controller:'', controllerEmail:'' };
+  var _new = { area:'', location:'', workInvolved:'', heightAccessMethod:'', description:'', issuer:'', receiver:'', unitManager:'', unitManagerEmail:'', controller:'', controllerEmail:'' };
 
   function issuerOptionsHtml(){
     var hIdx = colIdx(_issuers.headers, 'Employee ID'), nIdx = colIdx(_issuers.headers, 'Name');
@@ -584,12 +584,22 @@
       + buildDatalist_('pm-dl-area', 'Area')
       + '<div class="pm-field"><label>Location</label><input id="pm-f-location" list="pm-dl-location" value="' + esc(_new.location) + '" placeholder="e.g. Batch House, Switchgear Room"></div>'
       + buildDatalist_('pm-dl-location', 'Location')
-      + '<div class="pm-field"><label>Work Involved <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-work">'
+      + '<div class="pm-field"><label>Work Involved <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-work" onchange="PM.onWorkInvolvedChange(this.value)">'
         + '<option value="">— select —</option>'
         + PTW_WORK_TYPES.map(function(w){ return '<option value="'+esc(w)+'"'+(w===_new.workInvolved?' selected':'')+'>'+esc(w)+'</option>'; }).join('')
       + '</select></div>'
+      // Rev.92 (Issam, voice, 2026-11-22) — only shown for Working at
+      // height, same as the desktop register's own field: it decides
+      // whether the Crane Inspection or the Scaffold Inspection chip
+      // is required (Harness applies to height work either way, so
+      // isn't affected by this choice).
+      + '<div class="pm-field" id="pm-f-ham-wrap" style="display:' + (_new.workInvolved === 'Working at height' ? 'block' : 'none') + '">'
+        + '<label>Height Access Method <span style="color:var(--pdw-red)">*</span></label>'
+        + '<select id="pm-f-ham">'
+          + ['', 'Crane', 'Scaffolding'].map(function(o){ return '<option value="'+o+'"'+(o===_new.heightAccessMethod?' selected':'')+'>'+(o||'— select —')+'</option>'; }).join('')
+        + '</select></div>'
       + '<div class="pm-field"><label>Description of Work</label><textarea id="pm-f-desc" rows="3" placeholder="Brief description">' + esc(_new.description) + '</textarea></div>'
-      + '<div class="pm-err" id="pm-err1">Please fill in Area and Work Involved.</div>'
+      + '<div class="pm-err" id="pm-err1">Please fill in Area, Work Involved, and Height Access Method.</div>'
       + '<div class="pm-step-nav"><button type="button" class="pm-btn-next" onclick="PM.toStep2()">Next →</button></div>';
   }
   function renderNew2(){
@@ -636,11 +646,14 @@
   }
   function renderNew3(){
     var rows = [
-      ['Area', _new.area], ['Location', _new.location || '—'], ['Work Involved', _new.workInvolved],
+      ['Area', _new.area], ['Location', _new.location || '—'], ['Work Involved', _new.workInvolved]
+    ];
+    if (_new.heightAccessMethod) rows.push(['Height Access Method', _new.heightAccessMethod]);
+    rows = rows.concat([
       ['Description', _new.description || '—'],
       ['Issuer', _new.issuer], ['Receiver', _new.receiver],
       ['Unit Manager', _new.unitManager], ['Controller', _new.controller]
-    ];
+    ]);
     root.innerHTML = header() + '<button type="button" class="pm-back" onclick="PM.go(\'new2\')">← Back</button>'
       + dots(2)
       + '<div class="pm-list-title" style="margin-bottom:8px">Review</div>'
@@ -713,12 +726,19 @@
       if (!pid){ alert('Enter the Permit ID this checklist is for.'); return; }
       window.open('checklist-mobile.html?type=' + encodeURIComponent(window._pmCkType) + '&permitId=' + encodeURIComponent(pid), '_blank');
     },
+    onWorkInvolvedChange: function(val){
+      var wrap = document.getElementById('pm-f-ham-wrap');
+      if (wrap) wrap.style.display = (val === 'Working at height') ? 'block' : 'none';
+    },
     toStep2: function(){
       _new.area = document.getElementById('pm-f-area').value.trim();
       _new.location = document.getElementById('pm-f-location').value.trim();
       _new.workInvolved = document.getElementById('pm-f-work').value;
+      var hamEl = document.getElementById('pm-f-ham');
+      _new.heightAccessMethod = (_new.workInvolved === 'Working at height' && hamEl) ? hamEl.value : '';
       _new.description = document.getElementById('pm-f-desc').value.trim();
-      if (!_new.area || !_new.workInvolved){ document.getElementById('pm-err1').style.display = 'block'; return; }
+      var needsHam = _new.workInvolved === 'Working at height';
+      if (!_new.area || !_new.workInvolved || (needsHam && !_new.heightAccessMethod)){ document.getElementById('pm-err1').style.display = 'block'; return; }
       renderNew2();
     },
     toStep3: function(){
@@ -743,6 +763,7 @@
         'Area': _new.area,
         'Location': _new.location,
         'Work Involved': _new.workInvolved,
+        'Height Access Method': _new.heightAccessMethod,
         'Description of Work': _new.description,
         'Permit Issuer - Name': _new.issuer,
         'Permit Receiver - Name': _new.receiver,
