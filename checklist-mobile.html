@@ -69,6 +69,10 @@
   var TYPE = params.get('type') || '';
   var PERMIT_ID = params.get('permitId') || '';
   var LOTO_ID_PARAM = params.get('lotoId') || '';
+  // Rev.100 — which existing record a mode:'continue' type (Hot Work
+  // Execution/Post/Closure, LOTO Reinstatement) is continuing. LOTO
+  // reuses &lotoId= (already its natural id); Hot Work uses &recordId=.
+  var RECORD_ID_PARAM = params.get('recordId') || LOTO_ID_PARAM || '';
   var root = document.getElementById('pm-root');
   var _me = '';
   var YESNO = ['Yes','No'];
@@ -339,6 +343,61 @@
       textareaFields: ['Comment'],
       statusDefault: { col:'Status', value:'Open' },
       note: 'This covers the Pre-Entry atmospheric test the permit needs. Entry/Exit and Closure happen on the full site (desktop) once people go in.'
+    },
+    // Rev.100 (Issam, voice, 2026-11-23) — Hot Work's Execution / Post
+    // Hot Work / Permit Closure stage, mirroring hot-work.html's own
+    // openContinue (its POST_HOT_WORK_SECTIONS) exactly: same fields,
+    // same options, same gate — Closure Result can only be saved as
+    // Cleared once every Yes/No/NA item below is actually answered;
+    // Issues Noted carries no such requirement, same as desktop. This
+    // continues the SAME existing Record ID (mode:'continue') rather
+    // than creating a new one.
+    hotwork_continue: {
+      label: 'Hot Work — Execution / Post / Closure', tabKey: 'hotwork_checklist', idCol:'Record ID',
+      mode: 'continue',
+      steps: [
+        { title:'Execution — Permit Compliance', fields:['Hot Work Permit Displayed (Y/N/NA)','Only Authorized Personnel Conduct Work (Y/N/NA)'] },
+        { title:'Execution — Equipment Safety', fields:['Hot Work Equipment Inspected (Y/N/NA)','Gas Cylinders Secured (Y/N/NA)','Hoses Checked For Leaks (Y/N/NA)'] },
+        { title:'Execution — Continuous Monitoring', fields:['Firewatch Maintained Throughout (Y/N/NA)','Combustible Gas Levels Monitored (Y/N/NA)'] },
+        { title:'Post Hot Work — Fire Safety', fields:['Firewatch 30 Min After Completion (Y/N/NA)','Area Inspected For Smoldering Materials (Y/N/NA)','Fire Detection Systems Verified (Y/N/NA)'] },
+        { title:'Post Hot Work — Clean-up', fields:['Tools And Equipment Removed (Y/N/NA)','Shields And Barriers Removed (Y/N/NA)','Combustibles Returned Only When Safe (Y/N/NA)'] },
+        { title:'Permit Closure', fields:['Work Completed And Area Inspected (Y/N)','Inspector Name','Final Inspection Date/Time','Remarks','Closure Result','Action Reference'] }
+      ],
+      closureItems: ['Hot Work Permit Displayed (Y/N/NA)','Only Authorized Personnel Conduct Work (Y/N/NA)',
+        'Hot Work Equipment Inspected (Y/N/NA)','Gas Cylinders Secured (Y/N/NA)','Hoses Checked For Leaks (Y/N/NA)',
+        'Firewatch Maintained Throughout (Y/N/NA)','Combustible Gas Levels Monitored (Y/N/NA)',
+        'Firewatch 30 Min After Completion (Y/N/NA)','Area Inspected For Smoldering Materials (Y/N/NA)','Fire Detection Systems Verified (Y/N/NA)',
+        'Tools And Equipment Removed (Y/N/NA)','Shields And Barriers Removed (Y/N/NA)','Combustibles Returned Only When Safe (Y/N/NA)',
+        'Work Completed And Area Inspected (Y/N)'],
+      segFields: { 'Work Completed And Area Inspected (Y/N)': YESNO, 'Closure Result': ['Cleared','Issues Noted'] },
+      textareaFields: ['Remarks'],
+      statusDefault: null,
+      note: null
+    },
+    // Rev.100 — LOTO's Reinstatement stage, mirroring
+    // loto-register.html's own showLotoContinueModal exactly: all 8
+    // post-task checks must be a real "Yes" — unlike Hot Work, there
+    // is no "Issues Noted" escape hatch here, so this is an
+    // unconditional gate, same as desktop. Status moves to Closed and
+    // Signatures is recorded automatically, the same way, rather than
+    // typed.
+    loto_continue: {
+      label: 'LOTO — Complete Reinstatement', tabKey: 'loto_register', idCol:'LOTO ID',
+      mode: 'continue',
+      steps: [
+        { title:'Post-Task Verification', fields:['Maintenance Work Completed','Personnel Tools and Equipment Cleared','Guards and Safety Devices Reinstated','Affected Personnel Notified','Each Personal Lock Removed by Owner','Isolation Removal and Restoration Authorized','Equipment Returned to Service','PTW Closed per Site Procedure'] },
+        { title:'Sign-Off', fields:['Work Completed By','LOTO Removal / Reinstatement Authorized By','Reinstatement Date / Time','Final Remarks'] }
+      ],
+      closureItems: ['Maintenance Work Completed','Personnel Tools and Equipment Cleared','Guards and Safety Devices Reinstated','Affected Personnel Notified','Each Personal Lock Removed by Owner','Isolation Removal and Restoration Authorized','Equipment Returned to Service','PTW Closed per Site Procedure'],
+      segFields: {
+        'Maintenance Work Completed': YESNO, 'Personnel Tools and Equipment Cleared': YESNO,
+        'Guards and Safety Devices Reinstated': YESNO, 'Affected Personnel Notified': YESNO,
+        'Each Personal Lock Removed by Owner': YESNO, 'Isolation Removal and Restoration Authorized': YESNO,
+        'Equipment Returned to Service': YESNO, 'PTW Closed per Site Procedure': YESNO
+      },
+      textareaFields: ['Final Remarks'],
+      statusDefault: null,
+      note: null
     }
   };
   // Auto-detect Hot Work's (Y/N/NA) items as segmented fields —
@@ -527,6 +586,11 @@
   }
   function missingFieldsInStep(step){
     if (!step || step.isolationGrid) return []; // LOTO's isolation grid isn't blanket-required — only the sources actually used apply
+    // Rev.100 — continuation stages (Hot Work Execution/Post/Closure,
+    // LOTO Reinstatement) have their OWN gate, mirroring desktop's
+    // conditional/strict rule exactly, not the blanket "every field
+    // required" rule the create-stage checklists use.
+    if (cfg.mode === 'continue') return [];
     return (step.fields||[]).filter(function(f){
       if (isOptionalField(f)) return false;
       return !String(_values[f]||'').trim();
@@ -536,6 +600,25 @@
   function validateStep(){
     var missingGeneral = missingFieldsInStep(cfg.steps[_stepIdx]);
     if (missingGeneral.length) return 'Please fill in the following before continuing:\n- ' + missingGeneral.join('\n- ');
+    // Rev.100 — Hot Work's Execution/Post/Closure gate: Closure Result
+    // can only be Cleared once every item above (not just this step's
+    // own) is answered; Issues Noted carries no such requirement,
+    // mirroring hot-work.html's own openContinue save-check exactly.
+    if (TYPE === 'hotwork_continue' && isLastStep()){
+      if (String(_values['Closure Result']||'').trim() === 'Cleared'){
+        var missingHw = (cfg.closureItems||[]).filter(function(f){ return !String(_values[f]||'').trim(); });
+        if (missingHw.length) return 'This checklist cannot be saved as Cleared yet — the following items must be answered first:\n- ' + missingHw.join('\n- ');
+      }
+      return '';
+    }
+    // Rev.100 — LOTO Reinstatement: every post-task check must be a
+    // real "Yes" — unconditional, no "Issues Noted" escape hatch,
+    // mirroring loto-register.html's own showLotoContinueModal exactly.
+    if (TYPE === 'loto_continue' && isLastStep()){
+      var missingLt = (cfg.closureItems||[]).filter(function(f){ return String(_values[f]||'').trim().toLowerCase() !== 'yes'; });
+      if (missingLt.length) return 'This LOTO job cannot be closed yet — the following reinstatement checks must be confirmed as "Yes" first:\n- ' + missingLt.join('\n- ') + '\n\nThe job will remain Open until all checks are confirmed.';
+      return '';
+    }
     // Rev.84/85 — mirrors each desktop page's own gating rule exactly,
     // checked at the step that actually holds those fields, rather
     // than only at the very end, so the missing items are easy to see.
@@ -588,6 +671,33 @@
 
   function finishSave(){
     applyComputedFields();
+    var btn = document.querySelector('.pm-btn-next');
+    if (btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+    // Rev.100 — mode:'continue' updates the SAME existing record
+    // (Hot Work's own Record ID, LOTO's own LOTO ID) instead of
+    // creating a new one, sending only the fields this stage touches.
+    if (cfg.mode === 'continue'){
+      var updateValues = {};
+      (cfg.steps||[]).forEach(function(step){
+        (step.fields||[]).forEach(function(f){ if (_values[f] !== undefined) updateValues[f] = _values[f]; });
+      });
+      if (TYPE === 'loto_continue'){
+        updateValues['Status'] = 'Closed';
+        updateValues['Signatures'] = (_me || 'unknown') + ' — ' + new Date().toLocaleString();
+      }
+      postJSON('update', {tab: cfg.tabKey, idCol: cfg.idCol, id: RECORD_ID_PARAM}, updateValues).then(function(res){
+        if (res && res.status === 'error'){
+          alert('Could not save: ' + (res.message||'unknown error'));
+          if (btn){ btn.disabled = false; btn.textContent = 'Save'; }
+          return;
+        }
+        window.location.href = 'ptw-mobile.html';
+      }).catch(function(){
+        alert('Could not reach the server — check your connection and try again.');
+        if (btn){ btn.disabled = false; btn.textContent = 'Save'; }
+      });
+      return;
+    }
     var tabData = _tabData;
     var idIdx = colIdx(tabData.headers, cfg.idCol);
     var newId = nextSequentialId(tabData, cfg.idCol, cfg.idPrefix, cfg.idPad);
@@ -598,19 +708,16 @@
     if (LOTO_ID_PARAM && TYPE === 'cs') values['LOTO Reference'] = LOTO_ID_PARAM;
     values['Record Status'] = 'Active';
     if (cfg.statusDefault) values[cfg.statusDefault.col] = cfg.statusDefault.value;
-    var btn = document.querySelector('.pm-btn-next');
-    if (btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
     postJSON('write', {tab: cfg.tabKey}, [values]).then(function(res){
       if (res && res.status === 'error'){
         alert('Could not save: ' + (res.message||'unknown error'));
         if (btn){ btn.disabled = false; btn.textContent = 'Save'; }
         return;
       }
-      if (PERMIT_ID){
-        window.location.href = 'ptw-register.html?permitId=' + encodeURIComponent(PERMIT_ID);
-      } else {
-        window.location.href = 'ptw-mobile.html';
-      }
+      // Rev.100 (Issam, voice, 2026-11-23) — mobile never hands the
+      // person back to the classic desktop register; every checklist,
+      // saved or backed out of, returns to the PTW card list.
+      window.location.href = 'ptw-mobile.html';
     }).catch(function(){
       alert('Could not reach the server — check your connection and try again.');
       if (btn){ btn.disabled = false; btn.textContent = 'Save'; }
@@ -620,7 +727,7 @@
   window.CHKM = {
     backStep: function(){
       if (_stepIdx === 0){
-        window.location.href = PERMIT_ID ? 'ptw-register.html?permitId=' + encodeURIComponent(PERMIT_ID) : 'ptw-mobile.html';
+        window.location.href = 'ptw-mobile.html';
         return;
       }
       _stepIdx--; renderStep();
@@ -651,6 +758,20 @@
       _me = (IMS_AUTH.getCurrentUserName && IMS_AUTH.getCurrentUserName()) || '';
       fetchTab(cfg.tabKey).then(function(data){
         _tabData = data;
+        // Rev.100 — mode:'continue' picks up an EXISTING record (by
+        // RECORD_ID_PARAM) instead of starting a blank one; its
+        // already-saved fields (Pre Hot Work items, LOTO job info,
+        // etc.) are preserved in _values even though this form only
+        // shows and edits the later-stage fields.
+        if (cfg.mode === 'continue'){
+          var idIdx = colIdx(data.headers, cfg.idCol);
+          var row = idIdx >= 0 ? data.rows.find(function(r){ return String(r[idIdx]) === String(RECORD_ID_PARAM); }) : null;
+          if (!row){
+            root.innerHTML = '<div class="pm-loading">Record not found — try opening it again from the permit card.<br><a href="ptw-mobile.html" style="color:var(--pdw-gold-lt)">← Back to PTW Mobile</a></div>';
+            return;
+          }
+          data.headers.forEach(function(h,i){ if (row[i] !== undefined && row[i] !== '') _values[h] = row[i]; });
+        }
         renderStep();
       });
     }});
