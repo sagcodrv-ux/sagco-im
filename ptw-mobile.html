@@ -93,6 +93,13 @@
   .pm-fchip{padding:7px 12px; border-radius:20px; border:1px solid var(--pdw-border); background:var(--pdw-bg2);
     color:var(--pdw-text-muted); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap}
   .pm-fchip-active{background:var(--pdw-gold); color:#15223f; border-color:var(--pdw-gold)}
+  .pm-cb-grid{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px}
+  .pm-cb-chip{padding:9px 13px; border-radius:20px; border:1px solid var(--pdw-border); background:var(--pdw-bg3);
+    color:var(--pdw-text-muted); font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit}
+  .pm-cb-chip-on{background:rgba(201,168,76,.22); color:var(--pdw-gold-lt); border-color:var(--pdw-gold)}
+  .pm-cb-other{width:100%; margin-top:6px; padding:9px 10px; font-size:14px; border-radius:8px;
+    border:1px solid var(--pdw-border-gold); background:var(--pdw-bg3); color:var(--pdw-text); font-family:inherit}
+  .pm-cb-section-title{font-size:13px; font-weight:700; color:var(--pdw-gold-lt); margin:4px 0 8px}
 </style>
 </head>
 <body>
@@ -110,6 +117,19 @@
     'Hot work','Cold work','Confined spaces','Working at height','Lifting',
     'Painting','Civil work','Pipeline works (LPG / Oil)','Electrical Repairs'
   ];
+  // Rev.93 (Issam, voice, 2026-11-22) — same five checkbox-group
+  // fields as the desktop register's own HSE-FRM-01 (English labels
+  // only here — the desktop form's Arabic column isn't duplicated on
+  // mobile), stored the identical way: a semicolon-joined string per
+  // field, with a free "Others:" detail saved to its own "<Field> -
+  // Other" companion column. Exact same label lists as PTW_EQUIPMENT /
+  // PTW_HAZARDS / PTW_SAFETY_PRECAUTIONS / PTW_PPE / PTW_ISOLATION in
+  // ptw-register.html.
+  var PTW_EQUIPMENT = ['Welding m/c','Grinding m/c','Drilling m/c','Ladder','Gas cutting','Forklift','Scaffolding','Hand tools','Man lift','Crane','Chemicals','Others:'];
+  var PTW_HAZARDS = ['Fire','High temperature/pressure','Electrical shock','Oxygen deficiency','Gas/chemical release','Slips & Trips','Others:'];
+  var PTW_SAFETY_PRECAUTIONS = ['Eliminate flammable liquids/vapors','Remove or cover combustible materials','Cover the wall or floor openings','Floors swept & clean','Safety tags & locks','Fire extinguishers','Electrical isolation','Safe welding equipment','Fall protection','Warning signs','Safety attendant','Others:'];
+  var PTW_PPE = ['Safety shoes','Welding mask','Hand gloves','Gum boots','Dust mask','Hard helmet','Ear protection','Chemical Mask','Goggles','Safety Harness','Breathing apparatus','Others:'];
+  var PTW_ISOLATION = ['Electrical energy','Mechanical energy','Thermal energy','Gases','Hydraulic energy','Pneumatic energy'];
 
   var _reg = null, _issuers = null, _users = null, _me = '';
   // Rev.84 (Issam, voice, 2026-11-19) — the four checklist types that
@@ -514,7 +534,33 @@
   }
 
   /* ── New Permit — 3 short steps ──────────────────────────────── */
-  var _new = { area:'', location:'', workInvolved:'', heightAccessMethod:'', description:'', issuer:'', receiver:'', unitManager:'', unitManagerEmail:'', controller:'', controllerEmail:'' };
+  var _new = {
+    area:'', location:'', workInvolved:'', heightAccessMethod:'', description:'',
+    projectName:'', contractingCompany:'',
+    issuer:'', receiver:'', unitManager:'', unitManagerEmail:'', controller:'', controllerEmail:'',
+    // Rev.93 — one ticked-labels array and one "Others:" detail string
+    // per checkbox-group field, keyed by the exact sheet column name
+    // so createPermit() can join and write them straight through.
+    cb: { 'Equipment & Tools':[], 'Potential Hazards':[], 'Safety Precautions':[], 'PPE Required':[], 'Service Isolation':[] },
+    cbOther: { 'Equipment & Tools':'', 'Potential Hazards':'', 'Safety Precautions':'', 'PPE Required':'' }
+  };
+  // Rev.93 — one multi-select chip grid per checkbox-group field.
+  // Each chip toggles independently (unlike the Yes/No/N/A segmented
+  // controls elsewhere, several can be on at once); ticking "Others:"
+  // reveals its own free-text box, exactly mirroring the desktop
+  // modal's checkbox grid + companion "<Field> - Other" input.
+  function cbChipsHtml_(groupKey, options){
+    var selected = _new.cb[groupKey] || [];
+    return '<div class="pm-cb-grid">' + options.map(function(opt){
+      var isOther = /^others:?$/i.test(opt.trim());
+      var on = selected.indexOf(opt) > -1;
+      var html = '<button type="button" class="pm-cb-chip' + (on?' pm-cb-chip-on':'') + '" data-group="' + esc(groupKey) + '" data-val="' + esc(opt) + '" onclick="PM.toggleCbChip(this)">' + esc(opt) + '</button>';
+      if (isOther){
+        html += '<input type="text" class="pm-cb-other" id="pm-other-' + groupKey.replace(/[^a-zA-Z0-9]/g,'') + '" data-othergroup="' + esc(groupKey) + '" value="' + esc(_new.cbOther[groupKey]||'') + '" placeholder="Specify…" style="display:' + (on?'block':'none') + '">';
+      }
+      return html;
+    }).join('') + '</div>';
+  }
 
   function issuerOptionsHtml(){
     var hIdx = colIdx(_issuers.headers, 'Employee ID'), nIdx = colIdx(_issuers.headers, 'Name');
@@ -598,9 +644,52 @@
         + '<select id="pm-f-ham">'
           + ['', 'Crane', 'Scaffolding'].map(function(o){ return '<option value="'+o+'"'+(o===_new.heightAccessMethod?' selected':'')+'>'+(o||'— select —')+'</option>'; }).join('')
         + '</select></div>'
+      + '<div class="pm-field"><label>Name of Project / Job</label><input id="pm-f-project" value="' + esc(_new.projectName) + '" placeholder="Optional"></div>'
+      + '<div class="pm-field"><label>Contracting Company</label><input id="pm-f-contractor" value="' + esc(_new.contractingCompany) + '" placeholder="Optional — if any"></div>'
       + '<div class="pm-field"><label>Description of Work</label><textarea id="pm-f-desc" rows="3" placeholder="Brief description">' + esc(_new.description) + '</textarea></div>'
       + '<div class="pm-err" id="pm-err1">Please fill in Area, Work Involved, and Height Access Method.</div>'
-      + '<div class="pm-step-nav"><button type="button" class="pm-btn-next" onclick="PM.toStep2()">Next →</button></div>';
+      + '<div class="pm-step-nav"><button type="button" class="pm-btn-next" onclick="PM.toStepEquip()">Next →</button></div>';
+  }
+  // Rev.93 (Issam, voice, 2026-11-22) — Equipment & Tools, Potential
+  // Hazards, Safety Precautions and PPE Required, the same single
+  // "Equipment, Hazards & Precautions" grouping the desktop modal
+  // uses, as one scrollable mobile step rather than four separate
+  // ones (consistent with how LOTO's five isolation points or Hot
+  // Work's sections already read as one step with several groups).
+  function renderNewEquip(){
+    root.innerHTML = header() + '<button type="button" class="pm-back" onclick="PM.backFromEquip()">← Back</button>'
+      + dots(1)
+      + '<div class="pm-list-title" style="margin-bottom:10px">Equipment, Hazards &amp; Precautions</div>'
+      + '<div class="pm-cb-section-title">Equipment &amp; Tools</div>' + cbChipsHtml_('Equipment & Tools', PTW_EQUIPMENT)
+      + '<div class="pm-cb-section-title">Potential Hazards</div>' + cbChipsHtml_('Potential Hazards', PTW_HAZARDS)
+      + '<div class="pm-cb-section-title">Safety Precautions</div>' + cbChipsHtml_('Safety Precautions', PTW_SAFETY_PRECAUTIONS)
+      + '<div class="pm-cb-section-title">PPE Required</div>' + cbChipsHtml_('PPE Required', PTW_PPE)
+      + '<div class="pm-err" id="pm-err-equip">Please specify what "Others" means for the ticked group(s) above.</div>'
+      + '<div class="pm-step-nav"><button type="button" class="pm-btn-back" onclick="PM.backFromEquip()">← Back</button><button type="button" class="pm-btn-next" onclick="PM.toStepIsolation()">Next →</button></div>';
+  }
+  function renderNewIsolation(){
+    root.innerHTML = header() + '<button type="button" class="pm-back" onclick="PM.backFromIsolation()">← Back</button>'
+      + dots(2)
+      + '<div class="pm-list-title" style="margin-bottom:4px">Service Isolation</div>'
+      + '<div style="font-size:11.5px;color:var(--pdw-text-muted);margin-bottom:14px">Tick any energy source that needs isolating before work starts. Ticking any one of these also raises a LOTO Job for this permit.</div>'
+      + cbChipsHtml_('Service Isolation', PTW_ISOLATION)
+      + '<div class="pm-step-nav"><button type="button" class="pm-btn-back" onclick="PM.backFromIsolation()">← Back</button><button type="button" class="pm-btn-next" onclick="PM.toStep2()">Next →</button></div>';
+  }
+  // The "Others:" detail text for whichever group(s) are on this
+  // screen — read at step-advance time, same pattern Area/Location
+  // already use, since a plain text input doesn't need a live
+  // listener to stay in sync with _new.
+  function captureOtherFields_(){
+    document.querySelectorAll('.pm-cb-other').forEach(function(inp){
+      _new.cbOther[inp.getAttribute('data-othergroup')] = inp.value.trim();
+    });
+  }
+  function missingOtherDetail_(){
+    var missing = [];
+    Object.keys(_new.cb).forEach(function(g){
+      if (_new.cb[g].indexOf('Others:') > -1 && !String(_new.cbOther[g]||'').trim()) missing.push(g);
+    });
+    return missing;
   }
   function renderNew2(){
     // Rev.83 — only attempts the auto-match while the field is still
@@ -618,7 +707,7 @@
       ? '<div style="font-size:11px;color:var(--pdw-amb);margin:-8px 0 12px">You (' + esc(_me) + ') are not on the Authorized Issuers list — pick the correct issuer below, or ask your IMS Coordinator to add you.</div>'
       : '';
     root.innerHTML = header() + '<button type="button" class="pm-back" onclick="PM.backFromStep2()">← Back</button>'
-      + dots(1)
+      + dots(3)
       + '<div class="pm-field"><label>Permit Issuer <span style="color:var(--pdw-red)">*</span></label><select id="pm-f-issuer">' + issuerOptionsHtml() + '</select></div>'
       + issuerNote
       + '<div class="pm-field"><label>Permit Receiver (name) <span style="color:var(--pdw-red)">*</span></label><input id="pm-f-receiver" list="pm-dl-receiver" value="' + esc(_new.receiver) + '" placeholder="Full name"></div>'
@@ -649,21 +738,29 @@
       ['Area', _new.area], ['Location', _new.location || '—'], ['Work Involved', _new.workInvolved]
     ];
     if (_new.heightAccessMethod) rows.push(['Height Access Method', _new.heightAccessMethod]);
+    if (_new.projectName) rows.push(['Name of Project / Job', _new.projectName]);
+    if (_new.contractingCompany) rows.push(['Contracting Company', _new.contractingCompany]);
+    rows.push(['Description', _new.description || '—']);
+    ['Equipment & Tools','Potential Hazards','Safety Precautions','PPE Required','Service Isolation'].forEach(function(g){
+      var picked = _new.cb[g].slice();
+      var othersIdx = picked.indexOf('Others:');
+      if (othersIdx > -1) picked[othersIdx] = 'Others: ' + (_new.cbOther[g]||'');
+      if (picked.length) rows.push([g, picked.join(', ')]);
+    });
     rows = rows.concat([
-      ['Description', _new.description || '—'],
       ['Issuer', _new.issuer], ['Receiver', _new.receiver],
       ['Unit Manager', _new.unitManager], ['Controller', _new.controller]
     ]);
-    root.innerHTML = header() + '<button type="button" class="pm-back" onclick="PM.go(\'new2\')">← Back</button>'
-      + dots(2)
+    root.innerHTML = header() + '<button type="button" class="pm-back" onclick="PM.backToPeople()">← Back</button>'
+      + dots(4)
       + '<div class="pm-list-title" style="margin-bottom:8px">Review</div>'
       + rows.map(function(r){ return '<div class="pm-review-row"><span>'+esc(r[0])+'</span><span>'+esc(r[1])+'</span></div>'; }).join('')
       + '<div style="font-size:11px;color:var(--pdw-text-muted);margin-top:10px">The permit will be created with a 12-hour validity window starting now, and will immediately ask the Receiver to sign.</div>'
-      + '<div class="pm-step-nav" style="margin-top:14px"><button type="button" class="pm-btn-back" onclick="PM.go(\'new2\')">← Back</button><button type="button" class="pm-btn-next" id="pm-create-btn" onclick="PM.createPermit()">Create Permit</button></div>';
+      + '<div class="pm-step-nav" style="margin-top:14px"><button type="button" class="pm-btn-back" onclick="PM.backToPeople()">← Back</button><button type="button" class="pm-btn-next" id="pm-create-btn" onclick="PM.createPermit()">Create Permit</button></div>';
   }
   function dots(activeIdx){
     var html = '<div class="pm-step-dots">';
-    for (var i=0;i<3;i++) html += '<div class="pm-dot' + (i===activeIdx?' pm-active':'') + '"></div>';
+    for (var i=0;i<5;i++) html += '<div class="pm-dot' + (i===activeIdx?' pm-active':'') + '"></div>';
     return html + '</div>';
   }
 
@@ -730,17 +827,45 @@
       var wrap = document.getElementById('pm-f-ham-wrap');
       if (wrap) wrap.style.display = (val === 'Working at height') ? 'block' : 'none';
     },
-    toStep2: function(){
+    toStepEquip: function(){
       _new.area = document.getElementById('pm-f-area').value.trim();
       _new.location = document.getElementById('pm-f-location').value.trim();
       _new.workInvolved = document.getElementById('pm-f-work').value;
       var hamEl = document.getElementById('pm-f-ham');
       _new.heightAccessMethod = (_new.workInvolved === 'Working at height' && hamEl) ? hamEl.value : '';
+      _new.projectName = document.getElementById('pm-f-project').value.trim();
+      _new.contractingCompany = document.getElementById('pm-f-contractor').value.trim();
       _new.description = document.getElementById('pm-f-desc').value.trim();
       var needsHam = _new.workInvolved === 'Working at height';
       if (!_new.area || !_new.workInvolved || (needsHam && !_new.heightAccessMethod)){ document.getElementById('pm-err1').style.display = 'block'; return; }
-      renderNew2();
+      renderNewEquip();
     },
+    toggleCbChip: function(btn){
+      var group = btn.getAttribute('data-group'), val = btn.getAttribute('data-val');
+      var arr = _new.cb[group];
+      var idx = arr.indexOf(val);
+      var nowOn;
+      if (idx > -1){ arr.splice(idx,1); nowOn = false; } else { arr.push(val); nowOn = true; }
+      btn.classList.toggle('pm-cb-chip-on', nowOn);
+      if (/^others:?$/i.test(val.trim())){
+        var otherInput = document.getElementById('pm-other-' + group.replace(/[^a-zA-Z0-9]/g,''));
+        if (otherInput) otherInput.style.display = nowOn ? 'block' : 'none';
+      }
+    },
+    backFromEquip: function(){ captureOtherFields_(); renderNew1(); },
+    toStepIsolation: function(){
+      captureOtherFields_();
+      var missing = missingOtherDetail_();
+      var errEl = document.getElementById('pm-err-equip');
+      if (missing.length){ errEl.style.display = 'block'; return; }
+      renderNewIsolation();
+    },
+    backFromIsolation: function(){ renderNewEquip(); },
+    toStep2: function(){ renderNew2(); },
+    // Rev.93 — fixes a pre-existing dead click: the Review screen's
+    // "← Back" called PM.go('new2'), but 'new2' was never a route go()
+    // recognised, so that button did nothing at all before this fix.
+    backToPeople: function(){ renderNew2(); },
     toStep3: function(){
       captureStep2Values_();
       if (!_new.issuer || !_new.receiver || !_new.unitManager || !_new.controller){ document.getElementById('pm-err2').style.display = 'block'; return; }
@@ -748,7 +873,7 @@
     },
     backFromStep2: function(){
       captureStep2Values_();
-      renderNew1();
+      renderNewIsolation();
     },
     createPermit: function(){
       var btn = document.getElementById('pm-create-btn');
@@ -764,7 +889,18 @@
         'Location': _new.location,
         'Work Involved': _new.workInvolved,
         'Height Access Method': _new.heightAccessMethod,
+        'Name of Project / Job': _new.projectName,
+        'Contracting Company': _new.contractingCompany,
         'Description of Work': _new.description,
+        'Equipment & Tools': _new.cb['Equipment & Tools'].join('; '),
+        'Equipment & Tools - Other': _new.cbOther['Equipment & Tools'],
+        'Potential Hazards': _new.cb['Potential Hazards'].join('; '),
+        'Potential Hazards - Other': _new.cbOther['Potential Hazards'],
+        'Safety Precautions': _new.cb['Safety Precautions'].join('; '),
+        'Safety Precautions - Other': _new.cbOther['Safety Precautions'],
+        'PPE Required': _new.cb['PPE Required'].join('; '),
+        'PPE Required - Other': _new.cbOther['PPE Required'],
+        'Service Isolation': _new.cb['Service Isolation'].join('; '),
         'Permit Issuer - Name': _new.issuer,
         'Permit Receiver - Name': _new.receiver,
         'Unit Manager': _new.unitManager,
