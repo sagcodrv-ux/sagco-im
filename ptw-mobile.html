@@ -58,6 +58,44 @@
   .pm-pack-link{display:block; width:100%; margin-top:8px; padding:9px; border-radius:8px; text-align:center;
     font-size:12.5px; font-weight:700; text-decoration:none; background:var(--pdw-bg3); color:var(--pdw-gold-lt);
     border:1px solid var(--pdw-border-gold)}
+  /* Rev.98 (Issam, voice, 2026-11-23) — tapping the status badge opens
+     a short, dedicated form right here on the mobile page, for every
+     approval stage — never a trip to the desktop register. Only the
+     badge itself becomes a button when it's this person's own turn;
+     everyone else still sees the plain, non-interactive badge. */
+  .pm-badge-tap{border:none; cursor:pointer; font-family:inherit; position:relative}
+  .pm-badge-tap::after{content:'›'; margin-left:3px; font-weight:900}
+  .pm-modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end;
+    justify-content:center; z-index:500}
+  .pm-modal{background:var(--pdw-bg2); border:1px solid var(--pdw-border-gold); border-radius:16px 16px 0 0;
+    padding:20px 16px 24px; width:100%; max-width:480px; max-height:88vh; overflow-y:auto}
+  .pm-modal h3{margin:0 0 4px; font-size:15px; color:var(--pdw-gold-lt)}
+  .pm-modal-sub{font-size:12px; color:var(--pdw-text-muted); margin-bottom:14px; line-height:1.5}
+  .pm-modal-nav{display:flex; gap:10px; margin-top:16px}
+  .pm-modal-nav button{flex:1; padding:12px; border-radius:9px; border:none; font-size:13.5px; font-weight:700;
+    cursor:pointer; font-family:inherit}
+  .pm-modal-confirm{background:var(--pdw-grn); color:#0d3321}
+  .pm-modal-confirm:disabled{opacity:.4; cursor:not-allowed}
+  .pm-modal-cancel{background:var(--pdw-bg3); color:var(--pdw-text); border:1px solid var(--pdw-border) !important}
+  .pm-sig-canvas{width:100%; background:#fff; border:2px solid var(--pdw-border-gold); border-radius:8px;
+    touch-action:none; cursor:crosshair; display:block}
+  .pm-tbt-row{display:flex; gap:6px; align-items:center; margin-bottom:8px; padding:8px; border-radius:8px;
+    border:1px solid var(--pdw-border); background:var(--pdw-bg3)}
+  .pm-tbt-row input{flex:1 1 38%; min-width:0; background:var(--pdw-bg); border:1px solid var(--pdw-border);
+    color:inherit; border-radius:6px; padding:8px; font-size:13px; font-family:inherit}
+  .pm-tbt-row.pm-tbt-dup{border-color:var(--pdw-red)}
+  .pm-tbt-dup-note{font-size:10.5px; color:var(--pdw-red); margin:-4px 0 8px 4px}
+  .pm-tbt-sign-btn{white-space:nowrap; padding:8px 10px; border-radius:7px; border:none; font-size:12px;
+    font-weight:700; cursor:pointer; font-family:inherit}
+  .pm-tbt-signed{background:var(--pdw-grn); color:#0d3321}
+  .pm-tbt-unsigned{background:var(--pdw-bg); color:var(--pdw-text); border:1px solid var(--pdw-border-gold)}
+  .pm-tbt-remove{padding:8px 10px; border-radius:7px; border:none; background:var(--pdw-red); color:#fff;
+    font-size:12px; font-weight:700; cursor:pointer}
+  .pm-tbt-add{width:100%; padding:10px; border-radius:8px; border:1px dashed var(--pdw-border-gold);
+    background:transparent; color:var(--pdw-gold-lt); font-size:13px; font-weight:700; cursor:pointer;
+    font-family:inherit; margin-top:4px}
+  .pm-close-blockers{padding:10px 12px; background:rgba(240,104,92,.12); border-left:3px solid var(--pdw-red);
+    border-radius:0 8px 8px 0; font-size:12px; margin-bottom:10px; white-space:pre-line}
   .pm-step-dots{display:flex; gap:6px; justify-content:center; margin-bottom:16px}
   .pm-dot{width:8px; height:8px; border-radius:50%; background:var(--pdw-border)}
   .pm-dot.pm-active{background:var(--pdw-gold)}
@@ -113,6 +151,7 @@
 <div class="pm-wrap" id="pm-root">
   <div class="pm-loading">Loading…</div>
 </div>
+<div id="pm-modal-root"></div>
 
 <script>
 (function(){
@@ -169,6 +208,15 @@
   function permitNeedsPainting(rec){ return /paint/i.test(String(rec['Work Involved']||'')); }
   function permitNeedsCivilWork(rec){ return /civil/i.test(String(rec['Work Involved']||'')); }
   function permitNeedsPipeline(rec){ return /pipeline/i.test(String(rec['Work Involved']||'')); }
+  // Rev.98 (Issam, voice, 2026-11-23) — same list as ptw-register.html's
+  // own HOT_WORK_PRE_ITEMS; keep both (and hot-work.html's,
+  // google-apps-script.js's) in step if this ever changes.
+  var HOT_WORK_PRE_ITEMS = [
+    'Job Site Inspected For Flammables (Y/N/NA)','Work Area Free Of Explosive Atmospheres (Y/N/NA)','Hazardous Gas Assessment Conducted (Y/N/NA)',
+    'Fire Extinguishers Available (Y/N/NA)','Firewatch Assigned And Equipped (Y/N/NA)','Sprinkler Systems Operational (Y/N/NA)','Fixed Fire Suppression Not Impaired (Y/N/NA)',
+    'Combustibles Removed Or Shielded (Y/N/NA)','Fire-Resistant Blankets Or Shields Used (Y/N/NA)','Floor And Wall Openings Covered (Y/N/NA)','Work Area Within 35ft Cleared (Y/N/NA)','Flammable Containers Moved To Safe Distance (Y/N/NA)','Area Adequately Ventilated (Y/N/NA)',
+    'Workers Trained In Hot Work Procedures (Y/N/NA)','Workers Provided Proper PPE (Y/N/NA)','Hearing Protection Available (Y/N/NA)','Respirators Provided If Needed (Y/N/NA)'
+  ];
 
   function colIdx(headers, name){
     var out = -1;
@@ -253,6 +301,143 @@
     if (status !== 'open' && status !== 'closed') return false;
     return LOTO_PRE_TASK_CHECKS.every(function(f){ return fieldVal_(found, f).toLowerCase() === 'yes'; });
   }
+  // Rev.98 — mirrors ptw-register.html's own getChecklistNeeds /
+  // checklistWaitingNames_ exactly (same "release" gate that already
+  // moves the chips above from todo to done): whichever of these this
+  // permit needs and hasn't reached, by name, so the Toolbox Talk
+  // confirm step can decide the same way desktop does whether the
+  // permit goes back to Waiting or straight on to Area Manager.
+  function checklistWaitingNames_mobile_(rec){
+    var permitId = rec['Permit ID'];
+    var names = [];
+    if (permitNeedsConfinedSpace(rec)){
+      var fCs = findLinkedRow_(_cs, permitId, 'PTW Number');
+      if (!(fCs && fieldVal_(fCs,'All Safe to Enter (Y/N)') === 'Yes')) names.push('Confined Space');
+    }
+    if (permitNeedsLoto(rec)){
+      var fLt = findLinkedRow_(_loto, permitId, 'PTW Number', 'LOTO ID');
+      if (!lotoReady_(fLt)) names.push('LOTO');
+    }
+    if (permitNeedsCrane(rec)){
+      var fCr = findLinkedRow_(_crane, permitId, 'PTW Number');
+      if (!(fCr && fieldVal_(fCr,'Inspection Result') === 'Accept Crane')) names.push('Crane');
+    }
+    if (permitNeedsHotWork(rec)){
+      var fHw = findLinkedRow_(_hw, permitId, 'PTW Number');
+      if (!(fHw && HOT_WORK_PRE_ITEMS.every(function(f){ var v = fieldVal_(fHw,f); return v==='Yes'||v==='N/A'; }))) names.push('Hot Work');
+    }
+    if (permitNeedsScaffold(rec)){
+      var fSc = findLinkedRow_(_scaffold, permitId, 'Permit Number');
+      if (!(fSc && /green/i.test(fieldVal_(fSc,'Tag Status')))) names.push('Scaffold');
+    }
+    if (permitNeedsHarness(rec)){
+      var fHa = findLinkedRow_(_harness, permitId, 'PTW Number');
+      if (!(fHa && fieldVal_(fHa,'Overall Result') === 'Satisfactory')) names.push('Harness/Fall Protection');
+    }
+    if (permitNeedsPainting(rec)){
+      var fPt = findLinkedRow_(_paint, permitId, 'PTW Number');
+      if (!(fPt && fieldVal_(fPt,'Result') === 'Cleared')) names.push('Painting');
+    }
+    if (permitNeedsCivilWork(rec)){
+      var fCv = findLinkedRow_(_civil, permitId, 'PTW Number');
+      if (!(fCv && fieldVal_(fCv,'Result') === 'Cleared')) names.push('Civil Work');
+    }
+    if (permitNeedsPipeline(rec)){
+      var fPl = findLinkedRow_(_pipe, permitId, 'PTW Number');
+      if (!(fPl && fieldVal_(fPl,'Result') === 'Cleared')) names.push('Pipeline');
+    }
+    if (permitNeedsElectrical(rec)){
+      var fEl = findLinkedRow_(_elec, permitId, 'PTW Number');
+      if (!(fEl && fieldVal_(fEl,'Result') === 'Cleared')) names.push('Electrical');
+    }
+    return names;
+  }
+  // Rev.98 — the stricter CLOSING gate, mirroring
+  // ptw-register.html's own closeGateBlockers_ exactly: LOTO must be
+  // fully Closed (not just Open-with-checks-confirmed) and Hot Work
+  // must have a Closure Result of Cleared (not just Pre Hot Work) —
+  // both of those only happen through the desktop continuation flow
+  // today, so a permit needing either will correctly still show as
+  // blocked here. Every other type's closing requirement is the same
+  // as its release requirement above.
+  function closeGateBlockers_mobile_(rec){
+    var permitId = rec['Permit ID'];
+    var blockers = [];
+    if (permitNeedsConfinedSpace(rec)){
+      var fCs = findLinkedRow_(_cs, permitId, 'PTW Number');
+      if (!(fCs && fieldVal_(fCs,'All Safe to Enter (Y/N)') === 'Yes')) blockers.push('Confined Space');
+    }
+    if (permitNeedsLoto(rec)){
+      var fLt = findLinkedRow_(_loto, permitId, 'PTW Number', 'LOTO ID');
+      if (!(fLt && fieldVal_(fLt,'Status') === 'Closed')) blockers.push('LOTO');
+    }
+    if (permitNeedsCrane(rec)){
+      var fCr = findLinkedRow_(_crane, permitId, 'PTW Number');
+      if (!(fCr && fieldVal_(fCr,'Inspection Result') === 'Accept Crane')) blockers.push('Crane');
+    }
+    if (permitNeedsHotWork(rec)){
+      var fHw = findLinkedRow_(_hw, permitId, 'PTW Number');
+      if (!(fHw && fieldVal_(fHw,'Closure Result') === 'Cleared')) blockers.push('Hot Work');
+    }
+    if (permitNeedsScaffold(rec)){
+      var fSc = findLinkedRow_(_scaffold, permitId, 'Permit Number');
+      if (!(fSc && /green/i.test(fieldVal_(fSc,'Tag Status')))) blockers.push('Scaffold');
+    }
+    if (permitNeedsHarness(rec)){
+      var fHa = findLinkedRow_(_harness, permitId, 'PTW Number');
+      if (!(fHa && fieldVal_(fHa,'Overall Result') === 'Satisfactory')) blockers.push('Harness/Fall Protection');
+    }
+    if (permitNeedsPainting(rec)){
+      var fPt = findLinkedRow_(_paint, permitId, 'PTW Number');
+      if (!(fPt && fieldVal_(fPt,'Result') === 'Cleared')) blockers.push('Painting');
+    }
+    if (permitNeedsCivilWork(rec)){
+      var fCv = findLinkedRow_(_civil, permitId, 'PTW Number');
+      if (!(fCv && fieldVal_(fCv,'Result') === 'Cleared')) blockers.push('Civil Work');
+    }
+    if (permitNeedsPipeline(rec)){
+      var fPl = findLinkedRow_(_pipe, permitId, 'PTW Number');
+      if (!(fPl && fieldVal_(fPl,'Result') === 'Cleared')) blockers.push('Pipeline');
+    }
+    if (permitNeedsElectrical(rec)){
+      var fEl = findLinkedRow_(_elec, permitId, 'PTW Number');
+      if (!(fEl && fieldVal_(fEl,'Result') === 'Cleared')) blockers.push('Electrical');
+    }
+    return blockers;
+  }
+  // Rev.98 — mirrors ptw-register.html's own
+  // isCurrentUserPermitController_ exactly: closing is the Safety
+  // Controller's call alone (superadmin/Safety-SHEE staff bypass it,
+  // matching the desktop access gate), never the Receiver's, even
+  // though the receiver is who actually draws the signature.
+  function currentUserDisplayName_mobile_(){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    if (!s || !_users || !_users.headers) return '';
+    var sUsername = String(s.username||'').trim().toLowerCase();
+    var sEmail = String(s.email||'').trim().toLowerCase();
+    var nameIdx = colIdx(_users.headers,'Full Name'), name2Idx = colIdx(_users.headers,'Name');
+    var unameIdx = colIdx(_users.headers,'Username'), emailIdx = colIdx(_users.headers,'Email');
+    var match = null;
+    (_users.rows||[]).forEach(function(r){
+      var uname = unameIdx>=0 ? String(r[unameIdx]||'').trim().toLowerCase() : '';
+      var uemail = emailIdx>=0 ? String(r[emailIdx]||'').trim().toLowerCase() : '';
+      if ((sUsername && uname===sUsername) || (sEmail && uemail===sEmail)) match = r;
+    });
+    if (!match) return s.username || '';
+    var nm = (nameIdx>=0 && match[nameIdx]) || (name2Idx>=0 && match[name2Idx]) || '';
+    return String(nm||'').trim() || (s.username||'');
+  }
+  function isCurrentUserPermitController_mobile_(rec){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    var u = (s && typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
+    var role = String((u && u.role) || (s && s.role) || '').toLowerCase();
+    var dept = String((u && u.department) || '').toLowerCase();
+    if (/superadmin|admin/.test(role) || /^(shee|safety)$/.test(dept)) return true;
+    var controllerName = String(rec['Permit Controller']||'').trim().toLowerCase();
+    if (!controllerName) return true; // no controller set on the permit — don't lock everyone out
+    var myName = currentUserDisplayName_mobile_().trim().toLowerCase();
+    return !!myName && myName === controllerName;
+  }
   // Rev.84 — one compact chip row per permit card, covering the four
   // checklist types with a mobile create flow so far. Chips link into
   // checklist-mobile.html, never duplicate its logic; a Confined Space
@@ -320,6 +505,280 @@
     return '<a class="pm-chip ' + cls + '" href="checklist-mobile.html?type=' + type + '&permitId=' + encodeURIComponent(permitId) + (extraQS||'') + '" target="_blank">' + esc(text) + '</a>';
   }
 
+  // Rev.98 (Issam, voice, 2026-11-23) — tapping the status badge opens
+  // a short, dedicated form right here, for whichever approval stage
+  // is actually this person's own turn. Never a trip to the desktop
+  // register — same fields, same columns, same gating as desktop,
+  // just a lighter mobile layout, and landing back on this same list
+  // (same filter/search) once saved.
+  function approvalStage_(rec, role){
+    var status = String(rec['Status']||'').trim();
+    if (role === 'manager' && status === 'Awaiting Area Manager') return 'areaManager';
+    if (role === 'controller' && status === 'Awaiting Controller') return 'controller';
+    if (role === 'receiver'){
+      if (status === 'Awaiting Receiver Signature') return 'receiverSign';
+      if (status === 'Awaiting Toolbox Talk') return 'toolboxTalk';
+      if (status === 'Active') return 'closing';
+    }
+    return null;
+  }
+  function afterApprovalSaved_(){
+    document.getElementById('pm-modal-root').innerHTML = '';
+    loadAll(function(){ renderMainList(); });
+  }
+  // Ported from ptw-register.html's own openSignaturePad_ — same
+  // drawn (not typed) signature capture, saved as a small PNG data
+  // URL, just restyled to this page's pm- classes and modal root.
+  function openSignaturePad_(title, subtitle, onSign, onCancel){
+    var root = document.getElementById('pm-modal-root');
+    var canvasW = Math.min(420, window.innerWidth - 48);
+    var canvasH = 160;
+    root.innerHTML = '<div class="pm-modal-bg"><div class="pm-modal">'
+      + '<h3>' + esc(title) + '</h3>'
+      + (subtitle ? '<div class="pm-modal-sub">' + esc(subtitle) + '</div>' : '')
+      + '<div style="font-size:11px;color:var(--pdw-text-muted);margin-bottom:6px">Sign below with your finger or stylus.</div>'
+      + '<canvas id="pm-sig-canvas" width="' + canvasW + '" height="' + canvasH + '" class="pm-sig-canvas" style="max-width:' + canvasW + 'px;height:' + canvasH + 'px"></canvas>'
+      + '<div class="pm-modal-nav">'
+        + '<button type="button" class="pm-modal-nav pm-modal-cancel" id="pm-sig-cancel" style="flex:1">Cancel</button>'
+        + '<button type="button" class="pm-modal-nav pm-modal-cancel" id="pm-sig-clear" style="flex:1">Clear</button>'
+        + '<button type="button" class="pm-modal-nav pm-modal-confirm" id="pm-sig-confirm" style="flex:1.4" disabled>Confirm Signature</button>'
+      + '</div></div></div>';
+    var canvas = document.getElementById('pm-sig-canvas');
+    var ctx = canvas.getContext('2d');
+    ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
+    var drawing = false, hasDrawn = false, lastX = 0, lastY = 0;
+    var confirmBtn = document.getElementById('pm-sig-confirm');
+    function posFromEvent(e){
+      var rect = canvas.getBoundingClientRect();
+      var scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+      var cx = e.touches ? e.touches[0].clientX : e.clientX;
+      var cy = e.touches ? e.touches[0].clientY : e.clientY;
+      return { x:(cx-rect.left)*scaleX, y:(cy-rect.top)*scaleY };
+    }
+    function start(e){ e.preventDefault(); drawing = true; var p = posFromEvent(e); lastX = p.x; lastY = p.y; }
+    function move(e){
+      if (!drawing) return; e.preventDefault();
+      var p = posFromEvent(e);
+      ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+      lastX = p.x; lastY = p.y;
+      if (!hasDrawn){ hasDrawn = true; confirmBtn.disabled = false; }
+    }
+    function end(){ drawing = false; }
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+    canvas.addEventListener('touchstart', start, { passive:false });
+    canvas.addEventListener('touchmove', move, { passive:false });
+    canvas.addEventListener('touchend', end);
+    document.getElementById('pm-sig-clear').onclick = function(){
+      ctx.clearRect(0,0,canvas.width,canvas.height); hasDrawn = false; confirmBtn.disabled = true;
+    };
+    document.getElementById('pm-sig-cancel').onclick = function(){ root.innerHTML = ''; if (onCancel) onCancel(); };
+    confirmBtn.onclick = function(){
+      if (!hasDrawn) return;
+      var dataUrl = canvas.toDataURL('image/png');
+      root.innerHTML = '';
+      onSign(dataUrl);
+    };
+  }
+  // 1. Receiver's first signature — mirrors
+  // ptw-register.html's own promptReceiverSignature_.
+  function openReceiverSignModal_(permitId, rec){
+    openSignaturePad_(
+      'Receiver Signature — ' + permitId,
+      (rec['Permit Receiver - Name']||'Receiver') + ' — please sign to confirm you have received this permit and its instructions.',
+      function(dataUrl){
+        var signedAt = new Date().toLocaleString();
+        postJSON('update', {tab:REG_TAB, idCol:REG_ID, id:permitId}, {
+          'Receiver Signature': dataUrl, 'Receiver Signature Date': signedAt, 'Status':'Awaiting Toolbox Talk'
+        }).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error') + '\n\nThe signature was NOT saved — please try again.'); return; }
+          afterApprovalSaved_();
+        }).catch(function(){ alert('Could not reach the server — the signature was not saved. Try again.'); });
+      },
+      function(){ /* cancelled — stays Awaiting Receiver Signature */ }
+    );
+  }
+  // 2. Toolbox Talk — mirrors ptw-register.html's own
+  // promptToolboxTalk_ exactly: a name, an ID/badge number and a
+  // drawn signature per attendee, duplicates blocked, each attendee
+  // also written to its own toolbox_talk_attendees row, and the same
+  // ladder decision (another checklist still outstanding sends it
+  // back to Waiting, otherwise straight on to Area Manager).
+  function openToolboxTalkModal_(permitId, rec){
+    var attendees = [];
+    function normName(s){ return String(s||'').trim().toLowerCase(); }
+    function duplicateIndexes(){
+      var dup = {};
+      attendees.forEach(function(a,i){
+        var n = normName(a.name), d = normName(a.idNum);
+        attendees.forEach(function(b,j){
+          if (i === j) return;
+          if (n && n === normName(b.name)){ dup[i]=true; dup[j]=true; }
+          if (d && d === normName(b.idNum)){ dup[i]=true; dup[j]=true; }
+        });
+      });
+      return dup;
+    }
+    function isComplete(){
+      if (!attendees.length) return false;
+      var dup = duplicateIndexes();
+      return attendees.every(function(a,i){ return a.name.trim() && a.idNum.trim() && a.sigDataUrl && !dup[i]; });
+    }
+    function render(){
+      var root = document.getElementById('pm-modal-root');
+      var dup = duplicateIndexes();
+      var rowsHtml = attendees.map(function(a,i){
+        var isDup = !!dup[i];
+        return '<div class="pm-tbt-row' + (isDup?' pm-tbt-dup':'') + '">'
+          + '<input type="text" data-i="'+i+'" data-f="name" value="'+esc(a.name)+'" placeholder="Full name">'
+          + '<input type="text" data-i="'+i+'" data-f="idNum" value="'+esc(a.idNum)+'" placeholder="ID / Badge #">'
+          + (a.sigDataUrl
+            ? '<button type="button" class="pm-tbt-sign-btn pm-tbt-signed" data-i="'+i+'">✓ Signed</button>'
+            : '<button type="button" class="pm-tbt-sign-btn pm-tbt-unsigned" data-i="'+i+'">Sign</button>')
+          + '<button type="button" class="pm-tbt-remove" data-i="'+i+'">✕</button>'
+          + '</div>'
+          + (isDup ? '<div class="pm-tbt-dup-note">This name or ID matches another attendee already in the list.</div>' : '');
+      }).join('');
+      var complete = isComplete();
+      root.innerHTML = '<div class="pm-modal-bg"><div class="pm-modal">'
+        + '<h3>Toolbox Talk — ' + esc(permitId) + '</h3>'
+        + '<div class="pm-modal-sub">Add every attendee with their name, ID/badge number, and signature. Duplicate names or IDs are blocked. This becomes the permit\'s official Number of Workers.</div>'
+        + '<div id="pm-tbt-rows">' + (rowsHtml || '<div style="font-size:12px;opacity:.6;padding:8px 0">No attendees yet.</div>') + '</div>'
+        + '<button type="button" class="pm-tbt-add" id="pm-tbt-add">+ Add Attendee</button>'
+        + '<div style="font-size:11px;margin-top:8px;opacity:.7">' + attendees.length + (attendees.length===1?' attendee':' attendees') + '</div>'
+        + '<div class="pm-modal-nav">'
+          + '<button type="button" class="pm-modal-cancel" id="pm-tbt-cancel">Cancel</button>'
+          + '<button type="button" class="pm-modal-confirm" id="pm-tbt-confirm" ' + (complete?'':'disabled') + '>Record Toolbox Talk</button>'
+        + '</div></div></div>';
+      root.querySelectorAll('input[data-f]').forEach(function(inp){
+        inp.addEventListener('input', function(){
+          var i = parseInt(inp.getAttribute('data-i'),10);
+          attendees[i][inp.getAttribute('data-f')] = inp.value;
+          var dupNow = duplicateIndexes();
+          root.querySelectorAll('.pm-tbt-row').forEach(function(rowEl, idx){ rowEl.classList.toggle('pm-tbt-dup', !!dupNow[idx]); });
+          var cb = document.getElementById('pm-tbt-confirm');
+          cb.disabled = !isComplete();
+        });
+      });
+      root.querySelectorAll('.pm-tbt-unsigned, .pm-tbt-signed').forEach(function(btn){
+        btn.onclick = function(){
+          var i = parseInt(btn.getAttribute('data-i'),10);
+          var who = attendees[i].name || 'Attendee';
+          openSignaturePad_(
+            'Attendee Signature — ' + who,
+            'Please sign to confirm attendance at this toolbox talk.',
+            function(dataUrl){ attendees[i].sigDataUrl = dataUrl; attendees[i].signedAt = new Date().toLocaleString(); render(); },
+            function(){ render(); }
+          );
+        };
+      });
+      root.querySelectorAll('.pm-tbt-remove').forEach(function(btn){
+        btn.onclick = function(){ var i = parseInt(btn.getAttribute('data-i'),10); attendees.splice(i,1); render(); };
+      });
+      document.getElementById('pm-tbt-add').onclick = function(){ attendees.push({name:'',idNum:'',sigDataUrl:'',signedAt:''}); render(); };
+      document.getElementById('pm-tbt-cancel').onclick = function(){ root.innerHTML = ''; };
+      document.getElementById('pm-tbt-confirm').onclick = function(){
+        if (!isComplete()) return;
+        var names = attendees.map(function(a){ return a.name.trim(); });
+        var tbtDate = new Date().toLocaleString();
+        var payload = { 'Toolbox Talk Attendees': names.join(', '), 'Toolbox Talk Date': tbtDate, 'Number of Workers': String(attendees.length) };
+        payload['Status'] = checklistWaitingNames_mobile_(rec).length ? 'Waiting' : 'Awaiting Area Manager';
+        var attendeeRows = attendees.map(function(a,i){
+          return { 'Record ID': permitId+'-TBT-'+(i+1), 'Permit ID': permitId, 'Attendee Name': a.name.trim(),
+            'Attendee ID': a.idNum.trim(), 'Signature': a.sigDataUrl, 'Signed At': a.signedAt || tbtDate, 'Record Status':'Active' };
+        });
+        postJSON('update', {tab:REG_TAB, idCol:REG_ID, id:permitId}, payload).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error') + '\n\nPlease try again.'); return; }
+          // Best-effort, same as desktop: the permit's own save above
+          // is what gates the workflow forward, so a failure writing
+          // the attendee register doesn't block the permit itself.
+          postJSON('write', {tab:'toolbox_talk_attendees'}, attendeeRows).catch(function(){});
+          afterApprovalSaved_();
+        }).catch(function(){ alert('Could not reach the server — try again.'); });
+      };
+    }
+    render();
+  }
+  // 3 & 4. Area Manager / Controller approval — a one-tap confirm,
+  // mirroring ptw-register.html's own approveAreaManager /
+  // approveController exactly (same columns, same next Status).
+  function openSimpleApprovalModal_(permitId, title, subtitle, confirmLabel, payload){
+    var root = document.getElementById('pm-modal-root');
+    root.innerHTML = '<div class="pm-modal-bg"><div class="pm-modal">'
+      + '<h3>' + esc(title) + '</h3>'
+      + '<div class="pm-modal-sub">' + esc(subtitle) + '</div>'
+      + '<div class="pm-modal-nav">'
+        + '<button type="button" class="pm-modal-cancel" id="pm-sa-cancel">Cancel</button>'
+        + '<button type="button" class="pm-modal-confirm" id="pm-sa-confirm">' + esc(confirmLabel) + '</button>'
+      + '</div></div></div>';
+    document.getElementById('pm-sa-cancel').onclick = function(){ root.innerHTML = ''; };
+    document.getElementById('pm-sa-confirm').onclick = function(){
+      var btn = document.getElementById('pm-sa-confirm');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      postJSON('update', {tab:REG_TAB, idCol:REG_ID, id:permitId}, payload).then(function(res){
+        if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); btn.disabled = false; btn.textContent = confirmLabel; return; }
+        afterApprovalSaved_();
+      }).catch(function(){ alert('Could not reach the server — check your connection.'); btn.disabled = false; btn.textContent = confirmLabel; });
+    };
+  }
+  function openAreaManagerModal_(permitId, rec){
+    openSimpleApprovalModal_(permitId, 'Approve as Area Manager — ' + permitId,
+      'Confirms the conditions for this permit are in place and sends it on to the Controller.',
+      'Approve', { 'Status':'Awaiting Controller', 'Area Manager Approval Date': new Date().toLocaleString() });
+  }
+  function openControllerModal_(permitId, rec){
+    openSimpleApprovalModal_(permitId, 'Approve as Controller — ' + permitId,
+      'Confirms this permit is ready and makes it Active — work may start.',
+      'Approve', { 'Status':'Active', 'Controller Approval Date': new Date().toLocaleString() });
+  }
+  // 5. Closing signature — mirrors ptw-register.html's own
+  // closePermitFlow exactly: every linked checklist must be fully
+  // finished (the stricter closing gate, not just the release gate),
+  // and only the permit's own Safety Controller (or superadmin/Safety
+  // department) can take this past the gate — the Receiver still
+  // draws the signature, but the Controller's own device or presence
+  // is what's required to get this far, same as on desktop.
+  function openClosingModal_(permitId, rec){
+    var blockers = closeGateBlockers_mobile_(rec);
+    if (blockers.length){
+      var root = document.getElementById('pm-modal-root');
+      root.innerHTML = '<div class="pm-modal-bg"><div class="pm-modal">'
+        + '<h3>Not ready to close — ' + esc(permitId) + '</h3>'
+        + '<div class="pm-close-blockers">This permit cannot be closed yet — the following checklists are not fully finished:\n- ' + blockers.join('\n- ') + '</div>'
+        + '<div class="pm-modal-nav"><button type="button" class="pm-modal-cancel" id="pm-close-ok" style="flex:1">OK</button></div>'
+        + '</div></div>';
+      document.getElementById('pm-close-ok').onclick = function(){ root.innerHTML = ''; };
+      return;
+    }
+    if (!isCurrentUserPermitController_mobile_(rec)){
+      var root2 = document.getElementById('pm-modal-root');
+      root2.innerHTML = '<div class="pm-modal-bg"><div class="pm-modal">'
+        + '<h3>Controller only — ' + esc(permitId) + '</h3>'
+        + '<div class="pm-modal-sub">Only this permit\'s own Safety Controller, ' + esc(rec['Permit Controller']||'(not set)') + ', can close it.</div>'
+        + '<div class="pm-modal-nav"><button type="button" class="pm-modal-cancel" id="pm-close-ok2" style="flex:1">OK</button></div>'
+        + '</div></div>';
+      document.getElementById('pm-close-ok2').onclick = function(){ root2.innerHTML = ''; };
+      return;
+    }
+    openSignaturePad_(
+      'Receiver Signature (Closing) — ' + permitId,
+      (rec['Permit Receiver - Name']||'Receiver') + ' — please sign to confirm the area is being handed back and the job is finished.',
+      function(dataUrl){
+        var signedAt = new Date().toLocaleString();
+        var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+        postJSON('update', {tab:REG_TAB, idCol:REG_ID, id:permitId}, {
+          'Receiver Closing Signature': dataUrl, 'Receiver Closing Signature Date': signedAt,
+          'Status':'Closed', 'Closed By': (s && s.username) || 'unknown', 'Closed Date': signedAt
+        }).then(function(res){
+          if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error') + '\n\nThe signature was NOT saved — please try again.'); return; }
+          afterApprovalSaved_();
+        }).catch(function(){ alert('Could not reach the server — the signature was not saved. Try again.'); });
+      },
+      function(){ /* cancelled — permit stays Active, nothing closed */ }
+    );
+  }
+
   // Same multi-word AND search + date normalisation as
   // ptw-register.html's own search box (Rev.79) — kept identical so
   // typing "19-11-2026 Khaled" finds the same permits here as there.
@@ -362,8 +821,15 @@
     'Cancelled': ['pm-b-red','Cancelled'],
     'Renewed': ['pm-b-grey','Renewed']
   };
-  function badgeHtml(status){
+  function badgeHtml(status, permitId){
     var b = STATUS_BADGE[status] || ['pm-b-grey', status || '—'];
+    // Rev.98 — a tappable button instead of a plain span only when
+    // permitId is passed (i.e. this stage is actually this person's
+    // own turn, decided by the caller); everyone else still sees the
+    // same plain, non-interactive badge as before.
+    if (permitId){
+      return '<button type="button" class="pm-badge pm-badge-tap ' + b[0] + '" onclick="PM.openApproval(\'' + esc(permitId) + '\')">' + esc(b[1]) + '</button>';
+    }
     return '<span class="pm-badge ' + b[0] + '">' + esc(b[1]) + '</span>';
   }
   // Rev.87/88/89 (Issam, voice, 2026-11-22) — whether a permit is
@@ -419,13 +885,14 @@
     var label = mine ? actionLabel(rec, role) : 'View Permit';
     var isNew = _justCreatedId && rec['Permit ID'] === _justCreatedId;
     var cardId = isNew ? ' id="pm-just-created"' : '';
+    var stage = approvalStage_(rec, role);
     return '<div' + cardId + ' class="pm-card' + (mine ? ' pm-card-mine' : ' pm-card-viewonly') + (isNew ? ' pm-card-justcreated' : '') + '" onclick="PM.cardTap(event,\'' + esc(permitUrl) + '\')">'
       + (isNew ? '<div class="pm-new-badge">✓ Just created</div>' : '')
       + '<div class="pm-card-top"><span class="pm-card-id">' + id + '</span>'
         + (mine ? '' : '<span class="pm-badge pm-b-grey" style="margin-right:6px">View Only</span>')
-        + badgeHtml(rec['Status']) + '</div>'
+        + badgeHtml(rec['Status'], stage ? rec['Permit ID'] : null) + '</div>'
       + '<div class="pm-card-meta">'
-        + '<b>' + esc(rec['Area']||'—') + '</b>' + (rec['Location'] ? ' · ' + esc(rec['Location']) : '') + '<br>'
+        + '<b>' + esc(rec['Area']||'—') + '</b>' + (rec['Location'] ? ' · ' + esc(rec['Location']) : '') + (rec['Date'] ? ' · ' + esc(displayDate_(rec['Date'])) : '') + '<br>'
         + esc(rec['Work Involved']||'—') + '<br>'
         + 'Issuer: ' + esc(displayNameFromField(rec['Permit Issuer - Name'])||'—') + ' · Receiver: ' + esc(rec['Permit Receiver - Name']||'—')
       + '</div>'
@@ -459,6 +926,17 @@
   // search (Rev.79): "ALL must match, each against any cell in the
   // row (not necessarily the same cell)". A fixed, curated field list
   // would silently miss things like the permit's Date.
+  // Rev.97 (Issam, voice, 2026-11-23) — the permit's Date shown on
+  // each card now too, same DD-MM-YYYY the search box already
+  // accepts (Rev.86's matchesSearch_ already matches it against every
+  // cell's raw value, so a typed date was already searchable — this
+  // just makes it visible). Falls back to showing whatever's stored
+  // as-is if it isn't a plain YYYY-MM-DD.
+  function displayDate_(v){
+    var s = String(v||'').trim();
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? (m[3] + '-' + m[2] + '-' + m[1]) : s;
+  }
   function matchesSearch_(rec, terms){
     if (!terms.length) return true;
     var hay = Object.keys(rec).map(function(k){ return String(rec[k]||'').toLowerCase(); }).join(' | ');
@@ -827,13 +1305,25 @@
       var el = document.getElementById('pm-just-created');
       if (el) el.scrollIntoView({ behavior:'smooth', block:'center' });
     },
-    // Rev.87 — tapping anywhere on a card opens the permit; tapping an
-    // actual link inside it (the action button, a checklist chip)
-    // lets that link's own href/target handle it instead, so this
-    // never double-opens or hijacks a chip's own destination.
+    // Rev.87/98 — tapping anywhere on a card opens the permit; tapping
+    // an actual link or button inside it (the action button, a
+    // checklist chip, the tappable status badge) lets that element's
+    // own handler run instead, so this never double-opens or hijacks
+    // a chip's or badge's own destination.
     cardTap: function(ev, url){
-      if (ev.target.closest('a')) return;
+      if (ev.target.closest('a') || ev.target.closest('button')) return;
       window.open(url, '_blank');
+    },
+    openApproval: function(permitId){
+      var rec = regRecords().find(function(r){ return String(r['Permit ID']) === String(permitId); });
+      if (!rec) return;
+      var stage = approvalStage_(rec, myRoleOnPermit_(rec));
+      if (!stage) return;
+      if (stage === 'receiverSign') openReceiverSignModal_(permitId, rec);
+      else if (stage === 'toolboxTalk') openToolboxTalkModal_(permitId, rec);
+      else if (stage === 'areaManager') openAreaManagerModal_(permitId, rec);
+      else if (stage === 'controller') openControllerModal_(permitId, rec);
+      else if (stage === 'closing') openClosingModal_(permitId, rec);
     },
     onSearchInput: function(val){
       // only the list below redraws — '#pm-search' itself is never
