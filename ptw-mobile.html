@@ -118,6 +118,12 @@
   .pm-chip-done{background:rgba(79,203,158,.16); color:var(--pdw-grn); border:1px solid rgba(79,203,158,.4)}
   .pm-chip-todo{background:rgba(232,179,57,.16); color:var(--pdw-amb); border:1px solid rgba(232,179,57,.4)}
   .pm-chip-locked{background:rgba(255,255,255,.06); color:var(--pdw-text-dim); border:1px solid var(--pdw-border); cursor:not-allowed}
+  /* Rev.100 (Issam, voice, 2026-11-23) — a visibly different colour
+     from both done (green) and todo (amber): this permit is Active,
+     and Hot Work's Execution/Post/Closure or LOTO's Reinstatement is
+     still outstanding, which is also what's holding the permit back
+     from being closed. */
+  .pm-chip-continue{background:rgba(240,104,92,.18); color:var(--pdw-red); border:1px solid rgba(240,104,92,.5); font-weight:800}
   .pm-type-row{display:flex; align-items:center; gap:14px; width:100%; background:var(--pdw-bg2); border:1px solid var(--pdw-border);
     border-radius:14px; padding:16px; margin-bottom:10px; color:inherit; text-decoration:none; text-align:left; font-family:inherit; cursor:pointer}
   .pm-type-row .pm-icon{font-size:22px}
@@ -405,39 +411,6 @@
     }
     return blockers;
   }
-  // Rev.98 — mirrors ptw-register.html's own
-  // isCurrentUserPermitController_ exactly: closing is the Safety
-  // Controller's call alone (superadmin/Safety-SHEE staff bypass it,
-  // matching the desktop access gate), never the Receiver's, even
-  // though the receiver is who actually draws the signature.
-  function currentUserDisplayName_mobile_(){
-    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
-    if (!s || !_users || !_users.headers) return '';
-    var sUsername = String(s.username||'').trim().toLowerCase();
-    var sEmail = String(s.email||'').trim().toLowerCase();
-    var nameIdx = colIdx(_users.headers,'Full Name'), name2Idx = colIdx(_users.headers,'Name');
-    var unameIdx = colIdx(_users.headers,'Username'), emailIdx = colIdx(_users.headers,'Email');
-    var match = null;
-    (_users.rows||[]).forEach(function(r){
-      var uname = unameIdx>=0 ? String(r[unameIdx]||'').trim().toLowerCase() : '';
-      var uemail = emailIdx>=0 ? String(r[emailIdx]||'').trim().toLowerCase() : '';
-      if ((sUsername && uname===sUsername) || (sEmail && uemail===sEmail)) match = r;
-    });
-    if (!match) return s.username || '';
-    var nm = (nameIdx>=0 && match[nameIdx]) || (name2Idx>=0 && match[name2Idx]) || '';
-    return String(nm||'').trim() || (s.username||'');
-  }
-  function isCurrentUserPermitController_mobile_(rec){
-    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
-    var u = (s && typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUserById) ? IMS_AUTH.getUserById(s.userId) : null;
-    var role = String((u && u.role) || (s && s.role) || '').toLowerCase();
-    var dept = String((u && u.department) || '').toLowerCase();
-    if (/superadmin|admin/.test(role) || /^(shee|safety)$/.test(dept)) return true;
-    var controllerName = String(rec['Permit Controller']||'').trim().toLowerCase();
-    if (!controllerName) return true; // no controller set on the permit — don't lock everyone out
-    var myName = currentUserDisplayName_mobile_().trim().toLowerCase();
-    return !!myName && myName === controllerName;
-  }
   // Rev.84 — one compact chip row per permit card, covering the four
   // checklist types with a mobile create flow so far. Chips link into
   // checklist-mobile.html, never duplicate its logic; a Confined Space
@@ -447,8 +420,18 @@
     var permitId = rec['Permit ID'];
     var chips = [];
     if (permitNeedsHotWork(rec)){
-      var f = findLinkedRow_(_hw, permitId, 'PTW Number');
-      chips.push(chip_('Hot Work', f, 'hotwork', permitId));
+      var f = findLinkedRow_(_hw, permitId, 'PTW Number', 'Record ID');
+      // Rev.100 — once the permit is Active and Pre Hot Work is
+      // already in, Execution / Post Hot Work / Closure is the next
+      // stage, not a second "done" chip — and the permit can't be
+      // closed until it's actually Cleared, so this gets its own
+      // colour rather than reading as just another todo item.
+      var hwClosed = f && fieldVal_(f,'Closure Result') === 'Cleared';
+      if (String(rec['Status']||'').trim() === 'Active' && f && !hwClosed){
+        chips.push('<a class="pm-chip pm-chip-continue" href="checklist-mobile.html?type=hotwork_continue&permitId=' + encodeURIComponent(permitId) + '&recordId=' + encodeURIComponent(f.id) + '" target="_blank">▶ Continue Hot Work</a>');
+      } else {
+        chips.push(chip_('Hot Work', f, 'hotwork', permitId));
+      }
     }
     if (permitNeedsElectrical(rec)){
       var f2 = findLinkedRow_(_elec, permitId, 'PTW Number');
@@ -459,7 +442,16 @@
     if (permitNeedsLoto(rec)){
       lotoFound = findLinkedRow_(_loto, permitId, 'PTW Number', 'LOTO ID');
       lReady = lotoReady_(lotoFound);
-      chips.push(chip_('LOTO', lotoFound, 'loto', permitId, lReady));
+      // Rev.100 — once the job's pre-task is confirmed and the permit
+      // is Active, Reinstatement is the next stage, not just a "done"
+      // chip — and the permit can't be closed until the job is
+      // actually Closed, so this gets its own colour too.
+      var lotoClosed = lotoFound && fieldVal_(lotoFound,'Status') === 'Closed';
+      if (String(rec['Status']||'').trim() === 'Active' && lReady && !lotoClosed){
+        chips.push('<a class="pm-chip pm-chip-continue" href="checklist-mobile.html?type=loto_continue&permitId=' + encodeURIComponent(permitId) + '&lotoId=' + encodeURIComponent(lotoFound.id) + '" target="_blank">▶ Continue LOTO Reinstatement</a>');
+      } else {
+        chips.push(chip_('LOTO', lotoFound, 'loto', permitId, lReady));
+      }
     }
     if (permitNeedsConfinedSpace(rec)){
       var needsLotoHere = permitNeedsLoto(rec);
@@ -515,10 +507,16 @@
     var status = String(rec['Status']||'').trim();
     if (role === 'manager' && status === 'Awaiting Area Manager') return 'areaManager';
     if (role === 'controller' && status === 'Awaiting Controller') return 'controller';
+    // Rev.101 (Issam, voice, 2026-11-23) — closing is now three steps
+    // in order: the issuer initiates it (the checklist-completion
+    // gate runs here), the receiver signs, then the Controller
+    // approves and the permit actually becomes Closed.
+    if (role === 'controller' && status === 'Awaiting Controller Closure') return 'controllerCloseApprove';
+    if ((role === 'issuer' || role === 'other-issuer') && status === 'Active') return 'closeInitiate';
     if (role === 'receiver'){
       if (status === 'Awaiting Receiver Signature') return 'receiverSign';
       if (status === 'Awaiting Toolbox Talk') return 'toolboxTalk';
-      if (status === 'Active') return 'closing';
+      if (status === 'Awaiting Closing Signature') return 'closingSign';
     }
     return null;
   }
@@ -732,14 +730,14 @@
       'Confirms this permit is ready and makes it Active — work may start.',
       'Approve', { 'Status':'Active', 'Controller Approval Date': new Date().toLocaleString() });
   }
-  // 5. Closing signature — mirrors ptw-register.html's own
-  // closePermitFlow exactly: every linked checklist must be fully
-  // finished (the stricter closing gate, not just the release gate),
-  // and only the permit's own Safety Controller (or superadmin/Safety
-  // department) can take this past the gate — the Receiver still
-  // draws the signature, but the Controller's own device or presence
-  // is what's required to get this far, same as on desktop.
-  function openClosingModal_(permitId, rec){
+  // 5a. Close Permit — the issuer (or another authorized issuer)
+  // starts the closing process. Mirrors ptw-register.html's own
+  // closeGateBlockers_ exactly: every linked checklist must be fully
+  // finished (the stricter closing gate, not just the release gate)
+  // before this can proceed at all. Once clear, this just moves the
+  // permit on to Awaiting Closing Signature — it doesn't close
+  // anything by itself.
+  function openCloseInitiateModal_(permitId, rec){
     var blockers = closeGateBlockers_mobile_(rec);
     if (blockers.length){
       var root = document.getElementById('pm-modal-root');
@@ -751,32 +749,41 @@
       document.getElementById('pm-close-ok').onclick = function(){ root.innerHTML = ''; };
       return;
     }
-    if (!isCurrentUserPermitController_mobile_(rec)){
-      var root2 = document.getElementById('pm-modal-root');
-      root2.innerHTML = '<div class="pm-modal-bg"><div class="pm-modal">'
-        + '<h3>Controller only — ' + esc(permitId) + '</h3>'
-        + '<div class="pm-modal-sub">Only this permit\'s own Safety Controller, ' + esc(rec['Permit Controller']||'(not set)') + ', can close it.</div>'
-        + '<div class="pm-modal-nav"><button type="button" class="pm-modal-cancel" id="pm-close-ok2" style="flex:1">OK</button></div>'
-        + '</div></div>';
-      document.getElementById('pm-close-ok2').onclick = function(){ root2.innerHTML = ''; };
-      return;
-    }
+    openSimpleApprovalModal_(permitId, 'Close Permit — ' + permitId,
+      'Every linked checklist is finished. This sends the permit to ' + esc(rec['Permit Receiver - Name']||'the Receiver') + ' for their closing signature, then to ' + esc(rec['Permit Controller']||'the Controller') + ' for final approval.',
+      'Start Closing', { 'Status':'Awaiting Closing Signature', 'Closure Initiated By': (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser && IMS_AUTH.getUser().username) || 'unknown', 'Closure Initiated Date': new Date().toLocaleString() });
+  }
+  // 5b. Receiver's closing signature — the checklist gate and the
+  // issuer's own authority were both already confirmed at the Close
+  // Permit step, so this stage is just the signature itself, same
+  // drawn-signature capture as the first Receiver Signature.
+  function openClosingSignModal_(permitId, rec){
     openSignaturePad_(
       'Receiver Signature (Closing) — ' + permitId,
       (rec['Permit Receiver - Name']||'Receiver') + ' — please sign to confirm the area is being handed back and the job is finished.',
       function(dataUrl){
         var signedAt = new Date().toLocaleString();
-        var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
         postJSON('update', {tab:REG_TAB, idCol:REG_ID, id:permitId}, {
           'Receiver Closing Signature': dataUrl, 'Receiver Closing Signature Date': signedAt,
-          'Status':'Closed', 'Closed By': (s && s.username) || 'unknown', 'Closed Date': signedAt
+          'Status':'Awaiting Controller Closure'
         }).then(function(res){
           if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error') + '\n\nThe signature was NOT saved — please try again.'); return; }
           afterApprovalSaved_();
         }).catch(function(){ alert('Could not reach the server — the signature was not saved. Try again.'); });
       },
-      function(){ /* cancelled — permit stays Active, nothing closed */ }
+      function(){ /* cancelled — permit stays Awaiting Closing Signature */ }
     );
+  }
+  // 5c. Controller's final approval — only now does the permit
+  // actually become Closed. Reaching this stage at all already proves
+  // this is the permit's own Controller (myRoleOnPermit_ only grants
+  // the 'controller' role to the name on the permit), so there is no
+  // separate identity check to repeat here.
+  function openControllerCloseApproveModal_(permitId, rec){
+    var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
+    openSimpleApprovalModal_(permitId, 'Approve Closure — ' + permitId,
+      'Confirms the receiver has signed and closes this permit for good.',
+      'Approve & Close', { 'Status':'Closed', 'Closed By': (s && s.username) || 'unknown', 'Closed Date': new Date().toLocaleString() });
   }
 
   // Same multi-word AND search + date normalisation as
@@ -817,6 +824,11 @@
     'Awaiting Area Manager': ['pm-b-blue','Awaiting Area Manager'],
     'Awaiting Controller': ['pm-b-blue','Awaiting Controller'],
     'Active': ['pm-b-green','Active'],
+    // Rev.101 (Issam, voice, 2026-11-23) — closing is now its own
+    // three-step ladder: the issuer initiates it, the receiver signs,
+    // then the Controller approves and the permit is actually Closed.
+    'Awaiting Closing Signature': ['pm-b-amber','Awaiting Closing Signature'],
+    'Awaiting Controller Closure': ['pm-b-blue','Awaiting Controller Closure'],
     'Closed': ['pm-b-grey','Closed'],
     'Cancelled': ['pm-b-red','Cancelled'],
     'Renewed': ['pm-b-grey','Renewed']
@@ -853,9 +865,11 @@
   function myRoleOnPermit_(rec){
     if (namesMatch(rec['Permit Issuer - Name'], _me)) return 'issuer';
     var status = String(rec['Status']||'').trim();
-    if ((status === 'Awaiting Receiver Signature' || status === 'Awaiting Toolbox Talk' || status === 'Active') && namesMatch(rec['Permit Receiver - Name'], _me)) return 'receiver';
+    if ((status === 'Awaiting Receiver Signature' || status === 'Awaiting Toolbox Talk' || status === 'Active' || status === 'Awaiting Closing Signature') && namesMatch(rec['Permit Receiver - Name'], _me)) return 'receiver';
     if (status === 'Awaiting Area Manager' && namesMatch(rec['Unit Manager'], _me)) return 'manager';
-    if (status === 'Awaiting Controller' && namesMatch(rec['Permit Controller'], _me)) return 'controller';
+    // Rev.101 — the Controller also approves the final closing step,
+    // once the issuer has initiated it and the receiver has signed.
+    if ((status === 'Awaiting Controller' || status === 'Awaiting Controller Closure') && namesMatch(rec['Permit Controller'], _me)) return 'controller';
     if (_amAuthorizedIssuer) return 'other-issuer';
     return null;
   }
@@ -869,10 +883,15 @@
     var status = String(rec['Status']||'').trim();
     if (role === 'manager' && status === 'Awaiting Area Manager') return 'Approve as Area Manager';
     if (role === 'controller' && status === 'Awaiting Controller') return 'Approve as Controller';
+    // Rev.101 (Issam, voice, 2026-11-23) — closing is now three steps
+    // in order: the issuer initiates it, the receiver signs, the
+    // Controller approves and only then is the permit Closed.
+    if (role === 'controller' && status === 'Awaiting Controller Closure') return 'Approve Closure';
+    if ((role === 'issuer' || role === 'other-issuer') && status === 'Active') return 'Close Permit';
     if (role === 'receiver'){
       if (status === 'Awaiting Receiver Signature') return 'Sign as Receiver';
       if (status === 'Awaiting Toolbox Talk') return 'Record Toolbox Talk';
-      if (status === 'Active') return 'Sign Closing (when ready)';
+      if (status === 'Awaiting Closing Signature') return 'Sign Closing';
     }
     if (status === 'Waiting') return 'Open Checklist';
     return 'Open Permit';
@@ -882,54 +901,47 @@
     var role = myRoleOnPermit_(rec);
     var mine = !!role;
     var permitUrl = 'ptw-register.html?permitId=' + encodeURIComponent(rec['Permit ID']);
-    var label = mine ? actionLabel(rec, role) : 'View Permit';
     var isNew = _justCreatedId && rec['Permit ID'] === _justCreatedId;
     var cardId = isNew ? ' id="pm-just-created"' : '';
     var stage = approvalStage_(rec, role);
-    var actionHtml;
-
-    if (stage){
-      actionHtml =
-        '<button type="button" class="pm-card-action pm-act-main" ' +
-        'onclick="event.stopPropagation();PM.openApproval(\'' +
-        esc(rec['Permit ID']) +
-        '\')">' +
-        esc(label) +
-        '</button>';
-    } else {
-      actionHtml =
-        '<a class="pm-card-action ' +
-        (mine ? 'pm-act-main' : 'pm-act-view') +
-        '" href="' +
-        permitUrl +
-        '" target="_blank">' +
-        esc(label) +
-        '</a>';
-    }
-
-    return '<div' + cardId + ' class="pm-card'
-        + (mine ? ' pm-card-mine' : ' pm-card-viewonly')
-        + (isNew ? ' pm-card-justcreated' : '')
-        + '" onclick="PM.cardTap(event,\'' + esc(permitUrl) + '\')">'
-        + (isNew ? '<div class="pm-new-badge">✓ Just created</div>' : '')
-        + '<div class="pm-card-top"><span class="pm-card-id">' + id + '</span>'
+    // Rev.99 (Issam, voice, 2026-11-23) — a View Only card is exactly
+    // that: there is nothing the person can change on it, so the big
+    // action button (which used to say "View Permit" and open the
+    // classic page) is gone entirely — only the Permit Pack link
+    // remains. A card the person CAN still act on (mine) keeps its
+    // action button as before: whatever the next step is, including
+    // the desktop's own Execution / Post-execution continuation
+    // screens for the stages mobile doesn't carry a step of its own
+    // for yet.
+    // Rev.101 — whenever this card's next step IS one of the mobile
+    // approval stages (same ones the status badge opens), the main
+    // button opens that same mobile form directly too, instead of
+    // still linking out to the classic desktop register underneath —
+    // that gap was exactly what left "Close Permit" with nowhere
+    // mobile-native to go.
+    var actionHtml = mine
+      ? (stage
+          ? '<button type="button" class="pm-card-action pm-act-main" onclick="PM.openApproval(\'' + esc(rec['Permit ID']) + '\')">' + esc(actionLabel(rec, role)) + '</button>'
+          : '<a class="pm-card-action pm-act-main" href="' + permitUrl + '" target="_blank">' + esc(actionLabel(rec, role)) + '</a>')
+      : '';
+    return '<div' + cardId + ' class="pm-card' + (mine ? ' pm-card-mine' : ' pm-card-viewonly') + (isNew ? ' pm-card-justcreated' : '') + '" onclick="PM.cardTap(event,\'' + esc(permitUrl) + '\')">'
+      + (isNew ? '<div class="pm-new-badge">✓ Just created</div>' : '')
+      + '<div class="pm-card-top"><span class="pm-card-id">' + id + '</span>'
         + (mine ? '' : '<span class="pm-badge pm-b-grey" style="margin-right:6px">View Only</span>')
-        + badgeHtml(rec['Status'], stage ? rec['Permit ID'] : null)
-        + '</div>'
-        + '<div class="pm-card-meta">'
-        + '<b>' + esc(rec['Area'] || '—') + '</b>'
-        + (rec['Location'] ? ' · ' + esc(rec['Location']) : '')
-        + (rec['Date'] ? ' · ' + esc(displayDate_(rec['Date'])) : '')
-        + '<br>'
-        + esc(rec['Work Involved'] || '—')
-        + '<br>'
-        + 'Issuer: ' + esc(displayNameFromField(rec['Permit Issuer - Name']) || '—')
-        + ' · Receiver: ' + esc(rec['Permit Receiver - Name'] || '—')
-        + '</div>'
-        + actionHtml
-        + '<a class="pm-pack-link" href="' + permitUrl + '&pack=1" target="_blank">📦 Permit Pack</a>'
-        + checklistChipsHtml(rec)
-        + '</div>';
+        + badgeHtml(rec['Status'], stage ? rec['Permit ID'] : null) + '</div>'
+      + '<div class="pm-card-meta">'
+        + '<b>' + esc(rec['Area']||'—') + '</b>' + (rec['Location'] ? ' · ' + esc(rec['Location']) : '') + (rec['Date'] ? ' · ' + esc(displayDate_(rec['Date'])) : '') + '<br>'
+        + esc(rec['Work Involved']||'—') + '<br>'
+        + 'Issuer: ' + esc(displayNameFromField(rec['Permit Issuer - Name'])||'—') + ' · Receiver: ' + esc(rec['Permit Receiver - Name']||'—')
+      + '</div>'
+      + actionHtml
+      // Rev.96 (Issam, voice, 2026-11-23) — every card gets a Permit
+      // Pack link, View Only included; it's the exact same read-only
+      // pack the desktop register already builds (deep link &pack=1,
+      // same one the approval emails use), not a separate mobile page.
+      + '<a class="pm-pack-link" href="' + permitUrl + '&pack=1" target="_blank">📦 Permit Pack</a>'
+      + checklistChipsHtml(rec)
+      + '</div>';
   }
 
   // Rev.86 (Issam, voice, 2026-11-21) — the landing screen is now the
@@ -1349,7 +1361,9 @@
       else if (stage === 'toolboxTalk') openToolboxTalkModal_(permitId, rec);
       else if (stage === 'areaManager') openAreaManagerModal_(permitId, rec);
       else if (stage === 'controller') openControllerModal_(permitId, rec);
-      else if (stage === 'closing') openClosingModal_(permitId, rec);
+      else if (stage === 'closeInitiate') openCloseInitiateModal_(permitId, rec);
+      else if (stage === 'closingSign') openClosingSignModal_(permitId, rec);
+      else if (stage === 'controllerCloseApprove') openControllerCloseApproveModal_(permitId, rec);
     },
     onSearchInput: function(val){
       // only the list below redraws — '#pm-search' itself is never
