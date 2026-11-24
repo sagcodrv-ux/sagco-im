@@ -272,6 +272,10 @@
       // safety person can.
       var _mySessionRole = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getRole) ? IMS_AUTH.getRole() : '';
       _amAuthorizedIssuer = !!matchIssuerToMe_() || _mySessionRole === 'superadmin';
+      // Rev.102 (Issam, voice, 2026-11-23) — a super admin has full
+      // access at every stage of every permit, not just the issuer's
+      // own stages covered by _amAuthorizedIssuer above.
+      _amSuperAdmin = _mySessionRole === 'superadmin';
       cb();
     });
   }
@@ -587,9 +591,9 @@
       (rec['Permit Receiver - Name']||'Receiver') + ' — please sign to confirm you have received this permit and its instructions.',
       function(dataUrl){
         var signedAt = new Date().toLocaleString();
-        postJSON('update', {tab:REG_TAB, idCol:REG_ID, id:permitId}, {
+        postJSON('update', {tab:REG_TAB, idCol:REG_ID, id:permitId}, extendPayload_({
           'Receiver Signature': dataUrl, 'Receiver Signature Date': signedAt, 'Status':'Awaiting Toolbox Talk'
-        }).then(function(res){
+        }, onBehalfPayload_(rec, 'receiver', 'Receiver Signature'))).then(function(res){
           if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error') + '\n\nThe signature was NOT saved — please try again.'); return; }
           afterApprovalSaved_();
         }).catch(function(){ alert('Could not reach the server — the signature was not saved. Try again.'); });
@@ -680,7 +684,7 @@
         if (!isComplete()) return;
         var names = attendees.map(function(a){ return a.name.trim(); });
         var tbtDate = new Date().toLocaleString();
-        var payload = { 'Toolbox Talk Attendees': names.join(', '), 'Toolbox Talk Date': tbtDate, 'Number of Workers': String(attendees.length) };
+        var payload = extendPayload_({ 'Toolbox Talk Attendees': names.join(', '), 'Toolbox Talk Date': tbtDate, 'Number of Workers': String(attendees.length) }, onBehalfPayload_(rec, 'receiver', 'Toolbox Talk'));
         payload['Status'] = checklistWaitingNames_mobile_(rec).length ? 'Waiting' : 'Awaiting Area Manager';
         var attendeeRows = attendees.map(function(a,i){
           return { 'Record ID': permitId+'-TBT-'+(i+1), 'Permit ID': permitId, 'Attendee Name': a.name.trim(),
@@ -723,12 +727,12 @@
   function openAreaManagerModal_(permitId, rec){
     openSimpleApprovalModal_(permitId, 'Approve as Area Manager — ' + permitId,
       'Confirms the conditions for this permit are in place and sends it on to the Controller.',
-      'Approve', { 'Status':'Awaiting Controller', 'Area Manager Approval Date': new Date().toLocaleString() });
+      'Approve', extendPayload_({ 'Status':'Awaiting Controller', 'Area Manager Approval Date': new Date().toLocaleString() }, onBehalfPayload_(rec, 'manager', 'Area Manager Approval')));
   }
   function openControllerModal_(permitId, rec){
     openSimpleApprovalModal_(permitId, 'Approve as Controller — ' + permitId,
       'Confirms this permit is ready and makes it Active — work may start.',
-      'Approve', { 'Status':'Active', 'Controller Approval Date': new Date().toLocaleString() });
+      'Approve', extendPayload_({ 'Status':'Active', 'Controller Approval Date': new Date().toLocaleString() }, onBehalfPayload_(rec, 'controller', 'Controller Approval')));
   }
   // 5a. Close Permit — the issuer (or another authorized issuer)
   // starts the closing process. Mirrors ptw-register.html's own
@@ -763,10 +767,10 @@
       (rec['Permit Receiver - Name']||'Receiver') + ' — please sign to confirm the area is being handed back and the job is finished.',
       function(dataUrl){
         var signedAt = new Date().toLocaleString();
-        postJSON('update', {tab:REG_TAB, idCol:REG_ID, id:permitId}, {
+        postJSON('update', {tab:REG_TAB, idCol:REG_ID, id:permitId}, extendPayload_({
           'Receiver Closing Signature': dataUrl, 'Receiver Closing Signature Date': signedAt,
           'Status':'Awaiting Controller Closure'
-        }).then(function(res){
+        }, onBehalfPayload_(rec, 'receiver', 'Receiver Closing Signature'))).then(function(res){
           if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error') + '\n\nThe signature was NOT saved — please try again.'); return; }
           afterApprovalSaved_();
         }).catch(function(){ alert('Could not reach the server — the signature was not saved. Try again.'); });
@@ -783,7 +787,7 @@
     var s = (typeof IMS_AUTH !== 'undefined' && IMS_AUTH.getUser) ? IMS_AUTH.getUser() : null;
     openSimpleApprovalModal_(permitId, 'Approve Closure — ' + permitId,
       'Confirms the receiver has signed and closes this permit for good.',
-      'Approve & Close', { 'Status':'Closed', 'Closed By': (s && s.username) || 'unknown', 'Closed Date': new Date().toLocaleString() });
+      'Approve & Close', extendPayload_({ 'Status':'Closed', 'Closed By': (s && s.username) || 'unknown', 'Closed Date': new Date().toLocaleString() }, onBehalfPayload_(rec, 'controller', 'Controller Closure Approval')));
   }
 
   // Same multi-word AND search + date normalisation as
@@ -862,6 +866,7 @@
   //    (no separate Status exists for closing, so Active counts too).
   //  - 'manager' / 'controller': only at their own approval stage.
   var _amAuthorizedIssuer = null; // computed once per load, see loadAll()
+  var _amSuperAdmin = null; // computed once per load, see loadAll()
   function myRoleOnPermit_(rec){
     if (namesMatch(rec['Permit Issuer - Name'], _me)) return 'issuer';
     var status = String(rec['Status']||'').trim();
@@ -870,9 +875,39 @@
     // Rev.101 — the Controller also approves the final closing step,
     // once the issuer has initiated it and the receiver has signed.
     if ((status === 'Awaiting Controller' || status === 'Awaiting Controller Closure') && namesMatch(rec['Permit Controller'], _me)) return 'controller';
+    // Rev.102 (Issam, voice, 2026-11-23) — a super admin gets full
+    // access at every stage: wherever a specific role (receiver,
+    // manager, controller) would unlock the next mobile form, a super
+    // admin gets that role too, even when the name on the permit
+    // isn't theirs, instead of falling through to the generic
+    // "other-issuer" path below (which only opens the classic page).
+    // Acting this way is logged as on behalf of the person actually
+    // named on the permit — see onBehalfPayload_ at each save below.
+    if (_amSuperAdmin){
+      if (status === 'Awaiting Receiver Signature' || status === 'Awaiting Toolbox Talk' || status === 'Awaiting Closing Signature') return 'receiver';
+      if (status === 'Awaiting Area Manager') return 'manager';
+      if (status === 'Awaiting Controller' || status === 'Awaiting Controller Closure') return 'controller';
+    }
     if (_amAuthorizedIssuer) return 'other-issuer';
     return null;
   }
+  // Rev.102 — a super admin acting in a role that isn't actually their
+  // own name is "acting on behalf of" the real person; this logs that
+  // to a single shared audit-trail field rather than one new column
+  // per stage. Returns {} (nothing to merge) when the real named
+  // person is the one acting, so ordinary signing/approving is
+  // unaffected.
+  function roleNameField_(role){
+    return role === 'receiver' ? 'Permit Receiver - Name' : role === 'manager' ? 'Unit Manager' : role === 'controller' ? 'Permit Controller' : null;
+  }
+  function onBehalfPayload_(rec, role, actionText){
+    var field = roleNameField_(role);
+    if (!_amSuperAdmin || !field || namesMatch(rec[field], _me)) return {};
+    var existing = String(rec['On Behalf Of Note']||'').trim();
+    var line = new Date().toLocaleString() + ' — ' + actionText + ' by ' + (_me || 'Super Admin') + ' on behalf of ' + (rec[field] || ('the named ' + role)) + '.';
+    return { 'On Behalf Of Note': existing ? existing + '\n' + line : line };
+  }
+  function extendPayload_(a, b){ for (var k in b){ if (b.hasOwnProperty(k)) a[k] = b[k]; } return a; }
   // One primary action per card — always the same deep link into the
   // desktop register's own edit view, which already shows the right
   // resume/approve button for whatever stage the permit is at. The

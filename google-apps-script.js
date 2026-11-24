@@ -729,6 +729,17 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // Rev.31 (Issam, voice, 2026-11-24) — Security Operations Hub: a
+    // patrol more than 2 hours overdue. security-hub.html calls this
+    // once it has already computed the overdue state client-side —
+    // this call only sends the email.
+    if (pAction === 'sendOverduePatrolAlert') {
+      var bodyPatrol = JSON.parse(e.postData ? e.postData.contents : '{}');
+      return ContentService
+        .createTextOutput(JSON.stringify(sendOverduePatrolAlert(bodyPatrol)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // Rev.30 (Issam, voice, 2026-11-15) — called by each individual
     // checklist page (confined-space.html, loto-register.html,
     // crane-inspection.html, hot-work.html, scaffold-inspection.html,
@@ -2720,6 +2731,40 @@ function sendViolationStageEmail(data) {
   }
 }
 function vEscPlain_(v){ return String(v==null?'':v); }
+
+// Rev.31 (Issam, voice, 2026-11-24) — Security Operations Hub patrol
+// tour: once a round is more than PATROL_INTERVAL_HOURS overdue,
+// security-hub.html calls this to alert every Safety Controller it
+// found on the Users roster (isSafety() there — role/department/title
+// matching "safety", "hse" or "controller", same test ptw-mobile.html
+// already uses). One email, every controller in the "to" line, same
+// shape as sendViolationStageEmail/sendPtwStageEmail above — this only
+// sends the email, it changes nothing on the sheet.
+function sendOverduePatrolAlert(data) {
+  try {
+    var toList = (data && data.toEmails) || [];
+    if (typeof toList === 'string') toList = toList.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+    if (!data || !toList.length) {
+      return { status: 'error', message: 'Missing toEmails' };
+    }
+    var subject = 'SAGCO IMS – Security Patrol Overdue';
+    var link = data.pageUrl || 'security-hub.html';
+    var body = ''
+      + 'Dear Safety Controller,\n\n'
+      + 'The next security patrol tour is overdue.\n\n'
+      + 'Last round         : ' + (data.lastPatrolTime || '—') + ' on ' + (data.lastPatrolDate || '—') + '\n'
+      + 'Overdue by         : ' + (data.overdueHours || '—') + ' hour(s)\n'
+      + 'Area / Route (last): ' + (data.area || '') + '\n'
+      + '\nOpen the Security Operations Hub:\n' + link + '\n\n'
+      + 'SAGCO IMS – Security Operations Hub';
+
+    MailApp.sendEmail({ to: toList.join(','), subject: subject, body: body, name: IMS_FROM_NAME });
+    return { status: 'ok', message: 'Alert sent to ' + toList.join(', ') };
+  } catch (err) {
+    Logger.log('sendOverduePatrolAlert: THREW — ' + err);
+    return { status: 'error', message: err.toString() };
+  }
+}
 
 // Rev.29 (Issam, voice, 2026-11-15) — PTW two-step approval chain.
 // Mirrors sendViolationStageEmail's shape: ptw-register.html has

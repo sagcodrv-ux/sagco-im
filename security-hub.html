@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Security Operations Hub — SAGCO IMS</title>
+<script src="auth.js"></script>
+<script src="data.js"></script>
+<script src="jsQR.js"></script>
+<style>
+  /* Same palette, card, modal and step-wizard classes as ptw-mobile.html
+     (Issam, voice, 2026-11-23 — "all pages on the security hub should
+     have the same format and layout as the PTW mobile version"), so
+     this page reads as one consistent product with it. */
+  :root{
+    --pdw-bg:#0D1B35; --pdw-bg2:#142140; --pdw-bg3:#1a2a50;
+    --pdw-gold:#C9A84C; --pdw-gold-lt:#E8C97A;
+    --pdw-text:rgba(255,255,255,.92); --pdw-text-muted:rgba(255,255,255,.55);
+    --pdw-text-dim:rgba(255,255,255,.35); --pdw-border:rgba(255,255,255,.08);
+    --pdw-border-gold:rgba(201,168,76,.35);
+    --pdw-blue:#5B9BD5; --pdw-red:#F0685C; --pdw-amb:#E8B339; --pdw-grn:#4FCB9E;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--pdw-bg); color:var(--pdw-text); margin:0; min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;}
+  .pm-wrap{max-width:480px; margin:0 auto; padding:16px 16px 40px}
+  .pm-header{display:flex; align-items:center; justify-content:space-between; padding:6px 2px 16px}
+  .pm-header h1{font-size:16px; margin:0; color:var(--pdw-gold-lt); font-weight:700}
+  .pm-header .pm-sub{font-size:10.5px; color:var(--pdw-text-muted); margin-top:2px}
+  .pm-home-btn{display:flex; align-items:center; gap:14px; width:100%; background:var(--pdw-bg2); border:1px solid var(--pdw-border);
+    border-radius:14px; padding:18px 16px; margin-bottom:12px; color:inherit; text-align:left; font-family:inherit; cursor:pointer}
+  .pm-home-btn .pm-icon{font-size:28px; flex:0 0 auto}
+  .pm-home-btn .pm-label{font-size:15px; font-weight:700}
+  .pm-home-btn .pm-count{font-size:11.5px; color:var(--pdw-text-muted); margin-top:2px}
+  .pm-home-btn.pm-primary{background:linear-gradient(135deg,var(--pdw-gold) 0%, #B08F3A 100%); color:#15223f; border:none}
+  .pm-home-btn.pm-primary .pm-count{color:rgba(21,34,63,.65)}
+  .pm-back{display:inline-flex; align-items:center; gap:5px; color:var(--pdw-gold-lt); font-size:12px; font-weight:600;
+    text-decoration:none; background:none; border:none; padding:6px 0 14px; cursor:pointer; font-family:inherit}
+  .pm-list-title{font-size:15px; font-weight:700; margin:0 0 4px}
+  .pm-card{background:var(--pdw-bg2); border:1px solid var(--pdw-border); border-radius:12px; padding:14px; margin-bottom:10px}
+  .pm-card-meta{font-size:12px; color:var(--pdw-text-muted); margin-top:6px; line-height:1.5}
+  .pm-card-meta b{color:var(--pdw-text); font-weight:600}
+  .pm-badge{font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap}
+  .pm-b-amber{background:rgba(232,179,57,.18); color:var(--pdw-amb)}
+  .pm-b-blue{background:rgba(91,155,213,.18); color:var(--pdw-blue)}
+  .pm-b-green{background:rgba(79,203,158,.18); color:var(--pdw-grn)}
+  .pm-b-red{background:rgba(240,104,92,.18); color:var(--pdw-red)}
+  .pm-b-grey{background:rgba(255,255,255,.08); color:var(--pdw-text-muted)}
+  .pm-banner{margin:0 0 14px; padding:12px 14px; border-radius:10px; font-size:12.5px; line-height:1.5}
+  .pm-banner-red{background:rgba(240,104,92,.14); border:1px solid var(--pdw-red); color:var(--pdw-text)}
+  .pm-banner-grn{background:rgba(79,203,158,.14); border:1px solid var(--pdw-grn); color:var(--pdw-text)}
+  .pm-status-pill{display:inline-flex; align-items:center; gap:6px; padding:10px 16px; border-radius:10px; font-weight:800; font-size:14px}
+  .pm-status-pill.green{background:rgba(79,203,158,.18); color:var(--pdw-grn); border:2px solid var(--pdw-grn)}
+  .pm-status-pill.amber{background:rgba(232,179,57,.18); color:var(--pdw-amb); border:2px solid var(--pdw-amb)}
+  .pm-status-pill.red{background:rgba(240,104,92,.18); color:var(--pdw-red); border:2px solid var(--pdw-red)}
+  .pm-modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end;
+    justify-content:center; z-index:500}
+  .pm-modal{background:var(--pdw-bg2); border:1px solid var(--pdw-border-gold); border-radius:16px 16px 0 0;
+    padding:20px 16px 24px; width:100%; max-width:480px; max-height:88vh; overflow-y:auto}
+  .pm-modal h3{margin:0 0 4px; font-size:15px; color:var(--pdw-gold-lt)}
+  .pm-modal-sub{font-size:12px; color:var(--pdw-text-muted); margin-bottom:14px; line-height:1.5}
+  .pm-step-dots{display:flex; gap:6px; justify-content:center; margin-bottom:16px}
+  .pm-dot{width:8px; height:8px; border-radius:50%; background:var(--pdw-border)}
+  .pm-dot.pm-active{background:var(--pdw-gold)}
+  .pm-field{margin-bottom:14px}
+  .pm-field label{display:block; font-size:12px; font-weight:600; margin-bottom:5px; color:var(--pdw-text-muted)}
+  .pm-field input,.pm-field select,.pm-field textarea{width:100%; padding:11px 12px; font-size:14px; border-radius:8px;
+    border:1px solid var(--pdw-border); background:var(--pdw-bg3); color:inherit; font-family:inherit}
+  .pm-field input::placeholder,.pm-field textarea::placeholder{color:var(--pdw-text-dim)}
+  .pm-step-nav{display:flex; gap:10px; margin-top:8px}
+  .pm-step-nav button{flex:1; padding:13px; border-radius:9px; border:none; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit}
+  .pm-btn-next{background:var(--pdw-gold); color:#15223f}
+  .pm-btn-back{background:var(--pdw-bg2); color:var(--pdw-text); border:1px solid var(--pdw-border) !important}
+  .pm-btn-next:disabled{opacity:.4; cursor:not-allowed}
+  .pm-err{font-size:12px; color:var(--pdw-red); margin-top:6px}
+  .pm-loading{text-align:center; padding:60px 10px; color:var(--pdw-text-muted); font-size:13px}
+  .pm-item-row{display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--pdw-bg3);
+    border:1px solid var(--pdw-border); border-radius:8px; padding:9px 12px; font-size:12px; margin-bottom:8px}
+  .pm-item-row label.pm-item-label{flex:1; font-weight:600}
+  .pm-item-row select{width:110px; flex-shrink:0; padding:8px; font-size:12px; border-radius:7px; border:1px solid var(--pdw-border); background:var(--pdw-bg); color:inherit}
+  .pm-esc-row{display:flex; gap:6px; margin:-4px 0 8px}
+  .pm-esc-btn{flex:1; padding:7px 8px; border-radius:7px; border:1px solid var(--pdw-border-gold); background:transparent;
+    color:var(--pdw-gold-lt); font-size:10.5px; font-weight:700; cursor:pointer; font-family:inherit}
+  .pm-esc-btn.pm-esc-v{border-color:var(--pdw-red); color:var(--pdw-red)}
+  .pm-esc-btn.pm-esc-a{border-color:var(--pdw-blue); color:var(--pdw-blue)}
+  .pm-sec-hd{font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--pdw-gold-lt);
+    margin:14px 0 8px; padding-top:10px; border-top:1px solid var(--pdw-border)}
+  .pm-sec-hd:first-child{border-top:none; padding-top:0; margin-top:0}
+  .pm-scan-video-wrap{position:relative; display:inline-block; max-width:320px; width:100%}
+  .pm-scan-video-wrap video{width:100%; border-radius:8px; display:block}
+  .pm-scan-frame{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:62%; aspect-ratio:1/1; border:3px solid var(--pdw-gold); border-radius:12px; pointer-events:none}
+  .pm-scan-status{margin-top:10px; font-size:12px; color:var(--pdw-text-muted)}
+  .pm-scan-status.found{color:var(--pdw-grn); font-weight:700}
+  .pm-person-card{border:2px solid var(--pdw-border-gold); border-radius:14px; padding:16px; background:var(--pdw-bg3); text-align:center; margin-bottom:10px}
+  .pm-person-card .pm-pname{font-size:16px; font-weight:800}
+  .pm-person-card .pm-pmeta{font-size:11px; color:var(--pdw-text-muted); margin:2px 0}
+  .pm-idbox{margin:10px 0; padding:12px 14px; background:var(--pdw-bg3); border:2px solid var(--pdw-gold); border-radius:10px; text-align:center}
+  .pm-idbox .pm-idlbl{font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--pdw-text-muted); margin-bottom:4px}
+  .pm-idbox .pm-idval{font-size:26px; font-weight:800; color:var(--pdw-gold-lt); letter-spacing:.5px}
+  .pm-yn-pick{display:flex; gap:10px}
+  .pm-yn-pick label{flex:1; display:flex; align-items:center; gap:6px; padding:11px; border-radius:8px; border:1px solid var(--pdw-border);
+    background:var(--pdw-bg3); font-size:13px; cursor:pointer}
+</style>
+</head>
+<body>
+<div class="pm-wrap" id="pm-root">
+  <div class="pm-loading">Loading…</div>
+</div>
+<div id="pm-modal-root"></div>
+
+<script>
+(function(){
+  var SHEETS_URL = window.SHEETS_URL;
+  var VC_PERSONS = 'vc_persons', VC_SPOTCHECKS = 'vc_spotchecks';
+  // Rev.1 (Issam, voice, 2026-11-24) — NEW tab, logging every gate
+  // entry with the time and the agent's name, per Issam's explicit
+  // request. Does not exist in the live Google Sheet yet.
+  var VC_GATELOG = 'vc_gate_log';
+  var PATROL_TAB = 'security_patrol', PATROL_ID_PREFIX = 'SPL';
+  var FUEL_TAB = 'fuel_delivery_spill';
+  var USERS_TAB = 'users';
+  var INDUCTION_VALID_DAYS = 365, INDUCTION_EXPIRING_WINDOW_DAYS = 30;
+  // Rev.1 — "if the last PPE issuance marked for that visitor is
+  // within the past week, he's marked PPE issued" (Issam, voice).
+  var PPE_ISSUED_WINDOW_DAYS = 7;
+  var PATROL_INTERVAL_HOURS = 2;
+
+  // Same 6 items as the existing security-patrol-log.html (desktop) —
+  // this mobile form writes to the exact same tab/columns, so a
+  // patrol logged from either page shows up on both.
+  var PATROL_ITEMS = [
+    "Perimeter Fencing Intact, No Signs of Damage or Tampering",
+    "All Gates Closed and Secured",
+    "No Unauthorized Persons or Vehicles Observed",
+    "Lighting Adequate Along Patrol Route",
+    "CCTV Cameras Appear Operational (Where Applicable)",
+    "No Suspicious Activity, Packages or Vehicles Observed"
+  ];
+  var PATROL_PASS = 'Satisfactory', PATROL_FAIL = 'Unsatisfactory';
+
+  // Same 19 items, in the same 3 sections, as fuel-delivery-spill.html
+  // (desktop) — this mobile form writes to the exact same tab/columns.
+  var FUEL_TYPES = ["Diesel","HFO"];
+  var FUEL_PRE_ITEMS = [
+    "Fuel type confirmed matches tank/storage designation (no cross-contamination risk)",
+    "Tanker documentation checked (delivery note, quantity, supplier matches PO)",
+    "Tanker hose, couplings and valves visually inspected — no visible wear, cracks or leaks",
+    "Drip tray / containment placed under hose connection point",
+    "Spill kit (absorbent pads, booms, drain covers) present and accessible at delivery point",
+    "Nearest storm drain / open drain identified and covered or protected",
+    "Fire extinguisher available within reach of delivery point",
+    "No hot work, smoking or ignition sources within delivery exclusion zone",
+    "Tank ullage / available capacity confirmed sufficient for delivery quantity",
+    "Communication established between driver and receiving attendant before start"
+  ];
+  var FUEL_DURING_ITEMS = [
+    "Hose connection re-checked for leaks immediately after coupling",
+    "Delivery attendant remains present and attentive throughout transfer (no unattended delivery)",
+    "Tank level monitored continuously as filling approaches capacity",
+    "Any drips, weeping or odour at connections investigated and stopped immediately"
+  ];
+  var FUEL_POST_ITEMS = [
+    "Hose disconnected and drained into containment before removal",
+    "Delivery point and ground inspected for any fuel residue, staining or drips",
+    "Drip tray / containment checked and contents (if any) disposed of per procedure",
+    "Final tank quantity recorded and reconciled against delivery note",
+    "Spill kit restocked / returned to designated storage"
+  ];
+  var FUEL_SECTIONS = [
+    { key:'Pre', items:FUEL_PRE_ITEMS, label:'Pre-Delivery Checks' },
+    { key:'During', items:FUEL_DURING_ITEMS, label:'During-Delivery Checks' },
+    { key:'Post', items:FUEL_POST_ITEMS, label:'Post-Delivery Checks' }
+  ];
+
+  var root = document.getElementById('pm-root');
+  var _me = '', _view = 'hub';
+  var _persons = [], _personsHeaders = [], _spotchecks = [], _patrolRows = [], _patrolHeaders = [], _users = [], _usersHeaders = [];
+  var _scanStream = null, _scanRAF = null;
+  var _gateActivePerson = null; // currently scanned/looked-up person record, for the gate flow
+
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function colIdx(headers, name){ var out=-1; (headers||[]).forEach(function(h,i){ if(String(h).trim().toLowerCase()===String(name).toLowerCase()) out=i; }); return out; }
+  function recFromRow(headers, row){ var rec={}; headers.forEach(function(h,i){ rec[h]=row[i]; }); return rec; }
+  function todayStr(){ return new Date().toISOString().slice(0,10); }
+  function nowTimeStr(){ var d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+  function daysBetween(a,b){ return Math.floor((new Date(b) - new Date(a)) / 86400000); }
+  function isSafety(role, title){ return /safety|hse/i.test(role) || /safety|hse|controller/i.test(title) || /superadmin|admin/i.test(role); }
+
+  function postJSON(action, params, body){
+    var qs = Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+    return fetch(SHEETS_URL + '?action=' + action + '&' + qs, { method:'POST', body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+  }
+  function fetchTab(tab){
+    return fetch(SHEETS_URL + '?tab=' + tab + '&action=read').then(function(r){ return r.json(); })
+      .then(function(data){ return (data && data.headers && data.rows) ? data : {headers:[],rows:[]}; })
+      .catch(function(){ return {headers:[],rows:[]}; });
+  }
+  function activeRows(data){
+    var si = colIdx(data.headers, 'Record Status');
+    var rows = data.rows;
+    if (si>=0) rows = rows.filter(function(r){ return String(r[si]||'').trim().toLowerCase()!=='removed'; });
+    return rows.map(function(r){ return recFromRow(data.headers, r); });
+  }
+
+  function loadAll(cb){
+    Promise.all([fetchTab(VC_PERSONS), fetchTab(VC_SPOTCHECKS), fetchTab(PATROL_TAB), fetchTab(USERS_TAB)]).then(function(r){
+      _personsHeaders = r[0].headers; _persons = activeRows(r[0]);
+      _spotchecks = activeRows(r[1]);
+      _patrolHeaders = r[2].headers; _patrolRows = activeRows(r[2]);
+      _usersHeaders = r[3].headers; _users = activeRows(r[3]);
+      cb && cb();
+    });
+  }
+
+  /* ───────────────────── Induction / PPE clearance ───────────────────── */
+  function inductionState(person){
+    if (!person || person['Induction Status'] !== 'Inducted' || !person['Induction Date']) return { state:'none' };
+    var d = daysBetween(person['Induction Date'], todayStr());
+    if (d > INDUCTION_VALID_DAYS) return { state:'expired', daysOver: d-INDUCTION_VALID_DAYS };
+    if (d > INDUCTION_VALID_DAYS - INDUCTION_EXPIRING_WINDOW_DAYS) return { state:'expiring', daysLeft: INDUCTION_VALID_DAYS-d };
+    return { state:'valid', daysLeft: INDUCTION_VALID_DAYS-d };
+  }
+  // Rev.1 (Issam, voice, 2026-11-24) — "we cannot provide PPE every
+  // day… at least a range of one week": PPE counts as issued at the
+  // gate only if the LAST issuance marked for this person is within
+  // the past 7 days — distinct from the desktop page's own PPE
+  // Status field, which (deliberately, there) has no such window.
+  function ppeIssuedWithinWeek(person){
+    if (!person || String(person['PPE Status']||'').trim() !== 'Issued' || !person['PPE Issued Date']) return false;
+    return daysBetween(person['PPE Issued Date'], todayStr()) <= PPE_ISSUED_WINDOW_DAYS;
+  }
+  function findPerson(personId){
+    return _persons.filter(function(p){ return String(p['Person ID'])===String(personId); })[0] || null;
+  }
+
+  /* ───────────────────────────── Router ──────────────────────────────── */
+  function go(view){ _view = view; stopScan(); render(); }
+  function render(){
+    if (_view === 'hub') renderHub();
+    else if (_view === 'gate') renderGate();
+    else if (_view === 'patrol') renderPatrol();
+    else if (_view === 'fuel') renderFuel();
+  }
+
+  /* ───────────────────────────── Hub view ────────────────────────────── */
+  function lastPatrolInfo(){
+    if (!_patrolRows.length) return null;
+    var withTs = _patrolRows.map(function(r){
+      var ts = new Date((r['Date']||todayStr()) + 'T' + ((r['Patrol Time']||'00:00').length===5 ? r['Patrol Time'] : '00:00') + ':00');
+      return { rec:r, ts:ts };
+    }).filter(function(x){ return !isNaN(x.ts.getTime()); });
+    if (!withTs.length) return null;
+    withTs.sort(function(a,b){ return b.ts - a.ts; });
+    return withTs[0];
+  }
+  function patrolOverdue(){
+    var last = lastPatrolInfo();
+    if (!last) return null;
+    var hours = (Date.now() - last.ts.getTime()) / 3600000;
+    return hours > PATROL_INTERVAL_HOURS ? { hours: hours, last: last.rec } : null;
+  }
+  // Rev.2 (Issam, voice, 2026-11-24) — now returns {name, email} pairs,
+  // not just names, so the overdue alert below has an address to mail.
+  function safetyControllers(){
+    var nameIdx = colIdx(_usersHeaders,'Full Name'), name2Idx = colIdx(_usersHeaders,'Name'),
+        roleIdx = colIdx(_usersHeaders,'Role'), titleIdx = colIdx(_usersHeaders,'Job Title'),
+        statusIdx = colIdx(_usersHeaders,'Account Status'), emailIdx = colIdx(_usersHeaders,'Email');
+    var out = [], seen = {};
+    _users.forEach(function(u){
+      if (statusIdx>=0){ var st=String(u[_usersHeaders[statusIdx]]||'active').trim().toLowerCase(); if (st && st!=='active') return; }
+      var role = roleIdx>=0 ? String(u['Role']||'').trim() : '';
+      var title = titleIdx>=0 ? String(u['Job Title']||'').trim() : '';
+      if (!isSafety(role, title)) return;
+      var name = (nameIdx>=0 && u['Full Name']) || (name2Idx>=0 && u['Name']) || '';
+      name = String(name).trim();
+      var email = emailIdx>=0 ? String(u['Email']||'').trim() : '';
+      if (!name || seen[name.toLowerCase()]) return;
+      seen[name.toLowerCase()] = true;
+      out.push({ name: name, email: email });
+    });
+    return out;
+  }
+  function safetyControllerNames(){ return safetyControllers().map(function(c){ return c.name; }); }
+
+  // Rev.2 (Issam, voice, 2026-11-24) — "escalate to the safety
+  // controllers" (Issam, voice): sends sendOverduePatrolAlert once per
+  // distinct overdue patrol baseline (the last logged Patrol ID), not
+  // once per page render, using sessionStorage as the de-dup guard —
+  // simplest state that survives this page's own reloads without a
+  // database field of its own. Fires silently; the hub's own red
+  // banner is the visible confirmation, so a send failure here is
+  // logged to the console only, never surfaced as an alert() popup.
+  function maybeSendOverdueAlert(overdue){
+    if (!overdue) return;
+    var lastId = overdue.last['Patrol ID'] || (overdue.last['Date']+'-'+overdue.last['Patrol Time']);
+    var sentKey = 'patrolAlertSentFor';
+    try { if (sessionStorage.getItem(sentKey) === String(lastId)) return; } catch(e){}
+    var controllers = safetyControllers().filter(function(c){ return c.email; });
+    if (!controllers.length) return;
+    postJSON('sendOverduePatrolAlert', {}, {
+      toEmails: controllers.map(function(c){ return c.email; }),
+      lastPatrolTime: overdue.last['Patrol Time'] || '',
+      lastPatrolDate: overdue.last['Date'] || '',
+      overdueHours: overdue.hours.toFixed(1),
+      area: overdue.last['Area / Route Covered'] || ''
+    }).then(function(){ try { sessionStorage.setItem(sentKey, String(lastId)); } catch(e){} })
+      .catch(function(err){ console.log('Overdue patrol alert failed to send:', err); });
+  }
+
+  function renderHub(){
+    var overdue = patrolOverdue();
+    maybeSendOverdueAlert(overdue);
+    var banner = '';
+    if (overdue){
+      var controllers = safetyControllerNames();
+      banner = '<div class="pm-banner pm-banner-red">'
+        + '<b>⏰ Patrol overdue by ' + overdue.hours.toFixed(1) + 'h</b> — last round was at ' + esc(overdue.last['Patrol Time']||'') + ' on ' + esc(overdue.last['Date']||'') + '.'
+        + (controllers.length ? '<div style="margin-top:6px">Safety Controller(s) alerted: ' + esc(controllers.join(', ')) + '</div>' : '<div style="margin-top:6px">No Safety Controller found on the Users roster to alert.</div>')
+        + '</div>';
+    }
+    var last = lastPatrolInfo();
+    var patrolSub = overdue ? 'OVERDUE — last round ' + overdue.hours.toFixed(1) + 'h ago'
+      : last ? 'Last round: ' + esc(last.rec['Patrol Time']||'') + ' · ' + esc(last.rec['Date']||'')
+      : 'No patrol logged yet';
+    root.innerHTML = '<div class="pm-header"><div><h1>🛡 Security Operations Hub</h1><div class="pm-sub">Gate · Patrol · Fuel Reception</div></div>'
+      + '<a class="pm-back" href="index.html" style="padding:6px 10px;border:1px solid var(--pdw-border-gold);border-radius:6px">← IMS Portal</a></div>'
+      + banner
+      + '<button type="button" class="pm-home-btn pm-primary" onclick="SH.go(\'gate\')"><span class="pm-icon">🚪</span><div><div class="pm-label">Gate QR Scan</div><div class="pm-count">Induction + PPE check at entry</div></div></button>'
+      + '<button type="button" class="pm-home-btn" onclick="SH.go(\'patrol\')"><span class="pm-icon">🚶</span><div><div class="pm-label">Patrol Tour</div><div class="pm-count">' + esc(patrolSub) + '</div></div></button>'
+      + '<button type="button" class="pm-home-btn" onclick="SH.go(\'fuel\')"><span class="pm-icon">⛽</span><div><div class="pm-label">Fuel Reception Checklist</div><div class="pm-count">Diesel / HFO delivery checks</div></div></button>';
+  }
+
+  /* ───────────────────────────── Gate view ───────────────────────────── */
+  function backBtn(label){ return '<button type="button" class="pm-back" onclick="SH.go(\'hub\')">← ' + esc(label||'Security Hub') + '</button>'; }
+
+  function renderGate(){
+    _gateActivePerson = null;
+    root.innerHTML = backBtn() + '<div class="pm-list-title">🚪 Gate QR Scan</div>'
+      + '<div class="pm-field" style="margin-top:10px"><button type="button" class="pm-step-nav" style="width:100%;padding:13px;border-radius:9px;border:none;font-size:14px;font-weight:700;background:var(--pdw-gold);color:#15223f;cursor:pointer" onclick="SH.startScan()">📷 Scan Visitor / Contractor QR</button></div>'
+      + '<div id="pm-scan-area" style="display:none;text-align:center;margin:10px 0"></div>'
+      + '<div class="pm-field"><label>Or enter Person ID manually</label><input type="text" id="pm-gate-pid" placeholder="e.g. VC-00123"></div>'
+      + '<button type="button" class="pm-step-nav" style="width:100%;padding:13px;border-radius:9px;border:1px solid var(--pdw-border-gold);background:var(--pdw-bg2);color:var(--pdw-gold-lt);cursor:pointer;font-size:13px;font-weight:700" onclick="SH.lookupGate()">Look Up</button>'
+      + '<div id="pm-gate-detail" style="margin-top:14px"></div>';
+  }
+
+  function startScan(){
+    var area = document.getElementById('pm-scan-area');
+    area.style.display = 'block';
+    if (typeof jsQR === 'undefined'){
+      area.innerHTML = '<div class="pm-sub" style="color:var(--pdw-red)">QR scanning library failed to load — enter the Person ID manually below instead.</div>';
+      return;
+    }
+    area.innerHTML = '<div class="pm-scan-video-wrap"><video id="pm-scan-video" autoplay playsinline muted></video><div class="pm-scan-frame"></div></div>'
+      + '<div class="pm-scan-status" id="pm-scan-status">Point the QR code inside the square</div>'
+      + '<canvas style="display:none" id="pm-scan-canvas"></canvas>';
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      area.innerHTML = '<div class="pm-sub">Camera not available on this device/browser.</div>';
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } }).then(function(stream){
+      _scanStream = stream;
+      var video = document.getElementById('pm-scan-video');
+      video.srcObject = stream; video.play();
+      tickScan();
+    }).catch(function(){ area.innerHTML = '<div class="pm-sub">Could not access camera.</div>'; });
+  }
+  function tickScan(){
+    var video = document.getElementById('pm-scan-video'), canvas = document.getElementById('pm-scan-canvas');
+    if (!video || !canvas) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA){
+      var vw = video.videoWidth, vh = video.videoHeight;
+      var side = Math.round(Math.min(vw, vh) * 0.62);
+      var sx = Math.round((vw-side)/2), sy = Math.round((vh-side)/2);
+      canvas.width = side; canvas.height = side;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(video, sx, sy, side, side, 0, 0, side, side);
+      var imageData = ctx.getImageData(0,0,side,side);
+      var code = jsQR(imageData.data, imageData.width, imageData.height);
+      if (code && code.data){
+        var statusEl = document.getElementById('pm-scan-status');
+        if (statusEl){ statusEl.textContent = '✓ QR recognized!'; statusEl.classList.add('found'); }
+        var m = /^SAGCO-VC:(.+)$/.exec(code.data);
+        onGateScan(m ? m[1] : code.data);
+        return;
+      }
+    }
+    _scanRAF = requestAnimationFrame(tickScan);
+  }
+  function stopScan(){
+    if (_scanStream){ _scanStream.getTracks().forEach(function(t){ t.stop(); }); _scanStream = null; }
+    if (_scanRAF){ cancelAnimationFrame(_scanRAF); _scanRAF = null; }
+  }
+
+  function lookupGate(){
+    var pid = (document.getElementById('pm-gate-pid').value||'').trim();
+    if (!pid){ alert('Enter a Person ID, or scan the QR.'); return; }
+    onGateScan(pid);
+  }
+
+  function onGateScan(personId){
+    stopScan();
+    var p = findPerson(personId);
+    var detail = document.getElementById('pm-gate-detail');
+    if (!p){ detail.innerHTML = '<div class="pm-sub" style="color:var(--pdw-red)">Unknown Person ID: ' + esc(personId) + '</div>'; return; }
+    _gateActivePerson = p;
+    var ind = inductionState(p);
+    var ppeOk = ppeIssuedWithinWeek(p);
+    var indOk = (ind.state === 'valid' || ind.state === 'expiring');
+    var html = '<div class="pm-person-card">'
+      + '<div class="pm-pname">' + esc(p['First Name']) + ' ' + esc(p['Family Name']) + '</div>'
+      + '<div class="pm-pmeta">' + esc(p['Company']) + ' · ' + esc(p['Type']) + '</div>'
+      + '<div class="pm-pmeta">Destination: ' + esc(p['Destination Department']) + '</div>'
+      + '<div class="pm-pmeta">Person ID: ' + esc(p['Person ID']) + '</div></div>'
+      + '<div class="pm-idbox"><div class="pm-idlbl">ID Number — Check Against the Person\'s ID Card</div><div class="pm-idval">' + esc(p['ID Number']||'—') + '</div></div>';
+    html += '<div class="pm-status-pill ' + (indOk ? (ind.state==='expiring'?'amber':'green') : 'red') + '">'
+      + (indOk ? (ind.state==='expiring' ? 'INDUCTION EXPIRING (' + ind.daysLeft + 'd left)' : 'INDUCTION VALID') : 'INDUCTION NOT VALID — ' + (ind.state==='expired' ? ('expired ' + ind.daysOver + 'd ago') : 'not completed'))
+      + '</div><div style="margin:8px 0"></div>';
+    html += '<div class="pm-status-pill ' + (ppeOk?'green':'red') + '">'
+      + (ppeOk ? 'PPE ISSUED (' + esc(p['PPE Issued Date']) + ')' : 'PPE NOT ISSUED WITHIN LAST ' + PPE_ISSUED_WINDOW_DAYS + ' DAYS')
+      + '</div>';
+    if (indOk && ppeOk){
+      html += '<div class="pm-field" style="margin-top:16px"><label>Is ' + esc(p['First Name']) + ' currently wearing the required PPE for ' + esc(p['Destination Department']||'this department') + '?</label>'
+        + '<div class="pm-yn-pick"><label><input type="radio" name="pm-gate-wearing" value="Yes"> Yes</label><label><input type="radio" name="pm-gate-wearing" value="No"> No</label></div></div>'
+        + '<button type="button" class="pm-step-nav" style="width:100%;padding:13px;border-radius:9px;border:none;font-size:14px;font-weight:700;background:var(--pdw-gold);color:#15223f;cursor:pointer" onclick="SH.confirmGateEntry()">Confirm Entry</button>';
+    } else {
+      html += '<div class="pm-sub" style="margin-top:10px;color:var(--pdw-amb)">Direct the person to the Safety / PPE desk before allowing entry.</div>'
+        + '<button type="button" class="pm-step-nav" style="width:100%;padding:13px;border-radius:9px;border:1px solid var(--pdw-border-gold);background:var(--pdw-bg2);color:var(--pdw-gold-lt);cursor:pointer;font-size:13px;font-weight:700" onclick="SH.logGateAttempt(false)">Log This Entry Attempt (Not Cleared)</button>';
+    }
+    html += '<div id="pm-gate-result" style="margin-top:10px"></div>';
+    detail.innerHTML = html;
+  }
+
+  function writeGateLog(person, result, extra){
+    var rec = {
+      'Entry ID': 'GTE-' + Date.now(),
+      'Person ID': person['Person ID'],
+      'Entry Time': new Date().toLocaleString(),
+      'Agent Name': _me || 'Unknown',
+      'Result': result,
+      'Destination Department': person['Destination Department'] || '',
+      'Record Status': 'Active'
+    };
+    if (extra) for (var k in extra) rec[k] = extra[k];
+    return postJSON('create', {tab: VC_GATELOG}, rec);
+  }
+
+  function confirmGateEntry(){
+    var wEl = document.querySelector('input[name="pm-gate-wearing"]:checked');
+    if (!wEl){ alert('Pick Yes or No for whether PPE is being worn now.'); return; }
+    var wearing = wEl.value;
+    var p = _gateActivePerson;
+    var spotRec = {
+      'Spot Check ID': 'SPC-' + p['Person ID'] + '-' + Date.now(),
+      'Person ID': p['Person ID'],
+      'Checked At': new Date().toISOString(),
+      'Department': p['Destination Department'] || '',
+      'PPE Confirmed Now': wearing,
+      'Result': wearing==='No' ? 'Fail' : 'Pass',
+      'Checked By': _me,
+      'Escalated': 'No',
+      'Escalated Violation Ref': '',
+      'Record Status': 'Active'
+    };
+    postJSON('create', {tab: VC_SPOTCHECKS}, spotRec).then(function(){
+      var cleared = wearing === 'Yes';
+      return writeGateLog(p, cleared ? 'Cleared' : 'Not Cleared').then(function(){
+        var r = document.getElementById('pm-gate-result');
+        r.innerHTML = cleared
+          ? '<div class="pm-banner pm-banner-grn">✓ Entry logged — ' + esc(_me) + ' at ' + esc(nowTimeStr()) + '.</div>'
+          : '<div class="pm-banner pm-banner-red">Not wearing required PPE — entry NOT cleared. Logged as an attempt.</div>';
+      });
+    });
+  }
+
+  function logGateAttempt(cleared){
+    writeGateLog(_gateActivePerson, cleared ? 'Cleared' : 'Not Cleared').then(function(){
+      var r = document.getElementById('pm-gate-result');
+      r.innerHTML = '<div class="pm-banner pm-banner-red">Logged as Not Cleared — ' + esc(_me) + ' at ' + esc(nowTimeStr()) + '.</div>';
+    });
+  }
+
+  /* ──────────────────────────── Patrol view ──────────────────────────── */
+  function renderPatrol(){
+    var overdue = patrolOverdue();
+    var last = lastPatrolInfo();
+    root.innerHTML = backBtn() + '<div class="pm-list-title">🚶 Patrol Tour</div>'
+      + (overdue ? '<div class="pm-banner pm-banner-red"><b>⏰ Overdue by ' + overdue.hours.toFixed(1) + 'h</b></div>' : '')
+      + '<div class="pm-card">' + (last
+          ? '<div class="pm-card-meta"><b>Last round:</b> ' + esc(last.rec['Patrol Time']||'') + ' on ' + esc(last.rec['Date']||'') + ' — ' + esc(last.rec['Area / Route Covered']||'') + '<br><b>Result:</b> ' + esc(last.rec['Overall Result']||'') + '</div>'
+          : '<div class="pm-card-meta">No patrol logged yet.</div>')
+        + '</div>'
+      + '<button type="button" class="pm-home-btn pm-primary" onclick="SH.openPatrolForm()"><span class="pm-icon">➕</span><div><div class="pm-label">New Patrol Round</div><div class="pm-count">Every ' + PATROL_INTERVAL_HOURS + ' hours</div></div></button>';
+  }
+
+  function openPatrolForm(){
+    var state = { area:'', shift:'Day', items:{}, carRequired:'No', carDetails:'', targetDate:'', remarks:'' };
+    var step = 0;
+    function esc_(s){ return esc(s); }
+    function stepHeader(){
+      return '<div class="pm-field"><label>Shift</label><select id="pm-pt-shift"><option value="Day"' + (state.shift==='Day'?' selected':'') + '>Day</option><option value="Night"' + (state.shift==='Night'?' selected':'') + '>Night</option></select></div>'
+        + '<div class="pm-field"><label>Area / Route Covered</label><input type="text" id="pm-pt-area" value="' + esc_(state.area) + '" placeholder="e.g. Perimeter North, Fuel Yard"></div>';
+    }
+    function stepItems(){
+      return PATROL_ITEMS.map(function(it,i){
+        var v = state.items[i] || '';
+        var escBtns = (v === 'No') ? ('<div class="pm-esc-row"><button type="button" class="pm-esc-btn pm-esc-v" data-i="'+i+'" id="pm-pt-escv-'+i+'">⚠ Violation</button><button type="button" class="pm-esc-btn pm-esc-a" data-i="'+i+'" id="pm-pt-esca-'+i+'">📋 Action</button></div>') : '';
+        return '<div class="pm-item-row"><label class="pm-item-label">' + esc_(it) + '</label>'
+          + '<select data-i="'+i+'" class="pm-pt-item"><option value=""></option>'
+          + ['Yes','No','N/A'].map(function(o){ return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+o+'</option>'; }).join('')
+          + '</select></div>' + escBtns;
+      }).join('');
+    }
+    function stepTail(){
+      var anyNo = Object.keys(state.items).some(function(k){ return state.items[k]==='No'; });
+      return '<div class="pm-field"><label>Corrective Action Required</label><select id="pm-pt-car"><option value="No"' + (state.carRequired==='No'?' selected':'') + '>No</option><option value="Yes"' + (state.carRequired==='Yes'?' selected':'') + '>Yes</option></select></div>'
+        + '<div class="pm-field"><label>Corrective Action Details</label><textarea id="pm-pt-cardetails">' + esc_(state.carDetails) + '</textarea></div>'
+        + '<div class="pm-field"><label>Target Close Date</label><input type="date" id="pm-pt-target" value="' + esc_(state.targetDate) + '"></div>'
+        + '<div class="pm-field"><label>Remarks</label><textarea id="pm-pt-remarks">' + esc_(state.remarks) + '</textarea></div>'
+        + (anyNo ? '<div class="pm-sub" style="color:var(--pdw-amb)">This round will save as Unsatisfactory.</div>' : '');
+    }
+    function renderModal(){
+      var root2 = document.getElementById('pm-modal-root');
+      var body = step===0 ? stepHeader() : step===1 ? stepItems() : stepTail();
+      root2.innerHTML = '<div class="pm-modal-bg"><div class="pm-modal">'
+        + '<h3>New Patrol Round</h3>'
+        + '<div class="pm-step-dots">' + [0,1,2].map(function(i){ return '<div class="pm-dot' + (i===step?' pm-active':'') + '"></div>'; }).join('') + '</div>'
+        + body
+        + '<div id="pm-pt-err" class="pm-err"></div>'
+        + '<div class="pm-step-nav">'
+        + (step>0 ? '<button type="button" class="pm-btn-back" id="pm-pt-back">Back</button>' : '<button type="button" class="pm-btn-back" id="pm-pt-cancel">Cancel</button>')
+        + '<button type="button" class="pm-btn-next" id="pm-pt-next">' + (step<2 ? 'Next' : 'Save') + '</button>'
+        + '</div></div></div>';
+      if (step===0){
+        document.getElementById('pm-pt-shift').onchange = function(){ state.shift = this.value; };
+        document.getElementById('pm-pt-area').oninput = function(){ state.area = this.value; };
+      }
+      if (step===1){
+        document.querySelectorAll('.pm-pt-item').forEach(function(sel){
+          sel.onchange = function(){ state.items[this.getAttribute('data-i')] = this.value; renderModal(); };
+        });
+        PATROL_ITEMS.forEach(function(it, i){
+          var vBtn = document.getElementById('pm-pt-escv-'+i), aBtn = document.getElementById('pm-pt-esca-'+i);
+          if (vBtn) vBtn.onclick = function(){ escalateToViolation(state.area, it); };
+          if (aBtn) aBtn.onclick = function(){ escalateToAction(state.area, it); };
+        });
+      }
+      if (step===2){
+        document.getElementById('pm-pt-car').onchange = function(){ state.carRequired = this.value; };
+        document.getElementById('pm-pt-cardetails').oninput = function(){ state.carDetails = this.value; };
+        document.getElementById('pm-pt-target').onchange = function(){ state.targetDate = this.value; };
+        document.getElementById('pm-pt-remarks').oninput = function(){ state.remarks = this.value; };
+      }
+      var cancelBtn = document.getElementById('pm-pt-cancel'); if (cancelBtn) cancelBtn.onclick = function(){ root2.innerHTML=''; };
+      var backBtn2 = document.getElementById('pm-pt-back'); if (backBtn2) backBtn2.onclick = function(){ step--; renderModal(); };
+      document.getElementById('pm-pt-next').onclick = function(){
+        var err = document.getElementById('pm-pt-err');
+        if (step===0 && !state.area.trim()){ err.textContent = 'Area / Route Covered is required.'; return; }
+        if (step===1){
+          var missing = PATROL_ITEMS.filter(function(_,i){ return !state.items[i]; });
+          if (missing.length){ err.textContent = 'Answer every item before continuing.'; return; }
+        }
+        if (step<2){ step++; renderModal(); return; }
+        // Save
+        if (state.carRequired==='Yes' && !state.carDetails.trim()){ err.textContent = 'Describe the corrective action needed.'; return; }
+        savePatrol(state);
+      };
+    }
+    renderModal();
+  }
+
+  function nextPatrolId(){
+    var max = 0;
+    _patrolRows.forEach(function(r){
+      var m = /^SPL-(\d+)$/.exec(String(r['Patrol ID']||''));
+      if (m) max = Math.max(max, parseInt(m[1],10));
+    });
+    return PATROL_ID_PREFIX + '-' + String(max+1).padStart(4,'0');
+  }
+
+  function savePatrol(state){
+    var anyNo = Object.keys(state.items).some(function(k){ return state.items[k]==='No'; });
+    var values = {
+      'Patrol ID': nextPatrolId(), 'Date': todayStr(), 'Shift': state.shift, 'Patrol Time': nowTimeStr(),
+      'Area / Route Covered': state.area, 'Guard Name': _me,
+      'Overall Result': anyNo ? PATROL_FAIL : PATROL_PASS,
+      'Corrective Action Required': state.carRequired, 'Corrective Action Details': state.carDetails,
+      'Target Close Date': state.targetDate, 'Reported By': _me, 'Remarks': state.remarks,
+      'Status': state.carRequired==='Yes' ? 'Open' : 'Closed', 'Record Status':'Active'
+    };
+    PATROL_ITEMS.forEach(function(it,i){ values[it] = state.items[i]; });
+    postJSON('write', {tab: PATROL_TAB}, [values]).then(function(res){
+      if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); return; }
+      document.getElementById('pm-modal-root').innerHTML = '';
+      loadAll(function(){ renderPatrol(); });
+    }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+  }
+
+  // Rev.1 — same deep-link pattern visitor-induction.html's own spot
+  // check escalation already uses into violation-register.html; added
+  // 'patrol' there as a second accepted source (see that file's own
+  // handleViolationDeepLink).
+  function escalateToViolation(area, itemText){
+    var now = new Date();
+    var params = new URLSearchParams({
+      source: 'patrol', department: area || '', date: todayStr(),
+      time: String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'),
+      checkedBy: _me || '', note: 'Security patrol finding: ' + itemText
+    });
+    window.open('violation-register.html?' + params.toString(), '_blank');
+  }
+  // Rev.2 (Issam, voice, 2026-11-24) — same sessionStorage-plus-URL
+  // hand-off pattern every other register's own "Escalate to Action"
+  // button already uses into capa-wizard.js (see that file's new
+  // openFromPatrol() and its fromPatrol dispatcher). The patrol round
+  // itself may not be saved yet (items are answered before Save), so
+  // this uses the next Patrol ID as the reference rather than waiting
+  // for an existing row.
+  function escalateToAction(area, itemText){
+    var patrolId = nextPatrolId();
+    var ctx = {
+      patrolId: patrolId,
+      description: 'Security Patrol finding (' + (area || 'area not yet entered') + '): ' + itemText,
+      date: todayStr()
+    };
+    try { sessionStorage.setItem('incomingPatrolContext', JSON.stringify(ctx)); } catch(e){ /* not fatal */ }
+    window.open('action-register.html?fromPatrol=' + encodeURIComponent(patrolId) + '&lane=ACT', '_blank');
+  }
+
+  /* ───────────────────────────── Fuel view ───────────────────────────── */
+  function renderFuel(){
+    root.innerHTML = backBtn() + '<div class="pm-list-title">⛽ Fuel Reception Checklist</div>'
+      + '<div class="pm-card"><div class="pm-card-meta">Mobile version of the Fuel Delivery (Diesel/HFO) Spill Prevention checklist. Saves to the same register as the desktop page.</div></div>'
+      + '<button type="button" class="pm-home-btn pm-primary" onclick="SH.openFuelForm()"><span class="pm-icon">➕</span><div><div class="pm-label">New Fuel Delivery Checklist</div></div></button>';
+  }
+
+  function openFuelForm(){
+    var state = { date:todayStr(), fuel:'Diesel', tanker:'', supplier:'', driver:'', attendant:_me, supervisor:'',
+      items:{}, spill:'No', spillQty:'', spillCause:'', spillReach:'', remarks:'' };
+    var step = 0; // 0 header, 1 Pre, 2 During, 3 Post + spill, 4 review
+    var TOTAL_STEPS = 5;
+    function itemKey(sectionKey, i){ return sectionKey + '-' + i; }
+    function renderModal(){
+      var root2 = document.getElementById('pm-modal-root');
+      var body = '';
+      if (step === 0){
+        body = '<div class="pm-field"><label>Date</label><input type="date" id="pm-fd-date" value="' + esc(state.date) + '"></div>'
+          + '<div class="pm-field"><label>Fuel Type</label><select id="pm-fd-fuel">' + FUEL_TYPES.map(function(t){ return '<option value="'+t+'"'+(t===state.fuel?' selected':'')+'>'+t+'</option>'; }).join('') + '</select></div>'
+          + '<div class="pm-field"><label>Tanker / Vehicle No.</label><input type="text" id="pm-fd-tanker" value="' + esc(state.tanker) + '"></div>'
+          + '<div class="pm-field"><label>Supplier</label><input type="text" id="pm-fd-supplier" value="' + esc(state.supplier) + '"></div>'
+          + '<div class="pm-field"><label>Driver Name</label><input type="text" id="pm-fd-driver" value="' + esc(state.driver) + '"></div>'
+          + '<div class="pm-field"><label>Receiving Attendant</label><input type="text" id="pm-fd-attendant" value="' + esc(state.attendant) + '"></div>'
+          + '<div class="pm-field"><label>Supervisor on Site</label><input type="text" id="pm-fd-supervisor" value="' + esc(state.supervisor) + '"></div>';
+      } else if (step >= 1 && step <= 3){
+        var section = FUEL_SECTIONS[step-1];
+        body = '<div class="pm-sec-hd">' + section.label + '</div>' + section.items.map(function(it,i){
+          var k = itemKey(section.key, i), v = state.items[k] || '';
+          return '<div class="pm-item-row"><label class="pm-item-label">' + esc(it) + '</label>'
+            + '<select data-k="'+k+'" class="pm-fd-item"><option value=""></option>'
+            + ['Yes','No','N/A'].map(function(o){ return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+o+'</option>'; }).join('')
+            + '</select></div>';
+        }).join('');
+        if (step === 3){
+          var spillYes = state.spill === 'Yes';
+          body += '<div class="pm-sec-hd">Spill Occurrence</div>'
+            + '<div class="pm-field"><label>Spill Occurred?</label><select id="pm-fd-spill"><option value="No"'+(!spillYes?' selected':'')+'>No</option><option value="Yes"'+(spillYes?' selected':'')+'>Yes</option></select></div>'
+            + '<div class="pm-field"><label>Estimated Quantity Spilled</label><input type="text" id="pm-fd-spillqty" value="' + esc(state.spillQty) + '"></div>'
+            + '<div class="pm-field"><label>Cause (brief)</label><input type="text" id="pm-fd-spillcause" value="' + esc(state.spillCause) + '"></div>'
+            + '<div class="pm-field"><label>Reached Drain / Soil / Water?</label><input type="text" id="pm-fd-spillreach" value="' + esc(state.spillReach) + '"></div>'
+            + '<div class="pm-field"><label>Remarks</label><textarea id="pm-fd-remarks">' + esc(state.remarks) + '</textarea></div>';
+        }
+      } else {
+        var anyNo = Object.keys(state.items).some(function(k){ return state.items[k]==='No'; });
+        body = '<div class="pm-card-meta"><b>Date:</b> ' + esc(state.date) + ' &nbsp; <b>Fuel:</b> ' + esc(state.fuel) + '<br>'
+          + '<b>Tanker:</b> ' + esc(state.tanker) + ' &nbsp; <b>Supplier:</b> ' + esc(state.supplier) + '<br>'
+          + '<b>Spill Occurred:</b> ' + esc(state.spill) + '</div>'
+          + (anyNo ? '<div class="pm-sub" style="color:var(--pdw-amb);margin-top:8px">One or more checklist items are marked No — review before saving.</div>' : '');
+      }
+      root2.innerHTML = '<div class="pm-modal-bg"><div class="pm-modal">'
+        + '<h3>New Fuel Delivery Record</h3>'
+        + '<div class="pm-step-dots">' + [0,1,2,3,4].map(function(i){ return '<div class="pm-dot' + (i===step?' pm-active':'') + '"></div>'; }).join('') + '</div>'
+        + body + '<div id="pm-fd-err" class="pm-err"></div>'
+        + '<div class="pm-step-nav">'
+        + (step>0 ? '<button type="button" class="pm-btn-back" id="pm-fd-back">Back</button>' : '<button type="button" class="pm-btn-back" id="pm-fd-cancel">Cancel</button>')
+        + '<button type="button" class="pm-btn-next" id="pm-fd-next">' + (step<TOTAL_STEPS-1 ? 'Next' : 'Save') + '</button>'
+        + '</div></div></div>';
+      if (step===0){
+        document.getElementById('pm-fd-date').onchange = function(){ state.date = this.value; };
+        document.getElementById('pm-fd-fuel').onchange = function(){ state.fuel = this.value; };
+        document.getElementById('pm-fd-tanker').oninput = function(){ state.tanker = this.value; };
+        document.getElementById('pm-fd-supplier').oninput = function(){ state.supplier = this.value; };
+        document.getElementById('pm-fd-driver').oninput = function(){ state.driver = this.value; };
+        document.getElementById('pm-fd-attendant').oninput = function(){ state.attendant = this.value; };
+        document.getElementById('pm-fd-supervisor').oninput = function(){ state.supervisor = this.value; };
+      } else if (step>=1 && step<=3){
+        document.querySelectorAll('.pm-fd-item').forEach(function(sel){ sel.onchange = function(){ state.items[this.getAttribute('data-k')] = this.value; }; });
+        if (step===3){
+          document.getElementById('pm-fd-spill').onchange = function(){ state.spill = this.value; };
+          document.getElementById('pm-fd-spillqty').oninput = function(){ state.spillQty = this.value; };
+          document.getElementById('pm-fd-spillcause').oninput = function(){ state.spillCause = this.value; };
+          document.getElementById('pm-fd-spillreach').oninput = function(){ state.spillReach = this.value; };
+          document.getElementById('pm-fd-remarks').oninput = function(){ state.remarks = this.value; };
+        }
+      }
+      var cancelBtn = document.getElementById('pm-fd-cancel'); if (cancelBtn) cancelBtn.onclick = function(){ root2.innerHTML=''; };
+      var backBtn2 = document.getElementById('pm-fd-back'); if (backBtn2) backBtn2.onclick = function(){ step--; renderModal(); };
+      document.getElementById('pm-fd-next').onclick = function(){
+        var err = document.getElementById('pm-fd-err'); err.textContent='';
+        if (step===0 && !state.tanker.trim()){ err.textContent = 'Tanker / Vehicle No. is required.'; return; }
+        if (step>=1 && step<=3){
+          var section = FUEL_SECTIONS[step-1];
+          var missing = section.items.filter(function(_,i){ return !state.items[itemKey(section.key,i)]; });
+          if (missing.length){ err.textContent = 'Answer every item before continuing.'; return; }
+        }
+        if (step < TOTAL_STEPS-1){ step++; renderModal(); return; }
+        saveFuel(state);
+      };
+    }
+    renderModal();
+  }
+
+  function saveFuel(state){
+    var rec = {
+      'Date': state.date, 'Fuel Type': state.fuel, 'Tanker/Vehicle No.': state.tanker, 'Supplier': state.supplier,
+      'Driver Name': state.driver, 'Receiving Attendant': state.attendant, 'Supervisor on Site': state.supervisor,
+      'Spill Occurred': state.spill, 'Spill Quantity': state.spillQty, 'Spill Cause': state.spillCause,
+      'Reached Drain/Soil/Water': state.spillReach, 'Remarks': state.remarks, 'Record Status':'Active'
+    };
+    FUEL_SECTIONS.forEach(function(section){
+      section.items.forEach(function(_,i){
+        var k = section.key + '-' + i;
+        rec[section.key + '-' + (i+1)] = state.items[k] || '';
+      });
+    });
+    postJSON('create', {tab: FUEL_TAB}, rec).then(function(res){
+      if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); return; }
+      document.getElementById('pm-modal-root').innerHTML = '';
+      go('fuel');
+    }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+  }
+
+  window.SH = {
+    go: go, startScan: startScan, lookupGate: lookupGate, confirmGateEntry: confirmGateEntry, logGateAttempt: logGateAttempt,
+    openPatrolForm: openPatrolForm, openFuelForm: openFuelForm
+  };
+
+  function allowed(s){ return !!s; }
+  function blockPage(){
+    root.innerHTML = '<div style="text-align:center;padding:60px 20px">'
+      + '<div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
+      + '<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:300px;margin:0 auto 18px">Please sign in to use the Security Operations Hub.</div>'
+      + '<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div>';
+  }
+  if (typeof IMS_AUTH === 'undefined'){ blockPage(); }
+  else {
+    IMS_AUTH.init({ onReady: function(session){
+      if (!allowed(session)){ blockPage(); return; }
+      _me = (IMS_AUTH.getCurrentUserName && IMS_AUTH.getCurrentUserName()) || '';
+      loadAll(function(){ render(); });
+    }});
+  }
+})();
+</script>
+</body>
+</html>
