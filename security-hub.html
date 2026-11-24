@@ -993,10 +993,28 @@
             'Record Status': 'Active'
           };
           return postJSON('create', {tab: OBS_PATROL_TAB}, rec).then(function(){
+            // Rev.2 (Issam, voice, 2026-11-24) — "whatever's enclosed
+            // [photos/document] should even be enclosed on the email,
+            // not only on the Observation Register": the SAME compressed
+            // file data already sent to Drive above goes a second time
+            // here, as base64, so google-apps-script.js can attach the
+            // real files to the email instead of only linking them —
+            // see that file's own sendUrgentObservationAlert for the
+            // size guard (it falls back to these links when something
+            // is too large to attach).
             if (o.urgent){
               return postJSON('sendUrgentObservationAlert', {}, {
                 caseId: caseId, reportedBy: _me, area: state.area, date: dateStr, time: timeStr,
-                description: o.description, hasPhotos: photoLinks.length > 0
+                description: o.description,
+                photos: o.photos.map(function(p){
+                  var comma = p.dataUrl.indexOf(',');
+                  return { fileName: p.name, mimeType: p.mime, base64Data: comma>=0 ? p.dataUrl.slice(comma+1) : p.dataUrl };
+                }),
+                document: o.docFile ? (function(){
+                  var comma = o.docFile.dataUrl.indexOf(',');
+                  return { fileName: o.docFile.name, mimeType: o.docFile.mime, base64Data: comma>=0 ? o.docFile.dataUrl.slice(comma+1) : o.docFile.dataUrl };
+                })() : null,
+                photoLinks: photoLinks, documentLink: docLink
               }).catch(function(e){ console.log('Urgent observation alert failed to send:', e); });
             }
           });
