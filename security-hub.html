@@ -139,6 +139,19 @@
   // within the past week, he's marked PPE issued" (Issam, voice).
   var PPE_ISSUED_WINDOW_DAYS = 7;
   var PATROL_INTERVAL_HOURS = 2;
+  // Rev.1 (Issam, voice, 2026-11-24) — "the area should not be a free
+  // field… we have three buildings: Unit 1&4, Unit 5&6, and the ACL
+  // area, and the reminder should be based on these areas". Fixed list,
+  // same three strings written to 'Area / Route Covered' as before
+  // (so the desktop register's own free-text field still reads them
+  // fine) — but every overdue check now runs PER AREA instead of
+  // once for the whole site. MUST match PATROL_AREAS in
+  // google-apps-script.js exactly, string for string — that file
+  // does its own per-area overdue scan server-side and has no way to
+  // know this list changed.
+  var PATROL_AREAS = ['Unit 1&4', 'Unit 5&6', 'ACL Area'];
+  var PATROL_AREAS_AR = { 'Unit 1&4':'الوحدة 1 و4', 'Unit 5&6':'الوحدة 5 و6', 'ACL Area':'منطقة ACL' };
+  function areaLabel_(area){ return (_lang==='ar' && PATROL_AREAS_AR[area]) ? PATROL_AREAS_AR[area] : area; }
 
   /* ───────────── Rev.1 (Issam, voice, 2026-11-24) — bilingual UI ─────────────
      "the security hub should be fully Arabic and English". A language
@@ -210,9 +223,12 @@
     resultWord:   { en:'Result:', ar:'النتيجة:' },
     newPatrolRound: { en:'New Patrol Round', ar:'جولة دورية جديدة' },
     dateTimeAuto: { en:'Date & Time (recorded automatically at Save)', ar:'التاريخ والوقت (يُسجَّل تلقائيًا عند الحفظ)' },
-    areaLabel:    { en:'Area / Route Covered', ar:'المنطقة / المسار المغطى' },
-    areaPlaceholder: { en:'e.g. Perimeter North, Fuel Yard', ar:'مثال: السياج الشمالي، ساحة الوقود' },
-    areaRequired: { en:'Area / Route Covered is required.', ar:'المنطقة / المسار المغطى مطلوب.' },
+    areaLabel:    { en:'Area', ar:'المنطقة' },
+    areaSelectPlaceholder: { en:'— Select Area —', ar:'— اختر المنطقة —' },
+    areaRequired: { en:'Select an area.', ar:'اختر منطقة.' },
+    areasOverdueSuffix: { en:'area(s) overdue', ar:'منطقة (مناطق) متأخرة' },
+    allAreasCovered: { en:'All areas covered', ar:'جميع المناطق مُغطاة' },
+    ofWord:       { en:'of', ar:'من' },
     answerAllItems: { en:'Answer every item before continuing.', ar:'أجب عن جميع البنود قبل المتابعة.' },
     remarks:      { en:'Remarks', ar:'ملاحظات' },
     saveFailed:   { en:'Save failed:', ar:'فشل الحفظ:' },
@@ -439,9 +455,15 @@
   }
 
   /* ───────────────────────────── Hub view ────────────────────────────── */
-  function lastPatrolInfo(){
-    if (!_patrolRows.length) return null;
-    var withTs = _patrolRows.map(function(r){
+  // Rev.2 (Issam, voice, 2026-11-24) — "sometimes one location is
+  // covered properly and the other not… the reminder should be based
+  // on the area": every one of these now takes an area and looks only
+  // at that area's own rounds, instead of the whole site's last round
+  // hiding a missed one elsewhere.
+  function lastPatrolInfoForArea(area){
+    var rows = _patrolRows.filter(function(r){ return String(r['Area / Route Covered']||'').trim() === area; });
+    if (!rows.length) return null;
+    var withTs = rows.map(function(r){
       var ts = new Date((r['Date']||todayStr()) + 'T' + ((r['Patrol Time']||'00:00').length===5 ? r['Patrol Time'] : '00:00') + ':00');
       return { rec:r, ts:ts };
     }).filter(function(x){ return !isNaN(x.ts.getTime()); });
@@ -449,11 +471,18 @@
     withTs.sort(function(a,b){ return b.ts - a.ts; });
     return withTs[0];
   }
-  function patrolOverdue(){
-    var last = lastPatrolInfo();
+  function patrolOverdueForArea(area){
+    var last = lastPatrolInfoForArea(area);
     if (!last) return null;
     var hours = (Date.now() - last.ts.getTime()) / 3600000;
     return hours > PATROL_INTERVAL_HOURS ? { hours: hours, last: last.rec } : null;
+  }
+  // One entry per PATROL_AREAS, each {area, last, overdue} — the single
+  // place every per-area view below reads from.
+  function areaStatuses(){
+    return PATROL_AREAS.map(function(area){
+      return { area: area, last: lastPatrolInfoForArea(area), overdue: patrolOverdueForArea(area) };
+    });
   }
   // Rev.2 (Issam, voice, 2026-11-24) — now returns {name, email} pairs,
   // not just names, so the overdue alert below has an address to mail.
@@ -486,19 +515,21 @@
   // could re-send the same email"). This page no longer sends the
   // email itself — it only shows the same information in the banner.
   function renderHub(){
-    var overdue = patrolOverdue();
+    var statuses = areaStatuses();
+    var overdueOnes = statuses.filter(function(s){ return s.overdue; });
     var banner = '';
-    if (overdue){
+    if (overdueOnes.length){
       var controllers = safetyControllerNames();
       banner = '<div class="pm-banner pm-banner-red">'
-        + '<b>⏰ ' + t('overdueByH') + ' ' + overdue.hours.toFixed(1) + 'h</b> — ' + t('lastRoundWas') + ' ' + esc(overdue.last['Patrol Time']||'') + ' ' + t('onWord') + ' ' + esc(overdue.last['Date']||'') + '.'
+        + overdueOnes.map(function(s){
+            return '<div' + (overdueOnes.length>1 ? ' style="margin-bottom:6px"' : '') + '><b>⏰ ' + esc(areaLabel_(s.area)) + ' — ' + t('overdueByH') + ' ' + s.overdue.hours.toFixed(1) + 'h</b> — ' + t('lastRoundWas') + ' ' + esc(s.overdue.last['Patrol Time']||'') + ' ' + t('onWord') + ' ' + esc(s.overdue.last['Date']||'') + '.</div>';
+          }).join('')
         + (controllers.length ? '<div style="margin-top:6px">' + t('controllersAlerted') + ' ' + esc(controllers.join(', ')) + '</div>' : '<div style="margin-top:6px">' + t('noControllers') + '</div>')
         + '</div>';
     }
-    var last = lastPatrolInfo();
-    var patrolSub = overdue ? '⏰ ' + t('overdueByH') + ' ' + overdue.hours.toFixed(1) + 'h'
-      : last ? t('lastRound') + ' ' + esc(last.rec['Patrol Time']||'') + ' · ' + esc(last.rec['Date']||'')
-      : t('noPatrolYet');
+    var patrolSub = overdueOnes.length
+      ? overdueOnes.length + ' ' + t('ofWord') + ' ' + PATROL_AREAS.length + ' ' + t('areasOverdueSuffix')
+      : t('allAreasCovered');
     root.innerHTML = '<div class="pm-header"><div><h1>' + t('title') + '</h1><div class="pm-sub">' + t('subtitle') + '</div></div>'
       + '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">'
       + '<button type="button" class="pm-lang-btn" onclick="SH.toggleLang()">' + langToggleLabel() + '</button>'
@@ -660,15 +691,21 @@
   }
 
   /* ──────────────────────────── Patrol view ──────────────────────────── */
+  // Rev.2 — one card per fixed area instead of a single site-wide
+  // summary, so a good round in Unit 5&6 never hides ACL Area going
+  // unchecked.
   function renderPatrol(){
-    var overdue = patrolOverdue();
-    var last = lastPatrolInfo();
+    var statuses = areaStatuses();
+    var cardsHtml = statuses.map(function(s){
+      var body = s.overdue
+        ? '<b style="color:var(--pdw-red)">⏰ ' + t('overdueByH') + ' ' + s.overdue.hours.toFixed(1) + 'h</b>'
+        : s.last
+          ? '<b>' + t('lastRound') + '</b> ' + esc(s.last.rec['Patrol Time']||'') + ' ' + t('onWord') + ' ' + esc(s.last.rec['Date']||'') + '<br><b>' + t('resultWord') + '</b> ' + esc(s.last.rec['Overall Result']||'')
+          : t('noPatrolYet');
+      return '<div class="pm-card"><div class="pm-card-meta"><b style="color:var(--pdw-gold-lt)">' + esc(areaLabel_(s.area)) + '</b><br>' + body + '</div></div>';
+    }).join('');
     root.innerHTML = backBtn() + '<div class="pm-list-title">🚶 ' + t('patrolTile') + '</div>'
-      + (overdue ? '<div class="pm-banner pm-banner-red"><b>⏰ ' + t('overdueByH') + ' ' + overdue.hours.toFixed(1) + 'h</b></div>' : '')
-      + '<div class="pm-card">' + (last
-          ? '<div class="pm-card-meta"><b>' + t('lastRound') + '</b> ' + esc(last.rec['Patrol Time']||'') + ' ' + t('onWord') + ' ' + esc(last.rec['Date']||'') + ' — ' + esc(last.rec['Area / Route Covered']||'') + '<br><b>' + t('resultWord') + '</b> ' + esc(last.rec['Overall Result']||'') + '</div>'
-          : '<div class="pm-card-meta">' + t('noPatrolYet') + '.</div>')
-        + '</div>'
+      + cardsHtml
       + '<button type="button" class="pm-home-btn pm-primary" onclick="SH.openPatrolForm()"><span class="pm-icon">➕</span><div><div class="pm-label">' + t('newPatrolRound') + '</div><div class="pm-count">' + t('everyNHours') + ' ' + PATROL_INTERVAL_HOURS + ' ' + t('hoursWord') + '</div></div></button>';
   }
 
@@ -764,7 +801,10 @@
       return '<div class="pm-field"><label>' + t('dateTimeAuto') + '</label>'
         + '<div class="pm-idbox" style="text-align:' + (_lang==='ar'?'right':'left') + ';padding:10px 12px">'
         + '<div class="pm-idval" style="font-size:16px;letter-spacing:0">' + esc_(liveDate) + ' · ' + esc_(liveTime) + '</div></div></div>'
-        + '<div class="pm-field"><label>' + t('areaLabel') + '</label><input type="text" id="pm-pt-area" value="' + esc_(state.area) + '" placeholder="' + t('areaPlaceholder') + '"></div>';
+        + '<div class="pm-field"><label>' + t('areaLabel') + '</label><select id="pm-pt-area">'
+        + '<option value="">' + t('areaSelectPlaceholder') + '</option>'
+        + PATROL_AREAS.map(function(a){ return '<option value="'+esc_(a)+'"'+(a===state.area?' selected':'')+'>'+esc_(areaLabel_(a))+'</option>'; }).join('')
+        + '</select></div>';
     }
     function stepItems(){
       return PATROL_ITEMS.map(function(it,i){
@@ -821,7 +861,7 @@
           : '')
         + '</div></div>';
       if (step===0){
-        document.getElementById('pm-pt-area').oninput = function(){ state.area = this.value; };
+        document.getElementById('pm-pt-area').onchange = function(){ state.area = this.value; };
       }
       if (step===1){
         document.querySelectorAll('.pm-pt-item').forEach(function(sel){

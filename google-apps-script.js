@@ -2841,8 +2841,18 @@ function sendOverduePatrolAlert(data) {
    alongside the existing CAPA ones, every 30 minutes, so a 2-hour
    threshold is never missed by more than half an hour). */
 var PATROL_INTERVAL_HOURS = 2;
-var PATROL_ALERT_PROP_BASELINE = 'patrolAlertBaseline';
-var PATROL_ALERT_PROP_STAGE = 'patrolAlertStage';
+// Rev.2 (Issam, voice, 2026-11-24) — "the reminder should be based on
+// the area… we have three buildings: Unit 1&4, Unit 5&6, and the ACL
+// area". MUST match PATROL_AREAS in security-hub.html exactly, string
+// for string — this is how patrol rows are matched to an area here.
+var PATROL_AREAS = ['Unit 1&4', 'Unit 5&6', 'ACL Area'];
+// Rev.2 — one baseline/stage PAIR per area now, not one for the whole
+// site, so a round in one area never resets or silences another's
+// chain. Keyed by a sanitized version of the area name (Properties
+// keys can't safely hold "&" / spaces as freely).
+function patrolAreaSlug_(area){ return String(area).replace(/[^A-Za-z0-9]+/g, '_'); }
+function patrolAlertBaselineKey_(area){ return 'patrolAlertBaseline_' + patrolAreaSlug_(area); }
+function patrolAlertStageKey_(area){ return 'patrolAlertStage_' + patrolAreaSlug_(area); }
 
 // Mirrors security-hub.html's own isSafety() test (role/department/title
 // matching safety|hse|controller, or an admin/superadmin role) — same
@@ -2918,18 +2928,19 @@ function getPatrolManagerEmails_(usersData) {
 // stays only in the hub screens the guards actually use.
 function buildOverduePatrolEmail_(stage, data) {
   var link = data.pageUrl || 'security-hub.html';
-  var subject = stage === 3
-    ? 'SAGCO IMS – Security Patrol Overdue (Final Notice)'
-    : stage === 2 ? 'SAGCO IMS – Security Patrol Overdue (Reminder)'
-    : 'SAGCO IMS – Security Patrol Overdue';
+  var area = data.area || '';
+  var subject = (stage === 3
+    ? 'SAGCO IMS – Security Patrol Overdue (Final Notice) — '
+    : stage === 2 ? 'SAGCO IMS – Security Patrol Overdue (Reminder) — '
+    : 'SAGCO IMS – Security Patrol Overdue — ') + area;
   var body = ''
     + 'Dear Safety Controller' + (stage === 3 ? ' / Manager' : '') + ',\n\n'
-    + (stage === 1 ? 'The next security patrol tour is overdue.\n\n'
-      : stage === 2 ? 'The security patrol tour is STILL overdue (reminder).\n\n'
-      : 'The security patrol tour remains overdue — this is the final automatic notice; no further reminders will follow until a new round is logged.\n\n')
+    + (stage === 1 ? 'The next security patrol tour for ' + area + ' is overdue.\n\n'
+      : stage === 2 ? 'The security patrol tour for ' + area + ' is STILL overdue (reminder).\n\n'
+      : 'The security patrol tour for ' + area + ' remains overdue — this is the final automatic notice for this area; no further reminders will follow until a new round is logged there.\n\n')
+    + 'Area               : ' + area + '\n'
     + 'Last round         : ' + (data.lastPatrolTime || '—') + ' on ' + (data.lastPatrolDate || '—') + '\n'
     + 'Overdue by         : ' + (data.overdueHours || '—') + ' hour(s)\n'
-    + 'Area / Route (last): ' + (data.area || '') + '\n'
     + '\nOpen the Security Operations Hub:\n' + link + '\n\n'
     + 'SAGCO IMS – Security Operations Hub';
   return { subject: subject, body: body };
@@ -2971,12 +2982,15 @@ function sendUrgentObservationAlert(data) {
 }
 
 /* Called every 30 minutes by the trigger installTriggers() creates.
-   Checks the security_patrol tab directly (server-side — no browser
-   needed), works out how many 2-hour stages have been crossed since
-   the last logged round, and sends exactly ONE email per newly
-   crossed stage (never re-sends a stage already sent for the same
-   baseline round). Resets to stage 0 the moment a newer round shows
-   up in the sheet. */
+   Rev.2 (Issam, voice, 2026-11-24) — runs this whole check ONCE PER
+   FIXED AREA now ("sometimes one location is covered properly and the
+   other not… the reminder should be based on the area"), each with
+   its own baseline/stage pair, so a good round in Unit 5&6 never
+   masks ACL Area going unchecked, and vice versa. Everything else is
+   unchanged per area: 2h → first alert, 4h → reminder, 6h → final
+   notice + manager, then quiet until that area's own next round. An
+   area with no round logged yet at all is skipped (nothing to judge
+   "overdue" against), same as the whole-site version used to do. */
 function scanAndNotifyOverduePatrol() {
   try {
     var patrolData = readSheet('security_patrol');
@@ -2985,67 +2999,80 @@ function scanAndNotifyOverduePatrol() {
     var dateIdx = headers.indexOf('Date'), timeIdx = headers.indexOf('Patrol Time'),
         idIdx = headers.indexOf('Patrol ID'), areaIdx = headers.indexOf('Area / Route Covered'),
         statusIdx = headers.indexOf('Record Status');
-    var rows = (patrolData.rows || []).filter(function(r) {
+    if (areaIdx < 0) return;
+    var allRows = (patrolData.rows || []).filter(function(r) {
       return statusIdx < 0 || String(r[statusIdx] || '').trim().toLowerCase() !== 'removed';
     });
-    if (!rows.length) return; // nothing logged yet — nothing to judge "overdue" against
+    if (!allRows.length) return;
 
-    var latest = null, latestTs = null;
-    rows.forEach(function(r) {
-      var d = r[dateIdx], tm = r[timeIdx];
-      if (!d) return;
-      var tStr = (String(tm || '').length === 5) ? tm : '00:00';
-      var ts = new Date(String(d).slice(0, 10) + 'T' + tStr + ':00');
-      if (isNaN(ts.getTime())) return;
-      if (!latestTs || ts > latestTs) { latestTs = ts; latest = r; }
-    });
-    if (!latest) return;
-
-    var lastId = (idIdx >= 0 && latest[idIdx]) ? String(latest[idIdx]) : (String(latest[dateIdx]) + '-' + String(latest[timeIdx]));
-    var hoursSince = (Date.now() - latestTs.getTime()) / 3600000;
-
-    var props = PropertiesService.getScriptProperties();
-    var storedBaseline = props.getProperty(PATROL_ALERT_PROP_BASELINE);
-    var storedStage = parseInt(props.getProperty(PATROL_ALERT_PROP_STAGE) || '0', 10);
-    if (storedBaseline !== lastId) {
-      // A newer round has been logged since we last checked — reset
-      // the chain. This is the auto-stop Issam asked for.
-      storedBaseline = lastId; storedStage = 0;
-      props.setProperty(PATROL_ALERT_PROP_BASELINE, storedBaseline);
-      props.setProperty(PATROL_ALERT_PROP_STAGE, '0');
-    }
-    if (storedStage >= 3) return; // final notice already sent for this round — stay quiet
-
-    var stageReached = Math.min(3, Math.floor(hoursSince / PATROL_INTERVAL_HOURS));
-    if (stageReached <= storedStage) return; // not yet past the next threshold
-
-    var usersData = readSheet('users');
-    var controllers = getSafetyControllerEmails_(usersData);
-    var toList = controllers.map(function(c) { return c.email; });
-    if (stageReached === 3) {
-      getPatrolManagerEmails_(usersData).forEach(function(m) {
-        if (toList.indexOf(m.email) < 0) toList.push(m.email);
+    var usersData = null; // fetched lazily, only once, only if some area actually needs an email
+    PATROL_AREAS.forEach(function(area) {
+      scanAndNotifyOverduePatrolForArea_(area, allRows, { dateIdx: dateIdx, timeIdx: timeIdx, idIdx: idIdx, areaIdx: areaIdx }, function(){
+        if (!usersData) usersData = readSheet('users');
+        return usersData;
       });
-    }
-    if (!toList.length) {
-      Logger.log('scanAndNotifyOverduePatrol: no recipients found — skipping send but advancing stage to avoid re-checking every 30 min.');
-      props.setProperty(PATROL_ALERT_PROP_STAGE, String(stageReached));
-      return;
-    }
-
-    var emailData = {
-      lastPatrolTime: (timeIdx >= 0 ? latest[timeIdx] : '') || '',
-      lastPatrolDate: (dateIdx >= 0 ? latest[dateIdx] : '') || '',
-      overdueHours: hoursSince.toFixed(1),
-      area: (areaIdx >= 0 ? latest[areaIdx] : '') || ''
-    };
-    var mail = buildOverduePatrolEmail_(stageReached, emailData);
-    MailApp.sendEmail({ to: toList.join(','), subject: mail.subject, body: mail.body, name: IMS_FROM_NAME });
-    props.setProperty(PATROL_ALERT_PROP_STAGE, String(stageReached));
-    Logger.log('scanAndNotifyOverduePatrol: stage ' + stageReached + ' sent to ' + toList.join(', '));
+    });
   } catch (err) {
     Logger.log('scanAndNotifyOverduePatrol: THREW — ' + err);
   }
+}
+
+function scanAndNotifyOverduePatrolForArea_(area, allRows, idx, getUsersData) {
+  var rows = allRows.filter(function(r) { return String(r[idx.areaIdx] || '').trim() === area; });
+  if (!rows.length) return; // this area has no rounds logged yet at all
+
+  var latest = null, latestTs = null;
+  rows.forEach(function(r) {
+    var d = r[idx.dateIdx], tm = r[idx.timeIdx];
+    if (!d) return;
+    var tStr = (String(tm || '').length === 5) ? tm : '00:00';
+    var ts = new Date(String(d).slice(0, 10) + 'T' + tStr + ':00');
+    if (isNaN(ts.getTime())) return;
+    if (!latestTs || ts > latestTs) { latestTs = ts; latest = r; }
+  });
+  if (!latest) return;
+
+  var lastId = (idx.idIdx >= 0 && latest[idx.idIdx]) ? String(latest[idx.idIdx]) : (String(latest[idx.dateIdx]) + '-' + String(latest[idx.timeIdx]));
+  var hoursSince = (Date.now() - latestTs.getTime()) / 3600000;
+
+  var props = PropertiesService.getScriptProperties();
+  var baselineKey = patrolAlertBaselineKey_(area), stageKey = patrolAlertStageKey_(area);
+  var storedBaseline = props.getProperty(baselineKey);
+  var storedStage = parseInt(props.getProperty(stageKey) || '0', 10);
+  if (storedBaseline !== lastId) {
+    storedBaseline = lastId; storedStage = 0;
+    props.setProperty(baselineKey, storedBaseline);
+    props.setProperty(stageKey, '0');
+  }
+  if (storedStage >= 3) return; // final notice already sent for this area's round — stay quiet
+
+  var stageReached = Math.min(3, Math.floor(hoursSince / PATROL_INTERVAL_HOURS));
+  if (stageReached <= storedStage) return; // not yet past the next threshold for this area
+
+  var usersData = getUsersData();
+  var controllers = getSafetyControllerEmails_(usersData);
+  var toList = controllers.map(function(c) { return c.email; });
+  if (stageReached === 3) {
+    getPatrolManagerEmails_(usersData).forEach(function(m) {
+      if (toList.indexOf(m.email) < 0) toList.push(m.email);
+    });
+  }
+  if (!toList.length) {
+    Logger.log('scanAndNotifyOverduePatrol [' + area + ']: no recipients found — skipping send but advancing stage to avoid re-checking every 30 min.');
+    props.setProperty(stageKey, String(stageReached));
+    return;
+  }
+
+  var emailData = {
+    lastPatrolTime: (idx.timeIdx >= 0 ? latest[idx.timeIdx] : '') || '',
+    lastPatrolDate: (idx.dateIdx >= 0 ? latest[idx.dateIdx] : '') || '',
+    overdueHours: hoursSince.toFixed(1),
+    area: area
+  };
+  var mail = buildOverduePatrolEmail_(stageReached, emailData);
+  MailApp.sendEmail({ to: toList.join(','), subject: mail.subject, body: mail.body, name: IMS_FROM_NAME });
+  props.setProperty(stageKey, String(stageReached));
+  Logger.log('scanAndNotifyOverduePatrol [' + area + ']: stage ' + stageReached + ' sent to ' + toList.join(', '));
 }
 
 // Rev.29 (Issam, voice, 2026-11-15) — PTW two-step approval chain.
