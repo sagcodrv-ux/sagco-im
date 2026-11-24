@@ -445,6 +445,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
       .catch(function(){ return null; })
       .then(function(data){ return (data && !data.error) ? data : { headers: [], rows: [] }; });
 
+    // Rev.1 (Issam, voice, 2026-11-24) — Security Patrol observations,
+    // same non-blocking pattern: the tab may not exist yet on the live
+    // sheet (it's new — see security-hub.html), so a missing/broken
+    // read just means no patrol-sourced cases show up yet, never a
+    // reason to show the whole page as down.
+    var patrolFetch = fetch(SHEETS_URL + '?action=read&tab=obs_patrol')
+      .then(function(r){ return r.json(); })
+      .catch(function(){ return null; })
+      .then(function(data){ return (data && !data.error) ? data : { headers: [], rows: [] }; });
+
     Promise.all(fetches).then(function(results){
       var byTab = {};
       results.forEach(function(r){ byTab[r.tabKey] = r.data; });
@@ -455,11 +465,12 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         return;
       }
 
-      return Promise.all([escalationsFetch, riskFetch, reviewFetch]).then(function(extras){
-        var escData = extras[0], riskData = extras[1], reviewData = extras[2];
+      return Promise.all([escalationsFetch, riskFetch, reviewFetch, patrolFetch]).then(function(extras){
+        var escData = extras[0], riskData = extras[1], reviewData = extras[2], patrolData = extras[3];
         byTab['obs_risk'] = riskData;
         byTab['obs_escalations'] = escData;
         byTab['obs_review'] = reviewData;
+        byTab['obs_patrol'] = patrolData;
         var fresh = buildRecords(byTab);
         _loaded = true;
         setBanner(liveBannerHtml(), false);
@@ -500,6 +511,16 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
     var rej = byTab['obs_rejection'] || { headers: [], rows: [] };
     var risk = byTab['obs_risk'] || { headers: [], rows: [] };
     var review = byTab['obs_review'] || { headers: [], rows: [] };
+    // Rev.1 (Issam, voice, 2026-11-24) — Security Patrol observations,
+    // a second source alongside the AppSheet obs_main one, read from
+    // the MAIN IMS sheet via the standard action=read (not readObs —
+    // same non-blocking pattern as obs_escalations/obs_review). Built
+    // into the SAME record shape mainRecords uses further below, so
+    // review/escalation (which both key off Case ID only) and every
+    // existing render/filter/KPI function work on these rows without
+    // any of them needing to know a case came from a patrol guard
+    // instead of the shop-floor QR system.
+    var patrol = byTab['obs_patrol'] || { headers: [], rows: [] };
 
     /* obs_review (Issam, 2026-10-09): Accept/Reject + Likelihood/
        Severity evaluation done right here in the portal (see
@@ -762,6 +783,77 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
         'Incident Reference': (escLookup[cid] || {}).incidentRef || '',
         'Action Reference': (escLookup[cid] || {}).actionRef || '',
         'Employee Num': iEmp >= 0 ? normalizeEmployeeNum(r[iEmp]) : '',
+      };
+    }).concat(buildPatrolRecords_(patrol, reviewLookup, escLookup));
+  }
+
+  // Rev.1 (Issam, voice, 2026-11-24) — builds records for patrol-sourced
+  // cases in the exact same shape as the main.rows.map() above, so they
+  // drop into the same table/filters/KPIs/escalation flow untouched.
+  // Native status is always 'Under Review' until a portal decision
+  // (reviewLookup) exists — there is no external AppSheet status to
+  // read here, unlike obs_main. 'Worker Participation Evaluation' is
+  // repurposed to show who reported it (there's no worker self-report
+  // for a patrol case); 'Photo Links'/'Document Link' are carried
+  // through as extra keys (see openPhotoModal) — not part of the
+  // table's own column set, so they don't disturb it.
+  function buildPatrolRecords_(patrol, reviewLookup, escLookup){
+    var pH = patrol.headers || [];
+    var pCid = colIdx(pH,'Case ID'), pDate = colIdx(pH,'Date Reported'), pLoc = colIdx(pH,'Location'),
+        pCat = colIdx(pH,'Category'), pDesc = colIdx(pH,'Description'), pBy = colIdx(pH,'Reported By'),
+        pUrgent = colIdx(pH,'Urgent'), pPhotos = colIdx(pH,'Photo Links'), pDoc = colIdx(pH,'Document Link'),
+        pStatus = colIdx(pH,'Record Status');
+    if (pCid < 0) return [];
+    return (patrol.rows || []).filter(function(r){
+      return pStatus < 0 || String(r[pStatus]||'').trim().toLowerCase() !== 'removed';
+    }).map(function(r){
+      var cid = r[pCid];
+      var reviewInfo = reviewLookup[cid];
+      var isReviewed = !!reviewInfo;
+      var isAccepted = reviewInfo ? reviewInfo.decision === 'Accepted' : false;
+      var isUrgent = pUrgent >= 0 && String(r[pUrgent]||'').trim().toLowerCase() === 'yes';
+      var rawRiskScoreValue = (reviewInfo && reviewInfo.score !== undefined && reviewInfo.score !== null && reviewInfo.score !== '') ? reviewInfo.score : '';
+      var rawRiskLevelValue = (reviewInfo && reviewInfo.level) || scoreToLevel(rawRiskScoreValue);
+      var isRecurrenceKnown = !!reviewInfo;
+      return {
+        'Case ID': cid,
+        'Date Reported': pDate >= 0 ? r[pDate] : '',
+        'Location': pLoc >= 0 ? r[pLoc] : '',
+        'Category': pCat >= 0 ? r[pCat] : 'Security Patrol Observation',
+        'Subcategory': '',
+        'Worker Participation Evaluation': (pBy >= 0 && r[pBy]) ? ('Reported by ' + r[pBy]) : '',
+        'Raw Risk Score': rawRiskScoreValue,
+        'Priority': rawRiskLevelValue,
+        'Description': (isUrgent ? '🚩 URGENT — ' : '') + (pDesc >= 0 ? r[pDesc] : ''),
+        'Status': reviewInfo
+          ? (reviewInfo.decision === 'Accepted' ? 'Evaluated' : reviewInfo.decision === 'Rejected' ? 'Rejected' : 'Under Review')
+          : 'Under Review',
+        'Reviewed': isReviewed ? 'Yes' : 'No',
+        'Accepted': isAccepted ? 'Yes' : 'No',
+        'Recurrence Flagged': isRecurrenceKnown ? 'No' : '',
+        'Raw Risk Level': rawRiskLevelValue,
+        'Has Risk Assessment': isRecurrenceKnown ? 'Yes' : 'No',
+        'Likelihood': reviewInfo ? reviewInfo.likelihood : '',
+        'Likelihood Label': reviewInfo ? reviewInfo.likelihoodLabel : '',
+        'Severity': reviewInfo ? reviewInfo.severity : '',
+        'Severity Label': reviewInfo ? reviewInfo.severityLabel : '',
+        'Decision Comments': reviewInfo ? reviewInfo.comments : '',
+        'Decided By': reviewInfo ? reviewInfo.decidedBy : '',
+        'Decided Date': reviewInfo ? reviewInfo.decidedAt : '',
+        'Needs Attention': isUrgent && !isReviewed ? 'Yes' : 'No',
+        'Escalated': (function(){
+          var o = (escLookup[cid] || {}).outcome || '';
+          return o === 'Closed - No Escalation' ? 'Closed' : o;
+        })(),
+        'Incident Reference': (escLookup[cid] || {}).incidentRef || '',
+        'Action Reference': (escLookup[cid] || {}).actionRef || '',
+        'Employee Num': '',
+        // Extra keys, not part of the shared shape above — read only
+        // by openPhotoModal to tell a patrol-sourced case (direct
+        // Drive links already in hand) from an AppSheet one (fetched
+        // by filename via getObsPhotos).
+        'Photo Links': pPhotos >= 0 ? (r[pPhotos] || '') : '',
+        'Document Link': pDoc >= 0 ? (r[pDoc] || '') : ''
       };
     });
   }
@@ -1652,9 +1744,33 @@ body{overflow-x:hidden;overflow-y:auto;display:block;height:auto;margin:0;font-f
      photo is fetched on demand only for the selected case, not preloaded
      for all 390 rows, since each one comes back as a base64 data URI —
      fine one at a time, far too much to pull for the whole table. */
+  // Rev.1 (Issam, voice, 2026-11-24) — a patrol-sourced case already
+  // carries direct Drive links (webViewLink per photo, uploaded at
+  // save time — see security-hub.html) rather than a filename this
+  // page would need to look up in the AppSheet obs_photo tab, so it
+  // skips loadObsPhoto()'s fetch entirely and just lists the links.
+  // Drive's "view" page doesn't embed as an <img>, so these open in a
+  // new tab rather than showing inline thumbnails the way an AppSheet
+  // case's own photos do.
   function openPhotoModal(caseId){
     _openPhotoCaseId = caseId;
     var root = document.getElementById('obs-modal-root');
+    var rec = DATA.filter(function(r){ return String(r['Case ID']) === String(caseId); })[0];
+    var photoLinks = (rec && rec['Photo Links']) ? String(rec['Photo Links']).split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+    var docLink = rec ? String(rec['Document Link']||'').trim() : '';
+    if (photoLinks.length || docLink){
+      root.innerHTML = '<div class="modal-bg"><div class="modal" style="width:440px">' +
+        '<h3>📷 Photos — '+escHtml(caseId)+'</h3>' +
+        '<div id="obs-photo-grid">' +
+        (photoLinks.length ? photoLinks.map(function(link, i){
+          return '<div style="margin-bottom:8px"><a href="'+escHtml(link)+'" target="_blank" rel="noopener">📷 Photo '+(i+1)+' — Open ↗</a></div>';
+        }).join('') : '<span class="photo-empty">No photo attached to this case</span>') +
+        (docLink ? '<div style="margin-top:6px"><a href="'+escHtml(docLink)+'" target="_blank" rel="noopener">📄 Document — Open ↗</a></div>' : '') +
+        '</div>' +
+        '<div class="modal-actions"><button class="btn modal-close" onclick="OBS.closeModal()">Close</button></div>' +
+      '</div></div>';
+      return;
+    }
     root.innerHTML = '<div class="modal-bg"><div class="modal" style="width:440px">' +
       '<h3>📷 Photos — '+escHtml(caseId)+'</h3>' +
       '<div class="photo-grid" id="obs-photo-grid"><span class="photo-empty">Loading photo…</span></div>' +

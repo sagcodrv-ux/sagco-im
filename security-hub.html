@@ -78,11 +78,9 @@
     border:1px solid var(--pdw-border); border-radius:8px; padding:9px 12px; font-size:12px; margin-bottom:8px}
   .pm-item-row label.pm-item-label{flex:1; font-weight:600}
   .pm-item-row select{width:110px; flex-shrink:0; padding:8px; font-size:12px; border-radius:7px; border:1px solid var(--pdw-border); background:var(--pdw-bg); color:inherit}
-  .pm-esc-row{display:flex; gap:6px; margin:-4px 0 8px}
   .pm-esc-btn{flex:1; padding:7px 8px; border-radius:7px; border:1px solid var(--pdw-border-gold); background:transparent;
     color:var(--pdw-gold-lt); font-size:10.5px; font-weight:700; cursor:pointer; font-family:inherit}
   .pm-esc-btn.pm-esc-v{border-color:var(--pdw-red); color:var(--pdw-red)}
-  .pm-esc-btn.pm-esc-a{border-color:var(--pdw-blue); color:var(--pdw-blue)}
   .pm-sec-hd{font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--pdw-gold-lt);
     margin:14px 0 8px; padding-top:10px; border-top:1px solid var(--pdw-border)}
   .pm-sec-hd:first-child{border-top:none; padding-top:0; margin-top:0}
@@ -101,6 +99,14 @@
   .pm-yn-pick{display:flex; gap:10px}
   .pm-yn-pick label{flex:1; display:flex; align-items:center; gap:6px; padding:11px; border-radius:8px; border:1px solid var(--pdw-border);
     background:var(--pdw-bg3); font-size:13px; cursor:pointer}
+  /* Rev.1 (Issam, voice, 2026-11-24) — "fully Arabic and English":
+     [dir=rtl] is set on <html> by setLang(); flex rows (display:flex,
+     flex-direction defaults to row) mirror automatically under RTL,
+     and text-align's initial value is "start" so it mirrors too —
+     the one explicit text-align:left above is the sole exception. */
+  [dir="rtl"] .pm-home-btn{ text-align:right }
+  .pm-lang-btn{ background:var(--pdw-bg2); border:1px solid var(--pdw-border-gold); color:var(--pdw-gold-lt);
+    font-size:11px; font-weight:700; padding:6px 10px; border-radius:6px; cursor:pointer; font-family:inherit; white-space:nowrap}
 </style>
 </head>
 <body>
@@ -118,6 +124,14 @@
   // request. Does not exist in the live Google Sheet yet.
   var VC_GATELOG = 'vc_gate_log';
   var PATROL_TAB = 'security_patrol', PATROL_ID_PREFIX = 'SPL';
+  // Rev.1 (Issam, voice, 2026-11-24) — patrol observations now save
+  // here (NOT to security_patrol), so Safety reviews them in the
+  // existing Observation Register (observations-register.html) —
+  // its own loadAll() needs updating separately to read this tab
+  // alongside obs_main; not done in this file. Does not exist yet on
+  // the live Google Sheet — see TABS['obs_patrol'] in
+  // google-apps-script.js for the header row it needs.
+  var OBS_PATROL_TAB = 'obs_patrol', OBS_PATROL_ID_PREFIX = 'PTL';
   var FUEL_TAB = 'fuel_delivery_spill';
   var USERS_TAB = 'users';
   var INDUCTION_VALID_DAYS = 365, INDUCTION_EXPIRING_WINDOW_DAYS = 30;
@@ -125,6 +139,186 @@
   // within the past week, he's marked PPE issued" (Issam, voice).
   var PPE_ISSUED_WINDOW_DAYS = 7;
   var PATROL_INTERVAL_HOURS = 2;
+
+  /* ───────────── Rev.1 (Issam, voice, 2026-11-24) — bilingual UI ─────────────
+     "the security hub should be fully Arabic and English". A language
+     toggle remembered on this phone (localStorage), flipping the whole
+     layout RTL in Arabic. Data written to the Sheets stays in English
+     (Overall Result, Status, item column names, etc.) so the desktop
+     registers and reports are unaffected — only what the guard READS
+     on screen is translated. Someone from Safety should sanity-check
+     the Arabic wording, especially the checklist items, before this
+     goes live — flagged to Issam already. */
+  var LANG_KEY = 'sh_lang';
+  var _lang = (function(){ try { return (localStorage.getItem(LANG_KEY)==='ar') ? 'ar' : 'en'; } catch(e){ return 'en'; } })();
+  var STR = {
+    title:        { en:'🛡 Security Operations Hub', ar:'🛡 مركز عمليات الأمن' },
+    subtitle:     { en:'Gate · Patrol · Fuel Reception', ar:'البوابة · الدورية الأمنية · استلام الوقود' },
+    portalLink:   { en:'IMS Portal', ar:'بوابة النظام' },
+    securityHub:  { en:'Security Hub', ar:'مركز الأمن' },
+    gateTile:     { en:'Gate QR Scan', ar:'مسح رمز البوابة' },
+    gateTileSub:  { en:'Induction + PPE check at entry', ar:'التحقق من التأهيل ومعدات الوقاية عند الدخول' },
+    patrolTile:   { en:'Patrol Tour', ar:'جولة الدورية الأمنية' },
+    fuelTile:     { en:'Fuel Reception Checklist', ar:'قائمة فحص استلام الوقود' },
+    fuelTileSub:  { en:'Diesel / HFO delivery checks', ar:'فحوصات توريد الديزل / زيت الوقود الثقيل' },
+    noPatrolYet:  { en:'No patrol logged yet', ar:'لم تُسجَّل أي جولة بعد' },
+    everyNHours:  { en:'Every', ar:'كل' },
+    hoursWord:    { en:'hours', ar:'ساعات' },
+    controllersAlerted: { en:'Safety Controller(s) on file (notified automatically while overdue):', ar:'مراقب(و) السلامة المسجَّلون (يتم إشعارهم تلقائيًا أثناء التأخر):' },
+    noControllers: { en:'No Safety Controller found on the Users roster to notify.', ar:'لم يتم العثور على مراقب سلامة في قائمة المستخدمين لإشعاره.' },
+    scanBtn:      { en:'📷 Scan Visitor / Contractor QR', ar:'📷 مسح رمز الزائر / المقاول' },
+    orManual:     { en:'Or enter Person ID manually', ar:'أو أدخل رقم الهوية يدويًا' },
+    pidPlaceholder:{ en:'e.g. VC-00123', ar:'مثال: VC-00123' },
+    lookUp:       { en:'Look Up', ar:'بحث' },
+    pointQr:      { en:'Point the QR code inside the square', ar:'ضع رمز QR داخل المربع' },
+    qrFound:      { en:'✓ QR recognized!', ar:'✓ تم التعرف على الرمز!' },
+    qrLibFailed:  { en:'QR scanning library failed to load — enter the Person ID manually below instead.', ar:'فشل تحميل مكتبة مسح الرمز — الرجاء إدخال رقم الهوية يدويًا أدناه.' },
+    noCamera:     { en:'Camera not available on this device/browser.', ar:'الكاميرا غير متاحة على هذا الجهاز/المتصفح.' },
+    camFailed:    { en:'Could not access camera.', ar:'تعذر الوصول إلى الكاميرا.' },
+    unknownPid:   { en:'Unknown Person ID:', ar:'رقم هوية غير معروف:' },
+    destination:  { en:'Destination:', ar:'الجهة المقصودة:' },
+    personIdLbl:  { en:'Person ID:', ar:'رقم الهوية:' },
+    idCheckLbl:   { en:"ID Number — Check Against the Person's ID Card", ar:'رقم الهوية — قارنه ببطاقة هوية الشخص' },
+    inductionExpiring: { en:'INDUCTION EXPIRING', ar:'التأهيل ينتهي قريبًا' },
+    daysLeft:     { en:'d left', ar:'يوم متبقٍ' },
+    inductionValid: { en:'INDUCTION VALID', ar:'التأهيل سارٍ' },
+    inductionInvalid: { en:'INDUCTION NOT VALID —', ar:'التأهيل غير سارٍ —' },
+    expiredDaysAgo: { en:'expired', ar:'منتهٍ منذ' },
+    daysAgo:      { en:'d ago', ar:'يوم' },
+    notCompleted: { en:'not completed', ar:'غير مكتمل' },
+    ppeIssued:    { en:'PPE ISSUED', ar:'تم صرف معدات الوقاية' },
+    ppeNotIssued: { en:'PPE NOT ISSUED WITHIN LAST', ar:'لم يتم صرف معدات الوقاية خلال آخر' },
+    daysWord:     { en:'DAYS', ar:'يومًا' },
+    wearingQ1:    { en:'Is', ar:'هل يرتدي' },
+    wearingQ2:    { en:'currently wearing the required PPE for', ar:'حاليًا معدات الوقاية المطلوبة لـ' },
+    thisDept:     { en:'this department', ar:'هذه الجهة' },
+    yesWord:      { en:'Yes', ar:'نعم' },
+    noWord:       { en:'No', ar:'لا' },
+    naWord:       { en:'N/A', ar:'غير منطبق' },
+    confirmEntry: { en:'Confirm Entry', ar:'تأكيد الدخول' },
+    directToDesk: { en:'Direct the person to the Safety / PPE desk before allowing entry.', ar:'وجّه الشخص إلى مكتب السلامة / معدات الوقاية قبل السماح بالدخول.' },
+    logAttempt:   { en:'Log This Entry Attempt (Not Cleared)', ar:'تسجيل محاولة الدخول هذه (غير مصرّح)' },
+    pickYesNo:    { en:'Pick Yes or No for whether PPE is being worn now.', ar:'اختر نعم أو لا لحالة ارتداء معدات الوقاية الآن.' },
+    entryLogged:  { en:'✓ Entry logged —', ar:'✓ تم تسجيل الدخول —' },
+    notWearing:   { en:'Not wearing required PPE — entry NOT cleared. Logged as an attempt.', ar:'لا يرتدي معدات الوقاية المطلوبة — لم يُسمح بالدخول. تم تسجيل المحاولة.' },
+    loggedNotCleared: { en:'Logged as Not Cleared —', ar:'تم التسجيل كغير مصرّح —' },
+    atWord:       { en:'at', ar:'الساعة' },
+    overdueByH:   { en:'Overdue by', ar:'متأخرة بـ' },
+    lastRoundWas: { en:'last round was at', ar:'كانت آخر جولة الساعة' },
+    onWord:       { en:'on', ar:'بتاريخ' },
+    lastRound:    { en:'Last round:', ar:'آخر جولة:' },
+    resultWord:   { en:'Result:', ar:'النتيجة:' },
+    newPatrolRound: { en:'New Patrol Round', ar:'جولة دورية جديدة' },
+    dateTimeAuto: { en:'Date & Time (recorded automatically at Save)', ar:'التاريخ والوقت (يُسجَّل تلقائيًا عند الحفظ)' },
+    areaLabel:    { en:'Area / Route Covered', ar:'المنطقة / المسار المغطى' },
+    areaPlaceholder: { en:'e.g. Perimeter North, Fuel Yard', ar:'مثال: السياج الشمالي، ساحة الوقود' },
+    areaRequired: { en:'Area / Route Covered is required.', ar:'المنطقة / المسار المغطى مطلوب.' },
+    answerAllItems: { en:'Answer every item before continuing.', ar:'أجب عن جميع البنود قبل المتابعة.' },
+    remarks:      { en:'Remarks', ar:'ملاحظات' },
+    saveFailed:   { en:'Save failed:', ar:'فشل الحفظ:' },
+    unknownErr:   { en:'unknown error', ar:'خطأ غير معروف' },
+    noServer:     { en:'Could not reach the server — check your connection.', ar:'تعذر الوصول إلى الخادم — تحقق من الاتصال.' },
+    backBtn:      { en:'Back', ar:'رجوع' },
+    cancelBtn:    { en:'Cancel', ar:'إلغاء' },
+    nextBtn:      { en:'Next', ar:'التالي' },
+    saveBtn:      { en:'Save', ar:'حفظ' },
+    fuelDesc:     { en:'Mobile version of the Fuel Delivery (Diesel/HFO) Spill Prevention checklist. Saves to the same register as the desktop page.', ar:'النسخة المتنقلة من قائمة فحص الوقاية من انسكاب الوقود (ديزل/زيت وقود ثقيل) عند التوريد. تُحفظ في نفس سجل صفحة سطح المكتب.' },
+    newFuelBtn:   { en:'New Fuel Delivery Checklist', ar:'قائمة فحص توريد وقود جديدة' },
+    newFuelTitle: { en:'New Fuel Delivery Record', ar:'سجل توريد وقود جديد' },
+    dateLabel:    { en:'Date', ar:'التاريخ' },
+    fuelTypeLabel:{ en:'Fuel Type', ar:'نوع الوقود' },
+    tankerLabel:  { en:'Tanker / Vehicle No.', ar:'رقم الناقلة / المركبة' },
+    supplierLabel:{ en:'Supplier', ar:'المورّد' },
+    driverLabel:  { en:'Driver Name', ar:'اسم السائق' },
+    attendantLabel:{ en:'Receiving Attendant', ar:'موظف الاستلام' },
+    supervisorLabel:{ en:'Supervisor on Site', ar:'المشرف في الموقع' },
+    tankerRequired: { en:'Tanker / Vehicle No. is required.', ar:'رقم الناقلة / المركبة مطلوب.' },
+    preChecks:    { en:'Pre-Delivery Checks', ar:'فحوصات ما قبل التوريد' },
+    duringChecks: { en:'During-Delivery Checks', ar:'فحوصات أثناء التوريد' },
+    postChecks:   { en:'Post-Delivery Checks', ar:'فحوصات ما بعد التوريد' },
+    spillOccurrence: { en:'Spill Occurrence', ar:'حدوث انسكاب' },
+    spillOccurredQ: { en:'Spill Occurred?', ar:'هل حدث انسكاب؟' },
+    spillQty:     { en:'Estimated Quantity Spilled', ar:'الكمية المقدَّرة المنسكبة' },
+    spillCause:   { en:'Cause (brief)', ar:'السبب (مختصر)' },
+    spillReach:   { en:'Reached Drain / Soil / Water?', ar:'هل وصل إلى الصرف / التربة / المياه؟' },
+    reviewDate:   { en:'Date:', ar:'التاريخ:' },
+    reviewFuel:   { en:'Fuel:', ar:'الوقود:' },
+    reviewTanker: { en:'Tanker:', ar:'الناقلة:' },
+    reviewSupplier:{ en:'Supplier:', ar:'المورّد:' },
+    reviewSpill:  { en:'Spill Occurred:', ar:'حدوث انسكاب:' },
+    anyNoReview:  { en:'One or more checklist items are marked No — review before saving.', ar:'تم وضع (لا) على بند واحد أو أكثر — راجع قبل الحفظ.' },
+    observationsTitle: { en:'Observations', ar:'الملاحظات' },
+    addObservation: { en:'Add Observation', ar:'إضافة ملاحظة' },
+    obsDescLabel: { en:'Observation', ar:'الملاحظة' },
+    obsDescPlaceholder: { en:'What did you see?', ar:'ماذا رأيت؟' },
+    obsDescRequired: { en:'Describe the observation.', ar:'صِف الملاحظة.' },
+    urgentLabel: { en:'Urgent', ar:'عاجل' },
+    urgentCheckboxLabel: { en:'Needs attention now — alert Safety immediately', ar:'يحتاج انتباهًا الآن — تنبيه السلامة فورًا' },
+    addPhotoBtn: { en:'Add Photo(s)', ar:'إضافة صورة (صور)' },
+    addDocumentBtn: { en:'Add Document (optional)', ar:'إضافة مستند (اختياري)' },
+    photoWord: { en:'photo(s) added', ar:'صورة (صور) مضافة' },
+    removeBtn: { en:'Remove', ar:'إزالة' },
+    noObservationsYet: { en:'No observations added yet.', ar:'لم تُضَف أي ملاحظات بعد.' },
+    photoReadFailed: { en:'Could not read one of the photos — please try again.', ar:'تعذرت قراءة إحدى الصور — حاول مرة أخرى.' },
+    uploadingObs: { en:'Saving observations and uploading photos…', ar:'جارٍ حفظ الملاحظات ورفع الصور…' },
+    accessRestricted: { en:'Access Restricted', ar:'الوصول مقيّد' },
+    pleaseSignIn: { en:'Please sign in to use the Security Operations Hub.', ar:'الرجاء تسجيل الدخول لاستخدام مركز عمليات الأمن.' },
+    returnToPortal: { en:'Return to Portal', ar:'العودة إلى البوابة' }
+  };
+  function t(key){ var e = STR[key]; if (!e) return key; return e[_lang] || e.en || key; }
+  function dirArrow(){ return _lang==='ar' ? '→' : '←'; }
+  function langToggleLabel(){ return _lang==='ar' ? 'English' : 'عربي'; }
+  function setLang(l){
+    _lang = (l==='ar') ? 'ar' : 'en';
+    try { localStorage.setItem(LANG_KEY, _lang); } catch(e){}
+    document.documentElement.setAttribute('dir', _lang==='ar' ? 'rtl' : 'ltr');
+    document.documentElement.setAttribute('lang', _lang==='ar' ? 'ar' : 'en');
+    render();
+  }
+  // Applied once up-front too, so even the "Loading…" screen and the
+  // Access Restricted screen (which render before loadAll finishes)
+  // show in the remembered language.
+  document.documentElement.setAttribute('dir', _lang==='ar' ? 'rtl' : 'ltr');
+  document.documentElement.setAttribute('lang', _lang==='ar' ? 'ar' : 'en');
+
+  // Arabic translations of the checklist item text, same order as the
+  // English arrays below (which stay as-is: they double as the Sheet
+  // column names, so they're never translated — only how they're
+  // DISPLAYED to the guard changes with language).
+  var PATROL_ITEMS_AR = [
+    "السياج المحيط سليم، ولا توجد علامات تلف أو عبث",
+    "جميع البوابات مغلقة ومؤمَّنة",
+    "لم يُلاحظ أشخاص أو مركبات غير مصرح بهم",
+    "الإضاءة كافية على طول مسار الدورية",
+    "كاميرات المراقبة تعمل بشكل ظاهر (حيثما ينطبق)",
+    "لم تُلاحظ أنشطة أو طرود أو مركبات مشبوهة"
+  ];
+  var FUEL_PRE_ITEMS_AR = [
+    "تم التأكد من تطابق نوع الوقود مع تخصيص الخزان/التخزين (لا خطر تلوث متبادل)",
+    "تم فحص مستندات الناقلة (إشعار التسليم، الكمية، مطابقة المورّد لأمر الشراء)",
+    "تم الفحص البصري لخرطوم الناقلة والوصلات والصمامات — لا يوجد تآكل أو تشقق أو تسرب ظاهر",
+    "تم وضع صينية التقاط التنقيط / الاحتواء أسفل نقطة توصيل الخرطوم",
+    "عدة مكافحة الانسكاب (وسائد ماصة، حواجز، أغطية صرف) متوفرة ويسهل الوصول إليها عند نقطة التوريد",
+    "تم تحديد أقرب مصرف عاصف / مصرف مفتوح وتغطيته أو حمايته",
+    "طفاية حريق متوفرة في متناول اليد عند نقطة التوريد",
+    "لا توجد أعمال ساخنة أو تدخين أو مصادر إشعال داخل منطقة الحظر المحيطة بالتوريد",
+    "تم التأكد من كفاية الفراغ المتاح في الخزان لكمية التوريد",
+    "تم التواصل بين السائق وموظف الاستلام قبل البدء"
+  ];
+  var FUEL_DURING_ITEMS_AR = [
+    "تمت إعادة فحص توصيلة الخرطوم للتسرب مباشرة بعد الربط",
+    "يبقى موظف الاستلام حاضرًا ومنتبهًا طوال عملية النقل (لا توريد دون إشراف)",
+    "تتم مراقبة مستوى الخزان باستمرار مع اقتراب التعبئة من السعة الكاملة",
+    "أي تنقيط أو رشح أو رائحة عند التوصيلات يتم فحصه وإيقافه فورًا"
+  ];
+  var FUEL_POST_ITEMS_AR = [
+    "تم فصل الخرطوم وتصريفه داخل الاحتواء قبل إزالته",
+    "تم فحص نقطة التوريد والأرض بحثًا عن أي بقايا وقود أو بقع أو تنقيط",
+    "تم فحص صينية الاحتواء والتخلص من محتوياتها (إن وجدت) وفق الإجراء",
+    "تم تسجيل الكمية النهائية للخزان ومطابقتها مع إشعار التسليم",
+    "تمت إعادة تعبئة عدة مكافحة الانسكاب / إرجاعها إلى مكان التخزين المخصص"
+  ];
+  function itemLabel(enText, idx, arArr){ return (_lang==='ar' && arArr && arArr[idx]) ? arArr[idx] : enText; }
 
   // Same 6 items as the existing security-patrol-log.html (desktop) —
   // this mobile form writes to the exact same tab/columns, so a
@@ -175,7 +369,7 @@
 
   var root = document.getElementById('pm-root');
   var _me = '', _view = 'hub';
-  var _persons = [], _personsHeaders = [], _spotchecks = [], _patrolRows = [], _patrolHeaders = [], _users = [], _usersHeaders = [];
+  var _persons = [], _personsHeaders = [], _spotchecks = [], _patrolRows = [], _patrolHeaders = [], _users = [], _usersHeaders = [], _obsPatrolRows = [];
   var _scanStream = null, _scanRAF = null;
   var _gateActivePerson = null; // currently scanned/looked-up person record, for the gate flow
 
@@ -204,11 +398,12 @@
   }
 
   function loadAll(cb){
-    Promise.all([fetchTab(VC_PERSONS), fetchTab(VC_SPOTCHECKS), fetchTab(PATROL_TAB), fetchTab(USERS_TAB)]).then(function(r){
+    Promise.all([fetchTab(VC_PERSONS), fetchTab(VC_SPOTCHECKS), fetchTab(PATROL_TAB), fetchTab(USERS_TAB), fetchTab(OBS_PATROL_TAB)]).then(function(r){
       _personsHeaders = r[0].headers; _persons = activeRows(r[0]);
       _spotchecks = activeRows(r[1]);
       _patrolHeaders = r[2].headers; _patrolRows = activeRows(r[2]);
       _usersHeaders = r[3].headers; _users = activeRows(r[3]);
+      _obsPatrolRows = activeRows(r[4]);
       cb && cb();
     });
   }
@@ -283,64 +478,48 @@
   }
   function safetyControllerNames(){ return safetyControllers().map(function(c){ return c.name; }); }
 
-  // Rev.2 (Issam, voice, 2026-11-24) — "escalate to the safety
-  // controllers" (Issam, voice): sends sendOverduePatrolAlert once per
-  // distinct overdue patrol baseline (the last logged Patrol ID), not
-  // once per page render, using sessionStorage as the de-dup guard —
-  // simplest state that survives this page's own reloads without a
-  // database field of its own. Fires silently; the hub's own red
-  // banner is the visible confirmation, so a send failure here is
-  // logged to the console only, never surfaced as an alert() popup.
-  function maybeSendOverdueAlert(overdue){
-    if (!overdue) return;
-    var lastId = overdue.last['Patrol ID'] || (overdue.last['Date']+'-'+overdue.last['Patrol Time']);
-    var sentKey = 'patrolAlertSentFor';
-    try { if (sessionStorage.getItem(sentKey) === String(lastId)) return; } catch(e){}
-    var controllers = safetyControllers().filter(function(c){ return c.email; });
-    if (!controllers.length) return;
-    postJSON('sendOverduePatrolAlert', {}, {
-      toEmails: controllers.map(function(c){ return c.email; }),
-      lastPatrolTime: overdue.last['Patrol Time'] || '',
-      lastPatrolDate: overdue.last['Date'] || '',
-      overdueHours: overdue.hours.toFixed(1),
-      area: overdue.last['Area / Route Covered'] || ''
-    }).then(function(){ try { sessionStorage.setItem(sentKey, String(lastId)); } catch(e){} })
-      .catch(function(err){ console.log('Overdue patrol alert failed to send:', err); });
-  }
-
+  // Rev.3 (Issam, voice, 2026-11-24) — the overdue email is now sent
+  // server-side by a scheduled Apps Script trigger (scanAndNotifyOverduePatrol,
+  // every 30 min, tiered: first alert + up to 2 reminders + a final
+  // one that also copies the manager — see google-apps-script.js),
+  // which fixed the earlier flaw Issam flagged ("a different browser
+  // could re-send the same email"). This page no longer sends the
+  // email itself — it only shows the same information in the banner.
   function renderHub(){
     var overdue = patrolOverdue();
-    maybeSendOverdueAlert(overdue);
     var banner = '';
     if (overdue){
       var controllers = safetyControllerNames();
       banner = '<div class="pm-banner pm-banner-red">'
-        + '<b>⏰ Patrol overdue by ' + overdue.hours.toFixed(1) + 'h</b> — last round was at ' + esc(overdue.last['Patrol Time']||'') + ' on ' + esc(overdue.last['Date']||'') + '.'
-        + (controllers.length ? '<div style="margin-top:6px">Safety Controller(s) alerted: ' + esc(controllers.join(', ')) + '</div>' : '<div style="margin-top:6px">No Safety Controller found on the Users roster to alert.</div>')
+        + '<b>⏰ ' + t('overdueByH') + ' ' + overdue.hours.toFixed(1) + 'h</b> — ' + t('lastRoundWas') + ' ' + esc(overdue.last['Patrol Time']||'') + ' ' + t('onWord') + ' ' + esc(overdue.last['Date']||'') + '.'
+        + (controllers.length ? '<div style="margin-top:6px">' + t('controllersAlerted') + ' ' + esc(controllers.join(', ')) + '</div>' : '<div style="margin-top:6px">' + t('noControllers') + '</div>')
         + '</div>';
     }
     var last = lastPatrolInfo();
-    var patrolSub = overdue ? 'OVERDUE — last round ' + overdue.hours.toFixed(1) + 'h ago'
-      : last ? 'Last round: ' + esc(last.rec['Patrol Time']||'') + ' · ' + esc(last.rec['Date']||'')
-      : 'No patrol logged yet';
-    root.innerHTML = '<div class="pm-header"><div><h1>🛡 Security Operations Hub</h1><div class="pm-sub">Gate · Patrol · Fuel Reception</div></div>'
-      + '<a class="pm-back" href="index.html" style="padding:6px 10px;border:1px solid var(--pdw-border-gold);border-radius:6px">← IMS Portal</a></div>'
+    var patrolSub = overdue ? '⏰ ' + t('overdueByH') + ' ' + overdue.hours.toFixed(1) + 'h'
+      : last ? t('lastRound') + ' ' + esc(last.rec['Patrol Time']||'') + ' · ' + esc(last.rec['Date']||'')
+      : t('noPatrolYet');
+    root.innerHTML = '<div class="pm-header"><div><h1>' + t('title') + '</h1><div class="pm-sub">' + t('subtitle') + '</div></div>'
+      + '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">'
+      + '<button type="button" class="pm-lang-btn" onclick="SH.toggleLang()">' + langToggleLabel() + '</button>'
+      + '<a class="pm-back" href="index.html" style="padding:6px 10px;border:1px solid var(--pdw-border-gold);border-radius:6px">' + dirArrow() + ' ' + t('portalLink') + '</a>'
+      + '</div></div>'
       + banner
-      + '<button type="button" class="pm-home-btn pm-primary" onclick="SH.go(\'gate\')"><span class="pm-icon">🚪</span><div><div class="pm-label">Gate QR Scan</div><div class="pm-count">Induction + PPE check at entry</div></div></button>'
-      + '<button type="button" class="pm-home-btn" onclick="SH.go(\'patrol\')"><span class="pm-icon">🚶</span><div><div class="pm-label">Patrol Tour</div><div class="pm-count">' + esc(patrolSub) + '</div></div></button>'
-      + '<button type="button" class="pm-home-btn" onclick="SH.go(\'fuel\')"><span class="pm-icon">⛽</span><div><div class="pm-label">Fuel Reception Checklist</div><div class="pm-count">Diesel / HFO delivery checks</div></div></button>';
+      + '<button type="button" class="pm-home-btn pm-primary" onclick="SH.go(\'gate\')"><span class="pm-icon">🚪</span><div><div class="pm-label">' + t('gateTile') + '</div><div class="pm-count">' + t('gateTileSub') + '</div></div></button>'
+      + '<button type="button" class="pm-home-btn" onclick="SH.go(\'patrol\')"><span class="pm-icon">🚶</span><div><div class="pm-label">' + t('patrolTile') + '</div><div class="pm-count">' + esc(patrolSub) + '</div></div></button>'
+      + '<button type="button" class="pm-home-btn" onclick="SH.go(\'fuel\')"><span class="pm-icon">⛽</span><div><div class="pm-label">' + t('fuelTile') + '</div><div class="pm-count">' + t('fuelTileSub') + '</div></div></button>';
   }
 
   /* ───────────────────────────── Gate view ───────────────────────────── */
-  function backBtn(label){ return '<button type="button" class="pm-back" onclick="SH.go(\'hub\')">← ' + esc(label||'Security Hub') + '</button>'; }
+  function backBtn(label){ return '<button type="button" class="pm-back" onclick="SH.go(\'hub\')">' + dirArrow() + ' ' + esc(label||t('securityHub')) + '</button>'; }
 
   function renderGate(){
     _gateActivePerson = null;
-    root.innerHTML = backBtn() + '<div class="pm-list-title">🚪 Gate QR Scan</div>'
-      + '<div class="pm-field" style="margin-top:10px"><button type="button" class="pm-step-nav" style="width:100%;padding:13px;border-radius:9px;border:none;font-size:14px;font-weight:700;background:var(--pdw-gold);color:#15223f;cursor:pointer" onclick="SH.startScan()">📷 Scan Visitor / Contractor QR</button></div>'
+    root.innerHTML = backBtn() + '<div class="pm-list-title">🚪 ' + t('gateTile') + '</div>'
+      + '<div class="pm-field" style="margin-top:10px"><button type="button" class="pm-step-nav" style="width:100%;padding:13px;border-radius:9px;border:none;font-size:14px;font-weight:700;background:var(--pdw-gold);color:#15223f;cursor:pointer" onclick="SH.startScan()">' + t('scanBtn') + '</button></div>'
       + '<div id="pm-scan-area" style="display:none;text-align:center;margin:10px 0"></div>'
-      + '<div class="pm-field"><label>Or enter Person ID manually</label><input type="text" id="pm-gate-pid" placeholder="e.g. VC-00123"></div>'
-      + '<button type="button" class="pm-step-nav" style="width:100%;padding:13px;border-radius:9px;border:1px solid var(--pdw-border-gold);background:var(--pdw-bg2);color:var(--pdw-gold-lt);cursor:pointer;font-size:13px;font-weight:700" onclick="SH.lookupGate()">Look Up</button>'
+      + '<div class="pm-field"><label>' + t('orManual') + '</label><input type="text" id="pm-gate-pid" placeholder="' + t('pidPlaceholder') + '"></div>'
+      + '<button type="button" class="pm-step-nav" style="width:100%;padding:13px;border-radius:9px;border:1px solid var(--pdw-border-gold);background:var(--pdw-bg2);color:var(--pdw-gold-lt);cursor:pointer;font-size:13px;font-weight:700" onclick="SH.lookupGate()">' + t('lookUp') + '</button>'
       + '<div id="pm-gate-detail" style="margin-top:14px"></div>';
   }
 
@@ -348,14 +527,14 @@
     var area = document.getElementById('pm-scan-area');
     area.style.display = 'block';
     if (typeof jsQR === 'undefined'){
-      area.innerHTML = '<div class="pm-sub" style="color:var(--pdw-red)">QR scanning library failed to load — enter the Person ID manually below instead.</div>';
+      area.innerHTML = '<div class="pm-sub" style="color:var(--pdw-red)">' + t('qrLibFailed') + '</div>';
       return;
     }
     area.innerHTML = '<div class="pm-scan-video-wrap"><video id="pm-scan-video" autoplay playsinline muted></video><div class="pm-scan-frame"></div></div>'
-      + '<div class="pm-scan-status" id="pm-scan-status">Point the QR code inside the square</div>'
+      + '<div class="pm-scan-status" id="pm-scan-status">' + t('pointQr') + '</div>'
       + '<canvas style="display:none" id="pm-scan-canvas"></canvas>';
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-      area.innerHTML = '<div class="pm-sub">Camera not available on this device/browser.</div>';
+      area.innerHTML = '<div class="pm-sub">' + t('noCamera') + '</div>';
       return;
     }
     navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } }).then(function(stream){
@@ -363,7 +542,7 @@
       var video = document.getElementById('pm-scan-video');
       video.srcObject = stream; video.play();
       tickScan();
-    }).catch(function(){ area.innerHTML = '<div class="pm-sub">Could not access camera.</div>'; });
+    }).catch(function(){ area.innerHTML = '<div class="pm-sub">' + t('camFailed') + '</div>'; });
   }
   function tickScan(){
     var video = document.getElementById('pm-scan-video'), canvas = document.getElementById('pm-scan-canvas');
@@ -379,7 +558,7 @@
       var code = jsQR(imageData.data, imageData.width, imageData.height);
       if (code && code.data){
         var statusEl = document.getElementById('pm-scan-status');
-        if (statusEl){ statusEl.textContent = '✓ QR recognized!'; statusEl.classList.add('found'); }
+        if (statusEl){ statusEl.textContent = t('qrFound'); statusEl.classList.add('found'); }
         var m = /^SAGCO-VC:(.+)$/.exec(code.data);
         onGateScan(m ? m[1] : code.data);
         return;
@@ -394,7 +573,7 @@
 
   function lookupGate(){
     var pid = (document.getElementById('pm-gate-pid').value||'').trim();
-    if (!pid){ alert('Enter a Person ID, or scan the QR.'); return; }
+    if (!pid){ alert(_lang==='ar' ? 'أدخل رقم الهوية، أو امسح رمز QR.' : 'Enter a Person ID, or scan the QR.'); return; }
     onGateScan(pid);
   }
 
@@ -402,7 +581,7 @@
     stopScan();
     var p = findPerson(personId);
     var detail = document.getElementById('pm-gate-detail');
-    if (!p){ detail.innerHTML = '<div class="pm-sub" style="color:var(--pdw-red)">Unknown Person ID: ' + esc(personId) + '</div>'; return; }
+    if (!p){ detail.innerHTML = '<div class="pm-sub" style="color:var(--pdw-red)">' + t('unknownPid') + ' ' + esc(personId) + '</div>'; return; }
     _gateActivePerson = p;
     var ind = inductionState(p);
     var ppeOk = ppeIssuedWithinWeek(p);
@@ -410,22 +589,22 @@
     var html = '<div class="pm-person-card">'
       + '<div class="pm-pname">' + esc(p['First Name']) + ' ' + esc(p['Family Name']) + '</div>'
       + '<div class="pm-pmeta">' + esc(p['Company']) + ' · ' + esc(p['Type']) + '</div>'
-      + '<div class="pm-pmeta">Destination: ' + esc(p['Destination Department']) + '</div>'
-      + '<div class="pm-pmeta">Person ID: ' + esc(p['Person ID']) + '</div></div>'
-      + '<div class="pm-idbox"><div class="pm-idlbl">ID Number — Check Against the Person\'s ID Card</div><div class="pm-idval">' + esc(p['ID Number']||'—') + '</div></div>';
+      + '<div class="pm-pmeta">' + t('destination') + ' ' + esc(p['Destination Department']) + '</div>'
+      + '<div class="pm-pmeta">' + t('personIdLbl') + ' ' + esc(p['Person ID']) + '</div></div>'
+      + '<div class="pm-idbox"><div class="pm-idlbl">' + t('idCheckLbl') + '</div><div class="pm-idval">' + esc(p['ID Number']||'—') + '</div></div>';
     html += '<div class="pm-status-pill ' + (indOk ? (ind.state==='expiring'?'amber':'green') : 'red') + '">'
-      + (indOk ? (ind.state==='expiring' ? 'INDUCTION EXPIRING (' + ind.daysLeft + 'd left)' : 'INDUCTION VALID') : 'INDUCTION NOT VALID — ' + (ind.state==='expired' ? ('expired ' + ind.daysOver + 'd ago') : 'not completed'))
+      + (indOk ? (ind.state==='expiring' ? t('inductionExpiring') + ' (' + ind.daysLeft + ' ' + t('daysLeft') + ')' : t('inductionValid')) : t('inductionInvalid') + ' ' + (ind.state==='expired' ? (t('expiredDaysAgo') + ' ' + ind.daysOver + ' ' + t('daysAgo')) : t('notCompleted')))
       + '</div><div style="margin:8px 0"></div>';
     html += '<div class="pm-status-pill ' + (ppeOk?'green':'red') + '">'
-      + (ppeOk ? 'PPE ISSUED (' + esc(p['PPE Issued Date']) + ')' : 'PPE NOT ISSUED WITHIN LAST ' + PPE_ISSUED_WINDOW_DAYS + ' DAYS')
+      + (ppeOk ? t('ppeIssued') + ' (' + esc(p['PPE Issued Date']) + ')' : t('ppeNotIssued') + ' ' + PPE_ISSUED_WINDOW_DAYS + ' ' + t('daysWord'))
       + '</div>';
     if (indOk && ppeOk){
-      html += '<div class="pm-field" style="margin-top:16px"><label>Is ' + esc(p['First Name']) + ' currently wearing the required PPE for ' + esc(p['Destination Department']||'this department') + '?</label>'
-        + '<div class="pm-yn-pick"><label><input type="radio" name="pm-gate-wearing" value="Yes"> Yes</label><label><input type="radio" name="pm-gate-wearing" value="No"> No</label></div></div>'
-        + '<button type="button" class="pm-step-nav" style="width:100%;padding:13px;border-radius:9px;border:none;font-size:14px;font-weight:700;background:var(--pdw-gold);color:#15223f;cursor:pointer" onclick="SH.confirmGateEntry()">Confirm Entry</button>';
+      html += '<div class="pm-field" style="margin-top:16px"><label>' + t('wearingQ1') + ' ' + esc(p['First Name']) + ' ' + t('wearingQ2') + ' ' + esc(p['Destination Department']||t('thisDept')) + (_lang==='ar'?'؟':'?') + '</label>'
+        + '<div class="pm-yn-pick"><label><input type="radio" name="pm-gate-wearing" value="Yes"> ' + t('yesWord') + '</label><label><input type="radio" name="pm-gate-wearing" value="No"> ' + t('noWord') + '</label></div></div>'
+        + '<button type="button" class="pm-step-nav" style="width:100%;padding:13px;border-radius:9px;border:none;font-size:14px;font-weight:700;background:var(--pdw-gold);color:#15223f;cursor:pointer" onclick="SH.confirmGateEntry()">' + t('confirmEntry') + '</button>';
     } else {
-      html += '<div class="pm-sub" style="margin-top:10px;color:var(--pdw-amb)">Direct the person to the Safety / PPE desk before allowing entry.</div>'
-        + '<button type="button" class="pm-step-nav" style="width:100%;padding:13px;border-radius:9px;border:1px solid var(--pdw-border-gold);background:var(--pdw-bg2);color:var(--pdw-gold-lt);cursor:pointer;font-size:13px;font-weight:700" onclick="SH.logGateAttempt(false)">Log This Entry Attempt (Not Cleared)</button>';
+      html += '<div class="pm-sub" style="margin-top:10px;color:var(--pdw-amb)">' + t('directToDesk') + '</div>'
+        + '<button type="button" class="pm-step-nav" style="width:100%;padding:13px;border-radius:9px;border:1px solid var(--pdw-border-gold);background:var(--pdw-bg2);color:var(--pdw-gold-lt);cursor:pointer;font-size:13px;font-weight:700" onclick="SH.logGateAttempt(false)">' + t('logAttempt') + '</button>';
     }
     html += '<div id="pm-gate-result" style="margin-top:10px"></div>';
     detail.innerHTML = html;
@@ -447,7 +626,7 @@
 
   function confirmGateEntry(){
     var wEl = document.querySelector('input[name="pm-gate-wearing"]:checked');
-    if (!wEl){ alert('Pick Yes or No for whether PPE is being worn now.'); return; }
+    if (!wEl){ alert(t('pickYesNo')); return; }
     var wearing = wEl.value;
     var p = _gateActivePerson;
     var spotRec = {
@@ -467,8 +646,8 @@
       return writeGateLog(p, cleared ? 'Cleared' : 'Not Cleared').then(function(){
         var r = document.getElementById('pm-gate-result');
         r.innerHTML = cleared
-          ? '<div class="pm-banner pm-banner-grn">✓ Entry logged — ' + esc(_me) + ' at ' + esc(nowTimeStr()) + '.</div>'
-          : '<div class="pm-banner pm-banner-red">Not wearing required PPE — entry NOT cleared. Logged as an attempt.</div>';
+          ? '<div class="pm-banner pm-banner-grn">' + t('entryLogged') + ' ' + esc(_me) + ' ' + t('atWord') + ' ' + esc(nowTimeStr()) + '.</div>'
+          : '<div class="pm-banner pm-banner-red">' + t('notWearing') + '</div>';
       });
     });
   }
@@ -476,7 +655,7 @@
   function logGateAttempt(cleared){
     writeGateLog(_gateActivePerson, cleared ? 'Cleared' : 'Not Cleared').then(function(){
       var r = document.getElementById('pm-gate-result');
-      r.innerHTML = '<div class="pm-banner pm-banner-red">Logged as Not Cleared — ' + esc(_me) + ' at ' + esc(nowTimeStr()) + '.</div>';
+      r.innerHTML = '<div class="pm-banner pm-banner-red">' + t('loggedNotCleared') + ' ' + esc(_me) + ' ' + t('atWord') + ' ' + esc(nowTimeStr()) + '.</div>';
     });
   }
 
@@ -484,86 +663,216 @@
   function renderPatrol(){
     var overdue = patrolOverdue();
     var last = lastPatrolInfo();
-    root.innerHTML = backBtn() + '<div class="pm-list-title">🚶 Patrol Tour</div>'
-      + (overdue ? '<div class="pm-banner pm-banner-red"><b>⏰ Overdue by ' + overdue.hours.toFixed(1) + 'h</b></div>' : '')
+    root.innerHTML = backBtn() + '<div class="pm-list-title">🚶 ' + t('patrolTile') + '</div>'
+      + (overdue ? '<div class="pm-banner pm-banner-red"><b>⏰ ' + t('overdueByH') + ' ' + overdue.hours.toFixed(1) + 'h</b></div>' : '')
       + '<div class="pm-card">' + (last
-          ? '<div class="pm-card-meta"><b>Last round:</b> ' + esc(last.rec['Patrol Time']||'') + ' on ' + esc(last.rec['Date']||'') + ' — ' + esc(last.rec['Area / Route Covered']||'') + '<br><b>Result:</b> ' + esc(last.rec['Overall Result']||'') + '</div>'
-          : '<div class="pm-card-meta">No patrol logged yet.</div>')
+          ? '<div class="pm-card-meta"><b>' + t('lastRound') + '</b> ' + esc(last.rec['Patrol Time']||'') + ' ' + t('onWord') + ' ' + esc(last.rec['Date']||'') + ' — ' + esc(last.rec['Area / Route Covered']||'') + '<br><b>' + t('resultWord') + '</b> ' + esc(last.rec['Overall Result']||'') + '</div>'
+          : '<div class="pm-card-meta">' + t('noPatrolYet') + '.</div>')
         + '</div>'
-      + '<button type="button" class="pm-home-btn pm-primary" onclick="SH.openPatrolForm()"><span class="pm-icon">➕</span><div><div class="pm-label">New Patrol Round</div><div class="pm-count">Every ' + PATROL_INTERVAL_HOURS + ' hours</div></div></button>';
+      + '<button type="button" class="pm-home-btn pm-primary" onclick="SH.openPatrolForm()"><span class="pm-icon">➕</span><div><div class="pm-label">' + t('newPatrolRound') + '</div><div class="pm-count">' + t('everyNHours') + ' ' + PATROL_INTERVAL_HOURS + ' ' + t('hoursWord') + '</div></div></button>';
+  }
+
+  // Rev.2 (Issam, voice, 2026-11-24) — "the date and time should be
+  // automatically stamped… once saving, it will be updated with the
+  // saved time": step 0 shows a live, locked read-out of the current
+  // date/time (not an editable field — nothing for the guard to pick
+  // or backdate), and savePatrol below re-reads the clock at the
+  // moment Save is pressed and writes THAT moment, so a round opened
+  // at 9:50 and saved at 10:20 is recorded as 10:20.
+  // Rev.3 (Issam, voice, 2026-11-24) — "what is the need of the
+  // shift… hide the shifter": the Shift field is no longer shown to
+  // the guard at all. It's still written to the sheet (the desktop
+  // security-patrol-log.html register has a Shift column other
+  // reports may filter by), computed silently from the save-time
+  // clock via computeShift() below, using the SAME two-value Day/Night
+  // taxonomy the desktop page's own dropdown already uses (not a
+  // three-way Morning/Evening/Night split) so old and new rows stay
+  // comparable. Day = 06:00–18:00, Night = 18:00–06:00 — Issam never
+  // confirmed exact shift hours before asking for the field to be
+  // hidden, so these are a reasonable default pending his correction.
+  function computeShift(timeStr){
+    var h = parseInt(String(timeStr||'0').split(':')[0], 10);
+    if (isNaN(h)) h = 0;
+    return (h >= 6 && h < 18) ? 'Day' : 'Night';
+  }
+  // Rev.4 (Issam, voice, 2026-11-24) — "no need to highlight a field
+  // related to corrective action… what we need is the ability to
+  // state observations, add many of them, and escalate each one" —
+  // superseded by a further decision in the same call: observations
+  // save into the EXISTING Observation Register (observations-register.html)
+  // instead of going straight to Action, so Safety can triage first
+  // (evaluate risk, then route to Action, Incident, or a Violation —
+  // exactly the same review step every other observation already
+  // gets there). So this form itself no longer escalates anywhere —
+  // it only captures the observation, with photos/a document, and an
+  // Urgent flag for anything that can't wait for that review.
+  function compressImageFile_(file){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onerror = function(){ reject(new Error('read failed')); };
+      reader.onload = function(){
+        var img = new Image();
+        img.onerror = function(){ reject(new Error('decode failed')); };
+        img.onload = function(){
+          var maxW = 1280;
+          var scale = Math.min(1, maxW / img.width);
+          var w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+          var canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve({ name: (file.name||'photo').replace(/\.[^.]+$/, '') + '.jpg', mime:'image/jpeg', dataUrl: canvas.toDataURL('image/jpeg', 0.7) });
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  function readFileAsDataUrl_(file){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onerror = function(){ reject(new Error('read failed')); };
+      reader.onload = function(){ resolve({ name:file.name, mime:file.type||'application/octet-stream', dataUrl:reader.result }); };
+      reader.readAsDataURL(file);
+    });
+  }
+  function uploadObsFile_(caseId, fileEntry, attachmentType){
+    var comma = fileEntry.dataUrl.indexOf(',');
+    var base64 = comma >= 0 ? fileEntry.dataUrl.slice(comma+1) : fileEntry.dataUrl;
+    return postJSON('uploadFileToDrive', {}, {
+      docId: caseId, fileName: fileEntry.name, mimeType: fileEntry.mime, base64Data: base64,
+      uploadedBy: _me, attachmentType: attachmentType
+    });
+  }
+  function nextObsCaseIdFactory_(){
+    var max = 0;
+    _obsPatrolRows.forEach(function(r){
+      var m = /^PTL-(\d+)$/.exec(String(r['Case ID']||''));
+      if (m) max = Math.max(max, parseInt(m[1],10));
+    });
+    return function(){ max++; return OBS_PATROL_ID_PREFIX + '-' + String(max).padStart(4,'0'); };
   }
 
   function openPatrolForm(){
-    var state = { area:'', shift:'Day', items:{}, carRequired:'No', carDetails:'', targetDate:'', remarks:'' };
+    var state = { area:'', items:{}, remarks:'', observations:[] };
     var step = 0;
+    var obsEditing = null; // set while the "add observation" sub-form is open
     function esc_(s){ return esc(s); }
     function stepHeader(){
-      return '<div class="pm-field"><label>Shift</label><select id="pm-pt-shift"><option value="Day"' + (state.shift==='Day'?' selected':'') + '>Day</option><option value="Night"' + (state.shift==='Night'?' selected':'') + '>Night</option></select></div>'
-        + '<div class="pm-field"><label>Area / Route Covered</label><input type="text" id="pm-pt-area" value="' + esc_(state.area) + '" placeholder="e.g. Perimeter North, Fuel Yard"></div>';
+      var now = new Date();
+      var liveDate = now.toISOString().slice(0,10);
+      var liveTime = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+      return '<div class="pm-field"><label>' + t('dateTimeAuto') + '</label>'
+        + '<div class="pm-idbox" style="text-align:' + (_lang==='ar'?'right':'left') + ';padding:10px 12px">'
+        + '<div class="pm-idval" style="font-size:16px;letter-spacing:0">' + esc_(liveDate) + ' · ' + esc_(liveTime) + '</div></div></div>'
+        + '<div class="pm-field"><label>' + t('areaLabel') + '</label><input type="text" id="pm-pt-area" value="' + esc_(state.area) + '" placeholder="' + t('areaPlaceholder') + '"></div>';
     }
     function stepItems(){
       return PATROL_ITEMS.map(function(it,i){
         var v = state.items[i] || '';
-        var escBtns = (v === 'No') ? ('<div class="pm-esc-row"><button type="button" class="pm-esc-btn pm-esc-v" data-i="'+i+'" id="pm-pt-escv-'+i+'">⚠ Violation</button><button type="button" class="pm-esc-btn pm-esc-a" data-i="'+i+'" id="pm-pt-esca-'+i+'">📋 Action</button></div>') : '';
-        return '<div class="pm-item-row"><label class="pm-item-label">' + esc_(it) + '</label>'
+        return '<div class="pm-item-row"><label class="pm-item-label">' + esc_(itemLabel(it, i, PATROL_ITEMS_AR)) + '</label>'
           + '<select data-i="'+i+'" class="pm-pt-item"><option value=""></option>'
-          + ['Yes','No','N/A'].map(function(o){ return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+o+'</option>'; }).join('')
-          + '</select></div>' + escBtns;
+          + ['Yes','No','N/A'].map(function(o){ return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+(o==='Yes'?t('yesWord'):o==='No'?t('noWord'):t('naWord'))+'</option>'; }).join('')
+          + '</select></div>';
       }).join('');
     }
-    function stepTail(){
-      var anyNo = Object.keys(state.items).some(function(k){ return state.items[k]==='No'; });
-      return '<div class="pm-field"><label>Corrective Action Required</label><select id="pm-pt-car"><option value="No"' + (state.carRequired==='No'?' selected':'') + '>No</option><option value="Yes"' + (state.carRequired==='Yes'?' selected':'') + '>Yes</option></select></div>'
-        + '<div class="pm-field"><label>Corrective Action Details</label><textarea id="pm-pt-cardetails">' + esc_(state.carDetails) + '</textarea></div>'
-        + '<div class="pm-field"><label>Target Close Date</label><input type="date" id="pm-pt-target" value="' + esc_(state.targetDate) + '"></div>'
-        + '<div class="pm-field"><label>Remarks</label><textarea id="pm-pt-remarks">' + esc_(state.remarks) + '</textarea></div>'
-        + (anyNo ? '<div class="pm-sub" style="color:var(--pdw-amb)">This round will save as Unsatisfactory.</div>' : '');
+    function stepObservations(){
+      var listHtml = state.observations.map(function(o, idx){
+        return '<div class="pm-card" style="margin-bottom:8px">'
+          + '<div class="pm-card-meta">' + (o.urgent ? '<b style="color:var(--pdw-red)">🚩 ' + t('urgentLabel') + '</b><br>' : '')
+          + esc_(o.description)
+          + (o.photos.length ? '<br>📷 ' + o.photos.length + ' ' + t('photoWord') : '')
+          + (o.docFile ? '<br>📄 ' + esc_(o.docFile.name) : '')
+          + '</div>'
+          + '<button type="button" class="pm-esc-btn pm-esc-v" data-rm="'+idx+'" style="margin-top:6px">' + t('removeBtn') + '</button>'
+          + '</div>';
+      }).join('') || '<div class="pm-sub">' + t('noObservationsYet') + '</div>';
+      return '<div class="pm-field"><label>' + t('remarks') + '</label><textarea id="pm-pt-remarks">' + esc_(state.remarks) + '</textarea></div>'
+        + '<div class="pm-sec-hd">' + t('observationsTitle') + '</div>'
+        + listHtml
+        + '<button type="button" class="pm-btn-back" id="pm-pt-addobs" style="width:100%;margin-top:8px">+ ' + t('addObservation') + '</button>';
+    }
+    function stepObsEditor(){
+      return '<div class="pm-sec-hd">' + t('addObservation') + '</div>'
+        + '<div class="pm-field"><label>' + t('obsDescLabel') + '</label><textarea id="pm-oe-desc" placeholder="' + t('obsDescPlaceholder') + '">' + esc_(obsEditing.description) + '</textarea></div>'
+        + '<div class="pm-field"><label>' + t('addPhotoBtn') + '</label><input type="file" id="pm-oe-photo" accept="image/*" capture="environment" multiple></div>'
+        + (obsEditing.photos.length ? '<div class="pm-sub">' + obsEditing.photos.length + ' ' + t('photoWord') + '</div>' : '')
+        + '<div class="pm-field"><label>' + t('addDocumentBtn') + '</label><input type="file" id="pm-oe-doc"></div>'
+        + (obsEditing.docFile ? '<div class="pm-sub">' + esc_(obsEditing.docFile.name) + '</div>' : '')
+        + '<div class="pm-field"><label class="pm-item-label" style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="pm-oe-urgent"' + (obsEditing.urgent?' checked':'') + '> ' + t('urgentCheckboxLabel') + '</label></div>'
+        + '<div class="pm-step-nav" style="margin-top:4px">'
+        + '<button type="button" class="pm-btn-back" id="pm-oe-cancel">' + t('cancelBtn') + '</button>'
+        + '<button type="button" class="pm-btn-next" id="pm-oe-save">' + t('saveBtn') + '</button>'
+        + '</div>';
     }
     function renderModal(){
       var root2 = document.getElementById('pm-modal-root');
-      var body = step===0 ? stepHeader() : step===1 ? stepItems() : stepTail();
+      var body = step===0 ? stepHeader() : step===1 ? stepItems() : (obsEditing ? stepObsEditor() : stepObservations());
+      var showStandardNav = !(step===2 && obsEditing);
       root2.innerHTML = '<div class="pm-modal-bg"><div class="pm-modal">'
-        + '<h3>New Patrol Round</h3>'
+        + '<h3>' + t('newPatrolRound') + '</h3>'
         + '<div class="pm-step-dots">' + [0,1,2].map(function(i){ return '<div class="pm-dot' + (i===step?' pm-active':'') + '"></div>'; }).join('') + '</div>'
         + body
         + '<div id="pm-pt-err" class="pm-err"></div>'
-        + '<div class="pm-step-nav">'
-        + (step>0 ? '<button type="button" class="pm-btn-back" id="pm-pt-back">Back</button>' : '<button type="button" class="pm-btn-back" id="pm-pt-cancel">Cancel</button>')
-        + '<button type="button" class="pm-btn-next" id="pm-pt-next">' + (step<2 ? 'Next' : 'Save') + '</button>'
-        + '</div></div></div>';
+        + (showStandardNav
+          ? ('<div class="pm-step-nav">'
+            + (step>0 ? '<button type="button" class="pm-btn-back" id="pm-pt-back">' + t('backBtn') + '</button>' : '<button type="button" class="pm-btn-back" id="pm-pt-cancel">' + t('cancelBtn') + '</button>')
+            + '<button type="button" class="pm-btn-next" id="pm-pt-next">' + (step<2 ? t('nextBtn') : t('saveBtn')) + '</button>'
+            + '</div>')
+          : '')
+        + '</div></div>';
       if (step===0){
-        document.getElementById('pm-pt-shift').onchange = function(){ state.shift = this.value; };
         document.getElementById('pm-pt-area').oninput = function(){ state.area = this.value; };
       }
       if (step===1){
         document.querySelectorAll('.pm-pt-item').forEach(function(sel){
-          sel.onchange = function(){ state.items[this.getAttribute('data-i')] = this.value; renderModal(); };
-        });
-        PATROL_ITEMS.forEach(function(it, i){
-          var vBtn = document.getElementById('pm-pt-escv-'+i), aBtn = document.getElementById('pm-pt-esca-'+i);
-          if (vBtn) vBtn.onclick = function(){ escalateToViolation(state.area, it); };
-          if (aBtn) aBtn.onclick = function(){ escalateToAction(state.area, it); };
+          sel.onchange = function(){ state.items[this.getAttribute('data-i')] = this.value; };
         });
       }
       if (step===2){
-        document.getElementById('pm-pt-car').onchange = function(){ state.carRequired = this.value; };
-        document.getElementById('pm-pt-cardetails').oninput = function(){ state.carDetails = this.value; };
-        document.getElementById('pm-pt-target').onchange = function(){ state.targetDate = this.value; };
-        document.getElementById('pm-pt-remarks').oninput = function(){ state.remarks = this.value; };
+        var err = document.getElementById('pm-pt-err');
+        if (obsEditing){
+          document.getElementById('pm-oe-desc').oninput = function(){ obsEditing.description = this.value; };
+          document.getElementById('pm-oe-urgent').onchange = function(){ obsEditing.urgent = this.checked; };
+          document.getElementById('pm-oe-photo').onchange = function(e){
+            var files = Array.prototype.slice.call(e.target.files || []);
+            if (!files.length) return;
+            Promise.all(files.map(compressImageFile_)).then(function(results){
+              obsEditing.photos = obsEditing.photos.concat(results);
+              renderModal();
+            }).catch(function(){ err.textContent = t('photoReadFailed'); });
+          };
+          document.getElementById('pm-oe-doc').onchange = function(e){
+            var f = e.target.files && e.target.files[0];
+            if (!f) return;
+            readFileAsDataUrl_(f).then(function(res){ obsEditing.docFile = res; renderModal(); });
+          };
+          document.getElementById('pm-oe-cancel').onclick = function(){ obsEditing = null; renderModal(); };
+          document.getElementById('pm-oe-save').onclick = function(){
+            if (!obsEditing.description.trim()){ err.textContent = t('obsDescRequired'); return; }
+            state.observations.push(obsEditing);
+            obsEditing = null;
+            renderModal();
+          };
+        } else {
+          document.getElementById('pm-pt-remarks').oninput = function(){ state.remarks = this.value; };
+          document.getElementById('pm-pt-addobs').onclick = function(){ obsEditing = { description:'', urgent:false, photos:[], docFile:null }; renderModal(); };
+          document.querySelectorAll('[data-rm]').forEach(function(btn){
+            btn.onclick = function(){ state.observations.splice(parseInt(this.getAttribute('data-rm'),10), 1); renderModal(); };
+          });
+        }
       }
       var cancelBtn = document.getElementById('pm-pt-cancel'); if (cancelBtn) cancelBtn.onclick = function(){ root2.innerHTML=''; };
       var backBtn2 = document.getElementById('pm-pt-back'); if (backBtn2) backBtn2.onclick = function(){ step--; renderModal(); };
-      document.getElementById('pm-pt-next').onclick = function(){
-        var err = document.getElementById('pm-pt-err');
-        if (step===0 && !state.area.trim()){ err.textContent = 'Area / Route Covered is required.'; return; }
+      var nextBtn2 = document.getElementById('pm-pt-next');
+      if (nextBtn2) nextBtn2.onclick = function(){
+        var err2 = document.getElementById('pm-pt-err');
+        if (step===0 && !state.area.trim()){ err2.textContent = t('areaRequired'); return; }
         if (step===1){
           var missing = PATROL_ITEMS.filter(function(_,i){ return !state.items[i]; });
-          if (missing.length){ err.textContent = 'Answer every item before continuing.'; return; }
+          if (missing.length){ err2.textContent = t('answerAllItems'); return; }
         }
         if (step<2){ step++; renderModal(); return; }
-        // Save
-        if (state.carRequired==='Yes' && !state.carDetails.trim()){ err.textContent = 'Describe the corrective action needed.'; return; }
-        savePatrol(state);
+        savePatrol(state, nextBtn2, err2);
       };
     }
     renderModal();
@@ -578,60 +887,95 @@
     return PATROL_ID_PREFIX + '-' + String(max+1).padStart(4,'0');
   }
 
-  function savePatrol(state){
+  // Rev.4 — the round itself always saves Closed now: there is no
+  // corrective-action concept left on the patrol round, so nothing
+  // about IT is ever "open". Follow-up on any individual observation
+  // is tracked entirely in the Observation Register from here on.
+  function savePatrol(state, nextBtn, err){
     var anyNo = Object.keys(state.items).some(function(k){ return state.items[k]==='No'; });
+    var now = new Date();
+    var saveDate = now.toISOString().slice(0,10);
+    var saveTime = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    var patrolId = nextPatrolId();
     var values = {
-      'Patrol ID': nextPatrolId(), 'Date': todayStr(), 'Shift': state.shift, 'Patrol Time': nowTimeStr(),
+      'Patrol ID': patrolId, 'Date': saveDate, 'Shift': computeShift(saveTime), 'Patrol Time': saveTime,
       'Area / Route Covered': state.area, 'Guard Name': _me,
       'Overall Result': anyNo ? PATROL_FAIL : PATROL_PASS,
-      'Corrective Action Required': state.carRequired, 'Corrective Action Details': state.carDetails,
-      'Target Close Date': state.targetDate, 'Reported By': _me, 'Remarks': state.remarks,
-      'Status': state.carRequired==='Yes' ? 'Open' : 'Closed', 'Record Status':'Active'
+      'Reported By': _me, 'Remarks': state.remarks,
+      'Status': 'Closed', 'Record Status':'Active'
     };
     PATROL_ITEMS.forEach(function(it,i){ values[it] = state.items[i]; });
+    if (nextBtn){ nextBtn.disabled = true; nextBtn.textContent = state.observations.length ? t('uploadingObs') : t('saveBtn'); }
     postJSON('write', {tab: PATROL_TAB}, [values]).then(function(res){
-      if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); return; }
-      document.getElementById('pm-modal-root').innerHTML = '';
-      loadAll(function(){ renderPatrol(); });
-    }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+      if (res && res.status === 'error'){ if (err) err.textContent = t('saveFailed') + ' ' + (res.message||t('unknownErr')); if (nextBtn) nextBtn.disabled = false; return; }
+      if (!state.observations.length){
+        document.getElementById('pm-modal-root').innerHTML = '';
+        loadAll(function(){ renderPatrol(); });
+        return;
+      }
+      saveObservations_(state, patrolId).then(function(){
+        document.getElementById('pm-modal-root').innerHTML = '';
+        loadAll(function(){ renderPatrol(); });
+      }).catch(function(){
+        if (err) err.textContent = t('noServer');
+        if (nextBtn) nextBtn.disabled = false;
+      });
+    }).catch(function(){ if (err) err.textContent = t('noServer'); if (nextBtn) nextBtn.disabled = false; });
   }
 
-  // Rev.1 — same deep-link pattern visitor-induction.html's own spot
-  // check escalation already uses into violation-register.html; added
-  // 'patrol' there as a second accepted source (see that file's own
-  // handleViolationDeepLink).
-  function escalateToViolation(area, itemText){
+  // Writes each added observation to obs_patrol (one row per
+  // observation), uploading its photos/document to Drive first and
+  // storing the resulting links on the row. Observation Register
+  // reviews these the same way as every other case; an Urgent one
+  // also fires an immediate email (see sendUrgentObservationAlert in
+  // google-apps-script.js) rather than waiting for that review.
+  function saveObservations_(state, patrolId){
+    var nextId = nextObsCaseIdFactory_();
     var now = new Date();
-    var params = new URLSearchParams({
-      source: 'patrol', department: area || '', date: todayStr(),
-      time: String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'),
-      checkedBy: _me || '', note: 'Security patrol finding: ' + itemText
+    var dateStr = now.toISOString().slice(0,10);
+    var timeStr = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    var chain = Promise.resolve();
+    state.observations.forEach(function(o){
+      chain = chain.then(function(){
+        var caseId = nextId();
+        var photoUploads = o.photos.map(function(p){ return uploadObsFile_(caseId, p, 'photo'); });
+        var docUpload = o.docFile ? uploadObsFile_(caseId, o.docFile, 'document') : Promise.resolve(null);
+        return Promise.all([Promise.all(photoUploads), docUpload]).then(function(results){
+          var photoResults = results[0], docResult = results[1];
+          var photoLinks = photoResults.filter(function(r){ return r && r.ok; }).map(function(r){ return r.webViewLink; });
+          var docLink = (docResult && docResult.ok) ? docResult.webViewLink : '';
+          var rec = {
+            'Case ID': caseId, 'Date Reported': dateStr + ' ' + timeStr,
+            'Location': state.area, 'Category': 'Security Patrol Observation',
+            'Description': o.description, 'Reported By': _me,
+            'Patrol Reference': patrolId, 'Urgent': o.urgent ? 'Yes' : 'No',
+            'Photo Links': photoLinks.join(', '), 'Document Link': docLink,
+            'Record Status': 'Active'
+          };
+          return postJSON('create', {tab: OBS_PATROL_TAB}, rec).then(function(){
+            if (o.urgent){
+              return postJSON('sendUrgentObservationAlert', {}, {
+                caseId: caseId, reportedBy: _me, area: state.area, date: dateStr, time: timeStr,
+                description: o.description, hasPhotos: photoLinks.length > 0
+              }).catch(function(e){ console.log('Urgent observation alert failed to send:', e); });
+            }
+          });
+        });
+      });
     });
-    window.open('violation-register.html?' + params.toString(), '_blank');
-  }
-  // Rev.2 (Issam, voice, 2026-11-24) — same sessionStorage-plus-URL
-  // hand-off pattern every other register's own "Escalate to Action"
-  // button already uses into capa-wizard.js (see that file's new
-  // openFromPatrol() and its fromPatrol dispatcher). The patrol round
-  // itself may not be saved yet (items are answered before Save), so
-  // this uses the next Patrol ID as the reference rather than waiting
-  // for an existing row.
-  function escalateToAction(area, itemText){
-    var patrolId = nextPatrolId();
-    var ctx = {
-      patrolId: patrolId,
-      description: 'Security Patrol finding (' + (area || 'area not yet entered') + '): ' + itemText,
-      date: todayStr()
-    };
-    try { sessionStorage.setItem('incomingPatrolContext', JSON.stringify(ctx)); } catch(e){ /* not fatal */ }
-    window.open('action-register.html?fromPatrol=' + encodeURIComponent(patrolId) + '&lane=ACT', '_blank');
+    return chain;
   }
 
   /* ───────────────────────────── Fuel view ───────────────────────────── */
+  // Section labels and item text, translated for display only — the
+  // sheet keys (section.key + index) are untouched (see FUEL_SECTIONS).
+  var FUEL_SECTION_LABEL_KEY = { 'Pre':'preChecks', 'During':'duringChecks', 'Post':'postChecks' };
+  var FUEL_SECTION_ITEMS_AR = { 'Pre':FUEL_PRE_ITEMS_AR, 'During':FUEL_DURING_ITEMS_AR, 'Post':FUEL_POST_ITEMS_AR };
+
   function renderFuel(){
-    root.innerHTML = backBtn() + '<div class="pm-list-title">⛽ Fuel Reception Checklist</div>'
-      + '<div class="pm-card"><div class="pm-card-meta">Mobile version of the Fuel Delivery (Diesel/HFO) Spill Prevention checklist. Saves to the same register as the desktop page.</div></div>'
-      + '<button type="button" class="pm-home-btn pm-primary" onclick="SH.openFuelForm()"><span class="pm-icon">➕</span><div><div class="pm-label">New Fuel Delivery Checklist</div></div></button>';
+    root.innerHTML = backBtn() + '<div class="pm-list-title">⛽ ' + t('fuelTile') + '</div>'
+      + '<div class="pm-card"><div class="pm-card-meta">' + t('fuelDesc') + '</div></div>'
+      + '<button type="button" class="pm-home-btn pm-primary" onclick="SH.openFuelForm()"><span class="pm-icon">➕</span><div><div class="pm-label">' + t('newFuelBtn') + '</div></div></button>';
   }
 
   function openFuelForm(){
@@ -644,45 +988,45 @@
       var root2 = document.getElementById('pm-modal-root');
       var body = '';
       if (step === 0){
-        body = '<div class="pm-field"><label>Date</label><input type="date" id="pm-fd-date" value="' + esc(state.date) + '"></div>'
-          + '<div class="pm-field"><label>Fuel Type</label><select id="pm-fd-fuel">' + FUEL_TYPES.map(function(t){ return '<option value="'+t+'"'+(t===state.fuel?' selected':'')+'>'+t+'</option>'; }).join('') + '</select></div>'
-          + '<div class="pm-field"><label>Tanker / Vehicle No.</label><input type="text" id="pm-fd-tanker" value="' + esc(state.tanker) + '"></div>'
-          + '<div class="pm-field"><label>Supplier</label><input type="text" id="pm-fd-supplier" value="' + esc(state.supplier) + '"></div>'
-          + '<div class="pm-field"><label>Driver Name</label><input type="text" id="pm-fd-driver" value="' + esc(state.driver) + '"></div>'
-          + '<div class="pm-field"><label>Receiving Attendant</label><input type="text" id="pm-fd-attendant" value="' + esc(state.attendant) + '"></div>'
-          + '<div class="pm-field"><label>Supervisor on Site</label><input type="text" id="pm-fd-supervisor" value="' + esc(state.supervisor) + '"></div>';
+        body = '<div class="pm-field"><label>' + t('dateLabel') + '</label><input type="date" id="pm-fd-date" value="' + esc(state.date) + '"></div>'
+          + '<div class="pm-field"><label>' + t('fuelTypeLabel') + '</label><select id="pm-fd-fuel">' + FUEL_TYPES.map(function(ft){ return '<option value="'+ft+'"'+(ft===state.fuel?' selected':'')+'>'+ft+'</option>'; }).join('') + '</select></div>'
+          + '<div class="pm-field"><label>' + t('tankerLabel') + '</label><input type="text" id="pm-fd-tanker" value="' + esc(state.tanker) + '"></div>'
+          + '<div class="pm-field"><label>' + t('supplierLabel') + '</label><input type="text" id="pm-fd-supplier" value="' + esc(state.supplier) + '"></div>'
+          + '<div class="pm-field"><label>' + t('driverLabel') + '</label><input type="text" id="pm-fd-driver" value="' + esc(state.driver) + '"></div>'
+          + '<div class="pm-field"><label>' + t('attendantLabel') + '</label><input type="text" id="pm-fd-attendant" value="' + esc(state.attendant) + '"></div>'
+          + '<div class="pm-field"><label>' + t('supervisorLabel') + '</label><input type="text" id="pm-fd-supervisor" value="' + esc(state.supervisor) + '"></div>';
       } else if (step >= 1 && step <= 3){
         var section = FUEL_SECTIONS[step-1];
-        body = '<div class="pm-sec-hd">' + section.label + '</div>' + section.items.map(function(it,i){
+        body = '<div class="pm-sec-hd">' + t(FUEL_SECTION_LABEL_KEY[section.key]) + '</div>' + section.items.map(function(it,i){
           var k = itemKey(section.key, i), v = state.items[k] || '';
-          return '<div class="pm-item-row"><label class="pm-item-label">' + esc(it) + '</label>'
+          return '<div class="pm-item-row"><label class="pm-item-label">' + esc(itemLabel(it, i, FUEL_SECTION_ITEMS_AR[section.key])) + '</label>'
             + '<select data-k="'+k+'" class="pm-fd-item"><option value=""></option>'
-            + ['Yes','No','N/A'].map(function(o){ return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+o+'</option>'; }).join('')
+            + ['Yes','No','N/A'].map(function(o){ return '<option value="'+o+'"'+(o===v?' selected':'')+'>'+(o==='Yes'?t('yesWord'):o==='No'?t('noWord'):t('naWord'))+'</option>'; }).join('')
             + '</select></div>';
         }).join('');
         if (step === 3){
           var spillYes = state.spill === 'Yes';
-          body += '<div class="pm-sec-hd">Spill Occurrence</div>'
-            + '<div class="pm-field"><label>Spill Occurred?</label><select id="pm-fd-spill"><option value="No"'+(!spillYes?' selected':'')+'>No</option><option value="Yes"'+(spillYes?' selected':'')+'>Yes</option></select></div>'
-            + '<div class="pm-field"><label>Estimated Quantity Spilled</label><input type="text" id="pm-fd-spillqty" value="' + esc(state.spillQty) + '"></div>'
-            + '<div class="pm-field"><label>Cause (brief)</label><input type="text" id="pm-fd-spillcause" value="' + esc(state.spillCause) + '"></div>'
-            + '<div class="pm-field"><label>Reached Drain / Soil / Water?</label><input type="text" id="pm-fd-spillreach" value="' + esc(state.spillReach) + '"></div>'
-            + '<div class="pm-field"><label>Remarks</label><textarea id="pm-fd-remarks">' + esc(state.remarks) + '</textarea></div>';
+          body += '<div class="pm-sec-hd">' + t('spillOccurrence') + '</div>'
+            + '<div class="pm-field"><label>' + t('spillOccurredQ') + '</label><select id="pm-fd-spill"><option value="No"'+(!spillYes?' selected':'')+'>' + t('noWord') + '</option><option value="Yes"'+(spillYes?' selected':'')+'>' + t('yesWord') + '</option></select></div>'
+            + '<div class="pm-field"><label>' + t('spillQty') + '</label><input type="text" id="pm-fd-spillqty" value="' + esc(state.spillQty) + '"></div>'
+            + '<div class="pm-field"><label>' + t('spillCause') + '</label><input type="text" id="pm-fd-spillcause" value="' + esc(state.spillCause) + '"></div>'
+            + '<div class="pm-field"><label>' + t('spillReach') + '</label><input type="text" id="pm-fd-spillreach" value="' + esc(state.spillReach) + '"></div>'
+            + '<div class="pm-field"><label>' + t('remarks') + '</label><textarea id="pm-fd-remarks">' + esc(state.remarks) + '</textarea></div>';
         }
       } else {
         var anyNo = Object.keys(state.items).some(function(k){ return state.items[k]==='No'; });
-        body = '<div class="pm-card-meta"><b>Date:</b> ' + esc(state.date) + ' &nbsp; <b>Fuel:</b> ' + esc(state.fuel) + '<br>'
-          + '<b>Tanker:</b> ' + esc(state.tanker) + ' &nbsp; <b>Supplier:</b> ' + esc(state.supplier) + '<br>'
-          + '<b>Spill Occurred:</b> ' + esc(state.spill) + '</div>'
-          + (anyNo ? '<div class="pm-sub" style="color:var(--pdw-amb);margin-top:8px">One or more checklist items are marked No — review before saving.</div>' : '');
+        body = '<div class="pm-card-meta"><b>' + t('reviewDate') + '</b> ' + esc(state.date) + ' &nbsp; <b>' + t('reviewFuel') + '</b> ' + esc(state.fuel) + '<br>'
+          + '<b>' + t('reviewTanker') + '</b> ' + esc(state.tanker) + ' &nbsp; <b>' + t('reviewSupplier') + '</b> ' + esc(state.supplier) + '<br>'
+          + '<b>' + t('reviewSpill') + '</b> ' + esc(state.spill) + '</div>'
+          + (anyNo ? '<div class="pm-sub" style="color:var(--pdw-amb);margin-top:8px">' + t('anyNoReview') + '</div>' : '');
       }
       root2.innerHTML = '<div class="pm-modal-bg"><div class="pm-modal">'
-        + '<h3>New Fuel Delivery Record</h3>'
+        + '<h3>' + t('newFuelTitle') + '</h3>'
         + '<div class="pm-step-dots">' + [0,1,2,3,4].map(function(i){ return '<div class="pm-dot' + (i===step?' pm-active':'') + '"></div>'; }).join('') + '</div>'
         + body + '<div id="pm-fd-err" class="pm-err"></div>'
         + '<div class="pm-step-nav">'
-        + (step>0 ? '<button type="button" class="pm-btn-back" id="pm-fd-back">Back</button>' : '<button type="button" class="pm-btn-back" id="pm-fd-cancel">Cancel</button>')
-        + '<button type="button" class="pm-btn-next" id="pm-fd-next">' + (step<TOTAL_STEPS-1 ? 'Next' : 'Save') + '</button>'
+        + (step>0 ? '<button type="button" class="pm-btn-back" id="pm-fd-back">' + t('backBtn') + '</button>' : '<button type="button" class="pm-btn-back" id="pm-fd-cancel">' + t('cancelBtn') + '</button>')
+        + '<button type="button" class="pm-btn-next" id="pm-fd-next">' + (step<TOTAL_STEPS-1 ? t('nextBtn') : t('saveBtn')) + '</button>'
         + '</div></div></div>';
       if (step===0){
         document.getElementById('pm-fd-date').onchange = function(){ state.date = this.value; };
@@ -706,11 +1050,11 @@
       var backBtn2 = document.getElementById('pm-fd-back'); if (backBtn2) backBtn2.onclick = function(){ step--; renderModal(); };
       document.getElementById('pm-fd-next').onclick = function(){
         var err = document.getElementById('pm-fd-err'); err.textContent='';
-        if (step===0 && !state.tanker.trim()){ err.textContent = 'Tanker / Vehicle No. is required.'; return; }
+        if (step===0 && !state.tanker.trim()){ err.textContent = t('tankerRequired'); return; }
         if (step>=1 && step<=3){
           var section = FUEL_SECTIONS[step-1];
           var missing = section.items.filter(function(_,i){ return !state.items[itemKey(section.key,i)]; });
-          if (missing.length){ err.textContent = 'Answer every item before continuing.'; return; }
+          if (missing.length){ err.textContent = t('answerAllItems'); return; }
         }
         if (step < TOTAL_STEPS-1){ step++; renderModal(); return; }
         saveFuel(state);
@@ -733,23 +1077,23 @@
       });
     });
     postJSON('create', {tab: FUEL_TAB}, rec).then(function(res){
-      if (res && res.status === 'error'){ alert('Save failed: ' + (res.message||'unknown error')); return; }
+      if (res && res.status === 'error'){ alert(t('saveFailed') + ' ' + (res.message||t('unknownErr'))); return; }
       document.getElementById('pm-modal-root').innerHTML = '';
       go('fuel');
-    }).catch(function(){ alert('Could not reach the server — check your connection.'); });
+    }).catch(function(){ alert(t('noServer')); });
   }
 
   window.SH = {
     go: go, startScan: startScan, lookupGate: lookupGate, confirmGateEntry: confirmGateEntry, logGateAttempt: logGateAttempt,
-    openPatrolForm: openPatrolForm, openFuelForm: openFuelForm
+    openPatrolForm: openPatrolForm, openFuelForm: openFuelForm, toggleLang: function(){ setLang(_lang==='ar' ? 'en' : 'ar'); }
   };
 
   function allowed(s){ return !!s; }
   function blockPage(){
     root.innerHTML = '<div style="text-align:center;padding:60px 20px">'
-      + '<div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">Access Restricted</div>'
-      + '<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:300px;margin:0 auto 18px">Please sign in to use the Security Operations Hub.</div>'
-      + '<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">Return to Portal</a></div>';
+      + '<div style="font-size:15px;font-weight:600;margin-bottom:8px;color:#E06060">' + t('accessRestricted') + '</div>'
+      + '<div style="font-size:12px;color:rgba(255,255,255,.6);max-width:300px;margin:0 auto 18px">' + t('pleaseSignIn') + '</div>'
+      + '<a href="index.html" style="color:#C9A84C;font-size:12px;text-decoration:none;border:1px solid rgba(201,168,76,.4);padding:7px 16px;border-radius:6px">' + t('returnToPortal') + '</a></div>';
   }
   if (typeof IMS_AUTH === 'undefined'){ blockPage(); }
   else {

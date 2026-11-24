@@ -186,6 +186,17 @@ var TABS = {
   // pre-use check for vehicles/mobile equipment other than forklifts
   // and cranes, which already have their own checks.
   'security_patrol':           'Security Patrol',
+  // Rev.1 (Issam, voice, 2026-11-24) — NEW tab, holding the patrol
+  // guard's own freeform observations (as many per round as he adds),
+  // each with optional photos/a document and an Urgent flag. Lives on
+  // the MAIN IMS sheet (not the external AppSheet Observations source
+  // obs_main reads from) — observations-register.html reads this
+  // alongside obs_main so Safety reviews everything in one place; see
+  // that file's own loadAll() for the merge. Does not exist yet on the
+  // live Google Sheet — needs creating, header row 3: Case ID, Date
+  // Reported, Location, Category, Description, Reported By, Patrol
+  // Reference, Urgent, Photo Links, Document Link, Record Status.
+  'obs_patrol':                'Security Patrol Observations',
   'eyewash_shower_testing':    'Eyewash Shower Flush Testing',
   'vehicle_preuse_inspection': 'Vehicle Pre-Use Inspection',
   'fe_master':        'FE Master Inventory',
@@ -737,6 +748,30 @@ function doPost(e) {
       var bodyPatrol = JSON.parse(e.postData ? e.postData.contents : '{}');
       return ContentService
         .createTextOutput(JSON.stringify(sendOverduePatrolAlert(bodyPatrol)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Rev.1 (Issam, voice, 2026-11-24) — Security Patrol observations:
+    // an "Urgent" flag on one observation emails Safety Controllers +
+    // the manager immediately, instead of waiting for the normal
+    // Observation Register review queue. English only, by request.
+    if (pAction === 'sendUrgentObservationAlert') {
+      var bodyUrgObs = JSON.parse(e.postData ? e.postData.contents : '{}');
+      return ContentService
+        .createTextOutput(JSON.stringify(sendUrgentObservationAlert(bodyUrgObs)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Rev.1 (Issam, voice, 2026-11-24) — generic Drive upload reachable
+    // over plain HTTP POST (fetch), for pages like security-hub.html
+    // that are static GitHub Pages files and can't use google.script.run
+    // the way the existing file-upload picker UI (served BY Apps
+    // Script) does. Wraps the same uploadFileToDrive() the picker UI
+    // already calls — same Drive folder, same ' Attachments' sheet log.
+    if (pAction === 'uploadFileToDrive') {
+      var bodyUpload = JSON.parse(e.postData ? e.postData.contents : '{}');
+      return ContentService
+        .createTextOutput(JSON.stringify(uploadFileToDrive(bodyUpload)))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -1481,13 +1516,18 @@ function installTriggers() {
   var triggers = ScriptApp.getProjectTriggers();
   triggers.forEach(function(t) {
     var fn = t.getHandlerFunction();
-    if (fn === 'scanAndNotifyOwners' || fn === 'sendWeeklyOverdueReport') ScriptApp.deleteTrigger(t);
+    if (fn === 'scanAndNotifyOwners' || fn === 'sendWeeklyOverdueReport' || fn === 'scanAndNotifyOverduePatrol') ScriptApp.deleteTrigger(t);
   });
 
   ScriptApp.newTrigger('scanAndNotifyOwners').timeBased().everyDays(1).atHour(8).create();
   ScriptApp.newTrigger('sendWeeklyOverdueReport').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(8).create();
+  // Rev.1 (Issam, voice, 2026-11-24) — Security Patrol overdue chain;
+  // every 30 min so a 2-hour threshold is never missed by more than
+  // half an hour. See scanAndNotifyOverduePatrol()'s own header comment
+  // for the full stage/recipient design.
+  ScriptApp.newTrigger('scanAndNotifyOverduePatrol').timeBased().everyMinutes(30).create();
 
-  Logger.log('Triggers installed: scanAndNotifyOwners daily at ~08:00, sendWeeklyOverdueReport every Monday at ~08:00.');
+  Logger.log('Triggers installed: scanAndNotifyOwners daily at ~08:00, sendWeeklyOverdueReport every Monday at ~08:00, scanAndNotifyOverduePatrol every 30 min.');
   return { status: 'ok' };
 }
 
@@ -2740,6 +2780,11 @@ function vEscPlain_(v){ return String(v==null?'':v); }
 // already uses). One email, every controller in the "to" line, same
 // shape as sendViolationStageEmail/sendPtwStageEmail above — this only
 // sends the email, it changes nothing on the sheet.
+// Rev.32 (Issam, voice, 2026-11-24) — SUPERSEDED as of today for the
+// patrol-overdue flow: security-hub.html no longer calls this action
+// (see scanAndNotifyOverduePatrol() further below, run on a 30-minute
+// schedule instead). Left in place/untouched in case anything else
+// ever calls this exact doPost action; it is otherwise dead code now.
 function sendOverduePatrolAlert(data) {
   try {
     var toList = (data && data.toEmails) || [];
@@ -2763,6 +2808,243 @@ function sendOverduePatrolAlert(data) {
   } catch (err) {
     Logger.log('sendOverduePatrolAlert: THREW — ' + err);
     return { status: 'error', message: err.toString() };
+  }
+}
+
+/* ── Scheduled overdue-patrol alerts (replaces the browser-triggered
+   call above) ────────────────────────────────────────────────────
+   Issam, voice, 2026-11-24 — the earlier design (security-hub.html
+   emailing on page load, de-duped via sessionStorage) had a real
+   flaw: a second person opening the hub in a different browser had
+   no way to know an email had already gone out, so could re-send it.
+   He also didn't want a reminder every 2 hours forever ("it will
+   annoy the people") — the agreed design is a SHORT, capped chain:
+
+     Hours since last patrol > PATROL_INTERVAL_HOURS (2)   → 1st alert
+     > 2×PATROL_INTERVAL_HOURS (4)                          → reminder
+     > 3×PATROL_INTERVAL_HOURS (6)                          → final alert
+                                                                + manager
+                                                                copied,
+                                                                then stops
+
+   Recipients: Safety Controllers (same roster this file's
+   getSafetyControllerEmails_ below reads) on all three; the manager
+   is added ONLY on the final one (getPatrolManagerEmails_ below) —
+   "just the safety controller and manager", per Issam.
+
+   State lives in PropertiesService (survives between trigger runs,
+   unlike the old sessionStorage approach) and resets the moment a
+   newer patrol is logged, so a fixed round auto-stops the chain —
+   no email ever goes out once the next round has been recorded.
+
+   Install the trigger ONCE via installTriggers() below (adds this
+   alongside the existing CAPA ones, every 30 minutes, so a 2-hour
+   threshold is never missed by more than half an hour). */
+var PATROL_INTERVAL_HOURS = 2;
+var PATROL_ALERT_PROP_BASELINE = 'patrolAlertBaseline';
+var PATROL_ALERT_PROP_STAGE = 'patrolAlertStage';
+
+// Mirrors security-hub.html's own isSafety() test (role/department/title
+// matching safety|hse|controller, or an admin/superadmin role) — same
+// User Register sheet, read directly here rather than from the
+// browser, since Apps Script can read it server-side just fine.
+//
+// One deliberate difference from the client's isSafety(): titles
+// matching /manager|head/i are excluded here, even if they also
+// contain "safety" or "hse" (e.g. "Safety Manager" would otherwise
+// match both this AND getPatrolManagerEmails_ below). Issam's design
+// is two clean tiers — Controllers on every alert, the manager added
+// only on the final one — so a Safety Manager is treated as "the
+// manager" here, not double-counted as a Controller too.
+function getSafetyControllerEmails_(usersData) {
+  var headers = usersData.headers;
+  var nameIdx = headers.indexOf('Full Name'); if (nameIdx < 0) nameIdx = headers.indexOf('Name');
+  var roleIdx = headers.indexOf('Role'), titleIdx = headers.indexOf('Job Title'),
+      statusIdx = headers.indexOf('Account Status'), emailIdx = headers.indexOf('Email');
+  var out = [], seen = {};
+  usersData.rows.forEach(function(r) {
+    if (statusIdx >= 0) {
+      var st = String(r[statusIdx] || 'active').trim().toLowerCase();
+      if (st && st !== 'active') return;
+    }
+    var role = roleIdx >= 0 ? String(r[roleIdx] || '').trim() : '';
+    var title = titleIdx >= 0 ? String(r[titleIdx] || '').trim() : '';
+    if (/manager|head/i.test(title)) return;
+    if (!(/safety|hse/i.test(role) || /safety|hse|controller/i.test(title) || /superadmin|admin/i.test(role))) return;
+    var name = nameIdx >= 0 ? String(r[nameIdx] || '').trim() : '';
+    var email = emailIdx >= 0 ? String(r[emailIdx] || '').trim() : '';
+    if (!email || seen[email.toLowerCase()]) return;
+    seen[email.toLowerCase()] = true;
+    out.push({ name: name, email: email });
+  });
+  return out;
+}
+
+// "the manager" for the final-reminder copy — nobody on the Users
+// roster is explicitly flagged as such, so this reuses the same
+// job-title/department pattern the Operations Hub access rule
+// already uses to recognise a Safety-side manager (title containing
+// "manager", department/role/title touching Safety/HSE/SHEE). If
+// SAGCO has one specific person who should always get this instead,
+// tell me and I'll point this at their email directly.
+function getPatrolManagerEmails_(usersData) {
+  var headers = usersData.headers;
+  var nameIdx = headers.indexOf('Full Name'); if (nameIdx < 0) nameIdx = headers.indexOf('Name');
+  var roleIdx = headers.indexOf('Role'), titleIdx = headers.indexOf('Job Title'),
+      deptIdx = headers.indexOf('Department'), statusIdx = headers.indexOf('Account Status'),
+      emailIdx = headers.indexOf('Email');
+  var out = [], seen = {};
+  usersData.rows.forEach(function(r) {
+    if (statusIdx >= 0) {
+      var st = String(r[statusIdx] || 'active').trim().toLowerCase();
+      if (st && st !== 'active') return;
+    }
+    var title = titleIdx >= 0 ? String(r[titleIdx] || '').trim() : '';
+    var dept = deptIdx >= 0 ? String(r[deptIdx] || '').trim() : '';
+    var role = roleIdx >= 0 ? String(r[roleIdx] || '').trim() : '';
+    if (!/manager/i.test(title)) return;
+    if (!(/safety|hse|shee/i.test(dept) || /safety|hse/i.test(role) || /safety|hse|shee/i.test(title))) return;
+    var name = nameIdx >= 0 ? String(r[nameIdx] || '').trim() : '';
+    var email = emailIdx >= 0 ? String(r[emailIdx] || '').trim() : '';
+    if (!email || seen[email.toLowerCase()]) return;
+    seen[email.toLowerCase()] = true;
+    out.push({ name: name, email: email });
+  });
+  return out;
+}
+
+// Rev.2 (Issam, voice, 2026-11-24) — English only, by explicit
+// request ("let's keep the overdue email by English"); the Arabic
+// stays only in the hub screens the guards actually use.
+function buildOverduePatrolEmail_(stage, data) {
+  var link = data.pageUrl || 'security-hub.html';
+  var subject = stage === 3
+    ? 'SAGCO IMS – Security Patrol Overdue (Final Notice)'
+    : stage === 2 ? 'SAGCO IMS – Security Patrol Overdue (Reminder)'
+    : 'SAGCO IMS – Security Patrol Overdue';
+  var body = ''
+    + 'Dear Safety Controller' + (stage === 3 ? ' / Manager' : '') + ',\n\n'
+    + (stage === 1 ? 'The next security patrol tour is overdue.\n\n'
+      : stage === 2 ? 'The security patrol tour is STILL overdue (reminder).\n\n'
+      : 'The security patrol tour remains overdue — this is the final automatic notice; no further reminders will follow until a new round is logged.\n\n')
+    + 'Last round         : ' + (data.lastPatrolTime || '—') + ' on ' + (data.lastPatrolDate || '—') + '\n'
+    + 'Overdue by         : ' + (data.overdueHours || '—') + ' hour(s)\n'
+    + 'Area / Route (last): ' + (data.area || '') + '\n'
+    + '\nOpen the Security Operations Hub:\n' + link + '\n\n'
+    + 'SAGCO IMS – Security Operations Hub';
+  return { subject: subject, body: body };
+}
+
+// Rev.1 (Issam, voice, 2026-11-24) — one observation flagged Urgent on
+// the mobile patrol form sends this immediately (not queued for the
+// normal Observation Register review). English only, same as the
+// overdue-patrol emails. Recipients: Safety Controllers + the manager,
+// every time (unlike the overdue chain, there's no reason to hold the
+// manager back on an urgent, in-the-moment safety finding).
+function sendUrgentObservationAlert(data) {
+  try {
+    var usersData = readSheet('users');
+    var toList = getSafetyControllerEmails_(usersData).map(function(c){ return c.email; });
+    getPatrolManagerEmails_(usersData).forEach(function(m){ if (toList.indexOf(m.email) < 0) toList.push(m.email); });
+    if (!toList.length) return { status: 'error', message: 'No Safety Controller or manager email found on the Users roster.' };
+
+    var link = data.pageUrl || 'observations-register.html';
+    var subject = 'SAGCO IMS – URGENT Security Observation (' + (data.caseId || '') + ')';
+    var body = ''
+      + 'Dear Safety Controller / Manager,\n\n'
+      + 'A security patrol guard has flagged an observation as URGENT — please review now, do not wait for the normal review cycle.\n\n'
+      + 'Case ID    : ' + (data.caseId || '') + '\n'
+      + 'Reported by: ' + (data.reportedBy || '') + '\n'
+      + 'Area       : ' + (data.area || '') + '\n'
+      + 'Date/Time  : ' + (data.date || '') + ' ' + (data.time || '') + '\n'
+      + 'Description: ' + (data.description || '') + '\n'
+      + (data.hasPhotos ? 'Photo(s) attached — view in the Observation Register.\n' : '')
+      + '\nOpen the Observation Register:\n' + link + '\n\n'
+      + 'SAGCO IMS – Security Operations Hub';
+
+    MailApp.sendEmail({ to: toList.join(','), subject: subject, body: body, name: IMS_FROM_NAME });
+    return { status: 'ok', message: 'Urgent alert sent to ' + toList.join(', ') };
+  } catch (err) {
+    Logger.log('sendUrgentObservationAlert: THREW — ' + err);
+    return { status: 'error', message: err.toString() };
+  }
+}
+
+/* Called every 30 minutes by the trigger installTriggers() creates.
+   Checks the security_patrol tab directly (server-side — no browser
+   needed), works out how many 2-hour stages have been crossed since
+   the last logged round, and sends exactly ONE email per newly
+   crossed stage (never re-sends a stage already sent for the same
+   baseline round). Resets to stage 0 the moment a newer round shows
+   up in the sheet. */
+function scanAndNotifyOverduePatrol() {
+  try {
+    var patrolData = readSheet('security_patrol');
+    if (!patrolData || !patrolData.headers || !patrolData.headers.length) return;
+    var headers = patrolData.headers;
+    var dateIdx = headers.indexOf('Date'), timeIdx = headers.indexOf('Patrol Time'),
+        idIdx = headers.indexOf('Patrol ID'), areaIdx = headers.indexOf('Area / Route Covered'),
+        statusIdx = headers.indexOf('Record Status');
+    var rows = (patrolData.rows || []).filter(function(r) {
+      return statusIdx < 0 || String(r[statusIdx] || '').trim().toLowerCase() !== 'removed';
+    });
+    if (!rows.length) return; // nothing logged yet — nothing to judge "overdue" against
+
+    var latest = null, latestTs = null;
+    rows.forEach(function(r) {
+      var d = r[dateIdx], tm = r[timeIdx];
+      if (!d) return;
+      var tStr = (String(tm || '').length === 5) ? tm : '00:00';
+      var ts = new Date(String(d).slice(0, 10) + 'T' + tStr + ':00');
+      if (isNaN(ts.getTime())) return;
+      if (!latestTs || ts > latestTs) { latestTs = ts; latest = r; }
+    });
+    if (!latest) return;
+
+    var lastId = (idIdx >= 0 && latest[idIdx]) ? String(latest[idIdx]) : (String(latest[dateIdx]) + '-' + String(latest[timeIdx]));
+    var hoursSince = (Date.now() - latestTs.getTime()) / 3600000;
+
+    var props = PropertiesService.getScriptProperties();
+    var storedBaseline = props.getProperty(PATROL_ALERT_PROP_BASELINE);
+    var storedStage = parseInt(props.getProperty(PATROL_ALERT_PROP_STAGE) || '0', 10);
+    if (storedBaseline !== lastId) {
+      // A newer round has been logged since we last checked — reset
+      // the chain. This is the auto-stop Issam asked for.
+      storedBaseline = lastId; storedStage = 0;
+      props.setProperty(PATROL_ALERT_PROP_BASELINE, storedBaseline);
+      props.setProperty(PATROL_ALERT_PROP_STAGE, '0');
+    }
+    if (storedStage >= 3) return; // final notice already sent for this round — stay quiet
+
+    var stageReached = Math.min(3, Math.floor(hoursSince / PATROL_INTERVAL_HOURS));
+    if (stageReached <= storedStage) return; // not yet past the next threshold
+
+    var usersData = readSheet('users');
+    var controllers = getSafetyControllerEmails_(usersData);
+    var toList = controllers.map(function(c) { return c.email; });
+    if (stageReached === 3) {
+      getPatrolManagerEmails_(usersData).forEach(function(m) {
+        if (toList.indexOf(m.email) < 0) toList.push(m.email);
+      });
+    }
+    if (!toList.length) {
+      Logger.log('scanAndNotifyOverduePatrol: no recipients found — skipping send but advancing stage to avoid re-checking every 30 min.');
+      props.setProperty(PATROL_ALERT_PROP_STAGE, String(stageReached));
+      return;
+    }
+
+    var emailData = {
+      lastPatrolTime: (timeIdx >= 0 ? latest[timeIdx] : '') || '',
+      lastPatrolDate: (dateIdx >= 0 ? latest[dateIdx] : '') || '',
+      overdueHours: hoursSince.toFixed(1),
+      area: (areaIdx >= 0 ? latest[areaIdx] : '') || ''
+    };
+    var mail = buildOverduePatrolEmail_(stageReached, emailData);
+    MailApp.sendEmail({ to: toList.join(','), subject: mail.subject, body: mail.body, name: IMS_FROM_NAME });
+    props.setProperty(PATROL_ALERT_PROP_STAGE, String(stageReached));
+    Logger.log('scanAndNotifyOverduePatrol: stage ' + stageReached + ' sent to ' + toList.join(', '));
+  } catch (err) {
+    Logger.log('scanAndNotifyOverduePatrol: THREW — ' + err);
   }
 }
 
